@@ -1101,7 +1101,7 @@ export default function AdminPage({
     <div className="min-h-screen bg-[var(--background)]">
       {/* Page Header */}
       <div className="bg-[var(--card)] border-b border-[var(--border)] px-4 sm:px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-[var(--foreground)]">관리자 패널</h1>
             <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
@@ -1123,7 +1123,7 @@ export default function AdminPage({
 
       {/* Tab Navigation */}
       <div className="bg-[var(--card)] border-b border-[var(--border)] px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto">
+        <div>
           <nav className="flex gap-1 overflow-x-auto scrollbar-hide" role="tablist">
             {TABS.map(({ id, label, Icon }) => (
               <button
@@ -1146,7 +1146,7 @@ export default function AdminPage({
       </div>
 
       {/* Tab Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <main className="px-4 sm:px-6 py-6">
         {activeTab === 'products' && <ProductsTab {...tabProps} />}
         {activeTab === 'customers' && <CustomersTab {...tabProps} />}
         {activeTab === 'categories' && <CategoriesTab {...tabProps} />}

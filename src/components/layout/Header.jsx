@@ -1,13 +1,14 @@
 import { Menu } from 'lucide-react';
 
 const pageTitles = {
-  main: 'POS 계산기',
-  history: '주문 내역',
-  savedCarts: '저장된 장바구니',
+  dashboard: '대시보드',
+  pos: 'POS 계산기',
+  orders: '주문 내역',
+  'saved-carts': '저장된 장바구니',
   customers: '거래처 관리',
   stock: '재고 현황',
   shipping: '택배 송장',
-  textAnalyze: 'AI 주문 인식',
+  'ai-order': 'AI 주문 인식',
   admin: '관리자',
 };
 
