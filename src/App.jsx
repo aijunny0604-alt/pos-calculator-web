@@ -442,6 +442,9 @@ export default function App() {
             onOpenTextAnalyze={() => setCurrentPage('ai-order')}
             onOpenQuickCalculator={() => setShowQuickCalc(true)}
             showToast={showToast}
+            saveOrder={saveOrder}
+            customers={customers}
+            onSaveCartModal={() => setShowSaveCartModal(true)}
           />
         );
 
@@ -569,6 +572,9 @@ export default function App() {
             onOpenTextAnalyze={() => setCurrentPage('ai-order')}
             onOpenQuickCalculator={() => setShowQuickCalc(true)}
             showToast={showToast}
+            saveOrder={saveOrder}
+            customers={customers}
+            onSaveCartModal={() => setShowSaveCartModal(true)}
           />
         );
     }
