@@ -1,0 +1,53 @@
+import { Calculator, ClipboardList, ShoppingCart, Users, Package, Truck, Brain, Settings } from 'lucide-react';
+
+const navItems = [
+  { id: 'main', label: 'POS 계산기', icon: Calculator },
+  { id: 'history', label: '주문 내역', icon: ClipboardList },
+  { id: 'savedCarts', label: '저장된 장바구니', icon: ShoppingCart },
+  { id: 'customers', label: '거래처 관리', icon: Users },
+  { id: 'stock', label: '재고 현황', icon: Package },
+  { id: 'shipping', label: '택배 송장', icon: Truck },
+  { id: 'textAnalyze', label: 'AI 주문 인식', icon: Brain },
+  { id: 'admin', label: '관리자', icon: Settings },
+];
+
+export default function Sidebar({ currentPage, onNavigate, isOnline }) {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Logo */}
+      <div className="flex items-center gap-2 h-14 px-4 border-b border-[var(--border)]">
+        <Calculator className="w-6 h-6 text-[var(--primary)]" />
+        <span className="font-bold text-lg">POS Calculator</span>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        {navItems.map(({ id, label, icon: Icon }) => {
+          const isActive = currentPage === id;
+          return (
+            <button
+              key={id}
+              onClick={() => onNavigate(id)}
+              className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                  : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              {label}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Connection Status */}
+      <div className="p-3 border-t border-[var(--border)]">
+        <div className="flex items-center gap-2 px-3 py-2 text-xs text-[var(--muted-foreground)]">
+          <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-[var(--success)]' : 'bg-[var(--destructive)]'}`} />
+          {isOnline ? '클라우드 연결됨' : '오프라인'}
+        </div>
+      </div>
+    </div>
+  );
+}
