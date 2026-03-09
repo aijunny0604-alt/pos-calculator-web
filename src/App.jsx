@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import Toast from '@/components/ui/Toast';
 
+import Dashboard from '@/pages/Dashboard';
 import MainPOS from '@/pages/MainPOS';
 import OrderHistory from '@/pages/OrderHistory';
 import OrderDetail from '@/pages/OrderDetail';
@@ -21,7 +22,7 @@ import { formatPrice } from '@/lib/utils';
 
 export default function App() {
   // ─── Navigation ───────────────────────────────────────────────
-  const [currentPage, setCurrentPage] = useState('pos');
+  const [currentPage, setCurrentPage] = useState('dashboard');
 
   // ─── Core data ────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
@@ -430,6 +431,18 @@ export default function App() {
   // ─── Page renderer ────────────────────────────────────────────
   const renderPage = () => {
     switch (currentPage) {
+      case 'dashboard':
+        return (
+          <Dashboard
+            orders={orders}
+            products={products}
+            savedCarts={savedCarts}
+            customers={customers}
+            supabaseConnected={supabaseConnected}
+            setCurrentPage={setCurrentPage}
+          />
+        );
+
       case 'pos':
         return (
           <MainPOS
@@ -562,19 +575,13 @@ export default function App() {
 
       default:
         return (
-          <MainPOS
+          <Dashboard
+            orders={orders}
             products={products}
-            cart={cart}
-            setCart={setCart}
-            priceType={priceType}
-            setPriceType={setPriceType}
-            onOpenOrder={() => setCurrentPage('orders')}
-            onOpenTextAnalyze={() => setCurrentPage('ai-order')}
-            onOpenQuickCalculator={() => setShowQuickCalc(true)}
-            showToast={showToast}
-            saveOrder={saveOrder}
+            savedCarts={savedCarts}
             customers={customers}
-            onSaveCartModal={() => setShowSaveCartModal(true)}
+            supabaseConnected={supabaseConnected}
+            setCurrentPage={setCurrentPage}
           />
         );
     }

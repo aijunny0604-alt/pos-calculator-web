@@ -1,13 +1,14 @@
-import { Calculator, ClipboardList, ShoppingCart, Users, Package, Truck, Brain, Settings } from 'lucide-react';
+import { LayoutDashboard, Calculator, ClipboardList, ShoppingCart, Users, Package, Truck, Brain, Settings } from 'lucide-react';
 
 const navItems = [
-  { id: 'main', label: 'POS 계산기', icon: Calculator },
-  { id: 'history', label: '주문 내역', icon: ClipboardList },
-  { id: 'savedCarts', label: '저장된 장바구니', icon: ShoppingCart },
+  { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
+  { id: 'pos', label: 'POS 계산기', icon: Calculator },
+  { id: 'orders', label: '주문 내역', icon: ClipboardList },
+  { id: 'saved-carts', label: '저장된 장바구니', icon: ShoppingCart },
   { id: 'customers', label: '거래처 관리', icon: Users },
   { id: 'stock', label: '재고 현황', icon: Package },
   { id: 'shipping', label: '택배 송장', icon: Truck },
-  { id: 'textAnalyze', label: 'AI 주문 인식', icon: Brain },
+  { id: 'ai-order', label: 'AI 주문 인식', icon: Brain },
   { id: 'admin', label: '관리자', icon: Settings },
 ];
 

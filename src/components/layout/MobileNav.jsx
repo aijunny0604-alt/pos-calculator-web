@@ -1,9 +1,10 @@
-import { Calculator, ClipboardList, ShoppingCart, Users, Settings } from 'lucide-react';
+import { LayoutDashboard, Calculator, ClipboardList, ShoppingCart, Users, Settings } from 'lucide-react';
 
 const mobileNavItems = [
-  { id: 'main', label: 'POS', icon: Calculator },
-  { id: 'history', label: '주문', icon: ClipboardList },
-  { id: 'savedCarts', label: '장바구니', icon: ShoppingCart },
+  { id: 'dashboard', label: '홈', icon: LayoutDashboard },
+  { id: 'pos', label: 'POS', icon: Calculator },
+  { id: 'orders', label: '주문', icon: ClipboardList },
+  { id: 'saved-carts', label: '장바구니', icon: ShoppingCart },
   { id: 'customers', label: '거래처', icon: Users },
   { id: 'admin', label: '관리', icon: Settings },
 ];
