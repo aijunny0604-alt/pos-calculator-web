@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import {
-  ArrowLeft, Building, Search, Phone, MapPin, ChevronDown, ChevronRight,
-  Receipt, Copy, RotateCcw, X, Minus, Plus
+  ArrowLeft, Menu, Building, Search, Phone, MapPin, ChevronDown, ChevronRight,
+  Receipt, Copy, RotateCcw, X, Minus, Plus, Maximize2, Minimize2
 } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatPrice, formatDate, calcExVat, handleSearchFocus } from '@/lib/utils';
+import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 export default function CustomerList({
   customers,
   orders = [],
   onBack,
+  onAddCustomer,
   onSaveCustomerReturn,
   onRefreshOrders,
   onUpdateOrder,
@@ -23,6 +25,9 @@ export default function CustomerList({
   const [blacklistFilter, setBlacklistFilter] = useState('all');
   const [isReturning, setIsReturning] = useState(false);
   const [returnItems, setReturnItems] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', address: '', memo: '' });
+  const { isFullscreen: isDetailFullscreen, toggleFullscreen: toggleDetailFullscreen } = useModalFullscreen();
 
   const blacklistStats = {
     total: (customers || []).length,
@@ -173,20 +178,38 @@ export default function CustomerList({
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex flex-col">
+    <div className="h-full bg-[var(--background)] flex flex-col">
       {/* Header */}
       <header className="bg-[var(--card)] border-b border-[var(--border)] sticky top-0 z-40">
         <div className="w-full px-4 pt-3 pb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <button
-                onClick={selectedCustomer ? () => setSelectedCustomer(null) : onBack}
-                className="p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+              {/* Mobile: menu button (only at list level) or back arrow (when customer selected) */}
+              {selectedCustomer ? (
+                <button
+                  onClick={() => setSelectedCustomer(null)}
+                  className="p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+                    className="md:hidden p-2 rounded-lg transition-colors hover:bg-[var(--accent)]"
+                  >
+                    <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+                  </button>
+                  <button
+                    onClick={onBack}
+                    className="hidden md:block p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                </>
+              )}
               <div className="flex items-center gap-2">
-                <Building className="w-5 h-5 text-green-600" />
+                <Building className="w-5 h-5" style={{ color: 'var(--success)' }} />
                 <div>
                   <h1 className="text-base font-bold">
                     {selectedCustomer ? selectedCustomer.name : '거래처 목록'}
@@ -201,12 +224,24 @@ export default function CustomerList({
               </div>
             </div>
             {!selectedCustomer && (
-              <button
-                onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)}
-                className="p-2 border border-[var(--border)] hover:bg-[var(--accent)] rounded-lg transition-colors"
-              >
-                <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isHeaderCollapsed ? 'rotate-180' : ''}`} />
-              </button>
+              <div className="flex items-center gap-2">
+                {onAddCustomer && (
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors text-white"
+                    style={{ background: 'var(--success)' }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">거래처 등록</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)}
+                  className="p-2 border border-[var(--border)] hover:bg-[var(--accent)] rounded-lg transition-colors"
+                >
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isHeaderCollapsed ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
             )}
           </div>
 
@@ -242,8 +277,26 @@ export default function CustomerList({
               <div className="flex items-center gap-2 text-xs">
                 <span className="text-[var(--muted-foreground)]">현황:</span>
                 <span className="px-2 py-1 bg-[var(--secondary)] border border-[var(--border)] rounded-lg">전체 {blacklistStats.total}</span>
-                <span className="px-2 py-1 bg-green-50 border border-green-200 text-green-700 rounded-lg">정상 {blacklistStats.normal}</span>
-                <span className="px-2 py-1 bg-red-50 border border-red-200 text-red-700 rounded-lg">블랙리스트 {blacklistStats.blacklist}</span>
+                <span
+                  className="px-2 py-1 rounded-lg"
+                  style={{
+                    background: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--success) 40%, var(--border))',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    color: 'var(--success)'
+                  }}
+                >정상 {blacklistStats.normal}</span>
+                <span
+                  className="px-2 py-1 rounded-lg"
+                  style={{
+                    background: 'color-mix(in srgb, var(--destructive) 12%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--destructive) 40%, var(--border))',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    color: 'var(--destructive)'
+                  }}
+                >블랙리스트 {blacklistStats.blacklist}</span>
               </div>
 
               {/* Blacklist filter */}
@@ -258,13 +311,18 @@ export default function CustomerList({
                     onClick={() => setBlacklistFilter(key)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       blacklistFilter === key
-                        ? key === 'blacklist'
-                          ? 'bg-red-500 text-white'
-                          : key === 'normal'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-[var(--primary)] text-white'
+                        ? key === 'all'
+                          ? 'bg-[var(--primary)] text-white'
+                          : 'text-white'
                         : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'
                     }`}
+                    style={
+                      blacklistFilter === key && key === 'blacklist'
+                        ? { background: 'var(--destructive)', color: 'white' }
+                        : blacklistFilter === key && key === 'normal'
+                          ? { background: 'var(--success)', color: 'white' }
+                          : undefined
+                    }
                   >
                     {label}
                   </button>
@@ -282,17 +340,17 @@ export default function CustomerList({
             /* Customer detail view */
             <>
               {/* Customer info card */}
-              <div className="bg-[var(--card)] rounded-lg p-4 mb-4 border border-[var(--border)]">
+              <div className="bg-[var(--card)] rounded-xl p-4 mb-4 border border-[var(--border)]">
                 <div className="flex flex-wrap gap-3 text-sm">
                   {selectedCustomer.phone && (
                     <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      <Phone className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
                       <span>{selectedCustomer.phone}</span>
                     </div>
                   )}
                   {selectedCustomer.address && (
                     <div className="flex items-center gap-2 flex-1">
-                      <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
                       <span className="text-[var(--muted-foreground)]">{selectedCustomer.address}</span>
                     </div>
                   )}
@@ -306,7 +364,7 @@ export default function CustomerList({
                   <div className="mt-2 pt-2 border-t border-[var(--border)]">
                     <StatusBadge status="blacklist" />
                     {selectedCustomer.blacklist_reason && (
-                      <p className="text-red-600 text-xs mt-1">사유: {selectedCustomer.blacklist_reason}</p>
+                      <p className="text-xs mt-1" style={{ color: 'var(--destructive)' }}>사유: {selectedCustomer.blacklist_reason}</p>
                     )}
                   </div>
                 )}
@@ -322,32 +380,38 @@ export default function CustomerList({
                 const vatAmount = netAmount - supplyAmount;
                 const returnCount = customerOrders.filter(o => o.returns && o.returns.length > 0).length;
                 return (
-                  <div className="rounded-lg p-4 mb-4 border border-green-200 bg-green-50">
+                  <div
+                    className="rounded-xl p-4 mb-4 border"
+                    style={{
+                      borderColor: 'color-mix(in srgb, var(--success) 40%, var(--border))',
+                      background: 'color-mix(in srgb, var(--success) 12%, transparent)'
+                    }}
+                  >
                     <div className="flex items-center justify-between flex-wrap gap-4">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-lg">
-                          <Receipt className="w-5 h-5 text-green-700" />
+                        <div className="p-2 rounded-lg" style={{ background: 'color-mix(in srgb, var(--success) 20%, transparent)' }}>
+                          <Receipt className="w-5 h-5" style={{ color: 'var(--success)' }} />
                         </div>
                         <div>
                           <p className="text-[var(--muted-foreground)] text-xs">총 주문 금액</p>
                           {totalReturned > 0 ? (
                             <>
                               <p className="text-[var(--muted-foreground)] text-sm line-through">{formatPrice(totalAmount)}</p>
-                              <p className="text-green-700 font-bold text-xl">{formatPrice(netAmount)}</p>
+                              <p className="font-bold text-xl" style={{ color: 'var(--success)' }}>{formatPrice(netAmount)}</p>
                             </>
                           ) : (
-                            <p className="text-green-700 font-bold text-xl">{formatPrice(totalAmount)}</p>
+                            <p className="font-bold text-xl" style={{ color: 'var(--success)' }}>{formatPrice(totalAmount)}</p>
                           )}
                         </div>
                       </div>
                       <div className="flex gap-4 flex-wrap">
                         <div className="text-right">
                           <p className="text-[var(--muted-foreground)] text-xs">공급가액</p>
-                          <p className="text-blue-700 font-bold">{formatPrice(supplyAmount)}</p>
+                          <p className="font-bold" style={{ color: 'var(--primary)' }}>{formatPrice(supplyAmount)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-[var(--muted-foreground)] text-xs">부가세</p>
-                          <p className="text-purple-700 font-bold">{formatPrice(vatAmount)}</p>
+                          <p className="font-bold" style={{ color: 'var(--purple)' }}>{formatPrice(vatAmount)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-[var(--muted-foreground)] text-xs">주문 건수</p>
@@ -355,8 +419,8 @@ export default function CustomerList({
                         </div>
                         {totalReturned > 0 && (
                           <div className="text-right">
-                            <p className="text-orange-500 text-xs">반품 ({returnCount}건)</p>
-                            <p className="text-orange-500 font-bold">-{formatPrice(totalReturned)}</p>
+                            <p className="text-xs" style={{ color: 'var(--warning)' }}>반품 ({returnCount}건)</p>
+                            <p className="font-bold" style={{ color: 'var(--warning)' }}>-{formatPrice(totalReturned)}</p>
                           </div>
                         )}
                       </div>
@@ -371,7 +435,16 @@ export default function CustomerList({
                 {getCustomerOrders(selectedCustomer.name).length > 0 && (
                   <button
                     onClick={copyAllOrders}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 rounded-lg text-xs font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{
+                      background: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--success) 40%, var(--border))',
+                      borderWidth: '1px',
+                      borderStyle: 'solid',
+                      color: 'var(--success)'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--success) 20%, transparent)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--success) 12%, transparent)'; }}
                   >
                     <Copy className="w-3.5 h-3.5" />
                     전체 복사
@@ -391,28 +464,45 @@ export default function CustomerList({
                     <div
                       key={order.orderNumber}
                       onClick={() => setDetailOrder(order)}
-                      className={`bg-[var(--card)] rounded-lg p-4 border transition-all cursor-pointer hover:shadow-md ${
+                      className="card-interactive bg-[var(--card)] rounded-xl p-4 border cursor-pointer"
+                      style={
                         order.totalReturned > 0
-                          ? 'border-orange-200 hover:border-orange-400'
-                          : 'border-[var(--border)] hover:border-green-400'
-                      }`}
+                          ? { borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))' }
+                          : { borderColor: 'var(--border)' }
+                      }
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = order.totalReturned > 0
+                          ? 'color-mix(in srgb, var(--warning) 70%, var(--border))'
+                          : 'color-mix(in srgb, var(--success) 70%, var(--border))';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = order.totalReturned > 0
+                          ? 'color-mix(in srgb, var(--warning) 40%, var(--border))'
+                          : 'var(--border)';
+                      }}
                     >
                       {/* Card top: date + amount */}
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <span className="text-sm font-medium">{formatDate(order.createdAt)}</span>
                           {order.totalReturned > 0 && (
-                            <span className="ml-2 px-1.5 py-0.5 bg-orange-100 text-orange-600 text-xs rounded font-medium">반품</span>
+                            <span
+                              className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium"
+                              style={{
+                                background: 'color-mix(in srgb, var(--warning) 20%, transparent)',
+                                color: 'var(--warning)'
+                              }}
+                            >반품</span>
                           )}
                         </div>
                         <div className="text-right">
                           {order.totalReturned > 0 ? (
                             <>
                               <p className="text-[var(--muted-foreground)] text-xs line-through">{formatPrice(order.totalAmount)}</p>
-                              <p className="text-green-600 font-bold">{formatPrice(order.totalAmount - order.totalReturned)}</p>
+                              <p className="font-bold" style={{ color: 'var(--success)' }}>{formatPrice(order.totalAmount - order.totalReturned)}</p>
                             </>
                           ) : (
-                            <p className="text-green-600 font-bold">{formatPrice(order.totalAmount)}</p>
+                            <p className="font-bold" style={{ color: 'var(--success)' }}>{formatPrice(order.totalAmount)}</p>
                           )}
                         </div>
                       </div>
@@ -432,21 +522,21 @@ export default function CustomerList({
                         </div>
                         {/* Returns summary */}
                         {order.returns && order.returns.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-orange-200">
-                            <p className="text-orange-600 text-xs font-medium mb-1">반품:</p>
+                          <div className="mt-2 pt-2" style={{ borderTop: '1px solid color-mix(in srgb, var(--warning) 40%, var(--border))' }}>
+                            <p className="text-xs font-medium mb-1" style={{ color: 'var(--warning)' }}>반품:</p>
                             {order.returns.slice(0, 2).map((r, idx) => (
                               <div key={idx} className="flex justify-between text-xs">
-                                <span className="text-orange-500 truncate flex-1 mr-2">{r.itemName} x{r.quantity}</span>
-                                <span className="text-orange-500 flex-shrink-0">-{formatPrice(r.total)}</span>
+                                <span className="truncate flex-1 mr-2" style={{ color: 'var(--warning)' }}>{r.itemName} x{r.quantity}</span>
+                                <span className="flex-shrink-0" style={{ color: 'var(--warning)' }}>-{formatPrice(r.total)}</span>
                               </div>
                             ))}
                             {order.returns.length > 2 && (
-                              <p className="text-orange-400 text-xs">외 {order.returns.length - 2}건</p>
+                              <p className="text-xs" style={{ color: 'var(--warning)' }}>외 {order.returns.length - 2}건</p>
                             )}
                           </div>
                         )}
                         {order.memo && (
-                          <p className="text-blue-600 text-xs mt-2 pt-2 border-t border-[var(--border)] truncate">{order.memo}</p>
+                          <p className="text-xs mt-2 pt-2 border-t border-[var(--border)] truncate" style={{ color: 'var(--primary)' }}>{order.memo}</p>
                         )}
                       </div>
 
@@ -483,49 +573,84 @@ export default function CustomerList({
                       <div
                         key={customer.id}
                         onClick={() => setSelectedCustomer(customer)}
-                        className={`rounded-lg p-4 border transition-all cursor-pointer hover:shadow-md relative overflow-hidden ${
+                        className="card-interactive rounded-xl p-4 border cursor-pointer relative overflow-hidden"
+                        style={
                           isBlacklist
-                            ? 'bg-red-50 border-red-200 hover:border-red-400 border-l-4 border-l-red-500'
-                            : 'bg-[var(--card)] border-[var(--border)] hover:border-green-400 border-l-4 border-l-transparent hover:border-l-green-500'
-                        }`}
+                            ? {
+                                background: 'color-mix(in srgb, var(--destructive) 12%, transparent)',
+                                borderColor: 'color-mix(in srgb, var(--destructive) 40%, var(--border))',
+                                borderLeftWidth: '4px',
+                                borderLeftColor: 'var(--destructive)'
+                              }
+                            : {
+                                background: 'var(--card)',
+                                borderColor: 'var(--border)',
+                                borderLeftWidth: '4px',
+                                borderLeftColor: 'transparent'
+                              }
+                        }
+                        onMouseEnter={(e) => {
+                          if (isBlacklist) {
+                            e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--destructive) 70%, var(--border))';
+                            e.currentTarget.style.borderLeftColor = 'var(--destructive)';
+                          } else {
+                            e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--success) 70%, var(--border))';
+                            e.currentTarget.style.borderLeftColor = 'color-mix(in srgb, var(--success) 70%, var(--border))';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (isBlacklist) {
+                            e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--destructive) 40%, var(--border))';
+                            e.currentTarget.style.borderLeftColor = 'var(--destructive)';
+                          } else {
+                            e.currentTarget.style.borderColor = 'var(--border)';
+                            e.currentTarget.style.borderLeftColor = 'transparent';
+                          }
+                        }}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
-                              {isBlacklist && <span className="text-red-500 flex-shrink-0">🚫</span>}
-                              <h3 className={`font-semibold truncate ${isBlacklist ? 'text-red-700' : ''}`}>
+                              {isBlacklist && <span className="flex-shrink-0" style={{ color: 'var(--destructive)' }}>🚫</span>}
+                              <h3 className="font-semibold truncate" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>
                                 {customer.name}
                               </h3>
                               {isBlacklist && (
                                 <StatusBadge status="blacklist" className="flex-shrink-0" />
                               )}
                               {orderCount > 0 && (
-                                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium flex-shrink-0">
+                                <span
+                                  className="px-2 py-0.5 text-xs rounded-full font-medium flex-shrink-0"
+                                  style={{
+                                    background: 'color-mix(in srgb, var(--success) 20%, transparent)',
+                                    color: 'var(--success)'
+                                  }}
+                                >
                                   {orderCount}건
                                 </span>
                               )}
                             </div>
 
                             {isBlacklist && customer.blacklist_reason && (
-                              <p className="text-xs text-red-500 mb-1">{customer.blacklist_reason}</p>
+                              <p className="text-xs mb-1" style={{ color: 'var(--destructive)' }}>{customer.blacklist_reason}</p>
                             )}
 
                             <div className="flex items-center gap-1.5 mt-1">
-                              <Phone className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                              <Phone className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--success)' }} />
                               <span className={`text-sm ${customer.phone ? '' : 'text-[var(--muted-foreground)]'}`}>
                                 {customer.phone || '전화번호 미등록'}
                               </span>
                             </div>
 
                             <div className="flex items-start gap-1.5 mt-1">
-                              <MapPin className="w-3.5 h-3.5 text-green-600 flex-shrink-0 mt-0.5" />
+                              <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />
                               <span className={`text-sm truncate ${customer.address ? 'text-[var(--muted-foreground)]' : 'text-[var(--muted-foreground)]'}`}>
                                 {customer.address || '주소 미등록'}
                               </span>
                             </div>
 
                             {totalAmount > 0 && (
-                              <p className="text-blue-600 text-xs mt-2 font-medium">
+                              <p className="text-xs mt-2 font-medium" style={{ color: 'var(--primary)' }}>
                                 총 거래: {formatPrice(totalAmount)}
                               </p>
                             )}
@@ -545,15 +670,20 @@ export default function CustomerList({
       {/* Order detail modal */}
       {detailOrder && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isDetailFullscreen ? '0' : '1rem' }}
           onClick={() => { if (!isReturning) { setDetailOrder(null); setIsReturning(false); setReturnItems([]); } }}
         >
           <div
-            className="bg-[var(--card)] rounded-xl w-full max-w-lg border border-[var(--border)] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            className="bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col animate-modal-up modal-fs-transition"
+            style={{ maxWidth: isDetailFullscreen ? '100vw' : '42rem', maxHeight: isDetailFullscreen ? '100vh' : '90vh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal header */}
-            <div className={`px-5 py-4 flex-shrink-0 ${detailOrder.totalReturned > 0 ? 'bg-orange-500' : 'bg-green-600'}`}>
+            <div
+              className="px-5 py-4 flex-shrink-0"
+              style={{ background: detailOrder.totalReturned > 0 ? 'var(--warning)' : 'var(--success)' }}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
@@ -568,11 +698,18 @@ export default function CustomerList({
                         </span>
                       )}
                     </div>
-                    <p className={`text-sm ${detailOrder.totalReturned > 0 ? 'text-orange-100' : 'text-green-100'}`}>
+                    <p className="text-sm" style={{ color: detailOrder.totalReturned > 0 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.8)' }}>
                       {formatDate(detailOrder.createdAt)}
                     </p>
                   </div>
                 </div>
+                <button
+                  onClick={toggleDetailFullscreen}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  title={isDetailFullscreen ? '원래 크기' : '전체화면'}
+                >
+                  {isDetailFullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
+                </button>
                 <button
                   onClick={() => { setDetailOrder(null); setIsReturning(false); setReturnItems([]); }}
                   className="p-2 hover:bg-white/20 rounded-lg transition-colors"
@@ -589,22 +726,22 @@ export default function CustomerList({
                 <div className={`grid gap-4 text-center ${detailOrder.totalReturned > 0 ? 'grid-cols-2' : 'grid-cols-3'}`}>
                   <div>
                     <p className="text-[var(--muted-foreground)] text-xs mb-1">총 금액</p>
-                    <p className="text-green-600 font-bold text-lg">{formatPrice(detailOrder.totalAmount)}</p>
+                    <p className="font-bold text-lg" style={{ color: 'var(--success)' }}>{formatPrice(detailOrder.totalAmount)}</p>
                   </div>
                   {detailOrder.totalReturned > 0 ? (
                     <div>
                       <p className="text-[var(--muted-foreground)] text-xs mb-1">반품 금액</p>
-                      <p className="text-orange-500 font-bold text-lg">-{formatPrice(detailOrder.totalReturned)}</p>
+                      <p className="font-bold text-lg" style={{ color: 'var(--warning)' }}>-{formatPrice(detailOrder.totalReturned)}</p>
                     </div>
                   ) : (
                     <>
                       <div>
                         <p className="text-[var(--muted-foreground)] text-xs mb-1">공급가액</p>
-                        <p className="text-blue-600 font-bold text-lg">{formatPrice(calcExVat(detailOrder.totalAmount))}</p>
+                        <p className="font-bold text-lg" style={{ color: 'var(--primary)' }}>{formatPrice(calcExVat(detailOrder.totalAmount))}</p>
                       </div>
                       <div>
                         <p className="text-[var(--muted-foreground)] text-xs mb-1">부가세</p>
-                        <p className="text-purple-600 font-bold text-lg">{formatPrice(detailOrder.totalAmount - calcExVat(detailOrder.totalAmount))}</p>
+                        <p className="font-bold text-lg" style={{ color: 'var(--purple)' }}>{formatPrice(detailOrder.totalAmount - calcExVat(detailOrder.totalAmount))}</p>
                       </div>
                     </>
                   )}
@@ -631,19 +768,32 @@ export default function CustomerList({
                       return sum;
                     }, 0);
                     return (
-                      <div key={idx} className={`flex justify-between items-center p-3 ${returnedQty > 0 ? 'bg-orange-50' : ''}`}>
+                      <div
+                        key={idx}
+                        className="flex justify-between items-center p-3"
+                        style={returnedQty > 0 ? { background: 'color-mix(in srgb, var(--warning) 12%, transparent)' } : undefined}
+                      >
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-medium">{item.name}</p>
                             {returnedQty > 0 && (
-                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded font-medium">
+                              <span
+                                className="px-1.5 py-0.5 text-[10px] rounded font-medium"
+                                style={{
+                                  background: 'color-mix(in srgb, var(--warning) 20%, transparent)',
+                                  color: 'var(--warning)'
+                                }}
+                              >
                                 반품 {returnedQty}개
                               </span>
                             )}
                           </div>
                           <p className="text-[var(--muted-foreground)] text-xs">수량: {item.quantity}개 × {formatPrice(item.price)}</p>
                         </div>
-                        <p className={`font-semibold ${returnedQty > 0 ? 'text-orange-500 line-through' : 'text-green-600'}`}>
+                        <p
+                          className={`font-semibold ${returnedQty > 0 ? 'line-through' : ''}`}
+                          style={{ color: returnedQty > 0 ? 'var(--warning)' : 'var(--success)' }}
+                        >
                           {formatPrice(item.price * item.quantity)}
                         </p>
                       </div>
@@ -667,21 +817,30 @@ export default function CustomerList({
 
                 return (
                   <div className="mb-4">
-                    <p className="text-orange-500 text-xs mb-2 font-medium flex items-center gap-1">
+                    <p className="text-xs mb-2 font-medium flex items-center gap-1" style={{ color: 'var(--warning)' }}>
                       <RotateCcw className="w-3 h-3" /> 반품 내역 ({returnGroups.length}건)
                     </p>
-                    <div className="bg-orange-50 rounded-lg border border-orange-200 divide-y divide-orange-100">
+                    <div
+                      className="rounded-lg divide-y"
+                      style={{
+                        background: 'color-mix(in srgb, var(--warning) 12%, transparent)',
+                        borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))',
+                        borderWidth: '1px',
+                        borderStyle: 'solid',
+                        '--tw-divide-color': 'color-mix(in srgb, var(--warning) 20%, transparent)'
+                      }}
+                    >
                       {returnGroups.map((group, idx) => (
                         <div key={idx} className="p-3">
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-orange-600 text-xs">{formatDate(group.returnedAt)}</span>
-                            <span className="text-orange-600 font-semibold text-sm">-{formatPrice(group.totalAmount)}</span>
+                            <span className="text-xs" style={{ color: 'var(--warning)' }}>{formatDate(group.returnedAt)}</span>
+                            <span className="font-semibold text-sm" style={{ color: 'var(--warning)' }}>-{formatPrice(group.totalAmount)}</span>
                           </div>
                           <div className="space-y-1">
                             {group.items.map((item, itemIdx) => (
                               <div key={itemIdx} className="flex justify-between items-center text-xs">
                                 <span className="text-[var(--muted-foreground)]">{item.itemName || item.name} x{item.quantity || item.returnQuantity}</span>
-                                <span className="text-orange-500">-{formatPrice(item.total || (item.price * (item.quantity || item.returnQuantity)))}</span>
+                                <span style={{ color: 'var(--warning)' }}>-{formatPrice(item.total || (item.price * (item.quantity || item.returnQuantity)))}</span>
                               </div>
                             ))}
                           </div>
@@ -694,8 +853,16 @@ export default function CustomerList({
 
               {/* Memo */}
               {detailOrder.memo && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-blue-700 text-xs font-medium mb-1">메모</p>
+                <div
+                  className="rounded-lg p-3"
+                  style={{
+                    background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--primary) 40%, var(--border))',
+                    borderWidth: '1px',
+                    borderStyle: 'solid'
+                  }}
+                >
+                  <p className="text-xs font-medium mb-1" style={{ color: 'var(--primary)' }}>메모</p>
                   <p className="text-sm">{detailOrder.memo}</p>
                 </div>
               )}
@@ -704,8 +871,16 @@ export default function CustomerList({
             {/* Return form */}
             {isReturning && (
               <div className="px-4 pb-3">
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                  <p className="text-orange-600 text-xs font-bold mb-3 flex items-center gap-1">
+                <div
+                  className="rounded-lg p-3"
+                  style={{
+                    background: 'color-mix(in srgb, var(--warning) 12%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))',
+                    borderWidth: '1px',
+                    borderStyle: 'solid'
+                  }}
+                >
+                  <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: 'var(--warning)' }}>
                     <RotateCcw className="w-3.5 h-3.5" /> 반품 수량 선택
                   </p>
                   <div className="space-y-2">
@@ -722,7 +897,7 @@ export default function CustomerList({
                           >
                             <Minus className="w-3 h-3" />
                           </button>
-                          <span className={`w-8 text-center text-sm font-bold ${item.returnQty > 0 ? 'text-orange-500' : 'text-[var(--muted-foreground)]'}`}>
+                          <span className="w-8 text-center text-sm font-bold" style={{ color: item.returnQty > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}>
                             {item.returnQty}
                           </span>
                           <button
@@ -736,8 +911,8 @@ export default function CustomerList({
                     ))}
                   </div>
                   {returnItems.some(ri => ri.returnQty > 0) && (
-                    <div className="mt-3 pt-3 border-t border-orange-200 text-right">
-                      <span className="text-orange-600 font-bold text-sm">
+                    <div className="mt-3 pt-3 text-right" style={{ borderTop: '1px solid color-mix(in srgb, var(--warning) 40%, var(--border))' }}>
+                      <span className="font-bold text-sm" style={{ color: 'var(--warning)' }}>
                         반품 금액: -{formatPrice(returnItems.reduce((sum, ri) => sum + ri.price * ri.returnQty, 0))}
                       </span>
                     </div>
@@ -758,7 +933,10 @@ export default function CustomerList({
                   </button>
                   <button
                     onClick={saveReturn}
-                    className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 text-white rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                    style={{ background: 'var(--warning)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                   >
                     <RotateCcw className="w-4 h-4" />
                     반품 확정
@@ -786,7 +964,10 @@ export default function CustomerList({
                       navigator.clipboard.writeText(lines.join('\n'));
                       if (showToast) showToast('복사되었습니다');
                     }}
-                    className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 text-white rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                    style={{ background: 'var(--success)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                   >
                     <Copy className="w-4 h-4" />
                     주문 복사
@@ -794,7 +975,10 @@ export default function CustomerList({
                   {onSaveCustomerReturn && (
                     <button
                       onClick={startReturn}
-                      className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                      className="flex-1 py-2.5 text-white rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                      style={{ background: 'var(--warning)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                     >
                       <RotateCcw className="w-4 h-4" />
                       반품 처리
@@ -802,6 +986,84 @@ export default function CustomerList({
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 거래처 등록 모달 */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>거래처 등록</h2>
+              <button onClick={() => { setShowAddModal(false); setNewCustomer({ name: '', phone: '', address: '', memo: '' }); }} className="p-1.5 rounded-lg hover:bg-[var(--accent)] transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--foreground)' }}>업체명 <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <input
+                  type="text"
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                  placeholder="업체명 입력"
+                  className="w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                  style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--foreground)' }}>연락처</label>
+                <input
+                  type="tel"
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                  placeholder="연락처 입력"
+                  className="w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                  style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--foreground)' }}>주소</label>
+                <input
+                  type="text"
+                  value={newCustomer.address}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
+                  placeholder="주소 입력"
+                  className="w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                  style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--foreground)' }}>메모</label>
+                <input
+                  type="text"
+                  value={newCustomer.memo}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, memo: e.target.value })}
+                  placeholder="메모 입력"
+                  className="w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                  style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                />
+              </div>
+            </div>
+            <div className="px-5 pb-5">
+              <button
+                onClick={async () => {
+                  if (!newCustomer.name.trim()) { showToast?.('업체명을 입력하세요', 'error'); return; }
+                  const result = await onAddCustomer(newCustomer);
+                  if (result) {
+                    setShowAddModal(false);
+                    setNewCustomer({ name: '', phone: '', address: '', memo: '' });
+                  }
+                }}
+                disabled={!newCustomer.name.trim()}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-50"
+                style={{ background: 'var(--success)' }}
+              >
+                등록
+              </button>
             </div>
           </div>
         </div>

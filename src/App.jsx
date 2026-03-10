@@ -10,6 +10,7 @@ import SavedCarts from '@/pages/SavedCarts';
 import CustomerList from '@/pages/CustomerList';
 import ShippingLabel from '@/pages/ShippingLabel';
 import StockOverview from '@/pages/StockOverview';
+import BurnwayStock from '@/pages/BurnwayStock';
 import TextAnalyze from '@/pages/TextAnalyze';
 import AdminPage from '@/pages/AdminPage';
 import SaveCartModal from '@/pages/SaveCartModal';
@@ -33,9 +34,10 @@ export default function App() {
 
   // ─── POS state ────────────────────────────────────────────────
   const [cart, setCart] = useState([]);
-  const [priceType, setPriceType] = useState('retail');
+  const [priceType, setPriceType] = useState('wholesale');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [loadedCustomer, setLoadedCustomer] = useState(null);
 
   // ─── Modal / overlay state ────────────────────────────────────
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -188,6 +190,25 @@ export default function App() {
     };
   }, [supabaseConnected]);
 
+  // ─── Derived: badge counts ──────────────────────────────────
+  const todayOrderCount = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return orders.filter((o) => {
+      if (!o.createdAt) return false;
+      return new Date(o.createdAt).toISOString().split('T')[0] === today;
+    }).length;
+  }, [orders]);
+
+  const savedCartCount = useMemo(() => savedCarts.length, [savedCarts]);
+
+  const shippingCount = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return orders.filter((o) => {
+      if (!o.createdAt) return false;
+      return new Date(o.createdAt).toISOString().split('T')[0] === today;
+    }).length;
+  }, [orders]);
+
   // ─── Derived: product categories ──────────────────────────────
   const productCategories = useMemo(
     () => ['전체', ...new Set(products.map((p) => p.category).filter(Boolean))],
@@ -213,8 +234,10 @@ export default function App() {
   // ─── Save order (with same-day merge logic) ───────────────────
   const saveOrder = useCallback(
     async (orderData) => {
-      const { customer_name, items, total_amount, price_type } = orderData;
-      const totalVal = total_amount || 0;
+      const customer_name = orderData.customer_name || orderData.customerName || '일반고객';
+      const items = orderData.items || [];
+      const price_type = orderData.price_type || orderData.priceType || 'wholesale';
+      const totalVal = orderData.total_amount || orderData.totalAmount || 0;
 
       // Auto-register unknown customers (skip 일반고객)
       if (
@@ -280,18 +303,18 @@ export default function App() {
       }
 
       // New order
+      const orderId = orderData.orderNumber || orderData.id || `ORD-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(Math.floor(Math.random()*10000)).padStart(4,'0')}`;
       const created = await supabase.saveOrder({
+        id: orderId,
         customer_name,
-        customer_phone: orderData.customer_phone || '',
-        customer_address: orderData.customer_address || '',
+        customer_phone: orderData.customer_phone || orderData.customerPhone || '',
+        customer_address: orderData.customer_address || orderData.customerAddress || '',
         price_type: price_type || 'wholesale',
         items,
         total: totalVal,
         subtotal: Math.round(totalVal / 1.1),
         vat: totalVal - Math.round(totalVal / 1.1),
         memo: orderData.memo || null,
-        status: 'completed',
-        created_at: new Date().toISOString(),
       });
 
       if (created) {
@@ -370,12 +393,28 @@ export default function App() {
 
   const handleDeleteSavedCart = useCallback(
     async (id) => {
-      const ok = await supabase.deleteSavedCart(id);
-      if (ok) {
-        setSavedCarts((prev) => prev.filter((c) => c.id !== id));
-        showToast('삭제되었습니다', 'success');
-      } else {
-        showToast('삭제에 실패했습니다', 'error');
+      console.log('[handleDeleteSavedCart] called with id:', id, 'type:', typeof id);
+      if (!id && id !== 0) {
+        console.error('[handleDeleteSavedCart] id is falsy!');
+        showToast('삭제 실패: ID가 없습니다', 'error');
+        return;
+      }
+      try {
+        const ok = await supabase.deleteSavedCart(id);
+        console.log('[handleDeleteSavedCart] supabase result:', ok);
+        if (ok) {
+          setSavedCarts((prev) => {
+            const filtered = prev.filter((c) => String(c.id) !== String(id));
+            console.log('[handleDeleteSavedCart] state:', prev.length, '->', filtered.length);
+            return filtered;
+          });
+          showToast('삭제되었습니다', 'success');
+        } else {
+          showToast('삭제에 실패했습니다', 'error');
+        }
+      } catch (err) {
+        console.error('[handleDeleteSavedCart] error:', err);
+        showToast('삭제 중 오류가 발생했습니다', 'error');
       }
     },
     [showToast]
@@ -388,6 +427,20 @@ export default function App() {
       showToast('전체 삭제되었습니다', 'success');
     } else {
       showToast('삭제에 실패했습니다', 'error');
+    }
+  }, [showToast]);
+
+  // ─── Customer add handler ──────────────────────────────────
+  const handleAddCustomer = useCallback(async (customerData) => {
+    const result = await supabase.addCustomer(customerData);
+    if (result) {
+      const data = await supabase.getCustomers();
+      if (data) setCustomers(data);
+      showToast('거래처가 등록되었습니다', 'success');
+      return result;
+    } else {
+      showToast('거래처 등록에 실패했습니다', 'error');
+      return null;
     }
   }, [showToast]);
 
@@ -421,6 +474,11 @@ export default function App() {
     (cartData) => {
       setCart(cartData.items || []);
       setPriceType(cartData.price_type || 'wholesale');
+      setLoadedCustomer({
+        name: cartData.name || '',
+        phone: cartData.phone || '',
+        address: cartData.address || '',
+      });
       setCurrentPage('pos');
       showToast('장바구니를 불러왔습니다', 'success');
     },
@@ -484,6 +542,9 @@ export default function App() {
             saveOrder={saveOrder}
             customers={customers}
             onSaveCartModal={() => setShowSaveCartModal(true)}
+            onBack={() => setCurrentPage('dashboard')}
+            loadedCustomer={loadedCustomer}
+            onClearLoadedCustomer={() => setLoadedCustomer(null)}
           />
         );
 
@@ -548,6 +609,7 @@ export default function App() {
             customers={customers}
             orders={orders}
             onBack={() => setCurrentPage('pos')}
+            onAddCustomer={handleAddCustomer}
             onSaveCustomerReturn={handleSaveCustomerReturn}
             onRefreshOrders={refreshOrders}
             onUpdateOrder={handleUpdateOrder}
@@ -562,6 +624,15 @@ export default function App() {
             categories={productCategories}
             formatPrice={formatPrice}
             onBack={() => setCurrentPage('pos')}
+          />
+        );
+
+      case 'burnway-stock':
+        return (
+          <BurnwayStock
+            products={products}
+            formatPrice={formatPrice}
+            onBack={() => setCurrentPage('dashboard')}
           />
         );
 
@@ -628,6 +699,9 @@ export default function App() {
         currentPage={currentPage}
         onNavigate={setCurrentPage}
         isOnline={supabaseConnected}
+        orderCount={todayOrderCount}
+        savedCartCount={savedCartCount}
+        shippingCount={shippingCount}
       >
         {renderPage()}
       </AppLayout>
@@ -658,7 +732,33 @@ export default function App() {
         <SaveCartModal
           isOpen={showSaveCartModal}
           onSave={async (data) => {
-            await handleSaveCart(data);
+            const now = new Date();
+            const totalAmount = cart.reduce((sum, item) => {
+              const price = priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale);
+              return sum + price * item.quantity;
+            }, 0);
+            await handleSaveCart({
+              name: data.name,
+              phone: data.phone,
+              address: data.address,
+              delivery_date: data.deliveryDate,
+              status: data.status,
+              priority: data.priority,
+              memo: data.memo,
+              items: cart.map(item => ({
+                id: item.id,
+                name: item.name,
+                category: item.category,
+                wholesale: item.wholesale,
+                retail: item.retail,
+                quantity: item.quantity,
+              })),
+              total: totalAmount,
+              price_type: priceType,
+              date: now.toLocaleDateString('ko-KR'),
+              time: now.toLocaleTimeString('ko-KR'),
+              created_at: now.toISOString(),
+            });
             setShowSaveCartModal(false);
           }}
           cart={cart}

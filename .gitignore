@@ -6,3 +6,14 @@ dist/
 *.log
 # Agent memory
 .claude/
+
+# Test screenshots
+*.png
+screenshots/
+test-screenshots/
+
+# Playwright CLI
+.playwright-cli/
+
+# Test scripts
+test-pos-app.mjs

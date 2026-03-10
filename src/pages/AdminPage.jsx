@@ -1,7 +1,8 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search, Plus, Trash2, Edit, Upload, Users, Package, Tag, Percent,
-  Lock, ChevronDown, ChevronRight, X, Save, AlertTriangle,
+  Lock, ChevronDown, ChevronRight, X, Save, AlertTriangle, ShieldAlert, Fingerprint,
+  UserPlus, Download, Copy,
 } from 'lucide-react';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
@@ -12,7 +13,7 @@ import { priceData } from '../lib/priceData';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const ADMIN_PASSWORD = 'dpfldl1!';
+const ADMIN_PASSWORD = '4321';
 
 const TABS = [
   { id: 'products',    label: '제품관리',    Icon: Package },
@@ -49,7 +50,7 @@ function InputField({ label, required, error, className = '', ...props }) {
         </label>
       )}
       <input
-        className={`px-3 py-2 text-sm rounded-lg border ${
+        className={`px-4 py-3 text-base rounded-lg border ${
           error ? 'border-[var(--destructive)]' : 'border-[var(--border)]'
         } bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all`}
         {...props}
@@ -61,7 +62,7 @@ function InputField({ label, required, error, className = '', ...props }) {
 
 function ActionBtn({ variant = 'primary', size = 'sm', Icon, children, className = '', ...props }) {
   const base = 'inline-flex items-center gap-1.5 font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed';
-  const sizes = { sm: 'px-3 py-1.5 text-xs', md: 'px-4 py-2 text-sm', lg: 'px-5 py-2.5 text-sm' };
+  const sizes = { sm: 'px-3 py-2 text-sm', md: 'px-5 py-2.5 text-base', lg: 'px-6 py-3 text-base' };
   const variants = {
     primary:     'bg-[var(--primary)] text-white hover:opacity-90 focus:ring-[var(--primary)]',
     secondary:   'bg-[var(--muted)] text-[var(--foreground)] hover:bg-[var(--accent)] border border-[var(--border)] focus:ring-[var(--border)]',
@@ -76,19 +77,22 @@ function ActionBtn({ variant = 'primary', size = 'sm', Icon, children, className
   );
 }
 
-function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
+function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-5xl' }) {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative bg-[var(--card)] rounded-xl shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col border border-[var(--border)]`}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-          <h2 className="text-base font-bold text-[var(--foreground)]">{title}</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-[var(--accent)] transition-colors">
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 animate-modal-backdrop"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
+    >
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className={`relative bg-[var(--card)] rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col border border-[var(--border)] animate-modal-up`}>
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-[var(--border)]">
+          <h2 className="text-lg font-bold text-[var(--foreground)]">{title}</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--accent)] transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="overflow-y-auto p-5 flex-1">{children}</div>
+        <div className="overflow-y-auto p-4 sm:p-5 flex-1">{children}</div>
       </div>
     </div>
   );
@@ -100,45 +104,156 @@ function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {
 function AdminLogin({ onSuccess }) {
   const [pw, setPw] = useState('');
   const [error, setError] = useState('');
+  const [shaking, setShaking] = useState(false);
+  const [attempts, setAttempts] = useState(0);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (pw === ADMIN_PASSWORD) {
       onSuccess();
     } else {
-      setError('비밀번호가 올바르지 않습니다.');
+      setAttempts((prev) => prev + 1);
+      setError('접근이 거부되었습니다');
+      setShaking(true);
       setPw('');
+      setTimeout(() => setShaking(false), 600);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
-      <SectionCard className="w-full max-w-sm p-8">
-        <div className="flex flex-col items-center gap-4 mb-6">
-          <div className="w-14 h-14 rounded-full bg-[var(--primary)] flex items-center justify-center">
-            <Lock className="w-7 h-7 text-white" />
+    <div className="flex-1 flex items-center justify-center p-4 admin-hazard-stripe" style={{ background: 'var(--background)', minHeight: '100%' }}>
+      {/* Outer restricted zone container */}
+      <div className="w-full max-w-md animate-admin-fade-up" style={{ animationDelay: '0.1s' }}>
+        {/* Warning banner */}
+        <div
+          className="flex items-center gap-2 px-4 py-2.5 rounded-t-xl border border-b-0"
+          style={{
+            background: 'color-mix(in srgb, var(--destructive) 10%, var(--card))',
+            borderColor: 'color-mix(in srgb, var(--destructive) 30%, var(--border))',
+          }}
+        >
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--destructive)' }} />
+          <span className="text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--destructive)' }}>
+            Restricted Area
+          </span>
+          <span className="ml-auto text-[10px] font-mono" style={{ color: 'var(--muted-foreground)' }}>
+            SEC-LEVEL: HIGH
+          </span>
+        </div>
+
+        {/* Main card */}
+        <div
+          className={`relative overflow-hidden border rounded-b-xl ${shaking ? 'animate-admin-shake' : ''} animate-admin-border-glow`}
+          style={{ background: 'var(--card)', borderColor: 'color-mix(in srgb, var(--destructive) 30%, var(--border))' }}
+        >
+          {/* Scan line overlay */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div
+              className="absolute left-0 right-0 h-px animate-admin-scan"
+              style={{ background: 'linear-gradient(90deg, transparent, var(--destructive), transparent)', opacity: 0.4 }}
+            />
           </div>
-          <div className="text-center">
-            <h1 className="text-xl font-bold text-[var(--foreground)]">관리자 로그인</h1>
-            <p className="text-sm text-[var(--muted-foreground)] mt-1">관리자 비밀번호를 입력하세요</p>
+
+          <div className="relative p-6 sm:p-8">
+            {/* Icon with pulse rings */}
+            <div className="flex justify-center mb-6">
+              <div className="relative">
+                <div
+                  className="absolute inset-0 rounded-full animate-admin-pulse-ring"
+                  style={{ background: 'var(--destructive)', opacity: 0.15 }}
+                />
+                <div
+                  className="absolute inset-0 rounded-full animate-admin-pulse-ring"
+                  style={{ background: 'var(--destructive)', opacity: 0.15, animationDelay: '0.8s' }}
+                />
+                <div
+                  className="relative w-16 h-16 rounded-full flex items-center justify-center animate-admin-icon-float"
+                  style={{ background: 'linear-gradient(135deg, var(--destructive), #dc2626)', boxShadow: '0 8px 32px color-mix(in srgb, var(--destructive) 30%, transparent)' }}
+                >
+                  <ShieldAlert className="w-8 h-8 text-white" />
+                </div>
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="text-center mb-6">
+              <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--foreground)' }}>
+                관리자 접근 인증
+              </h1>
+              <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                인가된 관리자만 접근할 수 있습니다
+              </p>
+            </div>
+
+            {/* Status indicator */}
+            <div
+              className="flex items-center justify-between px-3 py-2 rounded-lg mb-5"
+              style={{ background: 'var(--secondary)', border: '1px solid var(--border)' }}
+            >
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: attempts > 0 ? 'var(--destructive)' : 'var(--warning)', boxShadow: `0 0 6px ${attempts > 0 ? 'var(--destructive)' : 'var(--warning)'}` }}
+                />
+                <span className="text-[10px] font-mono uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
+                  {attempts > 0 ? `인증 실패 ${attempts}회` : '인증 대기 중'}
+                </span>
+              </div>
+              <Fingerprint className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                  <Lock className="w-3 h-3" />
+                  인증 코드
+                  <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <input
+                  type="password"
+                  value={pw}
+                  onChange={(e) => { setPw(e.target.value); setError(''); }}
+                  placeholder="관리자 비밀번호를 입력하세요"
+                  autoFocus
+                  required
+                  className="w-full px-4 py-3 rounded-lg border text-sm font-mono tracking-widest focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    background: 'var(--background)',
+                    borderColor: error ? 'var(--destructive)' : 'var(--border)',
+                    color: 'var(--foreground)',
+                    ...(error ? { boxShadow: '0 0 0 2px color-mix(in srgb, var(--destructive) 20%, transparent)' } : {}),
+                  }}
+                />
+                {error && (
+                  <div className="flex items-center gap-1.5 mt-2 text-xs" style={{ color: 'var(--destructive)' }}>
+                    <AlertTriangle className="w-3 h-3" />
+                    <span className="font-medium">{error}</span>
+                  </div>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-90"
+                style={{
+                  background: 'linear-gradient(135deg, var(--destructive), #dc2626)',
+                  color: 'white',
+                  boxShadow: '0 4px 14px color-mix(in srgb, var(--destructive) 30%, transparent)',
+                }}
+              >
+                <ShieldAlert className="w-4 h-4" />
+                접근 인증
+              </button>
+            </form>
+
+            {/* Footer warning */}
+            <div className="flex items-center justify-center gap-1.5 mt-5 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+              <Lock className="w-3 h-3" />
+              <span>무단 접근 시도 시 기록이 남습니다</span>
+            </div>
           </div>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <InputField
-            label="비밀번호"
-            type="password"
-            value={pw}
-            onChange={(e) => { setPw(e.target.value); setError(''); }}
-            placeholder="비밀번호 입력"
-            error={error}
-            autoFocus
-            required
-          />
-          <ActionBtn type="submit" variant="primary" size="md" className="w-full justify-center">
-            로그인
-          </ActionBtn>
-        </form>
-      </SectionCard>
+      </div>
     </div>
   );
 }
@@ -146,15 +261,58 @@ function AdminLogin({ onSuccess }) {
 // ---------------------------------------------------------------------------
 // Product Management Tab
 // ---------------------------------------------------------------------------
-function ProductsTab({ products, setProducts, supabaseConnected, showToast, supabase }) {
+function ProductsTab({ products, setProducts, supabaseConnected, showToast, supabase, initialCategory }) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+
+  useEffect(() => {
+    if (initialCategory) {
+      setCategoryFilter(initialCategory);
+    }
+  }, [initialCategory]);
   const [editTarget, setEditTarget] = useState(null);   // null = closed, {} = new, product = edit
   const [formData, setFormData] = useState(EMPTY_PRODUCT);
   const [formErrors, setFormErrors] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef();
+  const [inlineEdit, setInlineEdit] = useState(null); // { id, field, value }
+
+  const startInlineEdit = (product, field) => {
+    const value = product[field] ?? '';
+    setInlineEdit({ id: product.id, field, value: String(value) });
+  };
+
+  const saveInlineEdit = async () => {
+    if (!inlineEdit) return;
+    const { id, field, value } = inlineEdit;
+    let updateData = {};
+    if (['wholesale', 'retail', 'stock', 'min_stock'].includes(field)) {
+      updateData[field] = parseInt(value.replace(/[^0-9-]/g, '')) || 0;
+    } else {
+      updateData[field] = value;
+    }
+    try {
+      if (supabaseConnected && supabase?.saveProduct) {
+        const product = products.find(p => p.id === id);
+        const saved = await supabase.saveProduct({ ...product, ...updateData });
+        setProducts(prev => prev.map(p => p.id === id ? saved : p));
+      } else {
+        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updateData } : p));
+      }
+      showToast('수정되었습니다', 'success');
+    } catch (err) {
+      showToast('수정 실패: ' + err.message, 'error');
+    }
+    setInlineEdit(null);
+  };
+
+  const cancelInlineEdit = () => setInlineEdit(null);
+
+  const handleInlineKeyDown = (e) => {
+    if (e.key === 'Enter') saveInlineEdit();
+    else if (e.key === 'Escape') cancelInlineEdit();
+  };
 
   const displayProducts = (products && products.length > 0) ? products : priceData;
 
@@ -289,6 +447,46 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
     e.target.value = '';
   };
 
+  const exportProductsCSV = () => {
+    const BOM = '\uFEFF';
+    const headers = ['ID', '카테고리', '제품명', '도매가', '소매가', '재고', '최소재고'];
+    const rows = filtered.map(p => [
+      p.id, p.category || '', p.name || '', p.wholesale || 0, p.retail || 0, p.stock ?? 0, p.min_stock ?? 0
+    ]);
+    const csv = BOM + [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `제품목록_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    showToast('제품 목록이 저장되었습니다', 'success');
+  };
+
+  const handleDuplicate = async (product) => {
+    const newProduct = {
+      name: product.name + ' (복사)',
+      category: product.category,
+      wholesale: product.wholesale,
+      retail: product.retail,
+      stock: product.stock,
+      min_stock: product.min_stock,
+    };
+    try {
+      if (supabaseConnected && supabase?.addProduct) {
+        const saved = await supabase.addProduct(newProduct);
+        if (saved) {
+          setProducts(prev => [...prev, saved]);
+          showToast('제품이 복사되었습니다', 'success');
+        }
+      } else {
+        setProducts(prev => [...prev, { ...newProduct, id: Date.now() }]);
+        showToast('제품이 복사되었습니다', 'success');
+      }
+    } catch (err) {
+      showToast('복사 실패: ' + err.message, 'error');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
@@ -312,6 +510,9 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
           <option value="">전체 카테고리</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+        <ActionBtn variant="secondary" Icon={Download} onClick={exportProductsCSV}>
+          엑셀 백업
+        </ActionBtn>
         <ActionBtn variant="secondary" Icon={Upload} onClick={() => fileRef.current?.click()}>
           CSV 가져오기
         </ActionBtn>
@@ -331,39 +532,112 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
       {filtered.length === 0 ? (
         <EmptyState icon={Package} title="제품이 없습니다" description="제품을 추가하거나 CSV를 가져오세요" />
       ) : (
-        <SectionCard className="overflow-hidden">
+        <SectionCard>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[var(--muted)] border-b border-[var(--border)]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">제품명</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">카테고리</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">도매가</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">소매가</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden md:table-cell">재고</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden md:table-cell">최소재고</th>
-                  <th className="px-4 py-3 w-20"></th>
+                  <th className="text-left px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">제품명</th>
+                  <th className="text-left px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden sm:table-cell">카테고리</th>
+                  <th className="text-right px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">도매가</th>
+                  <th className="text-right px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden sm:table-cell">소매가</th>
+                  <th className="text-right px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden md:table-cell">재고</th>
+                  <th className="text-right px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden md:table-cell">최소재고</th>
+                  <th className="px-1 sm:px-4 py-2.5 w-14 sm:w-20"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {filtered.map(product => (
                   <tr key={product.id} className="hover:bg-[var(--accent)] transition-colors group">
-                    <td className="px-4 py-3 font-medium text-[var(--foreground)]">{product.name}</td>
-                    <td className="px-4 py-3 text-[var(--muted-foreground)]">
+                    <td className="px-2 sm:px-4 py-2.5 font-medium text-[var(--foreground)]">
+                      {inlineEdit?.id === product.id && inlineEdit?.field === 'name' ? (
+                        <input
+                          autoFocus
+                          value={inlineEdit.value}
+                          onChange={e => setInlineEdit(prev => ({ ...prev, value: e.target.value }))}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      ) : (
+                        <div className="max-w-[140px] sm:max-w-none truncate sm:whitespace-normal cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(product, 'name')}>
+                          {product.name}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-2 sm:px-4 py-2.5 text-[var(--muted-foreground)] hidden sm:table-cell">
                       <span className="px-2 py-0.5 rounded-full bg-[var(--muted)] text-xs">{product.category}</span>
                     </td>
-                    <td className="px-4 py-3 text-right text-[var(--foreground)]">{formatPrice(product.wholesale)}</td>
-                    <td className="px-4 py-3 text-right text-[var(--muted-foreground)]">
-                      {product.retail ? formatPrice(product.retail) : <span className="text-[var(--border)]">-</span>}
+                    <td className="px-2 sm:px-4 py-2.5 text-right text-[var(--foreground)]">
+                      {inlineEdit?.id === product.id && inlineEdit?.field === 'wholesale' ? (
+                        <input
+                          autoFocus
+                          type="number"
+                          value={inlineEdit.value}
+                          onChange={e => setInlineEdit(prev => ({ ...prev, value: e.target.value }))}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      ) : (
+                        <div className="cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(product, 'wholesale')}>
+                          {formatPrice(product.wholesale)}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-right text-[var(--muted-foreground)] hidden md:table-cell">
-                      {product.stock != null ? product.stock : <span className="text-[var(--border)]">-</span>}
+                    <td className="px-2 sm:px-4 py-2.5 text-right text-[var(--muted-foreground)] hidden sm:table-cell">
+                      {inlineEdit?.id === product.id && inlineEdit?.field === 'retail' ? (
+                        <input
+                          autoFocus
+                          type="number"
+                          value={inlineEdit.value}
+                          onChange={e => setInlineEdit(prev => ({ ...prev, value: e.target.value }))}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      ) : (
+                        <div className="cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(product, 'retail')}>
+                          {product.retail ? formatPrice(product.retail) : <span className="text-[var(--border)]">-</span>}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-right text-[var(--muted-foreground)] hidden md:table-cell">
-                      {product.min_stock != null ? product.min_stock : <span className="text-[var(--border)]">-</span>}
+                    <td className="px-2 sm:px-4 py-2.5 text-right text-[var(--muted-foreground)] hidden md:table-cell">
+                      {inlineEdit?.id === product.id && inlineEdit?.field === 'stock' ? (
+                        <input
+                          autoFocus
+                          type="number"
+                          value={inlineEdit.value}
+                          onChange={e => setInlineEdit(prev => ({ ...prev, value: e.target.value }))}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      ) : (
+                        <div className="cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(product, 'stock')}>
+                          {product.stock != null ? product.stock : <span className="text-[var(--border)]">-</span>}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                    <td className="px-2 sm:px-4 py-2.5 text-right text-[var(--muted-foreground)] hidden md:table-cell">
+                      {inlineEdit?.id === product.id && inlineEdit?.field === 'min_stock' ? (
+                        <input
+                          autoFocus
+                          type="number"
+                          value={inlineEdit.value}
+                          onChange={e => setInlineEdit(prev => ({ ...prev, value: e.target.value }))}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      ) : (
+                        <div className="cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(product, 'min_stock')}>
+                          {product.min_stock != null ? product.min_stock : <span className="text-[var(--border)]">-</span>}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-1 sm:px-4 py-2.5">
+                      <div className="flex items-center gap-0.5 sm:gap-1 justify-end">
                         <button
                           onClick={() => openEdit(product)}
                           className="p-1.5 rounded-lg hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
@@ -372,8 +646,15 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
                           <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          onClick={() => handleDuplicate(product)}
+                          className="p-1.5 rounded-lg hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                          title="복사"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           onClick={() => setDeleteTarget(product)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
+                          className="p-1.5 rounded-lg hover:bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
                           title="삭제"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -394,11 +675,11 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
         onClose={() => setEditTarget(null)}
         title={editTarget?.id ? '제품 수정' : '제품 추가'}
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
           <InputField
             label="제품명"
             required
-            className="col-span-2"
+            className="sm:col-span-2"
             value={formData.name}
             onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
             placeholder="제품명 입력"
@@ -448,8 +729,8 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
           />
         </div>
         <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-[var(--border)]">
-          <ActionBtn variant="secondary" onClick={() => setEditTarget(null)}>취소</ActionBtn>
-          <ActionBtn variant="primary" Icon={Save} onClick={handleSave} disabled={saving}>
+          <ActionBtn variant="secondary" size="md" onClick={() => setEditTarget(null)}>취소</ActionBtn>
+          <ActionBtn variant="primary" size="md" Icon={Save} onClick={handleSave} disabled={saving}>
             {saving ? '저장 중...' : '저장'}
           </ActionBtn>
         </div>
@@ -478,6 +759,35 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
   const [formData, setFormData] = useState(EMPTY_CUSTOMER);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [inlineEdit, setInlineEdit] = useState(null);
+
+  const startInlineEdit = (customer, field) => {
+    setInlineEdit({ id: customer.id, field, value: customer[field] || '' });
+  };
+
+  const saveInlineEdit = async () => {
+    if (!inlineEdit) return;
+    const { id, field, value } = inlineEdit;
+    try {
+      if (supabaseConnected && supabase?.saveCustomer) {
+        const customer = customers.find(c => c.id === id);
+        const saved = await supabase.saveCustomer({ ...customer, [field]: value });
+        setCustomers(prev => prev.map(c => c.id === id ? saved : c));
+      } else {
+        setCustomers(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
+      }
+      showToast('수정되었습니다', 'success');
+    } catch (err) {
+      showToast('수정 실패: ' + err.message, 'error');
+    }
+    setInlineEdit(null);
+  };
+
+  const cancelInlineEdit = () => setInlineEdit(null);
+  const handleInlineKeyDown = (e) => {
+    if (e.key === 'Enter') saveInlineEdit();
+    else if (e.key === 'Escape') cancelInlineEdit();
+  };
 
   const filtered = useMemo(() => {
     if (!customers) return [];
@@ -487,13 +797,18 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
     );
   }, [customers, search]);
 
+  const openNew = () => {
+    setFormData({ ...EMPTY_CUSTOMER });
+    setEditTarget({});
+  };
+
   const openEdit = (customer) => {
     setFormData({
       name: customer.name || '',
       phone: customer.phone || '',
       address: customer.address || '',
       memo: customer.memo || '',
-      blacklist: customer.blacklist || false,
+      blacklist: customer.blacklist || customer.is_blacklist || false,
     });
     setEditTarget(customer);
   };
@@ -505,14 +820,28 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
     }
     setSaving(true);
     try {
-      const payload = { ...formData, name: formData.name.trim() };
+      const payload = {
+        ...formData,
+        name: formData.name.trim(),
+        is_blacklist: formData.blacklist,
+      };
+      const isNew = !editTarget?.id;
       if (supabaseConnected && supabase?.saveCustomer) {
-        const saved = await supabase.saveCustomer({ ...payload, id: editTarget.id });
-        setCustomers(prev => prev.map(c => c.id === editTarget.id ? saved : c));
+        const saved = await supabase.saveCustomer(isNew ? payload : { ...payload, id: editTarget.id });
+        if (isNew) {
+          setCustomers(prev => [...prev, saved]);
+        } else {
+          setCustomers(prev => prev.map(c => c.id === editTarget.id ? saved : c));
+        }
       } else {
-        setCustomers(prev => prev.map(c => c.id === editTarget.id ? { ...c, ...payload } : c));
+        if (isNew) {
+          const newCust = { ...payload, id: Date.now() };
+          setCustomers(prev => [...prev, newCust]);
+        } else {
+          setCustomers(prev => prev.map(c => c.id === editTarget.id ? { ...c, ...payload } : c));
+        }
       }
-      showToast('거래처 정보가 수정되었습니다', 'success');
+      showToast(isNew ? '거래처가 등록되었습니다' : '거래처 정보가 수정되었습니다', 'success');
       setEditTarget(null);
     } catch (err) {
       showToast('저장에 실패했습니다: ' + err.message, 'error');
@@ -536,10 +865,25 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
     }
   };
 
+  const exportCustomersCSV = () => {
+    const BOM = '\uFEFF';
+    const headers = ['ID', '거래처명', '전화번호', '주소', '메모', '블랙리스트'];
+    const rows = filtered.map(c => [
+      c.id, c.name || '', c.phone || '', c.address || '', c.memo || '', (c.blacklist || c.is_blacklist) ? 'Y' : 'N'
+    ]);
+    const csv = BOM + [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `거래처목록_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    showToast('거래처 목록이 저장되었습니다', 'success');
+  };
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[160px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
           <input
             type="text"
@@ -550,6 +894,12 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
           />
         </div>
+        <ActionBtn variant="secondary" Icon={Download} onClick={exportCustomersCSV}>
+          엑셀 백업
+        </ActionBtn>
+        <ActionBtn variant="primary" Icon={UserPlus} onClick={openNew}>
+          새 거래처 등록
+        </ActionBtn>
       </div>
 
       <p className="text-xs text-[var(--muted-foreground)]">
@@ -559,40 +909,94 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
       {filtered.length === 0 ? (
         <EmptyState icon={Users} title="거래처가 없습니다" description="POS에서 거래를 완료하면 거래처가 등록됩니다" />
       ) : (
-        <SectionCard className="overflow-hidden">
+        <SectionCard>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[var(--muted)] border-b border-[var(--border)]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">거래처명</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden sm:table-cell">전화번호</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden lg:table-cell">주소</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden xl:table-cell">메모</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">상태</th>
-                  <th className="px-4 py-3 w-20"></th>
+                  <th className="text-left px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">거래처명</th>
+                  <th className="text-left px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden sm:table-cell">전화번호</th>
+                  <th className="text-left px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden lg:table-cell">주소</th>
+                  <th className="text-left px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden xl:table-cell">메모</th>
+                  <th className="text-center px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">상태</th>
+                  <th className="px-1 sm:px-4 py-2.5 w-14 sm:w-20"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {filtered.map(customer => (
                   <tr key={customer.id} className="hover:bg-[var(--accent)] transition-colors group">
-                    <td className="px-4 py-3 font-medium text-[var(--foreground)]">{customer.name}</td>
-                    <td className="px-4 py-3 text-[var(--muted-foreground)] hidden sm:table-cell">
-                      {customer.phone || <span className="text-[var(--border)]">-</span>}
+                    <td className="px-2 sm:px-4 py-2.5 font-medium text-[var(--foreground)]">
+                      {inlineEdit?.id === customer.id && inlineEdit?.field === 'name' ? (
+                        <input
+                          autoFocus
+                          value={inlineEdit.value}
+                          onChange={e => setInlineEdit(prev => ({ ...prev, value: e.target.value }))}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      ) : (
+                        <div className="max-w-[120px] sm:max-w-none truncate sm:whitespace-normal cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(customer, 'name')}>
+                          {customer.name}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted-foreground)] hidden lg:table-cell max-w-[200px] truncate">
-                      {customer.address || <span className="text-[var(--border)]">-</span>}
+                    <td className="px-2 sm:px-4 py-2.5 text-[var(--muted-foreground)] hidden sm:table-cell">
+                      {inlineEdit?.id === customer.id && inlineEdit?.field === 'phone' ? (
+                        <input
+                          autoFocus
+                          value={inlineEdit.value}
+                          onChange={e => setInlineEdit(prev => ({ ...prev, value: e.target.value }))}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      ) : (
+                        <div className="cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(customer, 'phone')}>
+                          {customer.phone || <span className="text-[var(--border)]">-</span>}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted-foreground)] hidden xl:table-cell max-w-[150px] truncate">
-                      {customer.memo || <span className="text-[var(--border)]">-</span>}
+                    <td className="px-2 sm:px-4 py-2.5 text-[var(--muted-foreground)] hidden lg:table-cell max-w-[200px]">
+                      {inlineEdit?.id === customer.id && inlineEdit?.field === 'address' ? (
+                        <input
+                          autoFocus
+                          value={inlineEdit.value}
+                          onChange={e => setInlineEdit(prev => ({ ...prev, value: e.target.value }))}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      ) : (
+                        <div className="truncate cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(customer, 'address')}>
+                          {customer.address || <span className="text-[var(--border)]">-</span>}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-2 sm:px-4 py-2.5 text-[var(--muted-foreground)] hidden xl:table-cell max-w-[150px]">
+                      {inlineEdit?.id === customer.id && inlineEdit?.field === 'memo' ? (
+                        <input
+                          autoFocus
+                          value={inlineEdit.value}
+                          onChange={e => setInlineEdit(prev => ({ ...prev, value: e.target.value }))}
+                          onBlur={saveInlineEdit}
+                          onKeyDown={handleInlineKeyDown}
+                          className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      ) : (
+                        <div className="truncate cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(customer, 'memo')}>
+                          {customer.memo || <span className="text-[var(--border)]">-</span>}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-2 sm:px-4 py-2.5 text-center">
                       {customer.blacklist
                         ? <StatusBadge status="blacklist" />
                         : <span className="text-xs text-[var(--muted-foreground)]">일반</span>
                       }
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                    <td className="px-1 sm:px-4 py-2.5">
+                      <div className="flex items-center gap-0.5 sm:gap-1 justify-end">
                         <button
                           onClick={() => openEdit(customer)}
                           className="p-1.5 rounded-lg hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
@@ -602,7 +1006,7 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
                         </button>
                         <button
                           onClick={() => setDeleteTarget(customer)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
+                          className="p-1.5 rounded-lg hover:bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
                           title="삭제"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -617,11 +1021,11 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
         </SectionCard>
       )}
 
-      {/* Edit Modal */}
+      {/* Add / Edit Modal */}
       <Modal
         isOpen={editTarget !== null}
         onClose={() => setEditTarget(null)}
-        title="거래처 수정"
+        title={editTarget?.id ? '거래처 수정' : '새 거래처 등록'}
       >
         <div className="flex flex-col gap-4">
           <InputField
@@ -670,8 +1074,8 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
           </label>
         </div>
         <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-[var(--border)]">
-          <ActionBtn variant="secondary" onClick={() => setEditTarget(null)}>취소</ActionBtn>
-          <ActionBtn variant="primary" Icon={Save} onClick={handleSave} disabled={saving}>
+          <ActionBtn variant="secondary" size="md" onClick={() => setEditTarget(null)}>취소</ActionBtn>
+          <ActionBtn variant="primary" size="md" Icon={Save} onClick={handleSave} disabled={saving}>
             {saving ? '저장 중...' : '저장'}
           </ActionBtn>
         </div>
@@ -693,7 +1097,7 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
 // ---------------------------------------------------------------------------
 // Category Management Tab
 // ---------------------------------------------------------------------------
-function CategoriesTab({ products, setProducts, supabaseConnected, showToast, supabase }) {
+function CategoriesTab({ products, setProducts, supabaseConnected, showToast, supabase, onSelectCategory }) {
   const [editTarget, setEditTarget] = useState(null);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -749,9 +1153,19 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {categories.map(([catName, count]) => (
             <SectionCard key={catName} className="p-4 flex items-center justify-between group">
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="font-medium text-[var(--foreground)]">{catName}</p>
-                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{count}개 제품</p>
+                <div className="flex items-center gap-3 mt-0.5">
+                  <p className="text-xs text-[var(--muted-foreground)]">{count}개 제품</p>
+                  {onSelectCategory && (
+                    <button
+                      onClick={() => onSelectCategory(catName)}
+                      className="text-xs text-[var(--primary)] hover:underline transition-colors"
+                    >
+                      제품 보기 →
+                    </button>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => openEdit(catName)}
@@ -766,7 +1180,7 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
       )}
 
       {/* Rename Modal */}
-      <Modal isOpen={editTarget !== null} onClose={() => setEditTarget(null)} title="카테고리명 변경" maxWidth="max-w-sm">
+      <Modal isOpen={editTarget !== null} onClose={() => setEditTarget(null)} title="카테고리명 변경" maxWidth="max-w-md">
         <InputField
           label="새 카테고리명"
           required
@@ -975,7 +1389,7 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
             const isAdding = addingId === product.id;
 
             return (
-              <SectionCard key={product.id} className="overflow-hidden">
+              <SectionCard key={product.id}>
                 {/* Product Header Row */}
                 <div
                   className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--accent)] transition-colors select-none"
@@ -989,7 +1403,10 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
                     <span className="ml-2 text-xs text-[var(--muted-foreground)]">{product.category}</span>
                   </div>
                   {tiers.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">
+                    <span
+                      className="px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}
+                    >
                       {tiers.length}개 구간
                     </span>
                   )}
@@ -1031,7 +1448,7 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
                                   </span>
                                   <span>
                                     <span className="text-[var(--muted-foreground)] text-xs mr-1">할인</span>
-                                    <span className="font-medium text-blue-600">
+                                    <span className="font-medium" style={{ color: 'var(--primary)' }}>
                                       {tier.type === 'percent' ? `${tier.value}%` : `${formatPrice(tier.value)}원`}
                                     </span>
                                     <span className="text-xs text-[var(--muted-foreground)] ml-1">
@@ -1049,7 +1466,7 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
                                   </button>
                                   <button
                                     onClick={() => handleDeleteTier(product.id, idx)}
-                                    className="p-1.5 rounded hover:bg-red-50 text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
+                                    className="p-1.5 rounded hover:bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
                                     title="삭제"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1090,6 +1507,7 @@ export default function AdminPage({
 }) {
   const [isAdminAuth, setIsAdminAuth] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
+  const [selectedCategory, setSelectedCategory] = useState('');
 
   if (!isAdminAuth) {
     return <AdminLogin onSuccess={() => setIsAdminAuth(true)} />;
@@ -1098,7 +1516,7 @@ export default function AdminPage({
   const tabProps = { products, setProducts, customers, setCustomers, supabaseConnected, showToast, supabase };
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="bg-[var(--background)]">
       {/* Page Header */}
       <div className="bg-[var(--card)] border-b border-[var(--border)] px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
@@ -1106,7 +1524,7 @@ export default function AdminPage({
             <h1 className="text-lg font-bold text-[var(--foreground)]">관리자 패널</h1>
             <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
               {supabaseConnected
-                ? <span className="text-green-600">Supabase 연결됨</span>
+                ? <span style={{ color: 'var(--success)' }}>Supabase 연결됨</span>
                 : <span className="text-[var(--warning)]">오프라인 (로컬 데이터)</span>
               }
             </p>
@@ -1147,9 +1565,9 @@ export default function AdminPage({
 
       {/* Tab Content */}
       <main className="px-4 sm:px-6 py-6">
-        {activeTab === 'products' && <ProductsTab {...tabProps} />}
+        {activeTab === 'products' && <ProductsTab {...tabProps} initialCategory={selectedCategory} />}
         {activeTab === 'customers' && <CustomersTab {...tabProps} />}
-        {activeTab === 'categories' && <CategoriesTab {...tabProps} />}
+        {activeTab === 'categories' && <CategoriesTab {...tabProps} onSelectCategory={(cat) => { setSelectedCategory(cat); setActiveTab('products'); }} />}
         {activeTab === 'discounts' && <DiscountTiersTab {...tabProps} />}
       </main>
     </div>

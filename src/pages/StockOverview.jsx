@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Package, Search, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Menu, Package, Search, ChevronDown } from 'lucide-react';
 
 function matchesSearchQuery(name, query) {
   if (!query.trim()) return true;
@@ -46,11 +46,11 @@ export default function StockOverview({ products = [], categories = [], formatPr
   };
 
   const statCards = [
-    { key: 'all', label: '전체', value: stats.total, color: 'text-[var(--foreground)]', activeBorder: 'border-[var(--primary)]', activeBg: 'bg-[var(--secondary)]' },
-    { key: 'normal', label: '정상', value: stats.normal, color: 'text-[var(--success)]', activeBorder: 'border-[var(--success)]', activeBg: 'bg-green-50' },
-    { key: 'low', label: '부족', value: stats.low, color: 'text-[var(--warning)]', activeBorder: 'border-[var(--warning)]', activeBg: 'bg-amber-50' },
-    { key: 'incoming', label: '입고대기', value: stats.incoming, color: 'text-orange-500', activeBorder: 'border-orange-400', activeBg: 'bg-orange-50' },
-    { key: 'out', label: '품절', value: stats.out, color: 'text-[var(--destructive)]', activeBorder: 'border-[var(--destructive)]', activeBg: 'bg-red-50' },
+    { key: 'all', label: '전체', value: stats.total, color: 'var(--foreground)', activeBorder: 'var(--primary)', activeBg: 'var(--secondary)' },
+    { key: 'normal', label: '정상', value: stats.normal, color: 'var(--success)', activeBorder: 'var(--success)', activeBg: 'color-mix(in srgb, var(--success) 12%, transparent)' },
+    { key: 'low', label: '부족', value: stats.low, color: 'var(--warning)', activeBorder: 'var(--warning)', activeBg: 'color-mix(in srgb, var(--warning) 12%, transparent)' },
+    { key: 'incoming', label: '입고대기', value: stats.incoming, color: 'var(--warning)', activeBorder: 'var(--warning)', activeBg: 'color-mix(in srgb, var(--warning) 12%, transparent)' },
+    { key: 'out', label: '품절', value: stats.out, color: 'var(--destructive)', activeBorder: 'var(--destructive)', activeBg: 'color-mix(in srgb, var(--destructive) 12%, transparent)' },
   ];
 
   const getStockBadge = (product) => {
@@ -62,28 +62,28 @@ export default function StockOverview({ products = [], categories = [], formatPr
 
     if (isIncoming) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border" style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)' }}>
+          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--warning)' }} />
           입고대기
         </span>
       );
     }
     if (isOut) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border" style={{ background: 'color-mix(in srgb, var(--destructive) 20%, transparent)', color: 'var(--destructive)', borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)' }}>
           품절
         </span>
       );
     }
     if (isLow) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border" style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)' }}>
           {stock}개
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border" style={{ background: 'color-mix(in srgb, var(--success) 20%, transparent)', color: 'var(--success)', borderColor: 'color-mix(in srgb, var(--success) 30%, transparent)' }}>
         {stock}개
       </span>
     );
@@ -96,14 +96,14 @@ export default function StockOverview({ products = [], categories = [], formatPr
     const isOut = stock === 0 && !isIncoming;
     const isLow = stock > 0 && stock <= minStock;
 
-    if (isIncoming) return 'bg-orange-50/50';
-    if (isOut) return 'bg-red-50/50';
-    if (isLow) return 'bg-amber-50/50';
-    return '';
+    if (isIncoming) return { background: 'color-mix(in srgb, var(--warning) 8%, transparent)' };
+    if (isOut) return { background: 'color-mix(in srgb, var(--destructive) 8%, transparent)' };
+    if (isLow) return { background: 'color-mix(in srgb, var(--warning) 8%, transparent)' };
+    return null;
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
+    <div className="h-full flex flex-col" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
       {/* Header */}
       <header
         className="sticky top-0 z-40 border-b"
@@ -112,9 +112,17 @@ export default function StockOverview({ products = [], categories = [], formatPr
         <div className="w-full px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              {/* Mobile: menu button */}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+                className="md:hidden p-2 rounded-lg transition-colors hover:bg-[var(--secondary)]"
+              >
+                <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+              </button>
+              {/* Desktop: back button */}
               <button
                 onClick={onBack}
-                className="p-2 rounded-lg transition-colors hover:bg-[var(--secondary)]"
+                className="hidden md:block p-2 rounded-lg transition-colors hover:bg-[var(--secondary)]"
               >
                 <ArrowLeft className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
               </button>
@@ -154,7 +162,7 @@ export default function StockOverview({ products = [], categories = [], formatPr
                 {' · '}
                 <span style={{ color: 'var(--warning)' }}>{stats.low} 부족</span>
                 {' · '}
-                <span className="text-orange-500">{stats.incoming} 입고대기</span>
+                <span style={{ color: 'var(--warning)' }}>{stats.incoming} 입고대기</span>
                 {' · '}
                 <span style={{ color: 'var(--destructive)' }}>{stats.out} 품절</span>
               </span>
@@ -177,16 +185,17 @@ export default function StockOverview({ products = [], categories = [], formatPr
                   onClick={() => setStockFilter(key)}
                   className={`rounded-lg p-2 text-center transition-all border ${
                     stockFilter === key
-                      ? `${activeBg} ${activeBorder} ring-2 ring-offset-1`
+                      ? 'ring-2 ring-offset-1'
                       : 'border-[var(--border)] hover:bg-[var(--secondary)]'
                   }`}
                   style={{
-                    backgroundColor: stockFilter === key ? undefined : 'var(--card)',
-                    ringColor: stockFilter === key ? undefined : 'transparent',
+                    backgroundColor: stockFilter === key ? activeBg : 'var(--card)',
+                    borderColor: stockFilter === key ? activeBorder : undefined,
+                    '--tw-ring-color': stockFilter === key ? activeBorder : 'transparent',
                   }}
                 >
                   <p className="text-[10px] mb-0.5" style={{ color: 'var(--muted-foreground)' }}>{label}</p>
-                  <p className={`text-base font-bold ${color}`}>{value}</p>
+                  <p className="text-base font-bold" style={{ color }}>{value}</p>
                 </button>
               ))}
             </div>
@@ -263,7 +272,7 @@ export default function StockOverview({ products = [], categories = [], formatPr
               <p style={{ color: 'var(--muted-foreground)' }}>해당 조건의 제품이 없습니다</p>
             </div>
           ) : (
-            <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+            <div className="rounded-xl border" style={{ borderColor: 'var(--border)', overflow: 'clip' }}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[600px]">
                   <thead>
@@ -289,8 +298,8 @@ export default function StockOverview({ products = [], categories = [], formatPr
                     {filteredProducts.map((product, index) => (
                       <tr
                         key={product.id}
-                        className={`border-t transition-colors hover:bg-[var(--secondary)] ${getRowBg(product)}`}
-                        style={{ borderColor: 'var(--border)' }}
+                        className="border-t transition-colors hover:bg-[var(--secondary)]"
+                        style={{ borderColor: 'var(--border)', ...(getRowBg(product) || {}) }}
                       >
                         <td className="px-4 py-3">
                           <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>

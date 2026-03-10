@@ -423,22 +423,16 @@ ${text}
   const inputStyle = { backgroundColor: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-    >
-      <div className="absolute inset-0" onClick={onBack} />
-
-      <div
-        className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col rounded-2xl border shadow-2xl"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
-      >
+    <div className="flex flex-col h-full">
         {/* Header */}
         <div
-          className="px-4 py-3 flex items-center justify-between flex-shrink-0 border-b"
+          className="sticky top-0 z-10 px-4 py-3 flex items-center justify-between flex-shrink-0 border-b"
           style={{ borderColor: 'var(--border)', backgroundColor: isAiMode ? 'var(--success)' : 'var(--primary)' }}
         >
           <div className="flex items-center gap-3">
+            <button onClick={onBack} className="p-1.5 -ml-1 rounded-lg hover:bg-white/20 transition-colors">
+              <X className="w-5 h-5 text-white" />
+            </button>
             <Sparkles className="w-5 h-5 text-white" />
             <div>
               <div className="flex items-center gap-2">
@@ -447,7 +441,7 @@ ${text}
                   {isAiMode ? 'Gemini AI' : '패턴 매칭'}
                 </span>
               </div>
-              <p className="text-white/80 text-xs">
+              <p className="text-white/80 text-xs hidden sm:block">
                 {isAiMode ? 'Google Gemini AI로 자연어 분석' : '메모를 붙여넣으면 자동으로 제품을 찾아드려요'}
               </p>
             </div>
@@ -464,9 +458,6 @@ ${text}
               title="AI 설정"
             >
               <Settings className="w-5 h-5 text-white" />
-            </button>
-            <button onClick={onBack} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
-              <X className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
@@ -774,12 +765,11 @@ ${text}
             </button>
           </div>
         )}
-      </div>
 
       {/* AI Settings Modal */}
       {showApiSettings && (
-        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }} onClick={() => setShowApiSettings(false)}>
-          <div className="rounded-2xl w-full max-w-sm overflow-hidden border shadow-2xl" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowApiSettings(false)}>
+          <div className="rounded-2xl w-full max-w-md overflow-hidden border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--success)' }}>
               <h3 className="text-white font-bold flex items-center gap-2">
                 <Sparkles className="w-5 h-5" />분석 모드 설정
@@ -821,8 +811,8 @@ ${text}
 
       {/* Backup Modal */}
       {showBackupModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
-          <div className="rounded-2xl w-full max-w-md max-h-[70vh] flex flex-col border shadow-2xl" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
+        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}>
+          <div className="rounded-2xl w-full max-w-lg max-h-[70vh] flex flex-col border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
             <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
                 <FolderOpen className="w-5 h-5" style={{ color: 'var(--primary)' }} />백업 목록
@@ -840,7 +830,7 @@ ${text}
                     <div key={backup.id} className="p-3 rounded-xl border hover:border-[var(--primary)] transition-colors" style={{ backgroundColor: 'var(--secondary)', borderColor: 'var(--border)' }}>
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{backup.date}</span>
-                        <button onClick={() => deleteBackup(backup.id)} className="p-1 rounded hover:bg-red-100 transition-colors" style={{ color: 'var(--destructive)' }}>
+                        <button onClick={() => deleteBackup(backup.id)} className="p-1 rounded transition-colors hover:bg-[color-mix(in_srgb,var(--destructive)_15%,transparent)]" style={{ color: 'var(--destructive)' }}>
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>

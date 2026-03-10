@@ -4,12 +4,12 @@ export default function ConfirmDialog({ isOpen, title, message, onConfirm, onCan
   if (!isOpen) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-modal-backdrop"
+      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
     >
       <div className="absolute inset-0" onClick={onCancel} />
       <div
-        className="relative rounded-2xl shadow-2xl max-w-sm w-full p-6 border"
+        className="relative rounded-2xl shadow-2xl max-w-md w-full p-6 border animate-modal-up"
         style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
       >
         <div className="flex items-start gap-4 mb-4">

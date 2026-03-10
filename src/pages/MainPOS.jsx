@@ -1,9 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   Search, ShoppingCart, Plus, Minus, X, ChevronDown, ChevronUp,
-  Package, Calculator, Maximize2, RotateCcw, Zap
+  Package, Calculator, Maximize2, Minimize2, RotateCcw, Zap, ArrowLeft
 } from 'lucide-react';
 import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calculateDiscount } from '@/lib/utils';
+import OrderPage from './OrderPage';
+import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 // Static fallback price data (478 products)
 const priceData = [
@@ -39,6 +41,9 @@ export default function MainPOS({
   saveOrder,
   customers = [],
   onSaveCartModal,
+  onBack,
+  loadedCustomer,
+  onClearLoadedCustomer,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
@@ -50,6 +55,7 @@ export default function MainPOS({
   const [orderMemo, setOrderMemo] = useState('');
   const [orderPaymentMethod, setOrderPaymentMethod] = useState('card');
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const { isFullscreen: isCartFullscreen, toggleFullscreen: toggleCartFullscreen } = useModalFullscreen();
 
   const products = externalProducts.length > 0 ? externalProducts : priceData;
 
@@ -153,6 +159,10 @@ export default function MainPOS({
     setCart(cart.map(item => item.id === productId ? { ...item, quantity: newQuantity } : item));
   };
 
+  const replaceItem = (oldId, newProduct, qty) => {
+    setCart(prev => prev.map(item => item.id === oldId ? { ...newProduct, quantity: qty } : item));
+  };
+
   const toggleCategory = (category) => {
     setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }));
   };
@@ -210,12 +220,53 @@ export default function MainPOS({
   };
 
   return (
-    <div className="flex h-full min-h-screen" style={{ background: 'var(--background)' }}>
+    <div className="flex h-full" style={{ background: 'var(--background)' }}>
       {/* LEFT: Product Catalog */}
       <div className="flex-1 flex flex-col min-w-0 pr-0 lg:pr-[420px]">
+        {/* Mobile Header with Back Button - always sticky */}
+        <div
+          className="lg:hidden sticky top-0 z-40 flex items-center h-12 px-3 border-b"
+          style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+        >
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-1.5 -ml-1 rounded-lg transition-colors hover:bg-[var(--muted)]"
+            >
+              <ArrowLeft className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
+            </button>
+          )}
+          <h1 className="ml-2 text-base font-bold" style={{ color: 'var(--foreground)' }}>제품 주문</h1>
+          <div className="flex-1" />
+          <div className="flex items-center gap-1.5">
+            {onOpenQuickCalculator && (
+              <button
+                onClick={onOpenQuickCalculator}
+                className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
+              >
+                <Calculator className="w-4.5 h-4.5" style={{ color: 'var(--muted-foreground)' }} />
+              </button>
+            )}
+            {cart.length > 0 && (
+              <button
+                onClick={() => setIsCartExpanded(true)}
+                className="relative p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
+              >
+                <ShoppingCart className="w-4.5 h-4.5" style={{ color: 'var(--primary)' }} />
+                <span
+                  className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center"
+                  style={{ background: 'var(--destructive)', color: 'white' }}
+                >
+                  {cart.length}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Search & Filter Bar */}
         <div
-          className="sticky top-0 z-30 px-4 py-3 border-b"
+          className="sticky top-12 lg:top-0 z-30 px-4 py-3 border-b"
           style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
         >
           <div className="flex gap-2 items-center flex-wrap">
@@ -314,7 +365,7 @@ export default function MainPOS({
         </div>
 
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
           {Object.keys(groupedProducts).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Package className="w-12 h-12 mb-3" style={{ color: 'var(--muted-foreground)' }} />
@@ -372,7 +423,7 @@ export default function MainPOS({
                             <div
                               key={product.id}
                               onClick={() => !cartItem && addToCart(product)}
-                              className={`px-2 py-2 rounded-lg cursor-pointer transition-all duration-150 select-none border ${
+                              className={`card-interactive px-2 py-2 rounded-lg cursor-pointer select-none border ${
                                 inCart
                                   ? 'ring-2'
                                   : ''
@@ -503,7 +554,7 @@ export default function MainPOS({
 
         {/* Mobile Cart Bottom Bar */}
         <div
-          className="lg:hidden sticky bottom-0 z-30 px-4 py-3 border-t"
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-4 py-3 border-t shadow-lg"
           style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
         >
           <div className="flex items-center justify-between gap-3">
@@ -718,148 +769,58 @@ export default function MainPOS({
         )}
       </div>
 
-      {/* Order Confirmation Modal */}
+      {/* Order Confirmation Page */}
       {showOrderConfirm && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setShowOrderConfirm(false)}
-        >
-          <div
-            className="w-full max-w-lg max-h-[90vh] rounded-2xl overflow-auto flex flex-col border shadow-2xl"
-            style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
-              <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>주문 확인</h2>
-              <button onClick={() => setShowOrderConfirm(false)} className="p-1 rounded-lg hover:bg-[var(--accent)]">
-                <X className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {/* Customer Name */}
-              <div className="relative">
-                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground)' }}>거래처명</label>
-                <input
-                  type="text"
-                  value={orderCustomerName}
-                  onChange={(e) => handleCustomerNameChange(e.target.value)}
-                  placeholder="일반고객"
-                  className="w-full px-3 py-2 rounded-lg border text-sm"
-                  style={{ borderColor: 'var(--border)', background: 'var(--background)', color: 'var(--foreground)' }}
-                />
-                {customerSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 rounded-lg border shadow-lg max-h-40 overflow-y-auto" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-                    {customerSuggestions.map((c, i) => (
-                      <button
-                        key={i}
-                        onClick={() => selectCustomerSuggestion(c)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--accent)] transition-colors"
-                        style={{ color: 'var(--foreground)' }}
-                      >
-                        {c.name} {c.phone && <span style={{ color: 'var(--muted-foreground)' }}>({c.phone})</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Phone */}
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground)' }}>연락처</label>
-                <input
-                  type="tel"
-                  value={orderCustomerPhone}
-                  onChange={(e) => setOrderCustomerPhone(e.target.value)}
-                  placeholder="010-0000-0000"
-                  className="w-full px-3 py-2 rounded-lg border text-sm"
-                  style={{ borderColor: 'var(--border)', background: 'var(--background)', color: 'var(--foreground)' }}
-                />
-              </div>
-
-              {/* Payment Method */}
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--foreground)' }}>결제방법</label>
-                <div className="flex gap-2">
-                  {[
-                    { id: 'card', label: '카드' },
-                    { id: 'cash', label: '현금' },
-                    { id: 'transfer', label: '계좌이체' },
-                    { id: 'later', label: '후불' },
-                  ].map(method => (
-                    <button
-                      key={method.id}
-                      onClick={() => setOrderPaymentMethod(method.id)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                        orderPaymentMethod === method.id ? 'border-[var(--primary)]' : 'border-[var(--border)]'
-                      }`}
-                      style={orderPaymentMethod === method.id
-                        ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
-                        : { background: 'var(--muted)', color: 'var(--foreground)' }
-                      }
-                    >
-                      {method.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Memo */}
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground)' }}>메모</label>
-                <textarea
-                  value={orderMemo}
-                  onChange={(e) => setOrderMemo(e.target.value)}
-                  placeholder="메모 입력..."
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-lg border text-sm resize-none"
-                  style={{ borderColor: 'var(--border)', background: 'var(--background)', color: 'var(--foreground)' }}
-                />
-              </div>
-
-              {/* Order Summary */}
-              <div className="rounded-lg p-3 space-y-1" style={{ background: 'var(--muted)' }}>
-                <div className="flex justify-between text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                  <span>상품 {cart.length}종 / {totalQuantity}개</span>
-                  <span>{priceType === 'wholesale' ? '도매가' : '소매가'}</span>
-                </div>
-                {totalDiscount > 0 && (
-                  <div className="flex justify-between text-sm" style={{ color: 'var(--destructive)' }}>
-                    <span>할인</span>
-                    <span>-{formatPrice(totalDiscount)}원</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-lg pt-1 border-t" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
-                  <span>합계</span>
-                  <span style={{ color: 'var(--primary)' }}>{formatPrice(totalAmount)}원</span>
-                </div>
-              </div>
-
-              {/* Submit */}
-              <button
-                onClick={handleOrderSubmit}
-                className="w-full py-3 rounded-xl text-base font-bold transition-colors"
-                style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
-              >
-                주문 저장
-              </button>
-            </div>
-          </div>
-        </div>
+        <OrderPage
+          cart={cart}
+          priceType={priceType}
+          totalAmount={totalAmount}
+          formatPrice={formatPrice}
+          onSaveOrder={async (orderData) => {
+            if (!saveOrder) return null;
+            const result = await saveOrder({
+              customer_name: orderData.customerName || '일반고객',
+              customer_phone: orderData.customerPhone || '',
+              customer_address: orderData.customerAddress || '',
+              memo: orderData.memo || '',
+              items: orderData.items,
+              total_amount: orderData.totalAmount,
+              price_type: orderData.priceType,
+              order_number: orderData.orderNumber,
+              existing_customer_id: orderData.existingCustomerId,
+            });
+            if (result) onClearLoadedCustomer?.();
+            return result;
+          }}
+          isSaving={false}
+          onUpdateQuantity={updateQuantity}
+          onRemoveItem={removeFromCart}
+          onAddItem={addToCart}
+          onReplaceItem={replaceItem}
+          products={products}
+          initialCustomer={loadedCustomer}
+          customers={customers}
+          onBack={() => {
+            setShowOrderConfirm(false);
+            onClearLoadedCustomer?.();
+          }}
+          onSaveCart={(info) => {
+            if (onSaveCartModal) onSaveCartModal();
+          }}
+          showToast={showToast}
+        />
       )}
 
       {/* Cart Expanded Modal */}
       {isCartExpanded && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+          className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop-fs-transition"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', padding: isCartFullscreen ? '0' : '1rem' }}
           onClick={() => setIsCartExpanded(false)}
         >
           <div
-            className="w-full max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden flex flex-col border shadow-2xl"
-            style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+            className="w-full h-full overflow-hidden flex flex-col border shadow-2xl modal-fs-transition"
+            style={{ background: 'var(--card)', borderColor: 'var(--border)', maxWidth: isCartFullscreen ? '100vw' : '56rem', maxHeight: isCartFullscreen ? '100vh' : '90vh', borderRadius: isCartFullscreen ? '0' : '1rem', boxShadow: isCartFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -874,12 +835,21 @@ export default function MainPOS({
                   {cart.length}종 / {totalQuantity}개
                 </span>
               </div>
-              <button
-                onClick={() => setIsCartExpanded(false)}
-                className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
-              >
-                <X className="w-6 h-6" style={{ color: 'var(--muted-foreground)' }} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleCartFullscreen(); }}
+                  className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
+                  title={isCartFullscreen ? '원래 크기' : '전체화면'}
+                >
+                  {isCartFullscreen ? <Minimize2 className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} /> : <Maximize2 className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />}
+                </button>
+                <button
+                  onClick={() => setIsCartExpanded(false)}
+                  className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
+                >
+                  <X className="w-6 h-6" style={{ color: 'var(--muted-foreground)' }} />
+                </button>
+              </div>
             </div>
 
             {/* Modal Items */}

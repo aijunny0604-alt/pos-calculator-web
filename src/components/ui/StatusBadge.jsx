@@ -1,16 +1,18 @@
 const variants = {
-  draft: 'bg-gray-100 text-gray-700',
-  scheduled: 'bg-blue-100 text-blue-700',
-  ready: 'bg-green-100 text-green-700',
-  hold: 'bg-yellow-100 text-yellow-700',
-  reservation: 'bg-purple-100 text-purple-700',
-  urgent: 'bg-red-100 text-red-700',
-  high: 'bg-orange-100 text-orange-700',
-  normal: 'bg-gray-100 text-gray-600',
-  out: 'bg-red-100 text-red-700',
-  incoming: 'bg-yellow-100 text-yellow-700',
-  blacklist: 'bg-red-100 text-red-700',
+  draft: { bg: 'color-mix(in srgb, var(--muted-foreground) 15%, transparent)', color: 'var(--muted-foreground)' },
+  scheduled: { bg: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' },
+  ready: { bg: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' },
+  hold: { bg: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)' },
+  reservation: { bg: 'color-mix(in srgb, var(--purple) 15%, transparent)', color: 'var(--purple)' },
+  urgent: { bg: 'color-mix(in srgb, var(--destructive) 15%, transparent)', color: 'var(--destructive)' },
+  high: { bg: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)' },
+  normal: { bg: 'color-mix(in srgb, var(--muted-foreground) 12%, transparent)', color: 'var(--muted-foreground)' },
+  out: { bg: 'color-mix(in srgb, var(--destructive) 15%, transparent)', color: 'var(--destructive)' },
+  incoming: { bg: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)' },
+  blacklist: { bg: 'color-mix(in srgb, var(--destructive) 15%, transparent)', color: 'var(--destructive)' },
 };
+
+const defaultVariant = { bg: 'color-mix(in srgb, var(--muted-foreground) 12%, transparent)', color: 'var(--muted-foreground)' };
 
 const labels = {
   draft: '임시저장',
@@ -27,10 +29,13 @@ const labels = {
 };
 
 export default function StatusBadge({ status, label, className = '' }) {
-  const style = variants[status] || 'bg-gray-100 text-gray-600';
+  const v = variants[status] || defaultVariant;
   const text = label || labels[status] || status;
   return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-bold ${style} ${className}`}>
+    <span
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-bold ${className}`}
+      style={{ background: v.bg, color: v.color }}
+    >
       {text}
     </span>
   );

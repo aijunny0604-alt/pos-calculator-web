@@ -171,12 +171,12 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-[9999] p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
+      className="fixed inset-0 flex items-center justify-center z-[9999] p-4 animate-modal-backdrop"
+      style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl overflow-hidden border shadow-2xl"
+        className="w-full max-w-md rounded-2xl overflow-hidden border shadow-2xl animate-modal-up"
         style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -265,7 +265,7 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
           <button
             onClick={() => setDisplay(String(Math.round(parseFloat(display) / 1.1)))}
             className="py-2 rounded-lg text-xs font-medium transition-colors"
-            style={{ backgroundColor: 'rgba(139,92,246,0.1)', color: '#7c3aed' }}
+            style={{ background: 'color-mix(in srgb, var(--purple) 15%, transparent)', color: 'var(--purple)' }}
           >
             공급가액
           </button>

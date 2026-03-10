@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  ArrowLeft, Save, Search, ShoppingCart, Trash2, Check, RefreshCw,
+  ArrowLeft, Menu, Save, Search, ShoppingCart, Trash2, Check, RefreshCw,
   ChevronDown, Package, Clock, Download, FileText, Edit3, X, Plus,
-  Minus, ShoppingBag, Calculator, AlertTriangle, Receipt
+  Minus, ShoppingBag, Calculator, AlertTriangle, Receipt, Maximize2, Minimize2
 } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { formatPrice, matchesSearchQuery, handleSearchFocus } from '@/lib/utils';
+import QuickCalculator from './QuickCalculator';
+import useKeyboardNav from '@/hooks/useKeyboardNav';
+import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 export default function SavedCarts({
   savedCarts,
@@ -24,6 +27,7 @@ export default function SavedCarts({
   showToast
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectMode, setSelectMode] = useState(false);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
@@ -35,11 +39,33 @@ export default function SavedCarts({
   const [showProductSearchDetail, setShowProductSearchDetail] = useState(false);
   const [productSearchTermDetail, setProductSearchTermDetail] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState('today');
+  const [dateFilter, setDateFilter] = useState('all');
   const [deliveryFilter, setDeliveryFilter] = useState('all');
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [calculatorInitialValue, setCalculatorInitialValue] = useState(null);
+  const { isFullscreen: isDetailFullscreen, toggleFullscreen: toggleDetailFullscreen } = useModalFullscreen();
+
+  // Keyboard nav for product search in detail modal (must be in component body, not inside renderDetailModal)
+  const scFilteredProducts = products.length > 0 ? products.filter(product => {
+    if (!productSearchTermDetail) return false;
+    return matchesSearchQuery(product.name, productSearchTermDetail);
+  }).slice(0, 8) : [];
+
+  const scSelectProduct = useCallback((product) => {
+    const cart = isEditingDetail ? (editedDetailCart || detailCart) : detailCart;
+    if (!cart) return;
+    const price = (cart.priceType === 'wholesale' || cart.price_type === 'wholesale') ? product.wholesale : (product.retail || product.wholesale);
+    if (!cart.items.some(item => item.id === product.id)) {
+      const newItems = [...cart.items, { ...product, quantity: 1, price }];
+      setEditedDetailCart({ ...(editedDetailCart || detailCart), items: newItems });
+    }
+    setProductSearchTermDetail('');
+  }, [isEditingDetail, editedDetailCart, detailCart, products]);
+
+  const { highlightIndex: scProdHi, handleKeyDown: scProdKeyDown } = useKeyboardNav(
+    scFilteredProducts, scSelectProduct, showProductSearchDetail && scFilteredProducts.length > 0
+  );
 
   useEffect(() => {
     if (isEditingDetail && !editedDetailCart && detailCart) {
@@ -105,24 +131,24 @@ export default function SavedCarts({
     delivery.setHours(0, 0, 0, 0);
     const diffDays = Math.floor((delivery - today) / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) return { label: '오늘 발송', colorClass: 'text-red-600 font-bold', urgent: true };
-    if (diffDays === 1) return { label: '내일 발송', colorClass: 'text-orange-500 font-semibold', urgent: true };
-    if (diffDays < 0) return { label: `${Math.abs(diffDays)}일 지연`, colorClass: 'text-red-600 font-bold', urgent: true };
-    if (diffDays <= 3) return { label: `${diffDays}일 후`, colorClass: 'text-amber-600', urgent: false };
-    return { label: new Date(deliveryDate).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }), colorClass: 'text-[var(--muted-foreground)]', urgent: false };
+    if (diffDays === 0) return { label: '오늘 발송', colorStyle: { color: 'var(--destructive)', fontWeight: 'bold' }, urgent: true };
+    if (diffDays === 1) return { label: '내일 발송', colorStyle: { color: 'var(--warning)', fontWeight: 600 }, urgent: true };
+    if (diffDays < 0) return { label: `${Math.abs(diffDays)}일 지연`, colorStyle: { color: 'var(--destructive)', fontWeight: 'bold' }, urgent: true };
+    if (diffDays <= 3) return { label: `${diffDays}일 후`, colorStyle: { color: 'var(--warning)' }, urgent: false };
+    return { label: new Date(deliveryDate).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }), colorStyle: { color: 'var(--muted-foreground)' }, urgent: false };
   };
 
   const getStatusStyle = (status, priority) => {
     if (priority === 'urgent' || priority === 'high') {
-      return { borderClass: 'border-l-red-500', bgClass: 'bg-red-50', label: '긴급' };
+      return { borderColor: 'var(--destructive)', bgColor: 'color-mix(in srgb, var(--destructive) 12%, transparent)', label: '긴급' };
     }
     switch (status) {
-      case 'reservation': return { borderClass: 'border-l-orange-500', bgClass: 'bg-orange-50', label: '입고예약' };
-      case 'scheduled': return { borderClass: 'border-l-yellow-500', bgClass: 'bg-yellow-50', label: '예약' };
-      case 'ready': return { borderClass: 'border-l-blue-500', bgClass: 'bg-blue-50', label: '준비' };
-      case 'hold': return { borderClass: 'border-l-gray-400', bgClass: 'bg-gray-50', label: '보류' };
-      case 'draft': return { borderClass: 'border-l-purple-500', bgClass: 'bg-purple-50', label: '작성중' };
-      default: return { borderClass: 'border-l-green-500', bgClass: '', label: '대기' };
+      case 'reservation': return { borderColor: 'var(--warning)', bgColor: 'color-mix(in srgb, var(--warning) 12%, transparent)', label: '입고예약' };
+      case 'scheduled': return { borderColor: 'var(--warning)', bgColor: 'color-mix(in srgb, var(--warning) 12%, transparent)', label: '예약' };
+      case 'ready': return { borderColor: 'var(--primary)', bgColor: 'color-mix(in srgb, var(--primary) 12%, transparent)', label: '준비' };
+      case 'hold': return { borderColor: 'var(--muted-foreground)', bgColor: 'color-mix(in srgb, var(--muted-foreground) 12%, transparent)', label: '보류' };
+      case 'draft': return { borderColor: 'var(--purple)', bgColor: 'color-mix(in srgb, var(--purple) 12%, transparent)', label: '작성중' };
+      default: return { borderColor: 'var(--success)', bgColor: null, label: '대기' };
     }
   };
 
@@ -206,10 +232,28 @@ export default function SavedCarts({
     }
   };
 
+  // Centralized delete handler with loading state and logging
+  const handleDeleteCart = async (cartId) => {
+    if (!cartId) {
+      console.error('[SavedCarts] handleDeleteCart called with falsy id:', cartId);
+      showToast?.('삭제 실패: ID가 없습니다', 'error');
+      return;
+    }
+    console.log('[SavedCarts] handleDeleteCart called with id:', cartId, 'type:', typeof cartId);
+    setDeletingId(cartId);
+    try {
+      await onDelete(cartId);
+      console.log('[SavedCarts] onDelete completed for id:', cartId);
+    } catch (err) {
+      console.error('[SavedCarts] onDelete error:', err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleFilterDelete = async () => {
-    const indicesToDelete = filteredCartsWithIndex.map(({ originalIndex }) => originalIndex);
-    for (const index of indicesToDelete.sort((a, b) => b - a)) {
-      await onDelete(index);
+    for (const { cart } of filteredCartsWithIndex) {
+      if (cart.id) await handleDeleteCart(cart.id);
     }
     setShowFilterDeleteConfirm(false);
   };
@@ -231,36 +275,56 @@ export default function SavedCarts({
   const filteredCarts = filteredCartsWithIndex.map(({ cart }) => cart);
   const totalAmount = filteredCarts.reduce((sum, cart) => sum + (cart.total || 0), 0);
 
-  const toggleSelect = (index) => {
+  const toggleSelect = (cartId) => {
     setSelectedItems(prev =>
-      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+      prev.includes(cartId) ? prev.filter(i => i !== cartId) : [...prev, cartId]
     );
   };
 
   const toggleSelectAll = () => {
-    const filteredIndices = filteredCartsWithIndex.map(({ originalIndex }) => originalIndex);
-    if (selectedItems.length === filteredIndices.length && filteredIndices.every(i => selectedItems.includes(i))) {
+    const filteredIds = filteredCartsWithIndex.map(({ cart }) => cart.id);
+    if (selectedItems.length === filteredIds.length && filteredIds.every(id => selectedItems.includes(id))) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(filteredIndices);
+      setSelectedItems(filteredIds);
     }
   };
 
-  const deleteSelected = () => {
-    const sortedIndices = [...selectedItems].sort((a, b) => b - a);
-    sortedIndices.forEach(index => onDelete(index));
+  const deleteSelected = async () => {
+    for (const id of selectedItems) {
+      await handleDeleteCart(id);
+    }
     setSelectedItems([]);
     setSelectMode(false);
   };
 
   const handleCardClick = (cart, index, e) => {
     if (selectMode) {
-      toggleSelect(index);
+      toggleSelect(cart.id);
     } else {
       if (!e.target.closest('button')) {
         setDetailCart(cart);
         setDetailIndex(index);
       }
+    }
+  };
+
+  const saveEditedDetail = async () => {
+    if (detailIndex !== null && editedDetailCart) {
+      const newTotal = editedDetailCart.items.reduce((sum, item) => {
+        let price = 0;
+        if (editedDetailCart.priceType === 'wholesale' || editedDetailCart.price_type === 'wholesale') {
+          price = item.wholesale || item.price || item.unitPrice || 0;
+        } else {
+          price = item.retail || item.wholesale || item.price || item.unitPrice || 0;
+        }
+        return sum + (price * item.quantity);
+      }, 0);
+      const updatedCart = { ...editedDetailCart, total: newTotal };
+      await onUpdate(detailIndex, updatedCart);
+      setDetailCart(updatedCart);
+      setIsEditingDetail(false);
+      setEditedDetailCart(null);
     }
   };
 
@@ -279,14 +343,10 @@ export default function SavedCarts({
       return sum + (price * item.quantity);
     }, 0) || currentCart.total || 0;
 
-    const filteredProductsDetail = products.length > 0 ? products.filter(product => {
-      if (!productSearchTermDetail) return false;
-      return matchesSearchQuery(product.name, productSearchTermDetail);
-    }).slice(0, 8) : [];
-
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
+        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isDetailFullscreen ? '0' : '1rem' }}
         onClick={() => {
           if (!isEditingDetail) {
             setDetailCart(null);
@@ -295,7 +355,8 @@ export default function SavedCarts({
         }}
       >
         <div
-          className="relative bg-[var(--card)] rounded-xl w-full max-w-2xl max-h-[92vh] overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col"
+          className="relative bg-[var(--card)] w-full h-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
+          style={{ maxWidth: isDetailFullscreen ? '100vw' : '48rem', maxHeight: isDetailFullscreen ? '100vh' : '92vh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
           onClick={e => e.stopPropagation()}
         >
           {/* Modal header */}
@@ -317,27 +378,46 @@ export default function SavedCarts({
                   ) : (
                     <h2 className="text-base sm:text-xl font-bold text-white truncate">{currentCart.name}</h2>
                   )}
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${
-                    currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-purple-500 text-white'
-                  }`}>
+                  <span
+                    className="px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0"
+                    style={{
+                      background: (currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale') ? 'var(--primary)' : 'var(--purple)',
+                      color: 'white'
+                    }}
+                  >
                     {(currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale') ? '도매' : '소비자'}
                   </span>
                 </div>
-                <p className="text-blue-100 text-xs mt-0.5">{currentCart.date} {currentCart.time}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.7)' }}>{currentCart.date} {currentCart.time}</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              {!isEditingDetail && (
+              {!isEditingDetail ? (
                 <button
                   onClick={() => { setIsEditingDetail(true); setEditedDetailCart({ ...detailCart }); }}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                  title="수정"
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}
                 >
-                  <Edit3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                  <Edit3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">수정</span>
+                </button>
+              ) : (
+                <button
+                  onClick={saveEditedDetail}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors bg-white"
+                  style={{ color: 'var(--primary)' }}
+                >
+                  <Check className="w-4 h-4" />
+                  <span className="hidden sm:inline">저장</span>
                 </button>
               )}
+              <button
+                onClick={toggleDetailFullscreen}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                title={isDetailFullscreen ? '원래 크기' : '전체화면'}
+              >
+                {isDetailFullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
+              </button>
               <button
                 onClick={() => {
                   setDetailCart(null);
@@ -378,25 +458,21 @@ export default function SavedCarts({
                   value={productSearchTermDetail}
                   onChange={(e) => setProductSearchTermDetail(e.target.value)}
                   onFocus={handleSearchFocus}
+                  onKeyDown={scProdKeyDown}
                   placeholder="제품명 검색..."
                   className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                 />
-                {productSearchTermDetail && filteredProductsDetail.length > 0 && (
+                {productSearchTermDetail && scFilteredProducts.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl max-h-60 overflow-y-auto z-50">
-                    {filteredProductsDetail.map(product => {
+                    {scFilteredProducts.map((product, idx) => {
                       const price = (currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale') ? product.wholesale : (product.retail || product.wholesale);
                       const alreadyAdded = currentCart.items.some(item => item.id === product.id);
                       return (
                         <button
                           key={product.id}
-                          onClick={() => {
-                            if (!alreadyAdded) {
-                              const newItems = [...currentCart.items, { ...product, quantity: 1, price }];
-                              setEditedDetailCart({ ...editedDetailCart, items: newItems });
-                            }
-                            setProductSearchTermDetail('');
-                          }}
+                          onClick={() => scSelectProduct(product)}
                           className="w-full px-3 py-2.5 text-left hover:bg-[var(--accent)] transition-colors border-b border-[var(--border)] last:border-0"
+                          style={{ background: idx === scProdHi ? 'var(--accent)' : 'transparent' }}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
@@ -404,8 +480,8 @@ export default function SavedCarts({
                               <div className="text-xs text-[var(--muted-foreground)]">{product.category}</div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-green-600 font-medium text-sm">{formatPrice(price)}</span>
-                              {alreadyAdded && <span className="text-xs text-[var(--primary)] bg-blue-50 px-2 py-0.5 rounded">추가됨</span>}
+                              <span className="font-medium text-sm" style={{ color: 'var(--success)' }}>{formatPrice(price)}</span>
+                              {alreadyAdded && <span className="text-xs px-2 py-0.5 rounded" style={{ color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 12%, transparent)' }}>추가됨</span>}
                             </div>
                           </div>
                         </button>
@@ -439,7 +515,7 @@ export default function SavedCarts({
                         <p className="font-semibold truncate">{item.name}</p>
                         {itemPrice > 0 && (
                           <div className="mt-1">
-                            <p className="text-blue-600 text-sm">{formatPrice(itemPrice)}</p>
+                            <p className="text-sm" style={{ color: 'var(--primary)' }}>{formatPrice(itemPrice)}</p>
                             <p className="text-[var(--muted-foreground)] text-xs">(VAT제외 {formatPrice(itemSupply)})</p>
                           </div>
                         )}
@@ -475,7 +551,8 @@ export default function SavedCarts({
                                 const newItems = currentCart.items.filter((_, i) => i !== idx);
                                 setEditedDetailCart({ ...editedDetailCart, items: newItems });
                               }}
-                              className="w-7 h-7 border border-red-200 hover:bg-red-500 hover:text-white text-red-500 rounded flex items-center justify-center transition-colors ml-1"
+                              className="w-7 h-7 border rounded flex items-center justify-center transition-colors ml-1"
+                              style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -485,7 +562,7 @@ export default function SavedCarts({
                         )}
                         {itemPrice > 0 ? (
                           <div className="text-right">
-                            <p className="text-green-600 font-bold text-base">{formatPrice(itemTotal)}</p>
+                            <p className="font-bold text-base" style={{ color: 'var(--success)' }}>{formatPrice(itemTotal)}</p>
                             <p className="text-[var(--muted-foreground)] text-xs">(VAT제외 {formatPrice(itemTotalSupply)})</p>
                           </div>
                         ) : (
@@ -500,9 +577,9 @@ export default function SavedCarts({
 
             {/* Memo display */}
             {currentCart.memo && !isEditingDetail && (
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-blue-700 text-xs font-medium mb-1">메모</p>
-                <p className="text-sm text-blue-800">{currentCart.memo}</p>
+              <div className="mt-4 p-3 border rounded-lg" style={{ background: 'color-mix(in srgb, var(--info) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--info) 30%, transparent)' }}>
+                <p className="text-xs font-medium mb-1" style={{ color: 'var(--info)' }}>메모</p>
+                <p className="text-sm" style={{ color: 'var(--foreground)' }}>{currentCart.memo}</p>
               </div>
             )}
           </div>
@@ -566,31 +643,14 @@ export default function SavedCarts({
               </div>
               <div className="flex items-center justify-between">
                 <span className="font-semibold">총 금액</span>
-                <span className="text-xl font-bold text-green-600">{formatPrice(currentTotal)}</span>
+                <span className="text-xl font-bold" style={{ color: 'var(--success)' }}>{formatPrice(currentTotal)}</span>
               </div>
             </div>
 
             {isEditingDetail ? (
               <div className="flex gap-3">
                 <button
-                  onClick={async () => {
-                    if (detailIndex !== null && editedDetailCart) {
-                      const newTotal = editedDetailCart.items.reduce((sum, item) => {
-                        let price = 0;
-                        if (editedDetailCart.priceType === 'wholesale' || editedDetailCart.price_type === 'wholesale') {
-                          price = item.wholesale || item.price || item.unitPrice || 0;
-                        } else {
-                          price = item.retail || item.wholesale || item.price || item.unitPrice || 0;
-                        }
-                        return sum + (price * item.quantity);
-                      }, 0);
-                      const updatedCart = { ...editedDetailCart, total: newTotal };
-                      await onUpdate(detailIndex, updatedCart);
-                      setDetailCart(updatedCart);
-                      setIsEditingDetail(false);
-                      setEditedDetailCart(null);
-                    }
-                  }}
+                  onClick={saveEditedDetail}
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg font-medium transition-opacity"
                 >
                   <Save className="w-4 h-4" />
@@ -613,7 +673,8 @@ export default function SavedCarts({
               <div className="flex gap-3">
                 <button
                   onClick={() => { onLoad(currentCart); onBack(); }}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 hover:opacity-90 text-white rounded-lg font-semibold transition-opacity"
+                  style={{ background: 'var(--success)' }}
                 >
                   <Download className="w-4 h-4" />
                   불러오기
@@ -628,14 +689,17 @@ export default function SavedCarts({
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    if (detailIndex !== null) {
-                      onDelete(detailIndex);
+                  onClick={async () => {
+                    if (detailCart?.id) {
+                      const cartId = detailCart.id;
                       setDetailCart(null);
                       setDetailIndex(null);
+                      await handleDeleteCart(cartId);
                     }
                   }}
-                  className="px-4 py-2.5 border border-red-200 hover:bg-red-500 hover:text-white text-red-500 rounded-lg transition-colors"
+                  disabled={deletingId != null}
+                  className="px-4 py-2.5 border rounded-lg transition-colors disabled:opacity-50"
+                  style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -648,16 +712,24 @@ export default function SavedCarts({
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="bg-[var(--background)]">
       {/* Page header */}
       <header className="bg-[var(--card)] border-b border-[var(--border)] sticky top-0 z-40">
         <div className="w-full px-4 py-3">
           {/* Top row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
+              {/* Mobile: menu button */}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+                className="md:hidden p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
+              >
+                <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+              </button>
+              {/* Desktop: back button */}
               <button
                 onClick={onBack}
-                className="p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
+                className="hidden md:block p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -683,11 +755,15 @@ export default function SavedCarts({
                     <button
                       onClick={() => setShowFilterDeleteConfirm(true)}
                       disabled={filteredCarts.length === 0}
-                      className={`p-2 sm:px-3 sm:py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                      className={`p-2 sm:px-3 sm:py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium transition-colors border ${
                         filteredCarts.length > 0
-                          ? 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100'
-                          : 'border border-[var(--border)] text-[var(--muted-foreground)] cursor-not-allowed'
+                          ? ''
+                          : 'cursor-not-allowed'
                       }`}
+                      style={filteredCarts.length > 0
+                        ? { background: 'color-mix(in srgb, var(--warning) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)', color: 'var(--warning)' }
+                        : { borderColor: 'var(--border)', color: 'var(--muted-foreground)' }
+                      }
                       title={`${getFilterLabel()} 삭제`}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -696,7 +772,8 @@ export default function SavedCarts({
                   )}
                   <button
                     onClick={() => setShowDeleteAllConfirm(true)}
-                    className="p-2 sm:px-3 sm:py-2 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 rounded-lg flex items-center gap-1.5 text-sm font-medium transition-colors"
+                    className="p-2 sm:px-3 sm:py-2 border rounded-lg flex items-center gap-1.5 text-sm font-medium transition-colors"
+                    style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
                     title="전체삭제"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -728,7 +805,7 @@ export default function SavedCarts({
 
           {/* Select mode bar */}
           {selectMode && (
-            <div className="mt-3 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <div className="mt-3 flex items-center justify-between border rounded-lg px-3 py-2" style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--primary) 30%, transparent)' }}>
               <div className="flex items-center gap-2">
                 <button
                   onClick={toggleSelectAll}
@@ -744,9 +821,13 @@ export default function SavedCarts({
                   disabled={selectedItems.length === 0}
                   className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 font-medium transition-colors ${
                     selectedItems.length > 0
-                      ? 'bg-red-500 hover:bg-red-600 text-white'
-                      : 'border border-[var(--border)] text-[var(--muted-foreground)] cursor-not-allowed'
+                      ? 'hover:opacity-90'
+                      : 'border cursor-not-allowed'
                   }`}
+                  style={selectedItems.length > 0
+                    ? { background: 'var(--destructive)', color: 'white' }
+                    : { borderColor: 'var(--border)', color: 'var(--muted-foreground)' }
+                  }
                 >
                   <Trash2 className="w-3 h-3" />
                   삭제
@@ -765,7 +846,7 @@ export default function SavedCarts({
           {isHeaderCollapsed && (
             <div className="mt-2 flex items-center justify-between text-xs bg-[var(--secondary)] rounded-lg px-3 py-2">
               <span className="text-[var(--muted-foreground)]">
-                {getFilterLabel()} · {filteredCarts.length}건 · <span className="text-green-600 font-semibold">{formatPrice(totalAmount)}</span>
+                {getFilterLabel()} · {filteredCarts.length}건 · <span className="font-semibold" style={{ color: 'var(--success)' }}>{formatPrice(totalAmount)}</span>
               </span>
               {searchTerm && <span className="text-[var(--primary)]">검색: {searchTerm}</span>}
             </div>
@@ -787,7 +868,7 @@ export default function SavedCarts({
                 <p className="text-[var(--muted-foreground)] text-xs flex items-center gap-1">
                   <Receipt className="w-3 h-3" /> 총 금액
                 </p>
-                <p className="text-green-600 font-bold text-lg">{formatPrice(totalAmount)}</p>
+                <p className="font-bold text-lg" style={{ color: 'var(--success)' }}>{formatPrice(totalAmount)}</p>
               </div>
             </div>
 
@@ -835,9 +916,10 @@ export default function SavedCarts({
                     onClick={() => { setDeliveryFilter(key); setSelectedItems([]); }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       deliveryFilter === key
-                        ? 'bg-amber-500 text-white'
+                        ? ''
                         : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'
                     }`}
+                    style={deliveryFilter === key ? { background: 'var(--warning)', color: 'white' } : undefined}
                   >
                     {label}
                   </button>
@@ -888,43 +970,44 @@ export default function SavedCarts({
 
               return (
                 <div
-                  key={index}
+                  key={cart.id || index}
                   onClick={(e) => handleCardClick(cart, index, e)}
-                  className={`rounded-lg border transition-all duration-200 cursor-pointer overflow-hidden border-l-4 ${
-                    selectMode && selectedItems.includes(index)
-                      ? 'ring-2 ring-[var(--primary)] border-[var(--primary)] bg-blue-50'
+                  className="card-interactive rounded-xl border cursor-pointer overflow-hidden border-l-4"
+                  style={
+                    selectMode && selectedItems.includes(cart.id)
+                      ? { borderColor: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 12%, transparent)', boxShadow: '0 0 0 2px var(--primary)' }
                       : isBlacklist
-                        ? 'border-red-300 border-l-red-500 bg-red-50 hover:shadow-md'
+                        ? { borderColor: 'color-mix(in srgb, var(--destructive) 40%, transparent)', borderLeftColor: 'var(--destructive)', background: 'color-mix(in srgb, var(--destructive) 12%, transparent)' }
                         : isReservation
-                          ? 'border-orange-200 border-l-orange-500 bg-orange-50 hover:shadow-md'
+                          ? { borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)', borderLeftColor: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 12%, transparent)' }
                           : isScheduled
-                            ? 'border-yellow-200 border-l-yellow-500 bg-yellow-50 hover:shadow-md'
-                            : `border-[var(--border)] ${statusStyle.borderClass} bg-[var(--card)] hover:shadow-md hover:border-[var(--primary)]`
-                  }`}
+                            ? { borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)', borderLeftColor: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 12%, transparent)' }
+                            : { borderColor: 'var(--border)', borderLeftColor: statusStyle.borderColor, background: statusStyle.bgColor || 'var(--card)' }
+                  }
                 >
                   <div className="p-4">
                     <div className="flex items-start gap-3">
                       {/* Icon / Checkbox */}
                       {!selectMode && isReservation && (
-                        <div className="mt-0.5 w-8 h-8 rounded-lg bg-orange-100 border border-orange-200 flex items-center justify-center flex-shrink-0">
-                          <Package className="w-4 h-4 text-orange-600" />
+                        <div className="mt-0.5 w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)' }}>
+                          <Package className="w-4 h-4" style={{ color: 'var(--warning)' }} />
                         </div>
                       )}
                       {!selectMode && isScheduled && !isReservation && (
-                        <div className="mt-0.5 w-8 h-8 rounded-lg bg-yellow-100 border border-yellow-200 flex items-center justify-center flex-shrink-0">
-                          <Clock className="w-4 h-4 text-yellow-600" />
+                        <div className="mt-0.5 w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)' }}>
+                          <Clock className="w-4 h-4" style={{ color: 'var(--warning)' }} />
                         </div>
                       )}
                       {selectMode && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); toggleSelect(index); }}
+                          onClick={(e) => { e.stopPropagation(); toggleSelect(cart.id); }}
                           className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
-                            selectedItems.includes(index)
+                            selectedItems.includes(cart.id)
                               ? 'bg-[var(--primary)] border-[var(--primary)]'
                               : 'border-[var(--border)] hover:border-[var(--primary)]'
                           }`}
                         >
-                          {selectedItems.includes(index) && <Check className="w-3 h-3 text-white" />}
+                          {selectedItems.includes(cart.id) && <Check className="w-3 h-3 text-white" />}
                         </button>
                       )}
 
@@ -933,23 +1016,29 @@ export default function SavedCarts({
                         <div className="flex items-start justify-between mb-1.5">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                              {isBlacklist && <span className="flex-shrink-0 text-red-500">🚫</span>}
-                              <h3 className={`font-semibold truncate ${isBlacklist ? 'text-red-700' : ''}`}>
+                              {isBlacklist && <span className="flex-shrink-0" style={{ color: 'var(--destructive)' }}>🚫</span>}
+                              <h3 className="font-semibold truncate" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>
                                 {cart.name}
                               </h3>
                               {isBlacklist && (
                                 <StatusBadge status="blacklist" className="flex-shrink-0" />
                               )}
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex-shrink-0 ${
-                                cart.priceType === 'wholesale' || cart.price_type === 'wholesale'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : 'bg-purple-100 text-purple-700'
-                              }`}>
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[10px] font-bold flex-shrink-0"
+                                style={{
+                                  background: (cart.priceType === 'wholesale' || cart.price_type === 'wholesale')
+                                    ? 'color-mix(in srgb, var(--primary) 20%, transparent)'
+                                    : 'color-mix(in srgb, var(--purple) 20%, transparent)',
+                                  color: (cart.priceType === 'wholesale' || cart.price_type === 'wholesale')
+                                    ? 'var(--primary)'
+                                    : 'var(--purple)'
+                                }}
+                              >
                                 {(cart.priceType === 'wholesale' || cart.price_type === 'wholesale') ? '도매' : '소비자'}
                               </span>
                             </div>
                             {isBlacklist && blacklistInfo?.reason && (
-                              <p className="text-[10px] text-red-500 mb-1">사유: {blacklistInfo.reason}</p>
+                              <p className="text-[10px] mb-1" style={{ color: 'var(--destructive)' }}>사유: {blacklistInfo.reason}</p>
                             )}
                             <div className="flex items-center gap-2 flex-wrap">
                               <StatusBadge
@@ -958,7 +1047,7 @@ export default function SavedCarts({
                               {cart.delivery_date && (() => {
                                 const dateInfo = getDeliveryDateLabel(cart.delivery_date);
                                 return dateInfo && (
-                                  <span className={`text-[10px] font-medium ${dateInfo.colorClass}`}>
+                                  <span className="text-[10px] font-medium" style={dateInfo.colorStyle}>
                                     {dateInfo.label}
                                   </span>
                                 );
@@ -966,7 +1055,7 @@ export default function SavedCarts({
                             </div>
                             <p className="text-[var(--muted-foreground)] text-xs mt-1">{cart.date} {cart.time}</p>
                           </div>
-                          <p className="text-green-600 font-bold text-sm ml-2 flex-shrink-0">{formatPrice(cart.total)}</p>
+                          <p className="font-bold text-sm ml-2 flex-shrink-0" style={{ color: 'var(--success)' }}>{formatPrice(cart.total)}</p>
                         </div>
 
                         {/* Items summary */}
@@ -976,7 +1065,7 @@ export default function SavedCarts({
                             {cart.items.length}종 / {cart.items.reduce((sum, item) => sum + item.quantity, 0)}개
                           </p>
                           {cart.memo && (
-                            <p className="text-blue-600 text-xs mt-1.5 border-t border-[var(--border)] pt-1.5 truncate">
+                            <p className="text-xs mt-1.5 border-t border-[var(--border)] pt-1.5 truncate" style={{ color: 'var(--info)' }}>
                               {cart.memo}
                             </p>
                           )}
@@ -987,7 +1076,8 @@ export default function SavedCarts({
                           <div className="flex gap-2">
                             <button
                               onClick={(e) => { e.stopPropagation(); onLoad(cart); onBack(); }}
-                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-medium transition-colors"
+                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 hover:opacity-90 text-white rounded-lg text-xs font-medium transition-opacity"
+                              style={{ background: 'var(--success)' }}
                             >
                               <Download className="w-3.5 h-3.5" />
                               불러오기
@@ -1003,7 +1093,8 @@ export default function SavedCarts({
                             )}
                             <button
                               onClick={(e) => { e.stopPropagation(); setDeleteConfirm(index); }}
-                              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 border border-red-200 hover:bg-red-50 text-red-500 rounded-lg text-xs transition-colors"
+                              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-xs transition-colors"
+                              style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1012,14 +1103,16 @@ export default function SavedCarts({
 
                         {/* Inline delete confirm */}
                         {deleteConfirm === index && !selectMode && (
-                          <div className="mt-2 p-2.5 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-red-600 text-xs mb-2">정말 삭제하시겠습니까?</p>
+                          <div className="mt-2 p-2.5 border rounded-lg" style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)' }}>
+                            <p className="text-xs mb-2" style={{ color: 'var(--destructive)' }}>정말 삭제하시겠습니까?</p>
                             <div className="flex gap-2">
                               <button
-                                onClick={(e) => { e.stopPropagation(); onDelete(index); setDeleteConfirm(null); }}
-                                className="flex-1 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition-colors"
+                                onClick={async (e) => { e.stopPropagation(); setDeleteConfirm(null); await handleDeleteCart(cart.id); }}
+                                disabled={deletingId === cart.id}
+                                className="flex-1 py-1.5 hover:opacity-90 text-white rounded text-xs font-medium transition-opacity disabled:opacity-50"
+                                style={{ background: 'var(--destructive)' }}
                               >
-                                삭제
+                                {deletingId === cart.id ? '삭제중...' : '삭제'}
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setDeleteConfirm(null); }}
@@ -1044,7 +1137,8 @@ export default function SavedCarts({
       {!detailCart && (
         <button
           onClick={() => { setCalculatorInitialValue(null); setShowCalculatorModal(true); }}
-          className="fixed bottom-6 right-4 z-40 w-12 h-12 bg-amber-500 hover:bg-amber-600 rounded-full shadow-lg flex items-center justify-center text-white hover:scale-110 transition-all"
+          className="fixed bottom-6 right-4 z-40 w-12 h-12 hover:opacity-90 rounded-full shadow-lg flex items-center justify-center text-white hover:scale-110 transition-all"
+          style={{ background: 'var(--warning)' }}
           title="계산기"
         >
           <Calculator className="w-5 h-5" />
@@ -1065,28 +1159,36 @@ export default function SavedCarts({
         destructive
       />
 
+      {/* Quick Calculator */}
+      {showCalculatorModal && (
+        <QuickCalculator
+          onClose={() => { setShowCalculatorModal(false); setCalculatorInitialValue(null); }}
+          initialValue={calculatorInitialValue}
+        />
+      )}
+
       {/* Filter delete confirm */}
       {showFilterDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-[var(--card)] rounded-xl w-full max-w-sm border border-[var(--border)] shadow-xl overflow-hidden">
-            <div className="bg-amber-500 px-5 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-modal-backdrop" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}>
+          <div className="bg-[var(--card)] rounded-xl w-full max-w-md border border-[var(--border)] shadow-xl overflow-hidden animate-modal-up">
+            <div className="px-5 py-4" style={{ background: 'var(--warning)' }}>
               <div className="flex items-center gap-3">
                 <AlertTriangle className="w-6 h-6 text-white flex-shrink-0" />
                 <div>
                   <h2 className="text-base font-bold text-white">장바구니 일괄 삭제</h2>
-                  <p className="text-amber-100 text-xs">{getFilterLabel()} 장바구니 {filteredCarts.length}개</p>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>{getFilterLabel()} 장바구니 {filteredCarts.length}개</p>
                 </div>
               </div>
             </div>
             <div className="p-5">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm">
+              <div className="border rounded-lg p-3 mb-4 text-sm" style={{ background: 'color-mix(in srgb, var(--warning) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)' }}>
                 <p className="font-medium mb-1">다음 장바구니가 모두 삭제됩니다:</p>
                 <ul className="text-[var(--muted-foreground)] space-y-0.5 text-xs">
                   <li>필터: <span className="font-medium text-[var(--foreground)]">{getFilterLabel()}</span></li>
-                  <li>삭제 대상: <span className="font-bold text-amber-600">{filteredCarts.length}개</span></li>
+                  <li>삭제 대상: <span className="font-bold" style={{ color: 'var(--warning)' }}>{filteredCarts.length}개</span></li>
                   <li>총 금액: <span className="font-medium">{formatPrice(filteredCarts.reduce((sum, c) => sum + (c.total || 0), 0))}</span></li>
                 </ul>
-                <p className="text-amber-600 text-xs mt-2">이 작업은 되돌릴 수 없습니다.</p>
+                <p className="text-xs mt-2" style={{ color: 'var(--warning)' }}>이 작업은 되돌릴 수 없습니다.</p>
               </div>
               <div className="flex gap-2">
                 <button
@@ -1097,7 +1199,8 @@ export default function SavedCarts({
                 </button>
                 <button
                   onClick={handleFilterDelete}
-                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 hover:opacity-90 text-white rounded-lg text-sm font-medium transition-opacity flex items-center justify-center gap-1.5"
+                  style={{ background: 'var(--warning)' }}
                 >
                   <Trash2 className="w-4 h-4" />
                   삭제 실행

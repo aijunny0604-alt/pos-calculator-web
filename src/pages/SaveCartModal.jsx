@@ -85,14 +85,14 @@ export default function SaveCartModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-modal-backdrop"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
     >
       {/* Backdrop */}
       <div className="absolute inset-0" onClick={onBack} />
 
       <div
-        className="relative w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col rounded-2xl shadow-2xl border"
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col rounded-2xl shadow-2xl border animate-modal-up"
         style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
       >
         {/* Header */}

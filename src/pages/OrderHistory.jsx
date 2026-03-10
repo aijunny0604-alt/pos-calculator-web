@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  ChevronLeft, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
+  ChevronLeft, Menu, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
   ChevronDown
 } from 'lucide-react';
@@ -179,7 +179,7 @@ export default function OrderHistory({
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--background)' }}>
+    <div style={{ background: 'var(--background)' }}>
       {/* Header */}
       <header
         className="sticky top-0 z-40"
@@ -189,9 +189,17 @@ export default function OrderHistory({
           {/* Top row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              {/* Mobile: menu button */}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+                className="md:hidden p-2 rounded-lg transition-colors hover:bg-[var(--accent)]"
+              >
+                <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+              </button>
+              {/* Desktop: back button */}
               <button
                 onClick={onBack}
-                className="p-2 rounded-lg transition-colors hover:bg-[var(--accent)]"
+                className="hidden md:block p-2 rounded-lg transition-colors hover:bg-[var(--accent)]"
               >
                 <ChevronLeft className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
               </button>
@@ -270,7 +278,7 @@ export default function OrderHistory({
             {/* Stats cards */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
               <div
-                className="rounded-lg p-3 border"
+                className="rounded-xl p-3 border"
                 style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
               >
                 <p className="text-xs flex items-center gap-1 mb-1" style={{ color: 'var(--muted-foreground)' }}>
@@ -288,7 +296,7 @@ export default function OrderHistory({
               </div>
 
               <div
-                className="rounded-lg p-3 border"
+                className="rounded-xl p-3 border"
                 style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
               >
                 <p className="text-xs flex items-center gap-1 mb-1" style={{ color: 'var(--muted-foreground)' }}>
@@ -311,7 +319,7 @@ export default function OrderHistory({
               </div>
 
               <div
-                className="rounded-lg p-3 border"
+                className="rounded-xl p-3 border"
                 style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
               >
                 <p className="text-xs flex items-center gap-1 mb-1" style={{ color: 'var(--muted-foreground)' }}>
@@ -324,14 +332,14 @@ export default function OrderHistory({
               </div>
 
               <div
-                className="rounded-lg p-3 border"
+                className="rounded-xl p-3 border"
                 style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
               >
                 <p className="text-xs flex items-center gap-1 mb-1" style={{ color: 'var(--muted-foreground)' }}>
                   <Receipt className="w-3 h-3" />
                   부가세
                 </p>
-                <p className="font-bold text-lg" style={{ color: '#a855f7' }}>
+                <p className="font-bold text-lg" style={{ color: 'var(--purple)' }}>
                   {formatPrice(
                     (filteredTotalSales - filteredTotalReturned) -
                     calcExVat(filteredTotalSales - filteredTotalReturned)
@@ -340,7 +348,7 @@ export default function OrderHistory({
               </div>
 
               <div
-                className="rounded-lg p-3 border"
+                className="rounded-xl p-3 border"
                 style={{
                   background: filteredTotalReturned > 0
                     ? 'color-mix(in srgb, var(--warning) 10%, var(--card))'
@@ -496,7 +504,7 @@ export default function OrderHistory({
                 <div
                   key={order.orderNumber}
                   onClick={() => onViewOrder(order)}
-                  className="rounded-xl p-4 border transition-all duration-200 cursor-pointer select-none relative overflow-hidden hover:shadow-md"
+                  className="card-interactive rounded-xl p-4 border cursor-pointer select-none relative overflow-hidden"
                   style={{
                     background: isSelected
                       ? 'color-mix(in srgb, var(--primary) 8%, var(--card))'
@@ -540,8 +548,8 @@ export default function OrderHistory({
                           style={{
                             background: order.priceType === 'wholesale'
                               ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
-                              : 'color-mix(in srgb, #a855f7 15%, transparent)',
-                            color: order.priceType === 'wholesale' ? 'var(--primary)' : '#a855f7',
+                              : 'color-mix(in srgb, var(--purple) 15%, transparent)',
+                            color: order.priceType === 'wholesale' ? 'var(--primary)' : 'var(--purple)',
                           }}
                         >
                           {order.priceType === 'wholesale' ? '도매' : '소비자'}
@@ -644,41 +652,38 @@ export default function OrderHistory({
                       </button>
                     )}
 
-                    {deleteConfirm === order.orderNumber ? (
-                      <div className="flex gap-1">
+                    {deleteConfirm !== order.orderNumber && (
+                      <button
+                        onClick={() => setDeleteConfirm(order.orderNumber)}
+                        className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-xs transition-colors"
+                        style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Inline delete confirm */}
+                  {deleteConfirm === order.orderNumber && (
+                    <div className="mt-2 p-2.5 border rounded-lg" onClick={(e) => e.stopPropagation()} style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)' }}>
+                      <p className="text-xs mb-2" style={{ color: 'var(--destructive)' }}>정말 삭제하시겠습니까?</p>
+                      <div className="flex gap-2">
                         <button
-                          onClick={() => {
-                            onDeleteOrder(order.orderNumber);
-                            setDeleteConfirm(null);
-                          }}
-                          className="px-3 py-2 rounded-lg text-xs font-medium transition-colors"
-                          style={{ background: 'var(--destructive)', color: 'white' }}
+                          onClick={() => { onDeleteOrder(order.orderNumber); setDeleteConfirm(null); }}
+                          className="flex-1 py-1.5 hover:opacity-90 text-white rounded text-xs font-medium transition-opacity"
+                          style={{ background: 'var(--destructive)' }}
                         >
-                          확인
+                          삭제
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(null)}
-                          className="px-3 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--accent)] border"
-                          style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                          className="flex-1 py-1.5 border border-[var(--border)] hover:bg-[var(--accent)] rounded text-xs transition-colors"
                         >
                           취소
                         </button>
                       </div>
-                    ) : (
-                      <button
-                        onClick={() => setDeleteConfirm(order.orderNumber)}
-                        className="px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors border"
-                        style={{
-                          background: 'color-mix(in srgb, var(--destructive) 10%, transparent)',
-                          borderColor: 'color-mix(in srgb, var(--destructive) 40%, var(--border))',
-                          color: 'var(--destructive)',
-                        }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        삭제
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -693,7 +698,7 @@ export default function OrderHistory({
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
         >
           <div
-            className="rounded-2xl w-full max-w-sm p-6 border shadow-2xl"
+            className="rounded-2xl w-full max-w-md p-6 border shadow-2xl"
             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
           >
             <div className="flex items-center gap-3 mb-4">
@@ -740,7 +745,7 @@ export default function OrderHistory({
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
         >
           <div
-            className="rounded-2xl w-full max-w-md p-6 border shadow-2xl"
+            className="rounded-2xl w-full max-w-lg p-6 border shadow-2xl"
             style={{
               background: 'var(--card)',
               borderColor: 'color-mix(in srgb, var(--destructive) 40%, var(--border))',

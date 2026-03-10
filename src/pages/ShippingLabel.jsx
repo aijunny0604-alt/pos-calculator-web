@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  ArrowLeft, Truck, X, Plus, Search, Trash2, Download, FileText,
-  Printer, Check
+  ArrowLeft, Menu, Truck, X, Plus, Search, Trash2, Download, FileText,
+  Printer, Check, Maximize2, Minimize2
 } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatPrice, escapeHtml, handleSearchFocus } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import useKeyboardNav from '@/hooks/useKeyboardNav';
+import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 export default function ShippingLabel({ orders = [], customers = [], onBack, refreshCustomers, showToast }) {
   const [selectedOrders, setSelectedOrders] = useState([]);
@@ -57,6 +59,44 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
   useEffect(() => {
     if (refreshCustomers) refreshCustomers();
   }, [refreshCustomers]);
+
+  // -- Customer search keyboard nav --
+  const filteredCustomerSearch = useMemo(() => {
+    if (!newCustomEntry.name) return [];
+    const term = newCustomEntry.name.toLowerCase().replace(/\s/g, '');
+    const filtered = (customers || []).filter(c => {
+      if (!c?.name) return false;
+      const name = c.name.toLowerCase().replace(/\s/g, '');
+      const phone = (c.phone || '').replace(/\s/g, '');
+      return name.includes(term) || phone.includes(term);
+    }).slice(0, 5);
+    const exactMatch = filtered.find(c => c.name === newCustomEntry.name);
+    if (exactMatch && newCustomEntry.phone === (exactMatch.phone || '')) return [];
+    return filtered;
+  }, [newCustomEntry.name, newCustomEntry.phone, customers]);
+
+  const selectShippingCustomer = useCallback((c) => {
+    const savedSetting = savedCustomerSettings[c.name];
+    setNewCustomEntry(prev => ({
+      ...prev,
+      name: c.name,
+      phone: c.phone || '',
+      address: c.address || '',
+      ...(savedSetting && {
+        paymentType: savedSetting.paymentType || '착불',
+        packaging: savedSetting.packaging || '박스1',
+        sender: savedSetting.sender || '무브모터스'
+      })
+    }));
+  }, [savedCustomerSettings]);
+
+  const { highlightIndex: shipCustHi, handleKeyDown: shipCustKeyDown } = useKeyboardNav(
+    filteredCustomerSearch,
+    selectShippingCustomer,
+    filteredCustomerSearch.length > 0
+  );
+
+  const { isFullscreen: isAddModalFullscreen, toggleFullscreen: toggleAddModalFullscreen } = useModalFullscreen();
 
   // -- Filtering --
 
@@ -544,15 +584,23 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
   const packagingOptions = ['박스1', '박스2', '박스3', '나체1', '나체2', '나체3'];
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex flex-col">
+    <div className="h-full bg-[var(--background)] flex flex-col">
       {/* Page header */}
       <header className="bg-[var(--card)] border-b border-[var(--border)] sticky top-0 z-40">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={onBack} className="p-2 hover:bg-[var(--accent)] rounded-lg transition-colors">
+            {/* Mobile: menu button */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+              className="md:hidden p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
+            >
+              <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+            </button>
+            {/* Desktop: back button */}
+            <button onClick={onBack} className="hidden md:block p-2 hover:bg-[var(--accent)] rounded-lg transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <Truck className="w-5 h-5 text-amber-600" />
+            <Truck className="w-5 h-5" style={{ color: 'var(--warning)' }} />
             <div>
               <h1 className="text-base font-bold">택배 송장 생성</h1>
               <p className="text-[var(--muted-foreground)] text-xs">
@@ -568,7 +616,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
         {/* Left panel: Order selection */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {/* Date filter */}
-          <div className="bg-[var(--card)] rounded-lg p-3 mb-4 border border-[var(--border)]">
+          <div className="bg-[var(--card)] rounded-xl p-3 mb-4 border border-[var(--border)]">
             <p className="text-[var(--muted-foreground)] text-xs mb-2">날짜 필터</p>
             <div className="flex flex-wrap gap-2">
               {[{ key: 'today', label: '오늘' }, { key: 'yesterday', label: '어제' }, { key: 'week', label: '최근 7일' }, { key: 'all', label: '전체' }].map(({ key, label }) => (
@@ -577,9 +625,10 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                   onClick={() => { setDateFilter(key); setSelectedOrders([]); }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     dateFilter === key
-                      ? 'bg-amber-500 text-white'
+                      ? 'text-white'
                       : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'
                   }`}
+                  style={dateFilter === key ? { background: 'var(--warning)', color: 'white' } : {}}
                 >
                   {label}
                 </button>
@@ -594,9 +643,13 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                 onClick={handleSelectAll}
                 className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
                   (filteredOrders.length + customEntries.length) > 0 && selectedOrders.length === (filteredOrders.length + customEntries.length)
-                    ? 'bg-amber-500 border-amber-500'
-                    : 'border-[var(--border)] hover:border-amber-500'
+                    ? ''
+                    : 'border-[var(--border)]'
                 }`}
+                style={(filteredOrders.length + customEntries.length) > 0 && selectedOrders.length === (filteredOrders.length + customEntries.length)
+                  ? { background: 'var(--warning)', borderColor: 'var(--warning)' }
+                  : {}
+                }
               >
                 {(filteredOrders.length + customEntries.length) > 0 && selectedOrders.length === (filteredOrders.length + customEntries.length) && (
                   <Check className="w-3 h-3 text-white" />
@@ -606,7 +659,8 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
             </label>
             <button
               onClick={() => setShowAddCustomModal(true)}
-              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 text-white text-sm font-medium rounded-lg flex items-center gap-1.5 transition-colors hover:opacity-90"
+              style={{ background: 'var(--success)', color: 'white' }}
             >
               <Plus className="w-4 h-4" />
               임의 추가
@@ -632,41 +686,45 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                 return (
                   <div
                     key={order.orderNumber}
-                    className={`rounded-lg border transition-all ${
-                      isSelected ? 'bg-amber-50 border-amber-300' : 'bg-[var(--card)] border-[var(--border)] hover:border-amber-200'
+                    className={`card-interactive rounded-xl border ${
+                      isSelected ? '' : 'bg-[var(--card)] border-[var(--border)]'
                     }`}
+                    style={isSelected
+                      ? { background: 'color-mix(in srgb, var(--warning) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))' }
+                      : {}
+                    }
                   >
                     <div className="p-3 cursor-pointer" onClick={() => toggleOrder(order.orderNumber)}>
                       <div className="flex items-start gap-3">
                         <div
                           className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                            isSelected ? 'bg-amber-500 border-amber-500' : 'border-[var(--border)]'
+                            isSelected ? '' : 'border-[var(--border)]'
                           }`}
+                          style={isSelected ? { background: 'var(--warning)', borderColor: 'var(--warning)' } : {}}
                         >
                           {isSelected && <Check className="w-3 h-3 text-white" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className={`font-medium text-sm ${setting.paymentType === '선불' ? 'text-amber-700 font-bold' : ''}`}>
+                            <span className={`font-medium text-sm ${setting.paymentType === '선불' ? 'font-bold' : ''}`} style={setting.paymentType === '선불' ? { color: 'var(--warning)' } : {}}>
                               {order.customerName || '고객명 없음'}
                             </span>
-                            <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                              (setting.sender || senderList[0]) === '엠파츠'
-                                ? 'bg-purple-100 text-purple-700'
-                                : 'bg-cyan-100 text-cyan-700'
-                            }`}>
+                            <span className="px-2 py-0.5 text-xs rounded-full font-medium" style={(setting.sender || senderList[0]) === '엠파츠'
+                              ? { background: 'color-mix(in srgb, var(--purple) 15%, transparent)', color: 'var(--purple)' }
+                              : { background: 'color-mix(in srgb, var(--info) 15%, transparent)', color: 'var(--info)' }
+                            }>
                               {setting.sender || senderList[0]}
                             </span>
                             {setting.paymentType === '선불' && (
-                              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-bold">선불</span>
+                              <span className="px-2 py-0.5 text-xs rounded-full font-bold" style={{ background: 'color-mix(in srgb, var(--warning) 12%, transparent)', color: 'var(--warning)' }}>선불</span>
                             )}
                             {hasAddress ? (
-                              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">주소 있음</span>
+                              <span className="px-2 py-0.5 text-xs rounded-full" style={{ background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' }}>주소 있음</span>
                             ) : (
-                              <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full">주소 없음</span>
+                              <span className="px-2 py-0.5 text-xs rounded-full" style={{ background: 'color-mix(in srgb, var(--destructive) 15%, transparent)', color: 'var(--destructive)' }}>주소 없음</span>
                             )}
                             {hasSavedSetting && (
-                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">설정저장됨</span>
+                              <span className="px-2 py-0.5 text-xs rounded-full" style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}>설정저장됨</span>
                             )}
                           </div>
                           <p className="text-[var(--muted-foreground)] text-xs truncate">{customer?.address || '주소 미등록'}</p>
@@ -677,7 +735,8 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                           {customer && (
                             <button
                               onClick={(e) => { e.stopPropagation(); startEditCustomer(order.customerName); }}
-                              className="mt-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 text-xs rounded transition-colors"
+                              className="mt-1 px-2 py-0.5 border text-xs rounded-lg transition-colors"
+                              style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--border))', color: 'var(--primary)' }}
                             >
                               정보 수정
                             </button>
@@ -695,7 +754,8 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                             <select
                               value={setting.sender || senderList[0]}
                               onChange={(e) => updateOrderSetting(order.orderNumber, 'sender', e.target.value)}
-                              className="w-full px-2 py-1.5 border border-amber-200 bg-amber-50 rounded text-sm font-medium focus:outline-none focus:border-amber-400 text-center"
+                              className="w-full px-2 py-1.5 border rounded-lg text-sm font-medium focus:outline-none text-center"
+                              style={{ borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))', background: 'color-mix(in srgb, var(--warning) 12%, transparent)' }}
                             >
                               {senderList.map(sender => <option key={sender} value={sender}>{sender}</option>)}
                             </select>
@@ -705,7 +765,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                             <select
                               value={setting.paymentType}
                               onChange={(e) => updateOrderSetting(order.orderNumber, 'paymentType', e.target.value)}
-                              className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-amber-400 text-center bg-[var(--background)]"
+                              className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none text-center bg-[var(--background)]"
                             >
                               <option value="착불">착불</option>
                               <option value="선불">선불</option>
@@ -720,7 +780,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                               onChange={(e) => updateOrderSetting(order.orderNumber, 'packaging', e.target.value)}
                               onInput={(e) => updateOrderSetting(order.orderNumber, 'packaging', e.target.value)}
                               placeholder="박스1"
-                              className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-amber-400 text-center bg-[var(--background)]"
+                              className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none text-center bg-[var(--background)]"
                             />
                             <datalist id={`packaging-options-${order.orderNumber}`}>
                               {packagingOptions.map(opt => <option key={opt} value={opt} />)}
@@ -738,7 +798,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                                 }
                               }}
                               placeholder="7300"
-                              className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-amber-400 text-center bg-[var(--background)]"
+                              className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none text-center bg-[var(--background)]"
                             />
                           </div>
                         </div>
@@ -748,14 +808,16 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                           <div className="flex gap-2">
                             <button
                               onClick={() => saveCustomerSetting(order.customerName, setting)}
-                              className="flex-1 px-2 py-1.5 bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1"
+                              className="flex-1 px-2 py-1.5 border text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1"
+                              style={{ background: 'color-mix(in srgb, var(--success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--success) 30%, var(--border))', color: 'var(--success)' }}
                             >
                               {hasSavedSetting ? '설정 업데이트' : '이 설정 저장'}
                             </button>
                             {hasSavedSetting && (
                               <button
                                 onClick={() => deleteCustomerSetting(order.customerName)}
-                                className="px-2 py-1.5 bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 text-xs font-medium rounded transition-colors"
+                                className="px-2 py-1.5 border text-xs font-medium rounded-lg transition-colors"
+                                style={{ background: 'color-mix(in srgb, var(--destructive) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--destructive) 30%, var(--border))', color: 'var(--destructive)' }}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -765,8 +827,8 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
 
                         {/* Customer info edit form */}
                         {customer && editingCustomer === customer.id && (
-                          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-blue-700 font-medium text-sm mb-2">{order.customerName} 정보 수정</p>
+                          <div className="mt-2 p-3 border rounded-xl" style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--border))' }}>
+                            <p className="font-medium text-sm mb-2" style={{ color: 'var(--primary)' }}>{order.customerName} 정보 수정</p>
                             <div className="space-y-2">
                               <div>
                                 <label className="block text-[var(--muted-foreground)] text-xs mb-1">주소</label>
@@ -775,7 +837,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                                   value={tempAddress}
                                   onChange={(e) => setTempAddress(e.target.value)}
                                   placeholder="주소를 입력하세요"
-                                  className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                                  className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                                 />
                               </div>
                               <div>
@@ -785,19 +847,19 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                                   value={tempPhone}
                                   onChange={(e) => setTempPhone(e.target.value)}
                                   placeholder="전화번호를 입력하세요"
-                                  className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                                  className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                                 />
                               </div>
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => saveCustomerInfo(customer.id)}
-                                  className="flex-1 px-3 py-1.5 bg-[var(--primary)] hover:opacity-90 text-white text-sm font-medium rounded transition-opacity"
+                                  className="flex-1 px-3 py-1.5 bg-[var(--primary)] hover:opacity-90 text-white text-sm font-medium rounded-lg transition-opacity"
                                 >
                                   저장
                                 </button>
                                 <button
                                   onClick={cancelEditCustomer}
-                                  className="flex-1 px-3 py-1.5 border border-[var(--border)] hover:bg-[var(--accent)] text-sm font-medium rounded transition-colors"
+                                  className="flex-1 px-3 py-1.5 border border-[var(--border)] hover:bg-[var(--accent)] text-sm font-medium rounded-lg transition-colors"
                                 >
                                   취소
                                 </button>
@@ -826,29 +888,35 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                   return (
                     <div
                       key={entry.id}
-                      className={`rounded-lg border transition-all ${
-                        isSelected ? 'bg-green-50 border-green-300' : 'bg-[var(--card)] border-[var(--border)] hover:border-green-200'
+                      className={`card-interactive rounded-xl border ${
+                        isSelected ? '' : 'bg-[var(--card)] border-[var(--border)]'
                       }`}
+                      style={isSelected
+                        ? { background: 'color-mix(in srgb, var(--success) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--success) 40%, var(--border))' }
+                        : {}
+                      }
                     >
                       <div className="p-3 cursor-pointer" onClick={() => toggleOrder(entry.id)}>
                         <div className="flex items-start gap-3">
                           <div
                             className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isSelected ? 'bg-green-600 border-green-600' : 'border-[var(--border)]'
+                              isSelected ? '' : 'border-[var(--border)]'
                             }`}
+                            style={isSelected ? { background: 'var(--success)', borderColor: 'var(--success)' } : {}}
                           >
                             {isSelected && <Check className="w-3 h-3 text-white" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               <span className="font-medium text-sm">{entry.name}</span>
-                              <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                                entry.sender === '엠파츠' ? 'bg-purple-100 text-purple-700' : 'bg-cyan-100 text-cyan-700'
-                              }`}>{entry.sender}</span>
+                              <span className="px-2 py-0.5 text-xs rounded-full font-medium" style={entry.sender === '엠파츠'
+                                ? { background: 'color-mix(in srgb, var(--purple) 15%, transparent)', color: 'var(--purple)' }
+                                : { background: 'color-mix(in srgb, var(--info) 15%, transparent)', color: 'var(--info)' }
+                              }>{entry.sender}</span>
                               {entry.paymentType === '선불' && (
-                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-bold">선불</span>
+                                <span className="px-2 py-0.5 text-xs rounded-full font-bold" style={{ background: 'color-mix(in srgb, var(--warning) 12%, transparent)', color: 'var(--warning)' }}>선불</span>
                               )}
-                              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">직접 추가</span>
+                              <span className="px-2 py-0.5 text-xs rounded-full" style={{ background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' }}>직접 추가</span>
                             </div>
                             <p className="text-[var(--muted-foreground)] text-xs truncate">{entry.address || '주소 미입력'}</p>
                             <p className="text-[var(--muted-foreground)] text-xs mt-0.5">{entry.product || '상품'} · {entry.packaging} · {entry.shippingCost}원</p>
@@ -857,7 +925,8 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                             <p className="text-[var(--muted-foreground)] text-xs">{entry.phone || '번호 없음'}</p>
                             <button
                               onClick={(e) => { e.stopPropagation(); removeCustomEntry(entry.id); }}
-                              className="p-1.5 border border-red-200 hover:bg-red-50 text-red-500 rounded transition-colors"
+                              className="p-1.5 border rounded-lg transition-colors"
+                              style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, var(--border))', color: 'var(--destructive)' }}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -870,42 +939,42 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[var(--muted-foreground)] text-xs mb-1">받는분</label>
-                              <input type="text" value={entry.name} onChange={(e) => updateCustomEntry(entry.id, 'name', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-green-400 bg-[var(--background)]" />
+                              <input type="text" value={entry.name} onChange={(e) => updateCustomEntry(entry.id, 'name', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none bg-[var(--background)]" />
                             </div>
                             <div>
                               <label className="block text-[var(--muted-foreground)] text-xs mb-1">연락처</label>
-                              <input type="text" value={entry.phone} onChange={(e) => updateCustomEntry(entry.id, 'phone', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-green-400 bg-[var(--background)]" />
+                              <input type="text" value={entry.phone} onChange={(e) => updateCustomEntry(entry.id, 'phone', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none bg-[var(--background)]" />
                             </div>
                           </div>
                           <div>
                             <label className="block text-[var(--muted-foreground)] text-xs mb-1">주소</label>
-                            <input type="text" value={entry.address} onChange={(e) => updateCustomEntry(entry.id, 'address', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-green-400 bg-[var(--background)]" />
+                            <input type="text" value={entry.address} onChange={(e) => updateCustomEntry(entry.id, 'address', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none bg-[var(--background)]" />
                           </div>
                           <div>
                             <label className="block text-[var(--muted-foreground)] text-xs mb-1">품명</label>
-                            <input type="text" value={entry.product} onChange={(e) => updateCustomEntry(entry.id, 'product', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-green-400 bg-[var(--background)]" />
+                            <input type="text" value={entry.product} onChange={(e) => updateCustomEntry(entry.id, 'product', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none bg-[var(--background)]" />
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[var(--border)]">
                             <div>
                               <label className="block text-[var(--muted-foreground)] text-xs mb-1 text-center">보내는 곳</label>
-                              <select value={entry.sender} onChange={(e) => updateCustomEntry(entry.id, 'sender', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none text-center bg-[var(--background)]">
+                              <select value={entry.sender} onChange={(e) => updateCustomEntry(entry.id, 'sender', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none text-center bg-[var(--background)]">
                                 {senderList.map(s => <option key={s} value={s}>{s}</option>)}
                               </select>
                             </div>
                             <div>
                               <label className="block text-[var(--muted-foreground)] text-xs mb-1 text-center">결제</label>
-                              <select value={entry.paymentType} onChange={(e) => updateCustomEntry(entry.id, 'paymentType', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none text-center bg-[var(--background)]">
+                              <select value={entry.paymentType} onChange={(e) => updateCustomEntry(entry.id, 'paymentType', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none text-center bg-[var(--background)]">
                                 <option value="착불">착불</option>
                                 <option value="선불">선불</option>
                               </select>
                             </div>
                             <div>
                               <label className="block text-[var(--muted-foreground)] text-xs mb-1 text-center">포장</label>
-                              <input type="text" value={entry.packaging} onChange={(e) => updateCustomEntry(entry.id, 'packaging', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-green-400 text-center bg-[var(--background)]" />
+                              <input type="text" value={entry.packaging} onChange={(e) => updateCustomEntry(entry.id, 'packaging', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none text-center bg-[var(--background)]" />
                             </div>
                             <div>
                               <label className="block text-[var(--muted-foreground)] text-xs mb-1 text-center">운임</label>
-                              <input type="text" value={entry.shippingCost} onChange={(e) => updateCustomEntry(entry.id, 'shippingCost', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded text-sm focus:outline-none focus:border-green-400 text-center bg-[var(--background)]" />
+                              <input type="text" value={entry.shippingCost} onChange={(e) => updateCustomEntry(entry.id, 'shippingCost', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none text-center bg-[var(--background)]" />
                             </div>
                           </div>
                         </div>
@@ -922,7 +991,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
         <div className="lg:w-72 border-t lg:border-t-0 lg:border-l border-[var(--border)] bg-[var(--card)] flex flex-col">
           <div className="p-4 flex-1 flex flex-col justify-between lg:justify-start gap-4">
             {/* Selection summary */}
-            <div className="bg-[var(--secondary)] rounded-lg p-4">
+            <div className="bg-[var(--secondary)] rounded-xl p-4">
               <p className="text-[var(--muted-foreground)] text-xs mb-2">선택 현황</p>
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
@@ -935,7 +1004,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                 </div>
                 <div className="flex justify-between text-sm font-bold border-t border-[var(--border)] pt-1 mt-1">
                   <span>합계</span>
-                  <span className="text-amber-600">{selectedOrders.length}건</span>
+                  <span style={{ color: 'var(--warning)' }}>{selectedOrders.length}건</span>
                 </div>
               </div>
               {selectedOrders.length === 0 && (
@@ -944,7 +1013,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
             </div>
 
             {/* Sender preview */}
-            <div className="bg-[var(--secondary)] rounded-lg p-3">
+            <div className="bg-[var(--secondary)] rounded-xl p-3">
               <p className="text-[var(--muted-foreground)] text-xs mb-2">보내는 곳별 현황</p>
               {senderList.map(sender => {
                 const senderCount = selectedOrders.filter(id => {
@@ -970,7 +1039,8 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
             <div className="space-y-2">
               <button
                 onClick={generateShippingLabel}
-                className="w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors bg-green-600 hover:bg-green-700 text-white"
+                className="w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors hover:opacity-90 text-white"
+                style={{ background: 'var(--success)', color: 'white' }}
               >
                 <Download className="w-4 h-4" />
                 CSV 다운로드
@@ -984,7 +1054,8 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
               </button>
               <button
                 onClick={printShippingLabels}
-                className="w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors bg-amber-500 hover:bg-amber-600 text-white"
+                className="w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors hover:opacity-90 text-white"
+                style={{ background: 'var(--warning)', color: 'white' }}
               >
                 <Printer className="w-4 h-4" />
                 인쇄
@@ -996,16 +1067,21 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
 
       {/* Add custom entry modal */}
       {showAddCustomModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAddCustomModal(false)}>
-          <div className="bg-[var(--card)] rounded-xl w-full max-w-lg border border-[var(--border)] shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="bg-green-600 px-4 py-3 rounded-t-xl flex items-center justify-between">
+        <div className="fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isAddModalFullscreen ? '0' : '1rem' }} onClick={() => setShowAddCustomModal(false)}>
+          <div className="bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl animate-modal-up modal-fs-transition overflow-y-auto" style={{ maxWidth: isAddModalFullscreen ? '100vw' : '42rem', maxHeight: isAddModalFullscreen ? '100vh' : '90vh', borderRadius: isAddModalFullscreen ? '0' : '0.75rem', boxShadow: isAddModalFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+            <div className={`px-4 py-3 flex items-center justify-between ${isAddModalFullscreen ? '' : 'rounded-t-xl'}`} style={{ background: 'var(--success)' }}>
               <h3 className="text-white font-bold flex items-center gap-2">
                 <Plus className="w-5 h-5" />
                 임의 항목 추가
               </h3>
-              <button onClick={() => setShowAddCustomModal(false)} className="p-1 hover:bg-white/20 rounded transition-colors">
-                <X className="w-5 h-5 text-white" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button onClick={(e) => { e.stopPropagation(); toggleAddModalFullscreen(); }} className="p-1 hover:bg-white/20 rounded transition-colors" title={isAddModalFullscreen ? '원래 크기' : '전체화면'}>
+                  {isAddModalFullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
+                </button>
+                <button onClick={() => setShowAddCustomModal(false)} className="p-1 hover:bg-white/20 rounded transition-colors">
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
             </div>
             <div className="p-4 space-y-3">
               {/* Name with customer search */}
@@ -1018,54 +1094,31 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                     value={newCustomEntry.name}
                     onChange={e => setNewCustomEntry(prev => ({ ...prev, name: e.target.value }))}
                     onFocus={handleSearchFocus}
+                    onKeyDown={shipCustKeyDown}
                     placeholder="받는분 이름 입력..."
                     className="w-full pl-10 pr-3 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                   />
                 </div>
                 {/* Live search dropdown */}
-                {newCustomEntry.name && (() => {
-                  const term = newCustomEntry.name.toLowerCase().replace(/\s/g, '');
-                  const filtered = (customers || []).filter(c => {
-                    if (!c?.name) return false;
-                    const name = c.name.toLowerCase().replace(/\s/g, '');
-                    const phone = (c.phone || '').replace(/\s/g, '');
-                    return name.includes(term) || phone.includes(term);
-                  }).slice(0, 5);
-                  if (filtered.length === 0) return null;
-                  const exactMatch = filtered.find(c => c.name === newCustomEntry.name);
-                  if (exactMatch && newCustomEntry.phone === (exactMatch.phone || '')) return null;
-                  return (
+                {filteredCustomerSearch.length > 0 && (
                     <div className="absolute z-10 w-full mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                      {filtered.map(c => (
+                      {filteredCustomerSearch.map((c, idx) => (
                         <button
                           key={c.id}
                           type="button"
-                          onClick={() => {
-                            const savedSetting = savedCustomerSettings[c.name];
-                            setNewCustomEntry(prev => ({
-                              ...prev,
-                              name: c.name,
-                              phone: c.phone || '',
-                              address: c.address || '',
-                              ...(savedSetting && {
-                                paymentType: savedSetting.paymentType || '착불',
-                                packaging: savedSetting.packaging || '박스1',
-                                sender: savedSetting.sender || '무브모터스'
-                              })
-                            }));
-                          }}
-                          className="w-full px-3 py-2.5 text-left hover:bg-[var(--accent)] transition-colors flex items-center justify-between border-b border-[var(--border)] last:border-0"
+                          onClick={() => selectShippingCustomer(c)}
+                          className="w-full px-3 py-2.5 text-left transition-colors flex items-center justify-between border-b border-[var(--border)] last:border-0"
+                          style={{ background: idx === shipCustHi ? 'var(--accent)' : 'transparent' }}
                         >
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">{c.name}</span>
-                            {savedCustomerSettings[c.name] && <span className="text-blue-600 text-xs">설정저장됨</span>}
+                            {savedCustomerSettings[c.name] && <span className="text-xs" style={{ color: 'var(--primary)' }}>설정저장됨</span>}
                           </div>
                           <span className="text-[var(--muted-foreground)] text-sm">{c.phone || ''}</span>
                         </button>
                       ))}
                     </div>
-                  );
-                })()}
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1148,8 +1201,9 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                 onClick={addCustomEntry}
                 disabled={!newCustomEntry.name}
                 className={`flex-1 py-2.5 rounded-xl font-medium transition-colors text-sm flex items-center justify-center gap-2 ${
-                  newCustomEntry.name ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-[var(--secondary)] text-[var(--muted-foreground)] cursor-not-allowed border border-[var(--border)]'
+                  newCustomEntry.name ? 'text-white hover:opacity-90' : 'bg-[var(--secondary)] text-[var(--muted-foreground)] cursor-not-allowed border border-[var(--border)]'
                 }`}
+                style={newCustomEntry.name ? { background: 'var(--success)', color: 'white' } : {}}
               >
                 <Plus className="w-4 h-4" />
                 추가

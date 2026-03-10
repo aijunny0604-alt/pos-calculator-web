@@ -20,6 +20,8 @@
   --destructive: #ef4444;
   --success: #22c55e;
   --warning: #f59e0b;
+  --purple: #a855f7;
+  --info: #3b82f6;
   --ring: #2563eb;
   --radius: 0.5rem;
 }
@@ -43,6 +45,8 @@
     --destructive: #ef4444;
     --success: #22c55e;
     --warning: #f59e0b;
+    --purple: #c084fc;
+    --info: #60a5fa;
     --ring: #3b82f6;
   }
 }
@@ -53,11 +57,51 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   background-color: var(--background);
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth scrolling for all scrollable containers */
+.smooth-scroll,
+[class*="overflow-y-auto"],
+[class*="overflow-x-auto"],
+[class*="overflow-auto"] {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Momentum scrolling for iOS & better scroll performance */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Main scrollable areas - GPU acceleration & smooth touch */
+main, nav, aside, [class*="flex-1"][class*="overflow"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  will-change: scroll-position;
+}
+
+/* Prevent body bounce on iOS */
+html, body {
+  overscroll-behavior: none;
+}
+
+/* Touch-friendly scroll areas */
+@media (pointer: coarse) {
+  [class*="overflow-y-auto"],
+  [class*="overflow-auto"] {
+    scroll-padding: 8px;
+    scrollbar-width: thin;
+  }
 }
 
 /* Scrollbar */
@@ -65,6 +109,123 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* Modal animations */
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-slide-up {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes modal-slide-down {
+  from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-modal-backdrop { animation: modal-backdrop-in 0.25s ease-out both; }
+.animate-modal-up { animation: modal-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-modal-down { animation: modal-slide-down 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Modal fullscreen transition - premium spring easing */
+.modal-fs-transition {
+  transition:
+    max-width 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    max-height 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-backdrop-fs-transition {
+  transition: padding 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Admin restricted zone animations */
+@keyframes admin-pulse-ring {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { opacity: 0.3; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes admin-icon-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes admin-scan-line {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(400%); opacity: 0; }
+}
+@keyframes admin-border-glow {
+  0%, 100% { border-color: color-mix(in srgb, var(--destructive) 30%, var(--border)); box-shadow: 0 0 0 0 transparent; }
+  50% { border-color: var(--destructive); box-shadow: 0 0 20px color-mix(in srgb, var(--destructive) 15%, transparent); }
+}
+@keyframes admin-shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+@keyframes admin-fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes admin-stripe-move {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 0; }
+}
+.animate-admin-pulse-ring { animation: admin-pulse-ring 2.5s ease-out infinite; }
+.animate-admin-icon-float { animation: admin-icon-float 3s ease-in-out infinite; }
+.animate-admin-scan { animation: admin-scan-line 3s ease-in-out infinite; }
+.animate-admin-border-glow { animation: admin-border-glow 2s ease-in-out infinite; }
+.animate-admin-shake { animation: admin-shake 0.6s ease-in-out; }
+.animate-admin-fade-up { animation: admin-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.admin-hazard-stripe {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent, transparent 10px,
+    color-mix(in srgb, var(--destructive) 8%, transparent) 10px,
+    color-mix(in srgb, var(--destructive) 8%, transparent) 20px
+  );
+  background-size: 40px 40px;
+  animation: admin-stripe-move 2s linear infinite;
+}
+
+/* Button hover animations */
+button, [role="button"] {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+button:active:not(:disabled), [role="button"]:active:not(:disabled) {
+  transform: scale(0.96);
+}
+@media (hover: hover) {
+  button:hover:not(:disabled), [role="button"]:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  button:hover:active:not(:disabled), [role="button"]:hover:active:not(:disabled) {
+    transform: scale(0.97) translateY(0);
+    box-shadow: none;
+  }
+}
+
+/* Premium card interactions */
+.card-interactive {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+@media (hover: hover) {
+  .card-interactive:hover {
+    transform: translateY(-3px) scale(1.015);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05);
+  }
+  .card-interactive:hover:active {
+    transform: scale(0.97) translateY(0);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    transition-duration: 0.1s;
+  }
+}
+.card-interactive:active {
+  transform: scale(0.97);
+  transition-duration: 0.1s;
+}
 
 /* Print styles */
 @media print {

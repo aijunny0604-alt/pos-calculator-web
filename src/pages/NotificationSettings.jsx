@@ -25,12 +25,12 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
   if (!isOpen) return null;
 
   const dayOptions = [
-    { day: -1, label: '지연 배송', description: '이미 지연된 배송', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-300', activeBg: 'bg-red-100' },
-    { day: 0, label: '오늘', description: '당일 배송', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-300', activeBg: 'bg-orange-100' },
-    { day: 1, label: '내일', description: 'D-1', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-300', activeBg: 'bg-amber-100' },
-    { day: 2, label: 'D-2', description: '2일 전', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-300', activeBg: 'bg-blue-100' },
-    { day: 3, label: 'D-3', description: '3일 전', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-300', activeBg: 'bg-indigo-100' },
-    { day: 7, label: 'D-7', description: '1주일 전', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-300', activeBg: 'bg-purple-100' },
+    { day: -1, label: '지연 배송', description: '이미 지연된 배송', cssVar: '--destructive' },
+    { day: 0, label: '오늘', description: '당일 배송', cssVar: '--warning' },
+    { day: 1, label: '내일', description: 'D-1', cssVar: '--warning' },
+    { day: 2, label: 'D-2', description: '2일 전', cssVar: '--primary' },
+    { day: 3, label: 'D-3', description: '3일 전', cssVar: '--info' },
+    { day: 7, label: 'D-7', description: '1주일 전', cssVar: '--purple' },
   ];
 
   const inputClass = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 transition-colors';
@@ -42,13 +42,13 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-modal-backdrop"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
     >
       <div className="absolute inset-0" onClick={onClose} />
 
       <div
-        className="relative w-full max-w-lg rounded-2xl overflow-hidden border shadow-2xl"
+        className="relative w-full max-w-2xl rounded-2xl overflow-hidden border shadow-2xl animate-modal-up"
         style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
       >
         {/* Header */}
@@ -160,7 +160,7 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
                   </label>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {dayOptions.map(({ day, label, description, color, bg, border, activeBg }) => {
+                  {dayOptions.map(({ day, label, description, cssVar }) => {
                     const isActive = day === -1
                       ? localSettings.includeOverdue
                       : localSettings.daysBeforeReminder.includes(day);
@@ -174,12 +174,17 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
                             toggleDayReminder(day);
                           }
                         }}
-                        className={`relative rounded-xl p-3 border-2 text-left transition-all ${
-                          isActive ? `${activeBg} ${border}` : 'border-[var(--border)] bg-[var(--background)]'
-                        }`}
+                        className="relative rounded-xl p-3 border-2 text-left transition-all"
+                        style={{
+                          background: isActive ? `color-mix(in srgb, var(${cssVar}) 12%, transparent)` : 'var(--background)',
+                          borderColor: isActive ? `color-mix(in srgb, var(${cssVar}) 50%, var(--border))` : 'var(--border)',
+                        }}
                       >
                         <div className="flex flex-col gap-0.5">
-                          <span className={`font-bold text-sm ${isActive ? color : 'text-[var(--muted-foreground)]'}`}>
+                          <span
+                            className="font-bold text-sm"
+                            style={{ color: isActive ? `var(${cssVar})` : 'var(--muted-foreground)' }}
+                          >
                             {label}
                           </span>
                           <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
@@ -224,20 +229,26 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
                       <button
                         key={String(value)}
                         onClick={() => setLocalSettings({ ...localSettings, dailyNotification: value })}
-                        className={`relative rounded-xl p-3 border-2 text-left transition-all ${
-                          isActive
-                            ? 'bg-blue-50 border-blue-400'
-                            : 'border-[var(--border)] bg-[var(--background)]'
-                        }`}
+                        className="relative rounded-xl p-3 border-2 text-left transition-all"
+                        style={{
+                          background: isActive ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--background)',
+                          borderColor: isActive ? 'color-mix(in srgb, var(--primary) 50%, var(--border))' : 'var(--border)',
+                        }}
                       >
                         <div className="flex flex-col gap-0.5">
-                          <span className={`font-bold text-sm ${isActive ? 'text-blue-600' : 'text-[var(--muted-foreground)]'}`}>
+                          <span
+                            className="font-bold text-sm"
+                            style={{ color: isActive ? 'var(--primary)' : 'var(--muted-foreground)' }}
+                          >
                             {label}
                           </span>
                           <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{desc}</span>
                         </div>
                         {isActive && (
-                          <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                          <div
+                            className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                            style={{ background: 'var(--primary)' }}
+                          >
                             <Check className="w-3 h-3 text-white" />
                           </div>
                         )}

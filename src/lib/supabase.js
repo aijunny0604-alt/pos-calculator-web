@@ -68,16 +68,18 @@ export const supabase = {
   },
   async addProduct(product) {
     try {
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/products`, {
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/products`, {
         method: 'POST', headers: headersWithReturn, body: JSON.stringify(product)
       });
+      return Array.isArray(data) ? data[0] : data;
     } catch (e) { console.error('addProduct:', e); return null; }
   },
   async updateProduct(id, product) {
     try {
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/products?id=eq.${id}`, {
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/products?id=eq.${id}`, {
         method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(product)
       });
+      return Array.isArray(data) ? data[0] : data;
     } catch (e) { console.error('updateProduct:', e); return null; }
   },
   async deleteProduct(id) {
@@ -103,9 +105,10 @@ export const supabase = {
   },
   async updateCustomer(id, customer) {
     try {
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/customers?id=eq.${id}`, {
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/customers?id=eq.${id}`, {
         method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(customer)
       });
+      return Array.isArray(data) ? data[0] : data;
     } catch (e) { console.error('updateCustomer:', e); return null; }
   },
   async deleteCustomer(id) {
@@ -176,7 +179,9 @@ export const supabase = {
   },
   async deleteSavedCart(id) {
     try {
+      console.log('[supabase.deleteSavedCart] id:', id, 'type:', typeof id);
       const r = await fetch(`${SUPABASE_URL}/rest/v1/saved_carts?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      console.log('[supabase.deleteSavedCart] status:', r.status, 'ok:', r.ok);
       return r.ok;
     } catch (e) { console.error('deleteSavedCart:', e); return false; }
   },
