@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, Clock, Calendar, RefreshCw, Check } from 'lucide-react';
+import { Bell, X, Clock, Calendar, RefreshCw, Check, Maximize2, Minimize2 } from 'lucide-react';
+import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 export default function NotificationSettings({ isOpen, onClose, settings, onSave }) {
   const [localSettings, setLocalSettings] = useState(settings);
+  const { isFullscreen, toggleFullscreen } = useModalFullscreen();
 
   useEffect(() => {
     if (isOpen) {
@@ -42,14 +44,20 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-modal-backdrop"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
+      className="fixed inset-0 z-[70] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '1rem' }}
     >
       <div className="absolute inset-0" onClick={onClose} />
 
       <div
-        className="relative w-full max-w-2xl rounded-2xl overflow-hidden border shadow-2xl animate-modal-up"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+        className="relative w-full overflow-hidden border shadow-2xl animate-modal-up modal-fs-transition flex flex-col"
+        style={{
+          backgroundColor: 'var(--card)', borderColor: 'var(--border)',
+          maxWidth: isFullscreen ? '100vw' : '42rem',
+          maxHeight: isFullscreen ? '100vh' : '90vh',
+          borderRadius: isFullscreen ? '0' : '1rem',
+          boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+        }}
       >
         {/* Header */}
         <div
@@ -68,12 +76,17 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
               <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>배송 일정을 놓치지 마세요</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
-          >
-            <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={toggleFullscreen} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]" title={isFullscreen ? '원래 크기' : '전체화면'}>
+              {isFullscreen ? <Minimize2 className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} /> : <Maximize2 className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
+            >
+              <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}

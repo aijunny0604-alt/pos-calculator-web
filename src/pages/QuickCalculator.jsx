@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calculator, X } from 'lucide-react';
+import { Calculator, X, Maximize2, Minimize2 } from 'lucide-react';
+import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 export default function QuickCalculator({ onClose, initialValue = null }) {
   const [display, setDisplay] = useState(
@@ -8,6 +9,7 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
   const [previousValue, setPreviousValue] = useState(null);
   const [operation, setOperation] = useState(null);
   const [waitingForOperand, setWaitingForOperand] = useState(false);
+  const { isFullscreen, toggleFullscreen } = useModalFullscreen();
   const [history, setHistory] = useState(
     initialValue !== null && initialValue !== undefined
       ? [`초기값: ${initialValue.toLocaleString()}원`]
@@ -171,13 +173,19 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-[9999] p-4 animate-modal-backdrop"
-      style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}
+      className="fixed inset-0 flex items-center justify-center z-[9999] animate-modal-backdrop modal-backdrop-fs-transition"
+      style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '1rem' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl overflow-hidden border shadow-2xl animate-modal-up"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+        className="w-full overflow-hidden border shadow-2xl animate-modal-up modal-fs-transition"
+        style={{
+          backgroundColor: 'var(--card)', borderColor: 'var(--border)',
+          maxWidth: isFullscreen ? '100vw' : '28rem',
+          maxHeight: isFullscreen ? '100vh' : '90vh',
+          borderRadius: isFullscreen ? '0' : '1rem',
+          boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -189,12 +197,17 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
             <Calculator className="w-5 h-5" />
             <span className="font-bold text-sm">비상용 계산기</span>
           </div>
+          <div className="flex items-center gap-1">
+            <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title={isFullscreen ? '원래 크기' : '전체화면'}>
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
           <button
             onClick={onClose}
             className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
+          </div>
         </div>
 
         {/* History */}

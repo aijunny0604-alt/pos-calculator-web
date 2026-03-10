@@ -2,8 +2,9 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search, Plus, Trash2, Edit, Upload, Users, Package, Tag, Percent,
   Lock, ChevronDown, ChevronRight, X, Save, AlertTriangle, ShieldAlert, Fingerprint,
-  UserPlus, Download, Copy, Car,
+  UserPlus, Download, Copy, Car, Maximize2, Minimize2,
 } from 'lucide-react';
+import useModalFullscreen from '@/hooks/useModalFullscreen';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -79,19 +80,33 @@ function ActionBtn({ variant = 'primary', size = 'sm', Icon, children, className
 }
 
 function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-5xl' }) {
+  const { isFullscreen, toggleFullscreen } = useModalFullscreen();
   if (!isOpen) return null;
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 animate-modal-backdrop"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
+      className="fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '0.75rem' }}
     >
       <div className="absolute inset-0" onClick={onClose} />
-      <div className={`relative bg-[var(--card)] rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col border border-[var(--border)] animate-modal-up`}>
+      <div
+        className={`relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition ${isFullscreen ? '' : maxWidth}`}
+        style={{
+          maxWidth: isFullscreen ? '100vw' : undefined,
+          maxHeight: isFullscreen ? '100vh' : '90vh',
+          borderRadius: isFullscreen ? '0' : '1rem',
+          boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+        }}
+      >
         <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-[var(--border)]">
           <h2 className="text-lg font-bold text-[var(--foreground)]">{title}</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--accent)] transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={toggleFullscreen} className="p-1.5 rounded-lg hover:bg-[var(--accent)] transition-colors" title={isFullscreen ? '원래 크기' : '전체화면'}>
+              {isFullscreen ? <Minimize2 className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} /> : <Maximize2 className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />}
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--accent)] transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         <div className="overflow-y-auto p-4 sm:p-5 flex-1">{children}</div>
       </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Save, X } from 'lucide-react';
+import { Save, X, Maximize2, Minimize2 } from 'lucide-react';
+import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 export default function SaveCartModal({
   isOpen,
@@ -20,6 +21,7 @@ export default function SaveCartModal({
   const [status, setStatus] = useState('pending');
   const [priority, setPriority] = useState('normal');
   const [memo, setMemo] = useState('');
+  const { isFullscreen, toggleFullscreen } = useModalFullscreen();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -85,15 +87,21 @@ export default function SaveCartModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-modal-backdrop"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
+      className="fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '1rem' }}
     >
       {/* Backdrop */}
       <div className="absolute inset-0" onClick={onBack} />
 
       <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col rounded-2xl shadow-2xl border animate-modal-up"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+        className="relative w-full overflow-hidden flex flex-col shadow-2xl border animate-modal-up modal-fs-transition"
+        style={{
+          backgroundColor: 'var(--card)', borderColor: 'var(--border)',
+          maxWidth: isFullscreen ? '100vw' : '42rem',
+          maxHeight: isFullscreen ? '100vh' : '90vh',
+          borderRadius: isFullscreen ? '0' : '1rem',
+          boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+        }}
       >
         {/* Header */}
         <div
@@ -106,12 +114,14 @@ export default function SaveCartModal({
               장바구니 저장
             </h2>
           </div>
-          <button
-            onClick={onBack}
-            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
-          >
-            <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={toggleFullscreen} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]" title={isFullscreen ? '원래 크기' : '전체화면'}>
+              {isFullscreen ? <Minimize2 className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} /> : <Maximize2 className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />}
+            </button>
+            <button onClick={onBack} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]">
+              <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable body */}
