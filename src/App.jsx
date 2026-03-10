@@ -19,7 +19,7 @@ import NotificationSettings from '@/pages/NotificationSettings';
 
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
-import { formatPrice } from '@/lib/utils';
+import { formatPrice, getTodayKST, toDateKST } from '@/lib/utils';
 
 export default function App() {
   // ─── Navigation ───────────────────────────────────────────────
@@ -192,20 +192,20 @@ export default function App() {
 
   // ─── Derived: badge counts ──────────────────────────────────
   const todayOrderCount = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayKST();
     return orders.filter((o) => {
       if (!o.createdAt) return false;
-      return new Date(o.createdAt).toISOString().split('T')[0] === today;
+      return toDateKST(o.createdAt) === today;
     }).length;
   }, [orders]);
 
   const savedCartCount = useMemo(() => savedCarts.length, [savedCarts]);
 
   const shippingCount = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayKST();
     return orders.filter((o) => {
       if (!o.createdAt) return false;
-      return new Date(o.createdAt).toISOString().split('T')[0] === today;
+      return toDateKST(o.createdAt) === today;
     }).length;
   }, [orders]);
 
@@ -253,14 +253,12 @@ export default function App() {
         }
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayKST();
 
       // Check for same-customer same-day order to merge (skip for 일반고객)
       if (customer_name && customer_name !== '일반고객') {
         const existingOrder = orders.find((o) => {
-          const orderDate = o.createdAt
-            ? new Date(o.createdAt).toISOString().split('T')[0]
-            : '';
+          const orderDate = o.createdAt ? toDateKST(o.createdAt) : '';
           return (
             o.customerName?.toLowerCase() === customer_name?.toLowerCase() &&
             orderDate === today

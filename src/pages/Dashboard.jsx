@@ -3,7 +3,7 @@ import {
   TrendingUp, ShoppingCart, Package, AlertTriangle, Users,
   ArrowRight, Calculator, ClipboardList, Brain, Truck, Eye, FileText, ExternalLink
 } from 'lucide-react';
-import { formatPrice, formatDateTime } from '@/lib/utils';
+import { formatPrice, formatDateTime, getTodayKST, toDateKST } from '@/lib/utils';
 
 export default function Dashboard({
   orders = [],
@@ -14,10 +14,10 @@ export default function Dashboard({
   setCurrentPage,
   onViewOrder,
 }) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayKST();
 
   const todayStats = useMemo(() => {
-    const todayOrders = orders.filter(o => (o.createdAt || '').startsWith(today));
+    const todayOrders = orders.filter(o => toDateKST(o.createdAt) === today);
     const totalRevenue = todayOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
     return {
       count: todayOrders.length,

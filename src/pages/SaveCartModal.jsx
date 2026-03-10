@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, X, Maximize2, Minimize2 } from 'lucide-react';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
+import { getTodayKST } from '@/lib/utils';
 
 export default function SaveCartModal({
   isOpen,
@@ -34,8 +35,7 @@ export default function SaveCartModal({
       setCartName(defaultName);
     }
 
-    const today = new Date();
-    setDeliveryDate(today.toISOString().split('T')[0]);
+    setDeliveryDate(getTodayKST());
     setStatus('pending');
     setPriority('normal');
     setMemo('');
