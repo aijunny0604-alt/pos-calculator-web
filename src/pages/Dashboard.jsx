@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import {
   TrendingUp, ShoppingCart, Package, AlertTriangle, Users,
-  ArrowRight, Calculator, ClipboardList, Brain, Truck
+  ArrowRight, Calculator, ClipboardList, Brain, Truck, Eye
 } from 'lucide-react';
 import { formatPrice, formatDateTime } from '@/lib/utils';
 
@@ -12,11 +12,12 @@ export default function Dashboard({
   customers = [],
   supabaseConnected,
   setCurrentPage,
+  onViewOrder,
 }) {
   const today = new Date().toISOString().split('T')[0];
 
   const todayStats = useMemo(() => {
-    const todayOrders = orders.filter(o => (o.createdAt || o.created_at || '').startsWith(today));
+    const todayOrders = orders.filter(o => (o.createdAt || '').startsWith(today));
     const totalRevenue = todayOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
     return {
       count: todayOrders.length,
@@ -28,7 +29,7 @@ export default function Dashboard({
   const recentOrders = useMemo(() => {
     return [...orders]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 5);
+      .slice(0, 8);
   }, [orders]);
 
   const lowStockProducts = useMemo(() => {
@@ -46,10 +47,10 @@ export default function Dashboard({
   const StatCard = ({ icon: Icon, label, value, sub, color, onClick }) => (
     <button
       onClick={onClick}
-      className="flex items-start gap-4 p-5 rounded-xl border transition-all hover:shadow-md text-left w-full"
+      className="flex items-start gap-4 p-5 rounded-xl border transition-all hover:shadow-md hover:-translate-y-0.5 text-left w-full"
       style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
     >
-      <div className="p-3 rounded-lg" style={{ background: `${color}15` }}>
+      <div className="p-3 rounded-xl" style={{ background: `color-mix(in srgb, ${color} 12%, transparent)` }}>
         <Icon className="w-6 h-6" style={{ color }} />
       </div>
       <div className="flex-1 min-w-0">
@@ -63,7 +64,7 @@ export default function Dashboard({
   const QuickAction = ({ icon: Icon, label, onClick }) => (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 px-4 py-3 rounded-xl border transition-all hover:shadow-md hover:border-[var(--primary)]"
+      className="flex items-center gap-3 px-4 py-3 rounded-xl border transition-all hover:shadow-sm hover:border-[var(--primary)]"
       style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
     >
       <Icon className="w-5 h-5" style={{ color: 'var(--primary)' }} />
@@ -90,7 +91,7 @@ export default function Dashboard({
           label="오늘 매출"
           value={`${formatPrice(todayStats.revenue)}원`}
           sub={`${todayStats.count}건 · 평균 ${formatPrice(todayStats.average)}원`}
-          color="#2563eb"
+          color="var(--primary)"
           onClick={() => setCurrentPage('orders')}
         />
         <StatCard
@@ -98,7 +99,7 @@ export default function Dashboard({
           label="대기 장바구니"
           value={`${pendingCarts}건`}
           sub={`전체 ${savedCarts.length}건`}
-          color="#f59e0b"
+          color="var(--warning)"
           onClick={() => setCurrentPage('saved-carts')}
         />
         <StatCard
@@ -106,7 +107,7 @@ export default function Dashboard({
           label="거래처"
           value={`${customers.length}곳`}
           sub={`블랙리스트 ${customers.filter(c => c.blacklist).length}곳`}
-          color="#22c55e"
+          color="var(--success)"
           onClick={() => setCurrentPage('customers')}
         />
         <StatCard
@@ -114,7 +115,7 @@ export default function Dashboard({
           label="재고 부족"
           value={`${lowStockProducts.length}건`}
           sub={lowStockProducts.length > 0 ? '확인 필요' : '정상'}
-          color={lowStockProducts.length > 0 ? '#ef4444' : '#22c55e'}
+          color={lowStockProducts.length > 0 ? 'var(--destructive)' : 'var(--success)'}
           onClick={() => setCurrentPage('stock')}
         />
       </div>
@@ -139,25 +140,43 @@ export default function Dashboard({
               <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>주문 내역이 없습니다</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {recentOrders.map((order, i) => (
-                <div
+                <button
                   key={order.id || i}
-                  className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-[var(--accent)] transition-colors cursor-default"
+                  onClick={() => onViewOrder?.(order)}
+                  className="flex items-center justify-between w-full py-3 px-3 rounded-lg transition-all hover:bg-[var(--accent)] hover:shadow-sm text-left group"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
-                      {order.customerName || '일반고객'}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                      {formatDateTime(order.createdAt)}
-                      {order.items && ` · ${order.items.length}종`}
-                    </p>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div
+                      className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                      style={{
+                        background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
+                        color: 'var(--primary)',
+                      }}
+                    >
+                      {(order.customerName || '일반')[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
+                        {order.customerName || '일반고객'}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                        {formatDateTime(order.createdAt)}
+                        {order.items && ` · ${order.items.length}종`}
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-sm font-bold ml-3" style={{ color: 'var(--primary)' }}>
-                    {formatPrice(order.totalAmount || 0)}원
-                  </span>
-                </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
+                      {formatPrice(order.totalAmount || 0)}원
+                    </span>
+                    <Eye
+                      className="w-4 h-4 opacity-0 group-hover:opacity-60 transition-opacity"
+                      style={{ color: 'var(--muted-foreground)' }}
+                    />
+                  </div>
+                </button>
               ))}
             </div>
           )}

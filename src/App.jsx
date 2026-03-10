@@ -465,6 +465,7 @@ export default function App() {
             customers={customers}
             supabaseConnected={supabaseConnected}
             setCurrentPage={setCurrentPage}
+            onViewOrder={(order) => setSelectedOrder(order)}
           />
         );
 
@@ -608,6 +609,7 @@ export default function App() {
             customers={customers}
             supabaseConnected={supabaseConnected}
             setCurrentPage={setCurrentPage}
+            onViewOrder={(order) => setSelectedOrder(order)}
           />
         );
     }
