@@ -64,7 +64,7 @@ export default function OrderHistory({
   // Date filter function
   const filterByDate = (order) => {
     if (dateFilter === 'all') return true;
-    const orderDate = new Date(order.created_at);
+    const orderDate = new Date(order.createdAt);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -107,19 +107,19 @@ export default function OrderHistory({
     .filter(order => {
       const search = searchTerm.toLowerCase().replace(/\s/g, '');
       if (!search) return true;
-      const orderNum = String(order.id || '').toLowerCase().replace(/\s/g, '');
-      const customerName = (order.customer_name || '').toLowerCase().replace(/\s/g, '');
-      const customerPhone = (order.customer_phone || '').replace(/\s/g, '');
+      const orderNum = String(order.orderNumber || '').toLowerCase().replace(/\s/g, '');
+      const customerName = (order.customerName || '').toLowerCase().replace(/\s/g, '');
+      const customerPhone = (order.customerPhone || '').replace(/\s/g, '');
       return orderNum.includes(search) || customerName.includes(search) || customerPhone.includes(search);
     });
 
   // Stats
-  const filteredTotalSales = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-  const filteredTotalReturned = filteredOrders.reduce((sum, o) => sum + (o.total_returned || 0), 0);
-  const filteredReturnCount = filteredOrders.filter(o => (o.total_returned || 0) > 0).length;
-  const totalSales = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-  const totalReturned = orders.reduce((sum, o) => sum + (o.total_returned || 0), 0);
-  const totalReturnCount = orders.filter(o => (o.total_returned || 0) > 0).length;
+  const filteredTotalSales = filteredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const filteredTotalReturned = filteredOrders.reduce((sum, o) => sum + (o.totalReturned || 0), 0);
+  const filteredReturnCount = filteredOrders.filter(o => (o.totalReturned || 0) > 0).length;
+  const totalSales = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const totalReturned = orders.reduce((sum, o) => sum + (o.totalReturned || 0), 0);
+  const totalReturnCount = orders.filter(o => (o.totalReturned || 0) > 0).length;
 
   const handleSelectAll = () => {
     if (selectedOrders.length === filteredOrders.length) {
@@ -488,13 +488,13 @@ export default function OrderHistory({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredOrders.map((order) => {
-              const blacklistInfo = getBlacklistInfo(order.customer_name);
+              const blacklistInfo = getBlacklistInfo(order.customerName);
               const isBlacklist = blacklistInfo?.isBlacklist;
-              const isSelected = selectedOrders.includes(order.id);
+              const isSelected = selectedOrders.includes(order.orderNumber);
 
               return (
                 <div
-                  key={order.id}
+                  key={order.orderNumber}
                   onClick={() => onViewOrder(order)}
                   className="rounded-xl p-4 border transition-all duration-200 cursor-pointer select-none relative overflow-hidden hover:shadow-md"
                   style={{
@@ -525,7 +525,7 @@ export default function OrderHistory({
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={() => handleSelect(order.id)}
+                      onChange={() => handleSelect(order.orderNumber)}
                       onClick={(e) => e.stopPropagation()}
                       className="mt-1 w-5 h-5 rounded cursor-pointer flex-shrink-0"
                       style={{ accentColor: 'var(--primary)' }}
@@ -533,31 +533,31 @@ export default function OrderHistory({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold truncate" style={{ color: 'var(--foreground)' }}>
-                          {order.id}
+                          {order.orderNumber}
                         </span>
                         <span
                           className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
                           style={{
-                            background: order.price_type === 'wholesale'
+                            background: order.priceType === 'wholesale'
                               ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
                               : 'color-mix(in srgb, #a855f7 15%, transparent)',
-                            color: order.price_type === 'wholesale' ? 'var(--primary)' : '#a855f7',
+                            color: order.priceType === 'wholesale' ? 'var(--primary)' : '#a855f7',
                           }}
                         >
-                          {order.price_type === 'wholesale' ? '도매' : '소비자'}
+                          {order.priceType === 'wholesale' ? '도매' : '소비자'}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
                         <Calendar className="w-3 h-3" />
-                        {formatDateTime(order.created_at)}
+                        {formatDateTime(order.createdAt)}
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="font-bold text-sm" style={{ color: 'var(--success)' }}>
-                        {formatPrice((order.total_amount || 0))}원
+                        {formatPrice((order.totalAmount || 0))}원
                       </p>
                       <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-                        공급가 {formatPrice(calcExVat((order.total_amount || 0)))}원
+                        공급가 {formatPrice(calcExVat((order.totalAmount || 0)))}원
                       </p>
                     </div>
                   </div>
@@ -580,7 +580,7 @@ export default function OrderHistory({
                     <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                       {order.items.length}종 / {order.items.reduce((sum, item) => sum + item.quantity, 0)}개
                     </div>
-                    {order.customer_name && (
+                    {order.customerName && (
                       <div
                         className="border-t pt-2 mt-2"
                         style={{ borderColor: isBlacklist ? 'color-mix(in srgb, var(--destructive) 40%, var(--border))' : 'var(--border)' }}
@@ -589,7 +589,7 @@ export default function OrderHistory({
                           className="flex items-center gap-1.5 text-sm font-semibold"
                           style={{ color: isBlacklist ? 'var(--destructive)' : 'var(--primary)' }}
                         >
-                          {isBlacklist ? '🚫' : '👤'} {order.customer_name}
+                          {isBlacklist ? '🚫' : '👤'} {order.customerName}
                           {isBlacklist && (
                             <span
                               className="px-1.5 py-0.5 rounded text-[10px] ml-1"
@@ -612,13 +612,13 @@ export default function OrderHistory({
                   </div>
 
                   {/* Return badge if applicable */}
-                  {(order.total_returned || 0) > 0 && (
+                  {(order.totalReturned || 0) > 0 && (
                     <div
                       className="text-xs px-2 py-1 rounded mb-2 flex items-center gap-1"
                       style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)' }}
                     >
                       <RotateCcw className="w-3 h-3" />
-                      반품 -{formatPrice((order.total_returned || 0))}원
+                      반품 -{formatPrice((order.totalReturned || 0))}원
                     </div>
                   )}
 
@@ -644,11 +644,11 @@ export default function OrderHistory({
                       </button>
                     )}
 
-                    {deleteConfirm === order.id ? (
+                    {deleteConfirm === order.orderNumber ? (
                       <div className="flex gap-1">
                         <button
                           onClick={() => {
-                            onDeleteOrder(order.id);
+                            onDeleteOrder(order.orderNumber);
                             setDeleteConfirm(null);
                           }}
                           className="px-3 py-2 rounded-lg text-xs font-medium transition-colors"
@@ -666,7 +666,7 @@ export default function OrderHistory({
                       </div>
                     ) : (
                       <button
-                        onClick={() => setDeleteConfirm(order.id)}
+                        onClick={() => setDeleteConfirm(order.orderNumber)}
                         className="px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors border"
                         style={{
                           background: 'color-mix(in srgb, var(--destructive) 10%, transparent)',
@@ -773,7 +773,7 @@ export default function OrderHistory({
               <ul className="text-sm space-y-1" style={{ color: 'var(--muted-foreground)' }}>
                 <li>• 필터: <span style={{ color: 'var(--foreground)' }}>{getFilterLabel()}</span></li>
                 <li>• 삭제 대상: <span className="font-bold" style={{ color: 'var(--destructive)' }}>{filteredOrders.length}건</span></li>
-                <li>• 총 금액: <span style={{ color: 'var(--foreground)' }}>{formatPrice(filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0))}원</span></li>
+                <li>• 총 금액: <span style={{ color: 'var(--foreground)' }}>{formatPrice(filteredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0))}원</span></li>
               </ul>
               <p className="text-xs mt-3" style={{ color: 'var(--destructive)' }}>
                 이 작업은 되돌릴 수 없습니다!

@@ -16,8 +16,8 @@ export default function Dashboard({
   const today = new Date().toISOString().split('T')[0];
 
   const todayStats = useMemo(() => {
-    const todayOrders = orders.filter(o => o.created_at?.startsWith(today));
-    const totalRevenue = todayOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    const todayOrders = orders.filter(o => (o.createdAt || o.created_at || '').startsWith(today));
+    const totalRevenue = todayOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
     return {
       count: todayOrders.length,
       revenue: totalRevenue,
@@ -27,7 +27,7 @@ export default function Dashboard({
 
   const recentOrders = useMemo(() => {
     return [...orders]
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 5);
   }, [orders]);
 
@@ -147,15 +147,15 @@ export default function Dashboard({
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
-                      {order.customer_name || '일반고객'}
+                      {order.customerName || '일반고객'}
                     </p>
                     <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                      {formatDateTime(order.created_at)}
+                      {formatDateTime(order.createdAt)}
                       {order.items && ` · ${order.items.length}종`}
                     </p>
                   </div>
                   <span className="text-sm font-bold ml-3" style={{ color: 'var(--primary)' }}>
-                    {formatPrice(order.total_amount)}원
+                    {formatPrice(order.totalAmount || 0)}원
                   </span>
                 </div>
               ))}

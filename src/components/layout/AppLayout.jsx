@@ -3,8 +3,12 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import MobileNav from './MobileNav';
 
+// 자체 레이아웃(sticky header, 패딩)을 관리하는 페이지
+const fullScreenPages = ['pos', 'orders', 'customers', 'saved-carts', 'stock', 'shipping'];
+
 export default function AppLayout({ children, currentPage, onNavigate, isOnline }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isFullScreen = fullScreenPages.includes(currentPage);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--background)]">
@@ -29,14 +33,22 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline 
 
       {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header onMenuClick={() => setSidebarOpen(true)} currentPage={currentPage} isOnline={isOnline} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+        {!isFullScreen && (
+          <Header onMenuClick={() => setSidebarOpen(true)} currentPage={currentPage} isOnline={isOnline} />
+        )}
+        <main className={`flex-1 overflow-y-auto ${
+          isFullScreen
+            ? 'pb-16 md:pb-0'
+            : 'p-4 md:p-6 pb-20 md:pb-6'
+        }`}>
           {children}
         </main>
       </div>
 
-      {/* Mobile Bottom Nav */}
-      <MobileNav currentPage={currentPage} onNavigate={onNavigate} />
+      {/* Mobile Bottom Nav - POS 페이지에서 숨김 */}
+      {currentPage !== 'pos' && (
+        <MobileNav currentPage={currentPage} onNavigate={onNavigate} />
+      )}
     </div>
   );
 }

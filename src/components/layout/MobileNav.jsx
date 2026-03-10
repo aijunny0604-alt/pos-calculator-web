@@ -19,7 +19,7 @@ export default function MobileNav({ currentPage, onNavigate }) {
             <button
               key={id}
               onClick={() => onNavigate(id)}
-              className={`flex-1 flex flex-col items-center py-2 text-xs transition-colors ${
+              className={`flex-1 flex flex-col items-center justify-center min-h-[52px] py-2.5 text-xs transition-colors ${
                 isActive ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]'
               }`}
             >
