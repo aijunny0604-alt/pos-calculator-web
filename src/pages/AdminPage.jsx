@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search, Plus, Trash2, Edit, Upload, Users, Package, Tag, Percent,
   Lock, ChevronDown, ChevronRight, X, Save, AlertTriangle, ShieldAlert, Fingerprint,
-  UserPlus, Download, Copy,
+  UserPlus, Download, Copy, Car,
 } from 'lucide-react';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
@@ -18,6 +18,7 @@ const ADMIN_PASSWORD = '4321';
 const TABS = [
   { id: 'products',    label: '제품관리',    Icon: Package },
   { id: 'customers',   label: '거래처관리',  Icon: Users   },
+  { id: 'burnway',     label: '번웨이',      Icon: Car     },
   { id: 'categories',  label: '카테고리',    Icon: Tag     },
   { id: 'discounts',   label: '할인설정',    Icon: Percent },
 ];
@@ -1207,6 +1208,285 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
 // ---------------------------------------------------------------------------
 // Discount Tier Management Tab
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// BurnwayTab - 번웨이 다운파이프 관리
+// ---------------------------------------------------------------------------
+const BURNWAY_CAR_MODELS = [
+  { id: 'veloster-n', label: '벨로스터N', keywords: ['벨로스터', '벨n', 'veloster'] },
+  { id: 'avante-n', label: '아반떼N', keywords: ['아반떼', '아n', 'avante'] },
+  { id: 'sg70-20', label: '스팅어 & G70 2.0', keywords: ['2.0'] },
+  { id: 'sg70-25', label: '스팅어 & G70 2.5', keywords: ['2.5'] },
+  { id: 'sg70-33', label: '스팅어 & G70 3.3', keywords: ['3.3'] },
+];
+
+function detectBurnwayCarModel(name) {
+  const n = name.toLowerCase().replace(/\s/g, '');
+  if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('3.3')) return 'sg70-33';
+  if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('2.5')) return 'sg70-25';
+  if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('2.0')) return 'sg70-20';
+  if (n.includes('벨로스터') || n.includes('벨n') || n.includes('veloster')) return 'veloster-n';
+  if (n.includes('아반떼') || n.includes('아n') || n.includes('avante')) return 'avante-n';
+  if (n.includes('3.3')) return 'sg70-33';
+  if (n.includes('2.5')) return 'sg70-25';
+  if (n.includes('2.0')) return 'sg70-20';
+  return null;
+}
+
+function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supabase }) {
+  const [expandedModel, setExpandedModel] = useState(null);
+  const [editingStock, setEditingStock] = useState(null); // { id, value }
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', stock: '' });
+  const [saving, setSaving] = useState(false);
+
+  const burnwayProducts = useMemo(
+    () => (products || []).filter((p) => p.category === '번웨이'),
+    [products]
+  );
+
+  const grouped = useMemo(() => {
+    const groups = {};
+    BURNWAY_CAR_MODELS.forEach((m) => { groups[m.id] = []; });
+    groups['unclassified'] = [];
+    burnwayProducts.forEach((p) => {
+      const modelId = detectBurnwayCarModel(p.name);
+      if (modelId && groups[modelId]) groups[modelId].push(p);
+      else groups['unclassified'].push(p);
+    });
+    return groups;
+  }, [burnwayProducts]);
+
+  const stats = useMemo(() => ({
+    total: burnwayProducts.length,
+    totalStock: burnwayProducts.reduce((sum, p) => sum + (p.stock ?? 0), 0),
+    outOfStock: burnwayProducts.filter((p) => (p.stock ?? 0) === 0).length,
+  }), [burnwayProducts]);
+
+  const handleStockSave = async (product) => {
+    if (!editingStock || editingStock.id !== product.id) return;
+    const newStock = parseInt(editingStock.value, 10);
+    if (isNaN(newStock) || newStock < 0) { showToast('올바른 재고 수량을 입력하세요', 'error'); return; }
+    if (newStock === (product.stock ?? 0)) { setEditingStock(null); return; }
+    setSaving(true);
+    try {
+      if (supabaseConnected && supabase?.updateProduct) {
+        await supabase.updateProduct(product.id, { stock: newStock });
+      }
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
+      showToast(`${product.name} 재고 → ${newStock}`, 'success');
+    } catch { showToast('재고 수정 실패', 'error'); }
+    setSaving(false);
+    setEditingStock(null);
+  };
+
+  const handleAddProduct = async () => {
+    if (!addForm.name.trim()) { showToast('제품명을 입력하세요', 'error'); return; }
+    const stock = parseInt(addForm.stock, 10) || 0;
+    setSaving(true);
+    try {
+      const newProduct = { name: addForm.name.trim(), category: '번웨이', stock, min_stock: 0, wholesale: 0, retail: 0 };
+      if (supabaseConnected && supabase?.addProduct) {
+        const saved = await supabase.addProduct(newProduct);
+        if (saved) {
+          setProducts(prev => [...prev, saved]);
+          showToast(`${saved.name} 등록 완료`, 'success');
+        } else { showToast('등록 실패', 'error'); }
+      } else {
+        newProduct.id = Date.now();
+        setProducts(prev => [...prev, newProduct]);
+        showToast(`${newProduct.name} 등록 (로컬)`, 'success');
+      }
+      setAddForm({ name: '', stock: '' });
+      setShowAddModal(false);
+    } catch { showToast('등록 실패', 'error'); }
+    setSaving(false);
+  };
+
+  const handleDelete = async (product) => {
+    if (!window.confirm(`"${product.name}" 삭제하시겠습니까?`)) return;
+    try {
+      if (supabaseConnected && supabase?.deleteProduct) {
+        await supabase.deleteProduct(product.id);
+      }
+      setProducts(prev => prev.filter(p => p.id !== product.id));
+      showToast(`${product.name} 삭제됨`, 'success');
+    } catch { showToast('삭제 실패', 'error'); }
+  };
+
+  const stockColor = (s) => s === 0 ? 'var(--destructive)' : s <= 2 ? 'var(--warning)' : 'var(--success)';
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold text-[var(--foreground)]">번웨이 다운파이프</h2>
+          <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+            {stats.total}개 제품 · <span style={{ color: 'var(--success)' }}>{stats.totalStock}세트</span>
+            {stats.outOfStock > 0 && <span style={{ color: 'var(--destructive)' }}> · {stats.outOfStock} 품절</span>}
+          </p>
+        </div>
+        <ActionBtn Icon={Plus} onClick={() => setShowAddModal(true)}>제품 추가</ActionBtn>
+      </div>
+
+      {/* Car model groups */}
+      {BURNWAY_CAR_MODELS.map((model) => {
+        const items = grouped[model.id] || [];
+        const modelStock = items.reduce((sum, p) => sum + (p.stock ?? 0), 0);
+        const hasOut = items.some(p => (p.stock ?? 0) === 0);
+        const isExpanded = expandedModel === model.id;
+
+        return (
+          <SectionCard key={model.id}>
+            <button
+              onClick={() => setExpandedModel(isExpanded ? null : model.id)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--accent)] transition-colors rounded-xl"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg"
+                  style={{ background: hasOut ? 'color-mix(in srgb, var(--destructive) 10%, transparent)' : 'color-mix(in srgb, var(--primary) 10%, transparent)' }}>
+                  <Car className="w-4 h-4" style={{ color: hasOut ? 'var(--destructive)' : 'var(--primary)' }} />
+                </div>
+                <div className="text-left">
+                  <span className="text-sm font-bold text-[var(--foreground)]">{model.label}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: stockColor(modelStock) }}>{modelStock}세트</span>
+                    <span className="text-xs text-[var(--muted-foreground)]">{items.length}개 제품</span>
+                    {hasOut && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)' }}>품절</span>}
+                  </div>
+                </div>
+              </div>
+              {isExpanded ? <ChevronDown className="w-4 h-4 text-[var(--muted-foreground)]" /> : <ChevronRight className="w-4 h-4 text-[var(--muted-foreground)]" />}
+            </button>
+
+            {isExpanded && (
+              <div className="px-4 pb-3">
+                {items.length === 0 ? (
+                  <p className="text-xs text-[var(--muted-foreground)] py-3 text-center">등록된 제품 없음</p>
+                ) : (
+                  <div className="space-y-1">
+                    {items.map((p) => {
+                      const stock = p.stock ?? 0;
+                      const isEditing = editingStock?.id === p.id;
+                      return (
+                        <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
+                          <span className="flex-1 truncate text-[var(--foreground)]">{p.name}</span>
+                          {isEditing ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="0"
+                                value={editingStock.value}
+                                onChange={(e) => setEditingStock({ ...editingStock, value: e.target.value })}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleStockSave(p); if (e.key === 'Escape') setEditingStock(null); }}
+                                onBlur={() => handleStockSave(p)}
+                                autoFocus
+                                className="w-16 px-2 py-1 text-xs text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
+                              />
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setEditingStock({ id: p.id, value: String(stock) })}
+                              className="px-2 py-1 rounded text-xs font-bold cursor-pointer hover:opacity-70 transition-opacity"
+                              style={{ color: stockColor(stock), background: stock === 0 ? 'color-mix(in srgb, var(--destructive) 10%, transparent)' : 'transparent' }}
+                              title="클릭하여 재고 수정"
+                            >
+                              {stock === 0 ? '품절' : `${stock}세트`}
+                            </button>
+                          )}
+                          <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] transition-colors text-[var(--muted-foreground)] hover:text-[var(--destructive)]">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </SectionCard>
+        );
+      })}
+
+      {/* Unclassified */}
+      {grouped['unclassified']?.length > 0 && (
+        <SectionCard>
+          <button
+            onClick={() => setExpandedModel(expandedModel === 'unclassified' ? null : 'unclassified')}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--accent)] transition-colors rounded-xl"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg" style={{ background: 'color-mix(in srgb, var(--warning) 10%, transparent)' }}>
+                <AlertTriangle className="w-4 h-4" style={{ color: 'var(--warning)' }} />
+              </div>
+              <span className="text-sm font-bold text-[var(--foreground)]">미분류</span>
+              <span className="text-xs text-[var(--muted-foreground)]">{grouped['unclassified'].length}개</span>
+            </div>
+            {expandedModel === 'unclassified' ? <ChevronDown className="w-4 h-4 text-[var(--muted-foreground)]" /> : <ChevronRight className="w-4 h-4 text-[var(--muted-foreground)]" />}
+          </button>
+          {expandedModel === 'unclassified' && (
+            <div className="px-4 pb-3 space-y-1">
+              {grouped['unclassified'].map((p) => {
+                const stock = p.stock ?? 0;
+                const isEditing = editingStock?.id === p.id;
+                return (
+                  <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
+                    <span className="flex-1 truncate text-[var(--foreground)]">{p.name}</span>
+                    {isEditing ? (
+                      <input type="number" min="0" value={editingStock.value}
+                        onChange={(e) => setEditingStock({ ...editingStock, value: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleStockSave(p); if (e.key === 'Escape') setEditingStock(null); }}
+                        onBlur={() => handleStockSave(p)} autoFocus
+                        className="w-16 px-2 py-1 text-xs text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
+                      />
+                    ) : (
+                      <button onClick={() => setEditingStock({ id: p.id, value: String(stock) })}
+                        className="px-2 py-1 rounded text-xs font-bold cursor-pointer hover:opacity-70"
+                        style={{ color: stockColor(stock) }} title="클릭하여 재고 수정">
+                        {stock === 0 ? '품절' : `${stock}세트`}
+                      </button>
+                    )}
+                    <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)]">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+      )}
+
+      {/* Add Product Modal */}
+      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="번웨이 제품 추가" maxWidth="max-w-md">
+        <div className="space-y-4">
+          <InputField label="제품명" required placeholder="예: 벨로스터N 전용 자바라 DCT" value={addForm.name}
+            onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} />
+          <InputField label="초기 재고 (세트)" type="number" min="0" placeholder="0" value={addForm.stock}
+            onChange={(e) => setAddForm({ ...addForm, stock: e.target.value })} />
+          {addForm.name && (
+            <p className="text-xs text-[var(--muted-foreground)]">
+              자동 분류: <span className="font-medium text-[var(--foreground)]">
+                {BURNWAY_CAR_MODELS.find(m => detectBurnwayCarModel(addForm.name)?.includes(m.id.split('-')[0]))?.label
+                  || (() => { const id = detectBurnwayCarModel(addForm.name); return BURNWAY_CAR_MODELS.find(m => m.id === id)?.label; })()
+                  || '미분류'}
+              </span>
+              {' '}· 카테고리: 번웨이
+            </p>
+          )}
+          <div className="flex gap-2 justify-end pt-2">
+            <ActionBtn variant="secondary" size="md" onClick={() => setShowAddModal(false)}>취소</ActionBtn>
+            <ActionBtn Icon={Plus} size="md" onClick={handleAddProduct} disabled={saving}>{saving ? '저장 중...' : '추가'}</ActionBtn>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DiscountTiersTab
+// ---------------------------------------------------------------------------
 const EMPTY_TIER = { minQty: '', maxQty: '', type: 'percent', value: '' };
 
 function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast, supabase }) {
@@ -1567,6 +1847,7 @@ export default function AdminPage({
       <main className="px-4 sm:px-6 py-6">
         {activeTab === 'products' && <ProductsTab {...tabProps} initialCategory={selectedCategory} />}
         {activeTab === 'customers' && <CustomersTab {...tabProps} />}
+        {activeTab === 'burnway' && <BurnwayTab {...tabProps} />}
         {activeTab === 'categories' && <CategoriesTab {...tabProps} onSelectCategory={(cat) => { setSelectedCategory(cat); setActiveTab('products'); }} />}
         {activeTab === 'discounts' && <DiscountTiersTab {...tabProps} />}
       </main>

@@ -139,7 +139,7 @@ function ModelCard({ model, products, onClick }) {
             {hasOutOfStock && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                 style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)' }}>
-                품절 있음
+                품절
               </span>
             )}
           </div>
