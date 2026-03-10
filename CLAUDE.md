@@ -1,6 +1,6 @@
 # POS Calculator Web - AI 핸드오프 가이드
 
-> 마지막 업데이트: 2026-03-10
+> 마지막 업데이트: 2026-03-11
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 ---
@@ -50,7 +50,7 @@ npx gh-pages -d dist # GitHub Pages 배포
 | `src/App.jsx` | ~800 | 메인 앱. 라우팅, 상태관리, Supabase 실시간 구독, saveOrder 로직 |
 | `src/lib/supabase.js` | ~206 | Supabase REST API 래퍼 (CRUD). `Array.isArray(data) ? data[0] : data` 정규화 적용 |
 | `src/lib/priceData.js` | - | 478개 하드코딩 상품 (오프라인 폴백) |
-| `src/lib/utils.js` | - | formatPrice, formatDateTime 유틸리티 |
+| `src/lib/utils.js` | ~102 | formatPrice, formatDateTime, getTodayKST, toDateKST 유틸리티 |
 | `src/index.css` | ~234 | CSS 변수 테마, 카드 애니메이션, 프린트 스타일 |
 
 ### 페이지 (src/pages/)
@@ -63,7 +63,7 @@ npx gh-pages -d dist # GitHub Pages 배포
 | `SavedCarts.jsx` | 1215 | `saved-carts` | 저장된 장바구니 관리 | 정상 |
 | `CustomerList.jsx` | 1073 | `customers` | 거래처 목록/상세/주문이력/반품 | 정상 |
 | `StockOverview.jsx` | 338 | `stock` | 재고 현황 테이블 | 정상 |
-| `BurnwayStock.jsx` | 360 | `burnway-stock` | 번웨이 다운파이프 재고 (대시보드 카드 스타일) | **신규 리디자인** |
+| `BurnwayStock.jsx` | ~523 | `burnway-stock` | 번웨이 다운파이프 재고 (대시보드 카드 스타일) | 정상 |
 | `ShippingLabel.jsx` | 1217 | `shipping` | 택배 송장 출력/관리 | 정상 |
 | `TextAnalyze.jsx` | 851 | `ai-order` | AI 텍스트 주문 인식 | 정상 |
 | `AdminPage.jsx` | 1575 | `admin` | 관리자 패널 (비번: `dpfldl1!`) | 정상 |
@@ -76,7 +76,7 @@ npx gh-pages -d dist # GitHub Pages 배포
 | 파일 | 역할 |
 |------|------|
 | `AppLayout.jsx` | 사이드바 + 헤더 + 메인 래퍼. 풀스크린 페이지 자동 감지 |
-| `Sidebar.jsx` | 데스크톱 좌측 사이드바 (로고 + 9개 메뉴 + 빠른 계산기) |
+| `Sidebar.jsx` | 데스크톱 좌측 사이드바 (텍스트 로고 + 10개 메뉴 + 빠른 계산기) |
 | `MobileNav.jsx` | 모바일 하단 네비게이션 (6개 메뉴, POS에서 숨김) |
 | `Header.jsx` | 상단 헤더 (페이지 타이틀, 모바일 햄버거 메뉴) |
 
@@ -161,6 +161,30 @@ useEffect(() => {
 
 ### 모바일 헤더 통합
 - 6개 풀스크린 페이지(StockOverview, CustomerList, OrderHistory, BurnwayStock, ShippingLabel, SavedCarts)에 메뉴 버튼 + 사이드바 연동 적용
+
+### 2026-03-11 작업 내역
+
+#### 모달 풀스크린 토글 추가
+- `useModalFullscreen` 훅 + `modal-fs-transition` CSS 활용
+- 적용된 모달: BurnwayStock DetailModal, AdminPage Modal, SaveCartModal, NotificationSettings, QuickCalculator
+- 이미 적용됨: OrderDetail, SavedCarts, CustomerList
+- Maximize2/Minimize2 아이콘으로 토글 버튼
+
+#### KST 타임존 버그 수정
+- **문제**: `toISOString()`이 UTC 기준이라 자정~오전9시 사이에 "오늘" 날짜가 어제로 계산됨
+- **해결**: `src/lib/utils.js`에 `getTodayKST()`, `toDateKST()` 함수 추가
+- **적용 파일**: `App.jsx` (todayOrderCount, shippingCount, saveOrder 병합), `Dashboard.jsx` (오늘 주문 필터)
+
+#### 로고 수정
+- `move-logo.png` 파일 없어서 404 에러 발생
+- `Sidebar.jsx`에서 `<img>` → 텍스트 로고 `MOVE MOTORS` (MOVE는 primary 컬러)로 교체
+- 로고 이미지 파일이 생기면 `public/move-logo.png`에 넣고 img 태그로 복원 가능
+
+#### 자바라 단위 변경 (세트 → 개)
+- `BurnwayStock.jsx`의 `StockBadge`에 `unit` prop 추가 (기본값: "세트")
+- 자바라 관련 StockBadge에 `unit="개"` 전달
+- 상세 모달의 타입별 재고, 개별 제품 리스트에서도 자바라는 "개" 단위 표시
+- 다운파이프(촉매/직관)는 기존대로 "세트" 유지
 
 ---
 

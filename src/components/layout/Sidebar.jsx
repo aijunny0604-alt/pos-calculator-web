@@ -42,7 +42,9 @@ export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount 
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center justify-center h-14 px-4 border-b border-[var(--border)]">
-        <img src={`${import.meta.env.BASE_URL}move-logo.png`} alt="MOVE MOTORS" className="h-7 w-auto object-contain" />
+        <span className="text-base font-extrabold tracking-tight" style={{ color: 'var(--foreground)' }}>
+          <span style={{ color: 'var(--primary)' }}>MOVE</span> MOTORS
+        </span>
       </div>
 
       {/* Navigation */}

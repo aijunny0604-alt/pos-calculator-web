@@ -90,7 +90,7 @@ function calculateSetInfo(model, classified) {
 }
 
 // 재고 표시 뱃지
-function StockBadge({ stock, label }) {
+function StockBadge({ stock, label, unit = '세트' }) {
   const s = stock ?? 0;
   const isOut = s === 0;
   const isLow = s > 0 && s <= 2;
@@ -116,7 +116,7 @@ function StockBadge({ stock, label }) {
           className="inline-flex items-center px-3 py-1 rounded-full text-sm font-extrabold"
           style={{ background: bg, color }}
         >
-          {s}<span className="font-semibold ml-0.5">세트</span>
+          {s}<span className="font-semibold ml-0.5">{unit}</span>
         </span>
       )}
     </div>
@@ -222,12 +222,12 @@ function ModelCard({ model, products, onClick }) {
         <StockBadge stock={classified.straight.stock} label="직관 타입" />
         {model.hasJabara && model.hasDctManual && (
           <>
-            <StockBadge stock={classified.jabara_dct.stock} label="자바라 DCT" />
-            <StockBadge stock={classified.jabara_manual.stock} label="자바라 수동" />
+            <StockBadge stock={classified.jabara_dct.stock} label="자바라 DCT" unit="개" />
+            <StockBadge stock={classified.jabara_manual.stock} label="자바라 수동" unit="개" />
           </>
         )}
         {model.hasJabara && !model.hasDctManual && (
-          <StockBadge stock={classified.jabara.stock} label="자바라" />
+          <StockBadge stock={classified.jabara.stock} label="자바라" unit="개" />
         )}
       </div>
     </button>
@@ -332,7 +332,7 @@ function DetailModal({ model, products, onClose }) {
                   <div className="text-2xl font-extrabold" style={{ color: 'var(--foreground)' }}>
                     {setInfo.totalJabara}
                   </div>
-                  <div className="text-xs font-semibold mt-1" style={{ color: 'var(--muted-foreground)' }}>자바라</div>
+                  <div className="text-xs font-semibold mt-1" style={{ color: 'var(--muted-foreground)' }}>자바라(개)</div>
                 </div>
               </div>
               <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
@@ -372,7 +372,7 @@ function DetailModal({ model, products, onClose }) {
                       : 'color-mix(in srgb, var(--success) 8%, transparent)',
                   }}
                 >
-                  {val.stock === 0 ? '품절' : `${val.stock}세트`}
+                  {val.stock === 0 ? '품절' : `${val.stock}${key.startsWith('jabara') ? '개' : '세트'}`}
                 </span>
               </div>
               {val.products.length === 0 ? (
@@ -394,7 +394,7 @@ function DetailModal({ model, products, onClose }) {
                           className="font-extrabold flex-shrink-0 text-sm"
                           style={{ color: stock === 0 ? 'var(--destructive)' : stock <= 2 ? 'var(--warning)' : 'var(--success)' }}
                         >
-                          {stock === 0 ? '품절' : `${stock}세트`}
+                          {stock === 0 ? '품절' : `${stock}${detectProductType(p.name) === 'jabara' ? '개' : '세트'}`}
                         </span>
                       </div>
                     );
