@@ -1291,7 +1291,7 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
 // ---------------------------------------------------------------------------
 // BurnwayTab - 번웨이 다운파이프 관리
 // ---------------------------------------------------------------------------
-const BURNWAY_CAR_MODELS = [
+const DEFAULT_BURNWAY_CAR_MODELS = [
   { id: 'veloster-n', label: '벨로스터N', keywords: ['벨로스터', '벨n', 'veloster'] },
   { id: 'avante-n', label: '아반떼N', keywords: ['아반떼', '아n', 'avante'] },
   { id: 'sg70-20', label: '스팅어 & G70 2.0', keywords: ['2.0'] },
@@ -1299,8 +1299,26 @@ const BURNWAY_CAR_MODELS = [
   { id: 'sg70-33', label: '스팅어 & G70 3.3', keywords: ['3.3'] },
 ];
 
-function detectBurnwayCarModel(name) {
+const BURNWAY_MODELS_STORAGE_KEY = 'burnway-custom-car-models';
+
+function loadCustomCarModels() {
+  try {
+    const stored = localStorage.getItem(BURNWAY_MODELS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+function saveCustomCarModels(models) {
+  localStorage.setItem(BURNWAY_MODELS_STORAGE_KEY, JSON.stringify(models));
+}
+
+function getBurnwayCarModels(customModels) {
+  return [...DEFAULT_BURNWAY_CAR_MODELS, ...customModels];
+}
+
+function detectBurnwayCarModel(name, allModels) {
   const n = name.toLowerCase().replace(/\s/g, '');
+  // Check default models with specific logic first
   if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('3.3')) return 'sg70-33';
   if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('2.5')) return 'sg70-25';
   if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('2.0')) return 'sg70-20';
@@ -1309,6 +1327,12 @@ function detectBurnwayCarModel(name) {
   if (n.includes('3.3')) return 'sg70-33';
   if (n.includes('2.5')) return 'sg70-25';
   if (n.includes('2.0')) return 'sg70-20';
+  // Check custom models by keyword matching
+  if (allModels) {
+    for (const m of allModels) {
+      if (m.keywords && m.keywords.some(kw => n.includes(kw.toLowerCase().replace(/\s/g, '')))) return m.id;
+    }
+  }
   return null;
 }
 
@@ -1316,8 +1340,13 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
   const [expandedModel, setExpandedModel] = useState(null);
   const [editingStock, setEditingStock] = useState(null); // { id, value }
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', stock: '' });
+  const [addForm, setAddForm] = useState({ name: '', stock: '', carModel: '' });
   const [saving, setSaving] = useState(false);
+  const [customModels, setCustomModels] = useState(() => loadCustomCarModels());
+  const [showModelManager, setShowModelManager] = useState(false);
+  const [newModelName, setNewModelName] = useState('');
+
+  const allModels = useMemo(() => getBurnwayCarModels(customModels), [customModels]);
 
   const burnwayProducts = useMemo(
     () => (products || []).filter((p) => p.category === '번웨이'),
@@ -1326,15 +1355,15 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
 
   const grouped = useMemo(() => {
     const groups = {};
-    BURNWAY_CAR_MODELS.forEach((m) => { groups[m.id] = []; });
+    allModels.forEach((m) => { groups[m.id] = []; });
     groups['unclassified'] = [];
     burnwayProducts.forEach((p) => {
-      const modelId = detectBurnwayCarModel(p.name);
+      const modelId = detectBurnwayCarModel(p.name, allModels);
       if (modelId && groups[modelId]) groups[modelId].push(p);
       else groups['unclassified'].push(p);
     });
     return groups;
-  }, [burnwayProducts]);
+  }, [burnwayProducts, allModels]);
 
   const stats = useMemo(() => ({
     total: burnwayProducts.length,
@@ -1397,7 +1426,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
         setProducts(prev => [...prev, newProduct]);
         showToast(`${newProduct.name} 등록 (로컬)`, 'success');
       }
-      setAddForm({ name: '', stock: '' });
+      setAddForm({ name: '', stock: '', carModel: '' });
       setShowAddModal(false);
     } catch { showToast('등록 실패', 'error'); }
     setSaving(false);
@@ -1425,7 +1454,42 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
     } catch { showToast('삭제 실패', 'error'); }
   };
 
+  // Car model management
+  const handleAddModel = () => {
+    const name = newModelName.trim();
+    if (!name) { showToast('모델명을 입력하세요', 'error'); return; }
+    // Check duplicates
+    if (allModels.some(m => m.label === name)) { showToast('이미 존재하는 모델입니다', 'error'); return; }
+    const id = 'custom-' + name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9가-힣-]/g, '') + '-' + Date.now();
+    const newModel = { id, label: name, keywords: [name.toLowerCase()] };
+    const updated = [...customModels, newModel];
+    setCustomModels(updated);
+    saveCustomCarModels(updated);
+    setNewModelName('');
+    showToast(`차량 모델 "${name}" 추가됨`, 'success');
+  };
+
+  const handleDeleteModel = (modelToDelete) => {
+    // Check if model has products
+    const modelProducts = grouped[modelToDelete.id] || [];
+    if (modelProducts.length > 0) {
+      if (!window.confirm(`"${modelToDelete.label}" 모델에 ${modelProducts.length}개 제품이 등록되어 있습니다.\n삭제하면 해당 제품들은 미분류로 이동합니다.\n계속하시겠습니까?`)) return;
+    }
+    const isDefault = DEFAULT_BURNWAY_CAR_MODELS.some(m => m.id === modelToDelete.id);
+    if (isDefault) { showToast('기본 차량 모델은 삭제할 수 없습니다', 'error'); return; }
+    const updated = customModels.filter(m => m.id !== modelToDelete.id);
+    setCustomModels(updated);
+    saveCustomCarModels(updated);
+    showToast(`차량 모델 "${modelToDelete.label}" 삭제됨`, 'success');
+  };
+
   const stockColor = (s) => s === 0 ? 'var(--destructive)' : s <= 2 ? 'var(--warning)' : 'var(--success)';
+
+  // Detect model for display
+  const getDetectedModelLabel = (name) => {
+    const id = detectBurnwayCarModel(name, allModels);
+    return allModels.find(m => m.id === id)?.label || '미분류';
+  };
 
   return (
     <div className="space-y-4">
@@ -1434,15 +1498,69 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
         <div>
           <h2 className="text-base font-bold text-[var(--foreground)]">번웨이 다운파이프</h2>
           <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
-            {stats.total}개 제품 · <span style={{ color: 'var(--success)' }}>{stats.totalStock}세트</span>
+            {stats.total}개 제품 · <span style={{ color: 'var(--success)' }}>{stats.totalStock}개</span>
             {stats.outOfStock > 0 && <span style={{ color: 'var(--destructive)' }}> · {stats.outOfStock} 품절</span>}
           </p>
         </div>
-        <ActionBtn Icon={Plus} onClick={() => setShowAddModal(true)}>제품 추가</ActionBtn>
+        <div className="flex items-center gap-2">
+          <ActionBtn variant="secondary" Icon={Car} onClick={() => setShowModelManager(!showModelManager)}>
+            {showModelManager ? '닫기' : '모델 관리'}
+          </ActionBtn>
+          <ActionBtn Icon={Plus} onClick={() => setShowAddModal(true)}>제품 추가</ActionBtn>
+        </div>
       </div>
 
+      {/* Car Model Manager */}
+      {showModelManager && (
+        <SectionCard>
+          <div className="px-3 sm:px-4 py-3">
+            <div className="flex items-center gap-2 mb-3">
+              <Car className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+              <span className="text-sm font-bold text-[var(--foreground)]">차량 모델 관리</span>
+            </div>
+            {/* Add new model */}
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="text"
+                value={newModelName}
+                onChange={(e) => setNewModelName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddModel(); }}
+                placeholder="새 차량 모델명 입력"
+                className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              />
+              <ActionBtn Icon={Plus} onClick={handleAddModel}>추가</ActionBtn>
+            </div>
+            {/* Model list */}
+            <div className="space-y-1">
+              {allModels.map((model) => {
+                const isDefault = DEFAULT_BURNWAY_CAR_MODELS.some(m => m.id === model.id);
+                const count = (grouped[model.id] || []).length;
+                return (
+                  <div key={model.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: 'var(--background)' }}>
+                    <div className="flex items-center gap-2">
+                      <Car className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
+                      <span className="text-sm font-medium text-[var(--foreground)]">{model.label}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{count}개</span>
+                      {isDefault && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--muted)] text-[var(--muted-foreground)]">기본</span>}
+                    </div>
+                    {!isDefault && (
+                      <button
+                        onClick={() => handleDeleteModel(model)}
+                        className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
       {/* Car model groups */}
-      {BURNWAY_CAR_MODELS.map((model) => {
+      {allModels.map((model) => {
         const items = grouped[model.id] || [];
         const modelStock = items.reduce((sum, p) => sum + (p.stock ?? 0), 0);
         const hasOut = items.some(p => (p.stock ?? 0) === 0);
@@ -1462,7 +1580,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                 <div className="text-left min-w-0">
                   <span className="text-sm font-bold text-[var(--foreground)]">{model.label}</span>
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                    <span className="text-xs" style={{ color: stockColor(modelStock) }}>{modelStock}세트</span>
+                    <span className="text-xs" style={{ color: stockColor(modelStock) }}>{modelStock}개</span>
                     <span className="text-xs text-[var(--muted-foreground)]">{items.length}개</span>
                     {hasOut && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)' }}>품절</span>}
                   </div>
@@ -1503,7 +1621,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                               style={{ color: stockColor(stock), background: stock === 0 ? 'color-mix(in srgb, var(--destructive) 10%, transparent)' : 'transparent' }}
                               title="클릭하여 재고 수정"
                             >
-                              {stock === 0 ? '품절' : `${stock}세트`}
+                              {stock === 0 ? '품절' : `${stock}개`}
                             </button>
                           )}
                           <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] transition-colors text-[var(--muted-foreground)] hover:text-[var(--destructive)] flex-shrink-0">
@@ -1555,7 +1673,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                       <button onClick={() => setEditingStock({ id: p.id, value: String(stock) })}
                         className="px-1.5 sm:px-2 py-1 rounded text-xs font-bold cursor-pointer hover:opacity-70 flex-shrink-0"
                         style={{ color: stockColor(stock) }} title="클릭하여 재고 수정">
-                        {stock === 0 ? '품절' : `${stock}세트`}
+                        {stock === 0 ? '품절' : `${stock}개`}
                       </button>
                     )}
                     <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] flex-shrink-0">
@@ -1572,16 +1690,38 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
       {/* Add Product Modal */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="번웨이 제품 추가" maxWidth="max-w-md">
         <div className="space-y-4">
+          {/* Car model selector */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-[var(--foreground)]">차량 모델</label>
+            <select
+              value={addForm.carModel}
+              onChange={(e) => {
+                const modelId = e.target.value;
+                setAddForm(prev => ({ ...prev, carModel: modelId }));
+                // Auto-prefix name if empty
+                if (modelId && !addForm.name.trim()) {
+                  const model = allModels.find(m => m.id === modelId);
+                  if (model) setAddForm(prev => ({ ...prev, carModel: modelId, name: model.label + ' ' }));
+                }
+              }}
+              className="px-3 py-3 text-base rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all"
+            >
+              <option value="">선택 안함 (자동 분류)</option>
+              {allModels.map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </select>
+          </div>
           <InputField label="제품명" required placeholder="예: 벨로스터N 전용 자바라 DCT" value={addForm.name}
             onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} />
-          <InputField label="초기 재고 (세트)" type="number" min="0" placeholder="0" value={addForm.stock}
+          <InputField label="초기 재고 (개)" type="number" min="0" placeholder="0" value={addForm.stock}
             onChange={(e) => setAddForm({ ...addForm, stock: e.target.value })} />
           {addForm.name && (
             <p className="text-xs text-[var(--muted-foreground)]">
               자동 분류: <span className="font-medium text-[var(--foreground)]">
-                {BURNWAY_CAR_MODELS.find(m => detectBurnwayCarModel(addForm.name)?.includes(m.id.split('-')[0]))?.label
-                  || (() => { const id = detectBurnwayCarModel(addForm.name); return BURNWAY_CAR_MODELS.find(m => m.id === id)?.label; })()
-                  || '미분류'}
+                {addForm.carModel
+                  ? allModels.find(m => m.id === addForm.carModel)?.label || '미분류'
+                  : getDetectedModelLabel(addForm.name)}
               </span>
               {' '}· 카테고리: 번웨이
             </p>
