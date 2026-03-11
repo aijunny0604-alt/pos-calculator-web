@@ -12,6 +12,7 @@ export default function SaveCartModal({
   customerName = '',
   initialPhone = '',
   initialAddress = '',
+  customers = [],
   onBack,
   onCloseAll,
 }) {
@@ -39,9 +40,21 @@ export default function SaveCartModal({
     setStatus('pending');
     setPriority('normal');
     setMemo('');
-    setCustomerPhone(initialPhone || '');
-    setCustomerAddress(initialAddress || '');
-  }, [customerName, initialPhone, initialAddress, isOpen]);
+    // 초기 전화번호/주소가 있으면 사용, 없으면 등록된 거래처에서 자동 매칭
+    let phone = initialPhone || '';
+    let address = initialAddress || '';
+    if (customerName && customers.length > 0 && (!phone || !address)) {
+      const matched = customers.find(
+        c => c?.name?.toLowerCase().replace(/\s/g, '') === customerName.toLowerCase().replace(/\s/g, '')
+      );
+      if (matched) {
+        if (!phone && matched.phone) phone = matched.phone;
+        if (!address && matched.address) address = matched.address;
+      }
+    }
+    setCustomerPhone(phone);
+    setCustomerAddress(address);
+  }, [customerName, initialPhone, initialAddress, customers, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -134,7 +147,20 @@ export default function SaveCartModal({
             <input
               type="text"
               value={cartName}
-              onChange={(e) => setCartName(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCartName(val);
+                // 등록된 거래처명과 일치하면 전화번호/주소 자동 채움
+                if (val.trim() && customers.length > 0) {
+                  const matched = customers.find(
+                    c => c?.name?.toLowerCase().replace(/\s/g, '') === val.trim().toLowerCase().replace(/\s/g, '')
+                  );
+                  if (matched) {
+                    if (matched.phone) setCustomerPhone(matched.phone);
+                    if (matched.address) setCustomerAddress(matched.address);
+                  }
+                }
+              }}
               placeholder="고객명 또는 저장명 입력"
               className={inputClass}
               style={inputStyle}

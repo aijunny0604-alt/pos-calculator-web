@@ -805,7 +805,7 @@ export default function MainPOS({
             onClearLoadedCustomer?.();
           }}
           onSaveCart={(info) => {
-            if (onSaveCartModal) onSaveCartModal();
+            if (onSaveCartModal) onSaveCartModal(info);
           }}
           showToast={showToast}
         />

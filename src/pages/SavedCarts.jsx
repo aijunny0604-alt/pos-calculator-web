@@ -612,6 +612,46 @@ export default function SavedCarts({
                     ))}
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[var(--muted-foreground)] text-xs mb-1 block">배송 예정일</label>
+                    <input
+                      type="date"
+                      value={editedDetailCart?.delivery_date || ''}
+                      onChange={(e) => setEditedDetailCart({ ...editedDetailCart, delivery_date: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[var(--muted-foreground)] text-xs mb-1 block">우선순위</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { key: 'low', label: '낮음' },
+                        { key: 'normal', label: '보통' },
+                        { key: 'high', label: '높음' },
+                        { key: 'urgent', label: '긴급' },
+                      ].map(({ key, label }) => (
+                        <button
+                          key={key}
+                          onClick={() => setEditedDetailCart({ ...editedDetailCart, priority: key })}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                            (editedDetailCart?.priority || currentCart.priority || 'normal') === key
+                              ? key === 'urgent' || key === 'high'
+                                ? 'text-white border-[var(--destructive)]'
+                                : 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                              : 'bg-[var(--background)] text-[var(--foreground)] border-[var(--border)] hover:bg-[var(--accent)]'
+                          }`}
+                          style={(editedDetailCart?.priority || currentCart.priority || 'normal') === key && (key === 'urgent' || key === 'high')
+                            ? { background: 'var(--destructive)' }
+                            : undefined
+                          }
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
                 <div>
                   <label className="text-[var(--muted-foreground)] text-xs mb-1 block">메모</label>
                   <input

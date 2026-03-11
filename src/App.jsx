@@ -71,6 +71,7 @@ export default function App() {
   // ─── Modal / overlay state ────────────────────────────────────
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showSaveCartModal, setShowSaveCartModal] = useState(false);
+  const [saveCartCustomerOverride, setSaveCartCustomerOverride] = useState(null);
   const [showQuickCalc, setShowQuickCalc] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
 
@@ -661,7 +662,10 @@ export default function App() {
             showToast={showToast}
             saveOrder={saveOrder}
             customers={customers}
-            onSaveCartModal={() => setShowSaveCartModal(true)}
+            onSaveCartModal={(customerInfo) => {
+              if (customerInfo) setSaveCartCustomerOverride(customerInfo);
+              setShowSaveCartModal(true);
+            }}
             onBack={() => setCurrentPage('dashboard')}
             loadedCustomer={loadedCustomer}
             onClearLoadedCustomer={() => setLoadedCustomer(null)}
@@ -945,15 +949,17 @@ export default function App() {
               created_at: now.toISOString(),
             });
             setShowSaveCartModal(false);
+            setSaveCartCustomerOverride(null);
           }}
           cart={cart}
           priceType={priceType}
           formatPrice={formatPrice}
-          customerName={cartCustomerName}
-          initialPhone={loadedCustomer?.phone || ''}
-          initialAddress={loadedCustomer?.address || ''}
-          onBack={() => setShowSaveCartModal(false)}
-          onCloseAll={() => setShowSaveCartModal(false)}
+          customerName={saveCartCustomerOverride?.name || cartCustomerName}
+          initialPhone={saveCartCustomerOverride?.phone || loadedCustomer?.phone || ''}
+          initialAddress={saveCartCustomerOverride?.address || loadedCustomer?.address || ''}
+          customers={customers}
+          onBack={() => { setShowSaveCartModal(false); setSaveCartCustomerOverride(null); }}
+          onCloseAll={() => { setShowSaveCartModal(false); setSaveCartCustomerOverride(null); }}
         />
       )}
 
