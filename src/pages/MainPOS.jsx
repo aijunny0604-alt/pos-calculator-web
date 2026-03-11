@@ -57,6 +57,14 @@ export default function MainPOS({
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const { isFullscreen: isCartFullscreen, toggleFullscreen: toggleCartFullscreen } = useModalFullscreen();
 
+  // 장바구니가 비워지면 주문확인 모달도 자동 닫기 (장바구니 저장 후 초기화 시)
+  useEffect(() => {
+    if (cart.length === 0) {
+      setShowOrderConfirm(false);
+      setIsCartExpanded(false);
+    }
+  }, [cart.length]);
+
   const products = externalProducts.length > 0 ? externalProducts : priceData;
 
   const dynamicCategories = useMemo(() => {
