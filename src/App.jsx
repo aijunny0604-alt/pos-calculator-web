@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import Toast from '@/components/ui/Toast';
 
@@ -34,6 +34,35 @@ export default function App() {
 
   // ─── POS state ────────────────────────────────────────────────
   const [cart, setCart] = useState([]);
+
+  // ─── Global Undo System ──────────────────────────────────────
+  // Each undo entry: { type, undo: async () => void, label: string }
+  const undoStackRef = useRef([]);
+  const MAX_UNDO = 20;
+
+  const pushUndo = useCallback((entry) => {
+    undoStackRef.current = [
+      ...undoStackRef.current.slice(-(MAX_UNDO - 1)),
+      entry,
+    ];
+  }, []);
+
+  // Cart wrapper that auto-pushes undo
+  const setCartWithHistory = useCallback((newCartOrUpdater) => {
+    setCart((prev) => {
+      const next = typeof newCartOrUpdater === 'function'
+        ? newCartOrUpdater(prev)
+        : newCartOrUpdater;
+      const snapshot = prev;
+      pushUndo({
+        type: 'cart',
+        label: '장바구니 변경',
+        undo: () => setCart(snapshot),
+      });
+      return next;
+    });
+  }, [pushUndo]);
+
   const [priceType, setPriceType] = useState('wholesale');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
@@ -69,6 +98,33 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
   }, [notificationSettings]);
+
+  // ─── Ctrl+Z Global Undo ─────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        const tag = document.activeElement?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) {
+          return;
+        }
+        e.preventDefault();
+        if (undoStackRef.current.length === 0) {
+          showToast('되돌릴 작업이 없습니다', 'info');
+          return;
+        }
+        const entry = undoStackRef.current.pop();
+        try {
+          await entry.undo();
+          showToast(`복원됨: ${entry.label}`, 'success');
+        } catch (err) {
+          console.error('Undo failed:', err);
+          showToast('복원에 실패했습니다', 'error');
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showToast]);
 
   // ─── Format order: snake_case → camelCase (이전 버전과 동일) ──
   const formatOrder = useCallback((o) => ({
@@ -293,7 +349,7 @@ export default function App() {
           });
           if (updated) {
             await refreshOrders();
-            setCart([]);
+            setCartWithHistory([]);
             showToast('기존 주문에 합산되었습니다', 'success');
             return updated;
           }
@@ -317,7 +373,7 @@ export default function App() {
 
       if (created) {
         await refreshOrders();
-        setCart([]);
+        setCartWithHistory([]);
         showToast('주문이 저장되었습니다', 'success');
       } else {
         showToast('주문 저장에 실패했습니다', 'error');
@@ -330,24 +386,71 @@ export default function App() {
   // ─── Order handlers ───────────────────────────────────────────
   const handleDeleteOrder = useCallback(
     async (id) => {
+      // Snapshot before delete for undo
+      const deletedOrder = orders.find((o) => o.id === id);
       const ok = await supabase.deleteOrder(id);
       if (ok) {
         setOrders((prev) => prev.filter((o) => o.id !== id));
         showToast('주문이 삭제되었습니다', 'success');
+        if (deletedOrder) {
+          pushUndo({
+            type: 'order-delete',
+            label: `주문 삭제 (${deletedOrder.customerName || '주문'})`,
+            undo: async () => {
+              const restored = await supabase.saveOrder({
+                id: deletedOrder.id,
+                customer_name: deletedOrder.customerName,
+                customer_phone: deletedOrder.customerPhone || '',
+                customer_address: deletedOrder.customerAddress || '',
+                price_type: deletedOrder.priceType || 'wholesale',
+                items: deletedOrder.items || [],
+                total: deletedOrder.totalAmount || 0,
+                subtotal: Math.round((deletedOrder.totalAmount || 0) / 1.1),
+                vat: (deletedOrder.totalAmount || 0) - Math.round((deletedOrder.totalAmount || 0) / 1.1),
+                memo: deletedOrder.memo || null,
+              });
+              if (restored) await refreshOrders();
+            },
+          });
+        }
       } else {
         showToast('삭제에 실패했습니다', 'error');
       }
     },
-    [showToast]
+    [orders, showToast, pushUndo, refreshOrders]
   );
 
   const handleDeleteMultipleOrders = useCallback(
     async (ids) => {
+      const deletedOrders = orders.filter((o) => ids.includes(o.id));
       await Promise.all(ids.map((id) => supabase.deleteOrder(id)));
       setOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
       showToast(`${ids.length}건 삭제되었습니다`, 'success');
+      if (deletedOrders.length > 0) {
+        pushUndo({
+          type: 'orders-delete-multiple',
+          label: `주문 ${deletedOrders.length}건 삭제`,
+          undo: async () => {
+            await Promise.all(deletedOrders.map((o) =>
+              supabase.saveOrder({
+                id: o.id,
+                customer_name: o.customerName,
+                customer_phone: o.customerPhone || '',
+                customer_address: o.customerAddress || '',
+                price_type: o.priceType || 'wholesale',
+                items: o.items || [],
+                total: o.totalAmount || 0,
+                subtotal: Math.round((o.totalAmount || 0) / 1.1),
+                vat: (o.totalAmount || 0) - Math.round((o.totalAmount || 0) / 1.1),
+                memo: o.memo || null,
+              })
+            ));
+            await refreshOrders();
+          },
+        });
+      }
     },
-    [showToast]
+    [orders, showToast, pushUndo, refreshOrders]
   );
 
   const handleUpdateOrder = useCallback(
@@ -391,22 +494,27 @@ export default function App() {
 
   const handleDeleteSavedCart = useCallback(
     async (id) => {
-      console.log('[handleDeleteSavedCart] called with id:', id, 'type:', typeof id);
       if (!id && id !== 0) {
-        console.error('[handleDeleteSavedCart] id is falsy!');
         showToast('삭제 실패: ID가 없습니다', 'error');
         return;
       }
       try {
+        const deletedCart = savedCarts.find((c) => String(c.id) === String(id));
         const ok = await supabase.deleteSavedCart(id);
-        console.log('[handleDeleteSavedCart] supabase result:', ok);
         if (ok) {
-          setSavedCarts((prev) => {
-            const filtered = prev.filter((c) => String(c.id) !== String(id));
-            console.log('[handleDeleteSavedCart] state:', prev.length, '->', filtered.length);
-            return filtered;
-          });
+          setSavedCarts((prev) => prev.filter((c) => String(c.id) !== String(id)));
           showToast('삭제되었습니다', 'success');
+          if (deletedCart) {
+            pushUndo({
+              type: 'saved-cart-delete',
+              label: `장바구니 삭제 (${deletedCart.name || '장바구니'})`,
+              undo: async () => {
+                const { id: _id, ...cartWithoutId } = deletedCart;
+                const restored = await supabase.addSavedCart(cartWithoutId);
+                if (restored) await refreshSavedCarts();
+              },
+            });
+          }
         } else {
           showToast('삭제에 실패했습니다', 'error');
         }
@@ -415,18 +523,32 @@ export default function App() {
         showToast('삭제 중 오류가 발생했습니다', 'error');
       }
     },
-    [showToast]
+    [savedCarts, showToast, pushUndo, refreshSavedCarts]
   );
 
   const handleDeleteAllSavedCarts = useCallback(async () => {
+    const snapshot = [...savedCarts];
     const ok = await supabase.deleteAllSavedCarts();
     if (ok) {
       setSavedCarts([]);
       showToast('전체 삭제되었습니다', 'success');
+      if (snapshot.length > 0) {
+        pushUndo({
+          type: 'saved-carts-delete-all',
+          label: `장바구니 전체 삭제 (${snapshot.length}건)`,
+          undo: async () => {
+            await Promise.all(snapshot.map((c) => {
+              const { id: _id, ...cartWithoutId } = c;
+              return supabase.addSavedCart(cartWithoutId);
+            }));
+            await refreshSavedCarts();
+          },
+        });
+      }
     } else {
       showToast('삭제에 실패했습니다', 'error');
     }
-  }, [showToast]);
+  }, [savedCarts, showToast, pushUndo, refreshSavedCarts]);
 
   // ─── Customer add handler ──────────────────────────────────
   const handleAddCustomer = useCallback(async (customerData) => {
@@ -470,7 +592,7 @@ export default function App() {
   // ─── Load saved cart into POS ─────────────────────────────────
   const handleLoadSavedCart = useCallback(
     (cartData) => {
-      setCart(cartData.items || []);
+      setCartWithHistory(cartData.items || []);
       setPriceType(cartData.price_type || 'wholesale');
       setLoadedCustomer({
         name: cartData.name || '',
@@ -486,7 +608,7 @@ export default function App() {
   // ─── Add items from TextAnalyze to cart ───────────────────────
   const handleAddToCart = useCallback(
     (newItems) => {
-      setCart((prev) => {
+      setCartWithHistory((prev) => {
         const merged = [...prev];
         for (const newItem of newItems) {
           const idx = merged.findIndex(
@@ -530,7 +652,7 @@ export default function App() {
           <MainPOS
             products={products}
             cart={cart}
-            setCart={setCart}
+            setCart={setCartWithHistory}
             priceType={priceType}
             setPriceType={setPriceType}
             onOpenOrder={() => setCurrentPage('orders')}
@@ -557,14 +679,79 @@ export default function App() {
             onRefresh={refreshOrders}
             isLoading={false}
             onSaveToCart={async (order) => {
+              const customerName = order.customerName || order.customer_name || '';
+              const normalizedName = customerName ? customerName.toLowerCase().replace(/\s/g, '') : '';
+
+              // 등록된 업체인 경우 업체 데이터(전화번호, 주소) 가져오기
+              let customerPhone = order.customerPhone || order.customer_phone || '';
+              let customerAddress = order.customerAddress || order.customer_address || '';
+              if (customerName && customers.length > 0) {
+                const matched = customers.find(
+                  c => c?.name?.toLowerCase().replace(/\s/g, '') === normalizedName
+                );
+                if (matched) {
+                  if (!customerPhone && matched.phone) customerPhone = matched.phone;
+                  if (!customerAddress && matched.address) customerAddress = matched.address;
+                }
+              }
+
+              // 같은 업체의 기존 저장된 장바구니가 있으면 병합 제안
+              if (normalizedName) {
+                const existingCart = savedCarts.find(
+                  c => c.name && c.name.toLowerCase().replace(/\s/g, '') === normalizedName
+                );
+                if (existingCart) {
+                  const confirmed = window.confirm(
+                    `"${customerName}"의 저장된 장바구니가 이미 있습니다.\n\n기존 장바구니에 제품을 병합하시겠습니까?\n\n[확인] 기존 장바구니에 추가\n[취소] 별도 장바구니로 생성`
+                  );
+                  if (confirmed) {
+                    // 기존 아이템과 새 아이템 병합
+                    const existingItems = existingCart.items || [];
+                    const newItems = order.items || [];
+                    const mergedMap = new Map();
+                    existingItems.forEach(item => {
+                      const key = item.name || item.id;
+                      mergedMap.set(key, { ...item });
+                    });
+                    newItems.forEach(item => {
+                      const key = item.name || item.id;
+                      if (mergedMap.has(key)) {
+                        mergedMap.get(key).quantity += item.quantity || 1;
+                      } else {
+                        mergedMap.set(key, { ...item });
+                      }
+                    });
+                    const mergedItems = Array.from(mergedMap.values());
+                    const mergedTotal = mergedItems.reduce(
+                      (sum, item) => sum + ((item.price || item.wholesale || 0) * (item.quantity || 1)), 0
+                    );
+                    const mergedMemo = [existingCart.memo, `주문이력에서 병합 (${order.orderNumber})`].filter(Boolean).join('\n');
+                    const result = await handleUpdateSavedCart(existingCart.id, {
+                      items: mergedItems,
+                      total: mergedTotal,
+                      memo: mergedMemo,
+                    });
+                    if (result) {
+                      showToast('기존 장바구니에 병합 완료!', 'success');
+                    }
+                    return;
+                  }
+                }
+              }
+
+              // 신규 장바구니 생성
+              const now = new Date();
               await handleSaveCart({
-                name: order.customer_name || '주문',
+                name: customerName || '주문',
+                phone: customerPhone,
+                address: customerAddress,
                 items: order.items,
-                total: order.total || order.total_amount || 0,
-                price_type: priceType,
-                date: new Date().toLocaleDateString('ko-KR'),
-                time: new Date().toLocaleTimeString('ko-KR'),
-                created_at: new Date().toISOString(),
+                total: order.totalAmount || order.total || order.total_amount || 0,
+                price_type: order.priceType || priceType,
+                date: now.toLocaleDateString('ko-KR'),
+                time: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+                created_at: now.toISOString(),
+                memo: `주문이력에서 복사 (${order.orderNumber})`,
               });
             }}
             customers={customers}
@@ -666,6 +853,7 @@ export default function App() {
             supabaseConnected={supabaseConnected}
             showToast={showToast}
             supabase={supabase}
+            pushUndo={pushUndo}
           />
         );
 
@@ -686,9 +874,8 @@ export default function App() {
 
   // ─── Derive current cart customer for SaveCartModal ───────────
   const cartCustomerName = useMemo(() => {
-    // Future: derive from a selected customer in cart context
-    return '';
-  }, []);
+    return loadedCustomer?.name || '';
+  }, [loadedCustomer]);
 
   // ─── Render ───────────────────────────────────────────────────
   return (
@@ -763,6 +950,8 @@ export default function App() {
           priceType={priceType}
           formatPrice={formatPrice}
           customerName={cartCustomerName}
+          initialPhone={loadedCustomer?.phone || ''}
+          initialAddress={loadedCustomer?.address || ''}
           onBack={() => setShowSaveCartModal(false)}
           onCloseAll={() => setShowSaveCartModal(false)}
         />

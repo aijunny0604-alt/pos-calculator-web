@@ -277,7 +277,7 @@ function AdminLogin({ onSuccess }) {
 // ---------------------------------------------------------------------------
 // Product Management Tab
 // ---------------------------------------------------------------------------
-function ProductsTab({ products, setProducts, supabaseConnected, showToast, supabase, initialCategory }) {
+function ProductsTab({ products, setProducts, supabaseConnected, showToast, supabase, initialCategory, pushUndo }) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
 
@@ -402,6 +402,35 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
         }
       }
       showToast(isNew ? '제품이 추가되었습니다' : '제품이 수정되었습니다', 'success');
+      if (pushUndo) {
+        if (isNew) {
+          // Undo add = delete the newly added product
+          const addedProduct = isNew && supabaseConnected ? (await supabase.getProducts())?.find(p => p.name === payload.name && p.category === payload.category) : null;
+          if (addedProduct) {
+            pushUndo({
+              type: 'product-add',
+              label: `제품 추가 (${payload.name})`,
+              undo: async () => {
+                await supabase.deleteProduct(addedProduct.id);
+                setProducts(prev => prev.filter(p => p.id !== addedProduct.id));
+              },
+            });
+          }
+        } else {
+          // Undo edit = restore previous values
+          const prevProduct = products.find(p => p.id === editTarget.id);
+          if (prevProduct) {
+            pushUndo({
+              type: 'product-edit',
+              label: `제품 수정 (${payload.name})`,
+              undo: async () => {
+                await supabase.saveProduct(prevProduct);
+                setProducts(prev => prev.map(p => p.id === prevProduct.id ? prevProduct : p));
+              },
+            });
+          }
+        }
+      }
       setEditTarget(null);
     } catch (err) {
       showToast('저장에 실패했습니다: ' + err.message, 'error');
@@ -412,12 +441,24 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    const deleted = deleteTarget;
     try {
       if (supabaseConnected && supabase?.deleteProduct) {
-        await supabase.deleteProduct(deleteTarget.id);
+        await supabase.deleteProduct(deleted.id);
       }
-      setProducts(prev => prev.filter(p => p.id !== deleteTarget.id));
+      setProducts(prev => prev.filter(p => p.id !== deleted.id));
       showToast('제품이 삭제되었습니다', 'success');
+      if (pushUndo) {
+        pushUndo({
+          type: 'product-delete',
+          label: `제품 삭제 (${deleted.name})`,
+          undo: async () => {
+            const { id: _id, ...rest } = deleted;
+            const restored = await supabase.addProduct(rest);
+            if (restored) setProducts(prev => [...prev, restored]);
+          },
+        });
+      }
     } catch (err) {
       showToast('삭제에 실패했습니다: ' + err.message, 'error');
     } finally {
@@ -769,7 +810,7 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
 // ---------------------------------------------------------------------------
 // Customer Management Tab
 // ---------------------------------------------------------------------------
-function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, supabase }) {
+function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, supabase, pushUndo }) {
   const [search, setSearch] = useState('');
   const [editTarget, setEditTarget] = useState(null);
   const [formData, setFormData] = useState(EMPTY_CUSTOMER);
@@ -868,12 +909,24 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    const deleted = deleteTarget;
     try {
       if (supabaseConnected && supabase?.deleteCustomer) {
-        await supabase.deleteCustomer(deleteTarget.id);
+        await supabase.deleteCustomer(deleted.id);
       }
-      setCustomers(prev => prev.filter(c => c.id !== deleteTarget.id));
+      setCustomers(prev => prev.filter(c => c.id !== deleted.id));
       showToast('거래처가 삭제되었습니다', 'success');
+      if (pushUndo) {
+        pushUndo({
+          type: 'customer-delete',
+          label: `거래처 삭제 (${deleted.name})`,
+          undo: async () => {
+            const { id: _id, ...rest } = deleted;
+            const restored = await supabase.addCustomer(rest);
+            if (restored) setCustomers(prev => [...prev, restored]);
+          },
+        });
+      }
     } catch (err) {
       showToast('삭제에 실패했습니다: ' + err.message, 'error');
     } finally {
@@ -1247,7 +1300,7 @@ function detectBurnwayCarModel(name) {
   return null;
 }
 
-function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supabase }) {
+function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supabase, pushUndo }) {
   const [expandedModel, setExpandedModel] = useState(null);
   const [editingStock, setEditingStock] = useState(null); // { id, value }
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1287,8 +1340,19 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
       if (supabaseConnected && supabase?.updateProduct) {
         await supabase.updateProduct(product.id, { stock: newStock });
       }
+      const oldStock = product.stock ?? 0;
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
       showToast(`${product.name} 재고 → ${newStock}`, 'success');
+      if (pushUndo) {
+        pushUndo({
+          type: 'burnway-stock-edit',
+          label: `번웨이 재고 수정 (${product.name}: ${oldStock}→${newStock})`,
+          undo: async () => {
+            await supabase.updateProduct(product.id, { stock: oldStock });
+            setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: oldStock } : p));
+          },
+        });
+      }
     } catch { showToast('재고 수정 실패', 'error'); }
     setSaving(false);
     setEditingStock(null);
@@ -1305,6 +1369,16 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
         if (saved) {
           setProducts(prev => [...prev, saved]);
           showToast(`${saved.name} 등록 완료`, 'success');
+          if (pushUndo) {
+            pushUndo({
+              type: 'burnway-product-add',
+              label: `번웨이 제품 추가 (${saved.name})`,
+              undo: async () => {
+                await supabase.deleteProduct(saved.id);
+                setProducts(prev => prev.filter(p => p.id !== saved.id));
+              },
+            });
+          }
         } else { showToast('등록 실패', 'error'); }
       } else {
         newProduct.id = Date.now();
@@ -1325,6 +1399,17 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
       }
       setProducts(prev => prev.filter(p => p.id !== product.id));
       showToast(`${product.name} 삭제됨`, 'success');
+      if (pushUndo) {
+        pushUndo({
+          type: 'burnway-product-delete',
+          label: `번웨이 제품 삭제 (${product.name})`,
+          undo: async () => {
+            const { id: _id, ...rest } = product;
+            const restored = await supabase.addProduct(rest);
+            if (restored) setProducts(prev => [...prev, restored]);
+          },
+        });
+      }
     } catch { showToast('삭제 실패', 'error'); }
   };
 
@@ -1799,6 +1884,7 @@ export default function AdminPage({
   supabaseConnected,
   showToast,
   supabase,
+  pushUndo,
 }) {
   const [isAdminAuth, setIsAdminAuth] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
@@ -1808,7 +1894,7 @@ export default function AdminPage({
     return <AdminLogin onSuccess={() => setIsAdminAuth(true)} />;
   }
 
-  const tabProps = { products, setProducts, customers, setCustomers, supabaseConnected, showToast, supabase };
+  const tabProps = { products, setProducts, customers, setCustomers, supabaseConnected, showToast, supabase, pushUndo };
 
   return (
     <div className="bg-[var(--background)]">

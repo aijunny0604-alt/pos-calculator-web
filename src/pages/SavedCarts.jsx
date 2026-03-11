@@ -321,7 +321,7 @@ export default function SavedCarts({
         return sum + (price * item.quantity);
       }, 0);
       const updatedCart = { ...editedDetailCart, total: newTotal };
-      await onUpdate(detailIndex, updatedCart);
+      await onUpdate(detailCart.id, updatedCart);
       setDetailCart(updatedCart);
       setIsEditingDetail(false);
       setEditedDetailCart(null);
