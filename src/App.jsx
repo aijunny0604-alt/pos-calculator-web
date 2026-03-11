@@ -737,6 +737,7 @@ export default function App() {
                     });
                     if (result) {
                       showToast('기존 장바구니에 병합 완료!', 'success');
+                      setCurrentPage('saved-carts');
                     }
                     return;
                   }
@@ -757,6 +758,8 @@ export default function App() {
                 created_at: now.toISOString(),
                 memo: `주문이력에서 복사 (${order.orderNumber})`,
               });
+              showToast('장바구니에 저장되었습니다', 'success');
+              setCurrentPage('saved-carts');
             }}
             customers={customers}
           />
@@ -776,6 +779,10 @@ export default function App() {
                 (sum, i) => sum + (i.price || 0) * (i.quantity || 1),
                 0
               );
+              // 먼저 장바구니 카드 삭제
+              if (cartData.id) {
+                await handleDeleteSavedCart(cartData.id);
+              }
               await saveOrder({
                 customer_name: cartData.name || '일반고객',
                 items,
