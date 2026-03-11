@@ -90,7 +90,7 @@ function calculateSetInfo(model, classified) {
 }
 
 // 재고 표시 뱃지
-function StockBadge({ stock, label, unit = '세트' }) {
+function StockBadge({ stock, label, unit = '개' }) {
   const s = stock ?? 0;
   const isOut = s === 0;
   const isLow = s > 0 && s <= 2;
@@ -157,7 +157,7 @@ function ModelCard({ model, products, onClick }) {
           <h3 className="text-lg font-extrabold" style={{ color: 'var(--foreground)' }}>{model.label}</h3>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-base font-bold" style={{ color: hasOutOfStock ? 'var(--destructive)' : 'var(--success)' }}>
-              {totalStock}세트
+              {totalStock}개
             </span>
             {hasOutOfStock && (
               <span className="text-xs px-2 py-0.5 rounded-full font-bold"
@@ -222,12 +222,12 @@ function ModelCard({ model, products, onClick }) {
         <StockBadge stock={classified.straight.stock} label="직관 타입" />
         {model.hasJabara && model.hasDctManual && (
           <>
-            <StockBadge stock={classified.jabara_dct.stock} label="자바라 DCT" unit="개" />
-            <StockBadge stock={classified.jabara_manual.stock} label="자바라 수동" unit="개" />
+            <StockBadge stock={classified.jabara_dct.stock} label="자바라 DCT" />
+            <StockBadge stock={classified.jabara_manual.stock} label="자바라 수동" />
           </>
         )}
         {model.hasJabara && !model.hasDctManual && (
-          <StockBadge stock={classified.jabara.stock} label="자바라" unit="개" />
+          <StockBadge stock={classified.jabara.stock} label="자바라" />
         )}
       </div>
     </button>
@@ -332,7 +332,7 @@ function DetailModal({ model, products, onClose }) {
                   <div className="text-2xl font-extrabold" style={{ color: 'var(--foreground)' }}>
                     {setInfo.totalJabara}
                   </div>
-                  <div className="text-xs font-semibold mt-1" style={{ color: 'var(--muted-foreground)' }}>자바라(개)</div>
+                  <div className="text-xs font-semibold mt-1" style={{ color: 'var(--muted-foreground)' }}>자바라</div>
                 </div>
               </div>
               <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
@@ -372,7 +372,7 @@ function DetailModal({ model, products, onClose }) {
                       : 'color-mix(in srgb, var(--success) 8%, transparent)',
                   }}
                 >
-                  {val.stock === 0 ? '품절' : `${val.stock}${key.startsWith('jabara') ? '개' : '세트'}`}
+                  {val.stock === 0 ? '품절' : `${val.stock}개`}
                 </span>
               </div>
               {val.products.length === 0 ? (
@@ -394,7 +394,7 @@ function DetailModal({ model, products, onClose }) {
                           className="font-extrabold flex-shrink-0 text-sm"
                           style={{ color: stock === 0 ? 'var(--destructive)' : stock <= 2 ? 'var(--warning)' : 'var(--success)' }}
                         >
-                          {stock === 0 ? '품절' : `${stock}${detectProductType(p.name) === 'jabara' ? '개' : '세트'}`}
+                          {stock === 0 ? '품절' : `${stock}개`}
                         </span>
                       </div>
                     );
@@ -475,7 +475,7 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
           <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>번웨이 다운파이프</h1>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
             <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>{stats.total}개 제품</span>
-            <span className="text-sm font-bold" style={{ color: 'var(--success)' }}>{stats.totalStock}세트</span>
+            <span className="text-sm font-bold" style={{ color: 'var(--success)' }}>{stats.totalStock}개</span>
             <span className="text-sm font-bold px-2.5 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)' }}>
               완성 {stats.totalCompleteSets}세트
             </span>
