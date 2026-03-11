@@ -1,4 +1,5 @@
 const variants = {
+  pending: { bg: 'color-mix(in srgb, var(--muted-foreground) 15%, transparent)', color: 'var(--muted-foreground)' },
   draft: { bg: 'color-mix(in srgb, var(--muted-foreground) 15%, transparent)', color: 'var(--muted-foreground)' },
   scheduled: { bg: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' },
   ready: { bg: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' },
@@ -15,11 +16,12 @@ const variants = {
 const defaultVariant = { bg: 'color-mix(in srgb, var(--muted-foreground) 12%, transparent)', color: 'var(--muted-foreground)' };
 
 const labels = {
+  pending: '대기',
   draft: '임시저장',
-  scheduled: '배송예정',
+  scheduled: '예약',
   ready: '준비완료',
   hold: '보류',
-  reservation: '예약',
+  reservation: '입고예약',
   urgent: '긴급',
   high: '높음',
   normal: '보통',
