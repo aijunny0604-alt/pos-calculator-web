@@ -721,7 +721,13 @@ export default function SavedCarts({
                 </button>
                 {onOrder && (
                   <button
-                    onClick={() => { onOrder(currentCart); }}
+                    onClick={async () => {
+                      const cartId = currentCart.id;
+                      onOrder(currentCart);
+                      setDetailCart(null);
+                      setDetailIndex(null);
+                      if (cartId) await handleDeleteCart(cartId);
+                    }}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg font-semibold transition-opacity"
                   >
                     <FileText className="w-4 h-4" />
@@ -1124,7 +1130,7 @@ export default function SavedCarts({
                             </button>
                             {onOrder && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); onOrder(cart); }}
+                                onClick={async (e) => { e.stopPropagation(); onOrder(cart); if (cart.id) await handleDeleteCart(cart.id); }}
                                 className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-xs font-medium transition-opacity"
                               >
                                 <FileText className="w-3.5 h-3.5" />
