@@ -211,10 +211,6 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
     transition-duration: 0.1s;
   }
 }
-.card-interactive:active {
-  transform: scale(0.97);
-  transition-duration: 0.1s;
-}
 
 /* Print styles */
 @media print {
