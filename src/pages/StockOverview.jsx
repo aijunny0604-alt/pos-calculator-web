@@ -12,7 +12,7 @@ export default function StockOverview({ products = [], categories = [], formatPr
   const [selectedCategory, setSelectedCategory] = useState('전체');
   const [stockFilter, setStockFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
 
   useEffect(() => {
     const handleKeyDown = (e) => {

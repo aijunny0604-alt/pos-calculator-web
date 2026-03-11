@@ -41,7 +41,7 @@ export default function SavedCarts({
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
   const [deliveryFilter, setDeliveryFilter] = useState('all');
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [calculatorInitialValue, setCalculatorInitialValue] = useState(null);
   const { isFullscreen: isDetailFullscreen, toggleFullscreen: toggleDetailFullscreen } = useModalFullscreen();

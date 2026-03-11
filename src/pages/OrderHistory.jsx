@@ -25,7 +25,7 @@ export default function OrderHistory({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showFilterDeleteConfirm, setShowFilterDeleteConfirm] = useState(false);
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
 
   // Get blacklist info for customer
   const getBlacklistInfo = (customerName) => {
