@@ -39,6 +39,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
     phone: '',
     address: '',
     product: '',
+    amount: '',
     packaging: '박스1',
     paymentType: '착불',
     sender: '무브모터스'
@@ -235,7 +236,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
       shippingCost: calculateShippingCost(newCustomEntry.packaging)
     };
     setCustomEntries(prev => [...prev, entry]);
-    setNewCustomEntry({ name: '', phone: '', address: '', product: '', packaging: '박스1', paymentType: '착불', sender: '무브모터스' });
+    setNewCustomEntry({ name: '', phone: '', address: '', product: '', amount: '', packaging: '박스1', paymentType: '착불', sender: '무브모터스' });
     setShowAddCustomModal(false);
   };
 
@@ -686,7 +687,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                 return (
                   <div
                     key={order.orderNumber}
-                    className={`card-interactive rounded-xl border ${
+                    className={`rounded-xl border transition-colors ${
                       isSelected ? '' : 'bg-[var(--card)] border-[var(--border)]'
                     }`}
                     style={isSelected
@@ -888,7 +889,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                   return (
                     <div
                       key={entry.id}
-                      className={`card-interactive rounded-xl border ${
+                      className={`rounded-xl border transition-colors ${
                         isSelected ? '' : 'bg-[var(--card)] border-[var(--border)]'
                       }`}
                       style={isSelected
@@ -1068,7 +1069,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
       {/* Add custom entry modal */}
       {showAddCustomModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isAddModalFullscreen ? '0' : '1rem' }} onClick={() => setShowAddCustomModal(false)}>
-          <div className="bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl animate-modal-up modal-fs-transition overflow-y-auto" style={{ maxWidth: isAddModalFullscreen ? '100vw' : '42rem', maxHeight: isAddModalFullscreen ? '100vh' : '90vh', borderRadius: isAddModalFullscreen ? '0' : '0.75rem', boxShadow: isAddModalFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl animate-modal-up modal-fs-transition overflow-y-auto" style={{ maxWidth: isAddModalFullscreen ? '100vw' : '48rem', maxHeight: isAddModalFullscreen ? '100vh' : '90vh', borderRadius: isAddModalFullscreen ? '0' : '0.75rem', boxShadow: isAddModalFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
             <div className={`px-4 py-3 flex items-center justify-between ${isAddModalFullscreen ? '' : 'rounded-t-xl'}`} style={{ background: 'var(--success)' }}>
               <h3 className="text-white font-bold flex items-center gap-2">
                 <Plus className="w-5 h-5" />
@@ -1083,12 +1084,12 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                 </button>
               </div>
             </div>
-            <div className="p-4 space-y-3">
+            <div className="p-5 sm:p-6 space-y-4">
               {/* Name with customer search */}
               <div className="relative">
-                <label className="block text-[var(--muted-foreground)] text-sm mb-1">받는분 * (등록된 거래처 검색)</label>
+                <label className="block text-[var(--muted-foreground)] text-sm font-medium mb-1.5">받는분 * (등록된 거래처 검색)</label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--muted-foreground)]" />
                   <input
                     type="text"
                     value={newCustomEntry.name}
@@ -1096,7 +1097,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                     onFocus={handleSearchFocus}
                     onKeyDown={shipCustKeyDown}
                     placeholder="받는분 이름 입력..."
-                    className="w-full pl-10 pr-3 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                    className="w-full pl-11 pr-4 py-3 border-2 border-[var(--primary)] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                   />
                 </div>
                 {/* Live search dropdown */}
@@ -1107,93 +1108,105 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                           key={c.id}
                           type="button"
                           onClick={() => selectShippingCustomer(c)}
-                          className="w-full px-3 py-2.5 text-left transition-colors flex items-center justify-between border-b border-[var(--border)] last:border-0"
+                          className="w-full px-4 py-3 text-left transition-colors flex items-center justify-between border-b border-[var(--border)] last:border-0"
                           style={{ background: idx === shipCustHi ? 'var(--accent)' : 'transparent' }}
                         >
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{c.name}</span>
+                            <span className="font-medium">{c.name}</span>
                             {savedCustomerSettings[c.name] && <span className="text-xs" style={{ color: 'var(--primary)' }}>설정저장됨</span>}
                           </div>
-                          <span className="text-[var(--muted-foreground)] text-sm">{c.phone || ''}</span>
+                          <span className="text-[var(--muted-foreground)]">{c.phone || ''}</span>
                         </button>
                       ))}
                     </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[var(--muted-foreground)] text-sm mb-1">연락처</label>
+                  <label className="block text-[var(--muted-foreground)] text-sm font-medium mb-1.5">연락처</label>
                   <input
                     type="text"
                     value={newCustomEntry.phone}
                     onChange={e => setNewCustomEntry(prev => ({ ...prev, phone: e.target.value }))}
                     placeholder="010-0000-0000"
-                    className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                    className="w-full px-4 py-3 border border-[var(--border)] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[var(--muted-foreground)] text-sm mb-1">품명</label>
+                  <label className="block text-[var(--muted-foreground)] text-sm font-medium mb-1.5">품명</label>
                   <input
                     type="text"
                     value={newCustomEntry.product}
                     onChange={e => setNewCustomEntry(prev => ({ ...prev, product: e.target.value }))}
                     placeholder="상품명"
-                    className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                    className="w-full px-4 py-3 border border-[var(--border)] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[var(--muted-foreground)] text-sm mb-1">주소</label>
+                <label className="block text-[var(--muted-foreground)] text-sm font-medium mb-1.5">주소</label>
                 <input
                   type="text"
                   value={newCustomEntry.address}
                   onChange={e => setNewCustomEntry(prev => ({ ...prev, address: e.target.value }))}
                   placeholder="배송 주소"
-                  className="w-full px-3 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                  className="w-full px-4 py-3 border border-[var(--border)] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                 />
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[var(--muted-foreground)] text-sm font-medium mb-1.5">금액</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={newCustomEntry.amount}
+                  onChange={e => setNewCustomEntry(prev => ({ ...prev, amount: e.target.value.replace(/[^0-9]/g, '') }))}
+                  placeholder="0"
+                  className="w-full px-4 py-3 border border-[var(--border)] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[var(--muted-foreground)] text-sm mb-1">보내는 곳</label>
+                  <label className="block text-[var(--muted-foreground)] text-sm font-medium mb-1.5">보내는 곳</label>
                   <select
                     value={newCustomEntry.sender}
                     onChange={e => setNewCustomEntry(prev => ({ ...prev, sender: e.target.value }))}
-                    className="w-full px-2 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                    className="w-full px-3 py-3 border border-[var(--border)] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                   >
                     {senderList.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[var(--muted-foreground)] text-sm mb-1">결제</label>
+                  <label className="block text-[var(--muted-foreground)] text-sm font-medium mb-1.5">결제</label>
                   <select
                     value={newCustomEntry.paymentType}
                     onChange={e => setNewCustomEntry(prev => ({ ...prev, paymentType: e.target.value }))}
-                    className="w-full px-2 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                    className="w-full px-3 py-3 border border-[var(--border)] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                   >
                     <option value="착불">착불</option>
                     <option value="선불">선불</option>
                   </select>
                 </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-[var(--muted-foreground)] text-sm mb-1">포장</label>
+                <div>
+                  <label className="block text-[var(--muted-foreground)] text-sm font-medium mb-1.5">포장</label>
                   <input
                     type="text"
                     value={newCustomEntry.packaging}
                     onChange={e => setNewCustomEntry(prev => ({ ...prev, packaging: e.target.value }))}
                     placeholder="박스1"
-                    className="w-full px-2 py-2.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                    className="w-full px-3 py-3 border border-[var(--border)] rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="p-4 pt-2 flex gap-3">
+            <div className="p-5 sm:p-6 pt-2 flex gap-3">
               <button
                 onClick={() => setShowAddCustomModal(false)}
-                className="flex-1 py-2.5 border border-[var(--border)] hover:bg-[var(--accent)] rounded-xl font-medium transition-colors text-sm"
+                className="flex-1 py-3 border border-[var(--border)] hover:bg-[var(--accent)] rounded-xl font-medium transition-colors"
               >
                 취소
               </button>
