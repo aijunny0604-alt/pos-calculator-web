@@ -129,7 +129,7 @@ export default function StockOverview({ products = [], categories = [], formatPr
               <div className="flex items-center gap-2">
                 <Package className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                 <div>
-                  <h1 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>재고 현황</h1>
+                  <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>재고 현황</h1>
                   <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                     전체 {products.length}개 · 검색 {filteredProducts.length}개
                   </p>

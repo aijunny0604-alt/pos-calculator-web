@@ -602,7 +602,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
             </button>
             <Truck className="w-5 h-5" style={{ color: 'var(--warning)' }} />
             <div>
-              <h1 className="text-base font-bold">택배 송장 생성</h1>
+              <h1 className="text-lg font-bold">택배 송장 생성</h1>
               <p className="text-[var(--muted-foreground)] text-xs">
                 전체 {safeOrders.length}건 / 필터 {filteredOrders.length}건 / 선택 {selectedOrders.length}건
               </p>

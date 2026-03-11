@@ -472,7 +472,7 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
           <ArrowLeft className="w-6 h-6" style={{ color: 'var(--foreground)' }} />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>번웨이 다운파이프</h1>
+          <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>번웨이 다운파이프</h1>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
             <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>{stats.total}개 제품</span>
             <span className="text-sm font-bold" style={{ color: 'var(--success)' }}>{stats.totalStock}세트</span>

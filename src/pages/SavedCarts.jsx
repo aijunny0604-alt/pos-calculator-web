@@ -775,7 +775,7 @@ export default function SavedCarts({
               </button>
               <Save className="w-5 h-5 text-[var(--primary)]" />
               <div>
-                <h1 className="text-base font-bold">저장된 장바구니</h1>
+                <h1 className="text-lg font-bold">저장된 장바구니</h1>
                 <p className="text-[var(--muted-foreground)] text-xs">전체 {savedCarts.length}개 · 필터 {filteredCarts.length}개</p>
               </div>
             </div>

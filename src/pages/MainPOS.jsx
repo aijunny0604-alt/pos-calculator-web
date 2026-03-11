@@ -236,7 +236,7 @@ export default function MainPOS({
               <ArrowLeft className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
             </button>
           )}
-          <h1 className="ml-2 text-base font-bold" style={{ color: 'var(--foreground)' }}>제품 주문</h1>
+          <h1 className="ml-2 text-lg font-bold" style={{ color: 'var(--foreground)' }}>제품 주문</h1>
           <div className="flex-1" />
           <div className="flex items-center gap-1.5">
             {onOpenQuickCalculator && (
@@ -269,7 +269,43 @@ export default function MainPOS({
           className="sticky top-12 lg:top-0 z-30 px-4 py-3 border-b"
           style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
         >
-          <div className="flex gap-2 items-center flex-wrap">
+          {/* Search bar - prominent */}
+          <div
+            className="relative mb-2 rounded-xl border-2 shadow-sm transition-all focus-within:shadow-md"
+            style={{
+              borderColor: 'var(--primary)',
+              background: 'var(--background)',
+            }}
+          >
+            <Search
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5"
+              style={{ color: 'var(--primary)' }}
+            />
+            <input
+              type="text"
+              placeholder="제품명 검색..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onFocus={handleSearchFocus}
+              className="w-full pl-11 pr-10 py-2.5 rounded-xl text-sm font-medium focus:outline-none"
+              style={{
+                background: 'transparent',
+                color: 'var(--foreground)',
+              }}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-[var(--muted)]"
+                style={{ color: 'var(--muted-foreground)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Controls row */}
+          <div className="flex gap-2 items-center">
             {/* Price type toggle */}
             <div
               className="flex rounded-lg overflow-hidden border flex-shrink-0"
@@ -277,9 +313,9 @@ export default function MainPOS({
             >
               <button
                 onClick={() => setPriceType('wholesale')}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
                   priceType === 'wholesale'
-                    ? 'text-[var(--primary-foreground)]'
+                    ? 'text-white'
                     : 'text-[var(--muted-foreground)]'
                 }`}
                 style={priceType === 'wholesale' ? { background: 'var(--primary)' } : { background: 'var(--muted)' }}
@@ -288,9 +324,9 @@ export default function MainPOS({
               </button>
               <button
                 onClick={() => setPriceType('retail')}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
                   priceType === 'retail'
-                    ? 'text-[var(--primary-foreground)]'
+                    ? 'text-white'
                     : 'text-[var(--muted-foreground)]'
                 }`}
                 style={priceType === 'retail' ? { background: 'var(--primary)' } : { background: 'var(--muted)' }}
@@ -299,64 +335,36 @@ export default function MainPOS({
               </button>
             </div>
 
-            {/* Category select */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 flex-shrink-0"
-              style={{
-                background: 'var(--background)',
-                borderColor: 'var(--border)',
-                color: 'var(--foreground)',
-                '--tw-ring-color': 'var(--ring)',
-              }}
-            >
-              <option value="전체">전체</option>
-              {dynamicCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-
-            {/* Search input */}
-            <div className="relative flex-1 min-w-[100px] sm:min-w-[160px]">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                style={{ color: 'var(--muted-foreground)' }}
-              />
-              <input
-                type="text"
-                placeholder="제품명 검색..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onFocus={handleSearchFocus}
-                className="w-full pl-9 pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
-                style={{
-                  background: 'var(--background)',
-                  borderColor: 'var(--border)',
-                  color: 'var(--foreground)',
-                }}
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded"
-                  style={{ color: 'var(--muted-foreground)' }}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+            <div className="flex-1" />
 
             {/* Quick action buttons */}
             {onOpenTextAnalyze && (
               <button
                 onClick={onOpenTextAnalyze}
-                className="px-3 py-2 rounded-lg border text-sm font-medium flex items-center gap-1.5 flex-shrink-0 transition-colors hover:bg-[var(--accent)]"
+                className="px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1 flex-shrink-0 transition-colors hover:bg-[var(--accent)]"
                 style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
                 title="AI 주문 인식"
               >
-                <Zap className="w-4 h-4" style={{ color: 'var(--warning)' }} />
+                <Zap className="w-3.5 h-3.5" style={{ color: 'var(--warning)' }} />
                 <span className="hidden sm:inline">AI 인식</span>
               </button>
             )}
+
+            {/* Category select - right side */}
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg border text-xs font-medium focus:outline-none focus:ring-2 flex-shrink-0"
+              style={{
+                background: selectedCategory !== '전체' ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--background)',
+                borderColor: selectedCategory !== '전체' ? 'var(--primary)' : 'var(--border)',
+                color: selectedCategory !== '전체' ? 'var(--primary)' : 'var(--foreground)',
+                '--tw-ring-color': 'var(--ring)',
+              }}
+            >
+              <option value="전체">전체 카테고리</option>
+              {dynamicCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
           </div>
 
           <div className="mt-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>

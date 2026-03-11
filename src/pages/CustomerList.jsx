@@ -211,7 +211,7 @@ export default function CustomerList({
               <div className="flex items-center gap-2">
                 <Building className="w-5 h-5" style={{ color: 'var(--success)' }} />
                 <div>
-                  <h1 className="text-base font-bold">
+                  <h1 className="text-lg font-bold">
                     {selectedCustomer ? selectedCustomer.name : '거래처 목록'}
                   </h1>
                   <p className="text-[var(--muted-foreground)] text-xs">

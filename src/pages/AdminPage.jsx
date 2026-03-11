@@ -1914,7 +1914,7 @@ export default function AdminPage({
       <div className="bg-[var(--card)] border-b border-[var(--border)] px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-base font-bold text-[var(--foreground)]">관리자 패널</h1>
+            <h1 className="text-lg font-bold text-[var(--foreground)]">관리자 패널</h1>
             <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
               {supabaseConnected
                 ? <span style={{ color: 'var(--success)' }}>Supabase 연결됨</span>

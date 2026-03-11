@@ -77,7 +77,7 @@ export default function Dashboard({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>대시보드</h1>
+        <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>대시보드</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>
           {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
           {!supabaseConnected && ' · 오프라인 모드'}

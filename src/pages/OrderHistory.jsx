@@ -206,7 +206,7 @@ export default function OrderHistory({
               <div className="flex items-center gap-2">
                 <List className="w-6 h-6" style={{ color: 'var(--primary)' }} />
                 <div>
-                  <h1 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>주문 내역</h1>
+                  <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>주문 내역</h1>
                   <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                     전체 {orders.length}건 · 필터 {filteredOrders.length}건
                   </p>
