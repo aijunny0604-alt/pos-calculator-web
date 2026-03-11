@@ -51,6 +51,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* iOS 자동 줌 방지 - 모든 input/select/textarea 최소 16px */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Smooth scrolling for all scrollable containers */
 .smooth-scroll,
 [class*="overflow-y-auto"],
