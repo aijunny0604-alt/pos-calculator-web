@@ -346,7 +346,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('택배 송장');
     const headerHeight = 55, colHeaderHeight = 45, dataHeight = 60, addrHeight = 50;
-    worksheet.pageSetup = { paperSize: 9, orientation: 'landscape', horizontalCentered: true, verticalCentered: true, margins: { left: 1, right: 1, top: 1, bottom: 1, header: 0.5, footer: 0.5 } };
+    worksheet.pageSetup = { paperSize: 9, orientation: 'landscape', horizontalCentered: true, verticalCentered: true, margins: { left: 0, right: 0, top: 0, bottom: 0, header: 0, footer: 0 } };
     worksheet.columns = [{ width: 7 }, { width: 22 }, { width: 11 }, { width: 13 }, { width: 18 }, { width: 28 }, { width: 22 }];
     const thinBorder = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
     const headers = ['번호', '받는곳', '배송', '포장', '운임', '품명', '연락처'];
