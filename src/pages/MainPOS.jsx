@@ -308,6 +308,18 @@ export default function MainPOS({
               )}
             </div>
 
+            {/* AI recognize button - 검색바 바로 옆 */}
+            {onOpenTextAnalyze && (
+              <button
+                onClick={onOpenTextAnalyze}
+                className="p-2.5 rounded-xl border flex-shrink-0 transition-colors hover:opacity-80"
+                style={{ borderColor: 'var(--warning)', background: 'var(--warning)', color: 'white' }}
+                title="AI 주문 인식"
+              >
+                <Zap className="w-5 h-5" />
+              </button>
+            )}
+
             {/* Price type toggle */}
             <div
               className="flex rounded-xl overflow-hidden border flex-shrink-0"
@@ -347,18 +359,6 @@ export default function MainPOS({
               <option value="전체">전체</option>
               {dynamicCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
-
-            {/* AI recognize button */}
-            {onOpenTextAnalyze && (
-              <button
-                onClick={onOpenTextAnalyze}
-                className="p-2.5 rounded-xl border flex-shrink-0 transition-colors hover:bg-[var(--accent)]"
-                style={{ borderColor: 'var(--warning)', background: 'color-mix(in srgb, var(--warning) 10%, transparent)' }}
-                title="AI 주문 인식"
-              >
-                <Zap className="w-4 h-4" style={{ color: 'var(--warning)' }} />
-              </button>
-            )}
           </div>
 
           <div className="mt-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
