@@ -2,25 +2,40 @@ import { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, Menu, Package, Car, AlertTriangle, X, Link, CheckCircle, Maximize2, Minimize2 } from 'lucide-react';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 
-// 차종 분류
-const CAR_MODELS = [
-  { id: 'veloster-n', label: '벨로스터N', short: '벨N', keywords: ['벨로스터', '벨n', 'veloster'], hasJabara: true, hasDctManual: true },
-  { id: 'avante-n', label: '아반떼N', short: '아N', keywords: ['아반떼', '아n', 'avante'], hasJabara: true, hasDctManual: false },
-  { id: 'sg70-20', label: '스팅어 & G70 2.0', short: '2.0T', keywords: ['2.0'], hasJabara: false, hasDctManual: false },
-  { id: 'sg70-25', label: '스팅어 & G70 2.5', short: '2.5T', keywords: ['2.5'], hasJabara: false, hasDctManual: false },
-  { id: 'sg70-33', label: '스팅어 & G70 3.3', short: '3.3T', keywords: ['3.3'], hasJabara: false, hasDctManual: false },
+// 기본 차종 (localStorage에 없을 때 fallback)
+const BURNWAY_INITIAL_MODELS = [
+  { id: 'veloster-n', label: '벨로스터N', keywords: ['벨로스터', '벨n', 'veloster'], hasJabara: true, hasDctManual: true },
+  { id: 'avante-n', label: '아반떼N', keywords: ['아반떼', '아n', 'avante'], hasJabara: true, hasDctManual: false },
+  { id: 'sg70-20', label: '스팅어 & G70 2.0', keywords: ['2.0'], hasJabara: false, hasDctManual: false },
+  { id: 'sg70-25', label: '스팅어 & G70 2.5', keywords: ['2.5'], hasJabara: false, hasDctManual: false },
+  { id: 'sg70-33', label: '스팅어 & G70 3.3', keywords: ['3.3'], hasJabara: false, hasDctManual: false },
 ];
 
-function detectCarModel(name) {
+const BURNWAY_MODELS_KEY = 'burnway-car-models';
+
+function loadBurnwayModels() {
+  try {
+    const stored = localStorage.getItem(BURNWAY_MODELS_KEY);
+    if (stored) {
+      const models = JSON.parse(stored);
+      // Restore hasJabara/hasDctManual from defaults if missing
+      return models.map(m => {
+        const def = BURNWAY_INITIAL_MODELS.find(d => d.id === m.id);
+        if (def && m.hasJabara === undefined) {
+          return { ...m, hasJabara: def.hasJabara, hasDctManual: def.hasDctManual };
+        }
+        return m;
+      });
+    }
+    return [...BURNWAY_INITIAL_MODELS];
+  } catch { return [...BURNWAY_INITIAL_MODELS]; }
+}
+
+function detectCarModel(name, allModels) {
   const n = name.toLowerCase().replace(/\s/g, '');
-  if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('3.3')) return 'sg70-33';
-  if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('2.5')) return 'sg70-25';
-  if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('2.0')) return 'sg70-20';
-  if (n.includes('벨로스터') || n.includes('벨n') || n.includes('veloster')) return 'veloster-n';
-  if (n.includes('아반떼') || n.includes('아n') || n.includes('avante')) return 'avante-n';
-  if (n.includes('3.3')) return 'sg70-33';
-  if (n.includes('2.5')) return 'sg70-25';
-  if (n.includes('2.0')) return 'sg70-20';
+  for (const m of allModels) {
+    if (m.keywords && m.keywords.some(kw => n.includes(kw.toLowerCase().replace(/\s/g, '')))) return m.id;
+  }
   return null;
 }
 
@@ -411,6 +426,30 @@ function DetailModal({ model, products, onClose }) {
 
 export default function BurnwayStock({ products = [], formatPrice, onBack }) {
   const [selectedModel, setSelectedModel] = useState(null);
+  const [carModels, setCarModels] = useState(() => loadBurnwayModels());
+
+  // localStorage 변경 감지 (관리자 페이지에서 수정 시 반영)
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (e.key === BURNWAY_MODELS_KEY) {
+        setCarModels(loadBurnwayModels());
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  // 페이지 포커스 시 모델 새로고침 (같은 탭에서 관리자→번웨이 이동 시)
+  useEffect(() => {
+    const handleFocus = () => setCarModels(loadBurnwayModels());
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
+  // 페이지 진입 시 최신 모델 로드
+  useEffect(() => {
+    setCarModels(loadBurnwayModels());
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -430,20 +469,20 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
 
   const groupedByModel = useMemo(() => {
     const groups = {};
-    CAR_MODELS.forEach((m) => { groups[m.id] = []; });
+    carModels.forEach((m) => { groups[m.id] = []; });
     burnwayProducts.forEach((p) => {
-      const modelId = detectCarModel(p.name);
+      const modelId = detectCarModel(p.name, carModels);
       if (modelId && groups[modelId]) groups[modelId].push(p);
     });
     return groups;
-  }, [burnwayProducts]);
+  }, [burnwayProducts, carModels]);
 
   const stats = useMemo(() => {
     const total = burnwayProducts.length;
     const totalStock = burnwayProducts.reduce((sum, p) => sum + (p.stock ?? 0), 0);
     const outOfStock = burnwayProducts.filter((p) => (p.stock ?? 0) === 0).length;
     let totalCompleteSets = 0;
-    CAR_MODELS.forEach((model) => {
+    carModels.forEach((model) => {
       if (model.hasJabara) {
         const classified = classifyProducts(model, groupedByModel[model.id] || []);
         const info = calculateSetInfo(model, classified);
@@ -451,9 +490,9 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
       }
     });
     return { total, totalStock, outOfStock, totalCompleteSets };
-  }, [burnwayProducts, groupedByModel]);
+  }, [burnwayProducts, groupedByModel, carModels]);
 
-  const selectedModelData = selectedModel ? CAR_MODELS.find(m => m.id === selectedModel) : null;
+  const selectedModelData = selectedModel ? carModels.find(m => m.id === selectedModel) : null;
 
   return (
     <div className="flex flex-col h-full">
@@ -499,7 +538,7 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {CAR_MODELS.map((model) => (
+              {carModels.map((model) => (
                 <ModelCard
                   key={model.id}
                   model={model}

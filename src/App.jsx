@@ -459,7 +459,16 @@ export default function App() {
       const result = await supabase.updateOrder(id, data);
       if (result) {
         setOrders((prev) =>
-          prev.map((o) => (o.id === id ? { ...o, ...data } : o))
+          prev.map((o) => {
+            if (o.id !== id) return o;
+            const merged = { ...o, ...data };
+            // Sync camelCase aliases from snake_case updates
+            if (data.total != null) merged.totalAmount = data.total;
+            if (data.customer_name != null) merged.customerName = data.customer_name;
+            if (data.customer_phone != null) merged.customerPhone = data.customer_phone;
+            if (data.customer_address != null) merged.customerAddress = data.customer_address;
+            return merged;
+          })
         );
       }
       return result;
@@ -775,19 +784,22 @@ export default function App() {
             onUpdate={handleUpdateSavedCart}
             onOrder={async (cartData) => {
               const items = cartData.items || [];
-              const total = items.reduce(
-                (sum, i) => sum + (i.price || 0) * (i.quantity || 1),
-                0
-              );
+              const pt = cartData.price_type || 'wholesale';
+              const total = items.reduce((sum, i) => {
+                const price = i.price || (pt === 'wholesale' ? (i.wholesale || 0) : (i.retail || i.wholesale || 0));
+                return sum + price * (i.quantity || 1);
+              }, 0);
               // 먼저 장바구니 카드 삭제
               if (cartData.id) {
                 await handleDeleteSavedCart(cartData.id);
               }
               await saveOrder({
                 customer_name: cartData.name || '일반고객',
+                customer_phone: cartData.phone || '',
+                customer_address: cartData.address || '',
                 items,
                 total_amount: total,
-                price_type: cartData.price_type || 'wholesale',
+                price_type: pt,
               });
             }}
             products={products}
@@ -912,7 +924,14 @@ export default function App() {
             const result = await handleUpdateOrder(id, data);
             if (result) {
               setSelectedOrder((prev) =>
-                prev ? { ...prev, ...data } : prev
+                prev ? {
+                  ...prev,
+                  ...data,
+                  customerName: data.customer_name ?? prev.customerName,
+                  customerPhone: data.customer_phone ?? prev.customerPhone,
+                  customerAddress: data.customer_address ?? prev.customerAddress,
+                  totalAmount: data.total ?? prev.totalAmount,
+                } : prev
               );
             }
             return result;

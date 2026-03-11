@@ -189,12 +189,17 @@ export default function OrderDetail({
 
   // Edit: save
   const handleSave = () => {
-    const updatedOrder = {
-      ...editedOrder,
-      totalAmount: currentTotal,
-      updatedAt: new Date().toISOString(),
+    const updatedData = {
+      items: editedOrder.items,
+      customer_name: editedOrder.customerName,
+      customer_phone: editedOrder.customerPhone,
+      customer_address: editedOrder.customerAddress,
+      total: currentTotal,
+      subtotal: Math.round(currentTotal / 1.1),
+      vat: currentTotal - Math.round(currentTotal / 1.1),
+      memo: editedOrder.memo,
     };
-    if (onUpdateOrder) onUpdateOrder(updatedOrder);
+    if (onUpdateOrder) onUpdateOrder(order.id, updatedData);
     setIsEditing(false);
     setShowProductSearch(false);
   };

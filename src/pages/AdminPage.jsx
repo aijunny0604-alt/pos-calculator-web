@@ -1291,47 +1291,57 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
 // ---------------------------------------------------------------------------
 // BurnwayTab - 번웨이 다운파이프 관리
 // ---------------------------------------------------------------------------
-const DEFAULT_BURNWAY_CAR_MODELS = [
-  { id: 'veloster-n', label: '벨로스터N', keywords: ['벨로스터', '벨n', 'veloster'] },
-  { id: 'avante-n', label: '아반떼N', keywords: ['아반떼', '아n', 'avante'] },
-  { id: 'sg70-20', label: '스팅어 & G70 2.0', keywords: ['2.0'] },
-  { id: 'sg70-25', label: '스팅어 & G70 2.5', keywords: ['2.5'] },
-  { id: 'sg70-33', label: '스팅어 & G70 3.3', keywords: ['3.3'] },
+const BURNWAY_INITIAL_MODELS = [
+  { id: 'veloster-n', label: '벨로스터N', keywords: ['벨로스터', '벨n', 'veloster'], hasJabara: true, hasDctManual: true },
+  { id: 'avante-n', label: '아반떼N', keywords: ['아반떼', '아n', 'avante'], hasJabara: true, hasDctManual: false },
+  { id: 'sg70-20', label: '스팅어 & G70 2.0', keywords: ['2.0'], hasJabara: false, hasDctManual: false },
+  { id: 'sg70-25', label: '스팅어 & G70 2.5', keywords: ['2.5'], hasJabara: false, hasDctManual: false },
+  { id: 'sg70-33', label: '스팅어 & G70 3.3', keywords: ['3.3'], hasJabara: false, hasDctManual: false },
 ];
 
-const BURNWAY_MODELS_STORAGE_KEY = 'burnway-custom-car-models';
+const BURNWAY_MODELS_KEY = 'burnway-car-models';
 
-function loadCustomCarModels() {
+function loadBurnwayModels() {
   try {
-    const stored = localStorage.getItem(BURNWAY_MODELS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch { return []; }
+    const stored = localStorage.getItem(BURNWAY_MODELS_KEY);
+    if (stored) {
+      // Restore hasJabara/hasDctManual from defaults if missing
+      const models = JSON.parse(stored);
+      let needsSave = false;
+      const restored = models.map(m => {
+        const def = BURNWAY_INITIAL_MODELS.find(d => d.id === m.id);
+        if (def && m.hasJabara === undefined) {
+          needsSave = true;
+          return { ...m, hasJabara: def.hasJabara, hasDctManual: def.hasDctManual };
+        }
+        return m;
+      });
+      if (needsSave) localStorage.setItem(BURNWAY_MODELS_KEY, JSON.stringify(restored));
+      return restored;
+    }
+    // Migrate from old key if exists
+    const oldCustom = localStorage.getItem('burnway-custom-car-models');
+    if (oldCustom) {
+      const merged = [...BURNWAY_INITIAL_MODELS, ...JSON.parse(oldCustom)];
+      localStorage.setItem(BURNWAY_MODELS_KEY, JSON.stringify(merged));
+      localStorage.removeItem('burnway-custom-car-models');
+      return merged;
+    }
+    // First load: initialize with defaults
+    localStorage.setItem(BURNWAY_MODELS_KEY, JSON.stringify(BURNWAY_INITIAL_MODELS));
+    return [...BURNWAY_INITIAL_MODELS];
+  } catch { return [...BURNWAY_INITIAL_MODELS]; }
 }
 
-function saveCustomCarModels(models) {
-  localStorage.setItem(BURNWAY_MODELS_STORAGE_KEY, JSON.stringify(models));
-}
-
-function getBurnwayCarModels(customModels) {
-  return [...DEFAULT_BURNWAY_CAR_MODELS, ...customModels];
+function saveBurnwayModels(models) {
+  localStorage.setItem(BURNWAY_MODELS_KEY, JSON.stringify(models));
 }
 
 function detectBurnwayCarModel(name, allModels) {
   const n = name.toLowerCase().replace(/\s/g, '');
-  // Check default models with specific logic first
-  if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('3.3')) return 'sg70-33';
-  if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('2.5')) return 'sg70-25';
-  if ((n.includes('스팅어') || n.includes('g70') || n.includes('stinger')) && n.includes('2.0')) return 'sg70-20';
-  if (n.includes('벨로스터') || n.includes('벨n') || n.includes('veloster')) return 'veloster-n';
-  if (n.includes('아반떼') || n.includes('아n') || n.includes('avante')) return 'avante-n';
-  if (n.includes('3.3')) return 'sg70-33';
-  if (n.includes('2.5')) return 'sg70-25';
-  if (n.includes('2.0')) return 'sg70-20';
-  // Check custom models by keyword matching
-  if (allModels) {
-    for (const m of allModels) {
-      if (m.keywords && m.keywords.some(kw => n.includes(kw.toLowerCase().replace(/\s/g, '')))) return m.id;
-    }
+  // Keyword-based matching from all models
+  for (const m of allModels) {
+    if (m.keywords && m.keywords.some(kw => n.includes(kw.toLowerCase().replace(/\s/g, '')))) return m.id;
   }
   return null;
 }
@@ -1342,11 +1352,10 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({ name: '', stock: '', carModel: '' });
   const [saving, setSaving] = useState(false);
-  const [customModels, setCustomModels] = useState(() => loadCustomCarModels());
+  const [allModels, setAllModels] = useState(() => loadBurnwayModels());
   const [showModelManager, setShowModelManager] = useState(false);
   const [newModelName, setNewModelName] = useState('');
-
-  const allModels = useMemo(() => getBurnwayCarModels(customModels), [customModels]);
+  const [editingModel, setEditingModel] = useState(null); // { id, label, keywords }
 
   const burnwayProducts = useMemo(
     () => (products || []).filter((p) => p.category === '번웨이'),
@@ -1455,32 +1464,52 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
   };
 
   // Car model management
+  const [newModelJabara, setNewModelJabara] = useState(false);
+  const [newModelDctManual, setNewModelDctManual] = useState(false);
+
   const handleAddModel = () => {
     const name = newModelName.trim();
     if (!name) { showToast('모델명을 입력하세요', 'error'); return; }
-    // Check duplicates
     if (allModels.some(m => m.label === name)) { showToast('이미 존재하는 모델입니다', 'error'); return; }
-    const id = 'custom-' + name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9가-힣-]/g, '') + '-' + Date.now();
-    const newModel = { id, label: name, keywords: [name.toLowerCase()] };
-    const updated = [...customModels, newModel];
-    setCustomModels(updated);
-    saveCustomCarModels(updated);
+    const id = 'model-' + name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9가-힣-]/g, '') + '-' + Date.now();
+    const newModel = { id, label: name, keywords: [name.toLowerCase()], hasJabara: newModelJabara, hasDctManual: newModelJabara && newModelDctManual };
+    const updated = [...allModels, newModel];
+    setAllModels(updated);
+    saveBurnwayModels(updated);
     setNewModelName('');
+    setNewModelJabara(false);
+    setNewModelDctManual(false);
     showToast(`차량 모델 "${name}" 추가됨`, 'success');
   };
 
   const handleDeleteModel = (modelToDelete) => {
-    // Check if model has products
     const modelProducts = grouped[modelToDelete.id] || [];
     if (modelProducts.length > 0) {
       if (!window.confirm(`"${modelToDelete.label}" 모델에 ${modelProducts.length}개 제품이 등록되어 있습니다.\n삭제하면 해당 제품들은 미분류로 이동합니다.\n계속하시겠습니까?`)) return;
     }
-    const isDefault = DEFAULT_BURNWAY_CAR_MODELS.some(m => m.id === modelToDelete.id);
-    if (isDefault) { showToast('기본 차량 모델은 삭제할 수 없습니다', 'error'); return; }
-    const updated = customModels.filter(m => m.id !== modelToDelete.id);
-    setCustomModels(updated);
-    saveCustomCarModels(updated);
+    if (allModels.length <= 1) { showToast('최소 1개 모델은 유지해야 합니다', 'error'); return; }
+    const updated = allModels.filter(m => m.id !== modelToDelete.id);
+    setAllModels(updated);
+    saveBurnwayModels(updated);
     showToast(`차량 모델 "${modelToDelete.label}" 삭제됨`, 'success');
+  };
+
+  const handleEditModel = (model) => {
+    setEditingModel({ id: model.id, label: model.label, keywords: (model.keywords || []).join(', '), hasJabara: !!model.hasJabara, hasDctManual: !!model.hasDctManual });
+  };
+
+  const handleSaveEditModel = () => {
+    if (!editingModel) return;
+    const label = editingModel.label.trim();
+    if (!label) { showToast('모델명을 입력하세요', 'error'); return; }
+    if (allModels.some(m => m.id !== editingModel.id && m.label === label)) { showToast('이미 존재하는 모델명입니다', 'error'); return; }
+    const keywords = editingModel.keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    if (keywords.length === 0) keywords.push(label.toLowerCase());
+    const updated = allModels.map(m => m.id === editingModel.id ? { ...m, label, keywords, hasJabara: !!editingModel.hasJabara, hasDctManual: editingModel.hasJabara && !!editingModel.hasDctManual } : m);
+    setAllModels(updated);
+    saveBurnwayModels(updated);
+    setEditingModel(null);
+    showToast(`"${label}" 모델 수정됨`, 'success');
   };
 
   const stockColor = (s) => s === 0 ? 'var(--destructive)' : s <= 2 ? 'var(--warning)' : 'var(--success)';
@@ -1519,38 +1548,103 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
               <span className="text-sm font-bold text-[var(--foreground)]">차량 모델 관리</span>
             </div>
             {/* Add new model */}
-            <div className="flex items-center gap-2 mb-3">
-              <input
-                type="text"
-                value={newModelName}
-                onChange={(e) => setNewModelName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleAddModel(); }}
-                placeholder="새 차량 모델명 입력"
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-              />
-              <ActionBtn Icon={Plus} onClick={handleAddModel}>추가</ActionBtn>
+            <div className="space-y-2 mb-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newModelName}
+                  onChange={(e) => setNewModelName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddModel(); }}
+                  placeholder="새 차량 모델명 입력"
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                />
+                <ActionBtn Icon={Plus} onClick={handleAddModel}>추가</ActionBtn>
+              </div>
+              <div className="flex items-center gap-4 px-1">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={newModelJabara} onChange={(e) => { setNewModelJabara(e.target.checked); if (!e.target.checked) setNewModelDctManual(false); }} className="rounded" />
+                  <span className="text-xs text-[var(--muted-foreground)]">자바라 세트</span>
+                </label>
+                {newModelJabara && (
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input type="checkbox" checked={newModelDctManual} onChange={(e) => setNewModelDctManual(e.target.checked)} className="rounded" />
+                    <span className="text-xs text-[var(--muted-foreground)]">DCT/수동 구분</span>
+                  </label>
+                )}
+              </div>
             </div>
             {/* Model list */}
             <div className="space-y-1">
               {allModels.map((model) => {
-                const isDefault = DEFAULT_BURNWAY_CAR_MODELS.some(m => m.id === model.id);
                 const count = (grouped[model.id] || []).length;
+                if (editingModel && editingModel.id === model.id) {
+                  return (
+                    <div key={model.id} className="px-3 py-2 rounded-lg space-y-2" style={{ background: 'var(--background)' }}>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editingModel.label}
+                          onChange={(e) => setEditingModel({ ...editingModel, label: e.target.value })}
+                          placeholder="모델명"
+                          className="flex-1 px-2 py-1.5 text-sm rounded border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editingModel.keywords}
+                          onChange={(e) => setEditingModel({ ...editingModel, keywords: e.target.value })}
+                          placeholder="키워드 (쉼표 구분)"
+                          className="flex-1 px-2 py-1.5 text-sm rounded border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        />
+                      </div>
+                      <div className="flex items-center gap-4 px-1">
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                          <input type="checkbox" checked={editingModel.hasJabara} onChange={(e) => setEditingModel({ ...editingModel, hasJabara: e.target.checked, hasDctManual: e.target.checked ? editingModel.hasDctManual : false })} className="rounded" />
+                          <span className="text-xs text-[var(--muted-foreground)]">자바라 세트</span>
+                        </label>
+                        {editingModel.hasJabara && (
+                          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input type="checkbox" checked={editingModel.hasDctManual} onChange={(e) => setEditingModel({ ...editingModel, hasDctManual: e.target.checked })} className="rounded" />
+                            <span className="text-xs text-[var(--muted-foreground)]">DCT/수동 구분</span>
+                          </label>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 justify-end">
+                        <button onClick={handleSaveEditModel} className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--success)] transition-colors">
+                          <Save className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => setEditingModel(null)} className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] transition-colors">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={model.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: 'var(--background)' }}>
                     <div className="flex items-center gap-2">
                       <Car className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
                       <span className="text-sm font-medium text-[var(--foreground)]">{model.label}</span>
                       <span className="text-xs text-[var(--muted-foreground)]">{count}개</span>
-                      {isDefault && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--muted)] text-[var(--muted-foreground)]">기본</span>}
+                      {model.hasJabara && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>세트</span>}
                     </div>
-                    {!isDefault && (
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={() => handleEditModel(model)}
+                        className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
+                        title="수정"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => handleDeleteModel(model)}
                         className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
+                        title="삭제"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                    </div>
                   </div>
                 );
               })}
