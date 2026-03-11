@@ -274,22 +274,22 @@ export default function StockOverview({ products = [], categories = [], formatPr
           ) : (
             <div className="rounded-xl border" style={{ borderColor: 'var(--border)', overflow: 'clip' }}>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[600px]">
+                <table className="w-full">
                   <thead>
                     <tr style={{ backgroundColor: 'var(--secondary)' }}>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                      <th className="px-2 sm:px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
                         제품명
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                      <th className="px-2 sm:px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide hidden sm:table-cell" style={{ color: 'var(--muted-foreground)' }}>
                         카테고리
                       </th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                      <th className="px-2 sm:px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide hidden sm:table-cell" style={{ color: 'var(--muted-foreground)' }}>
                         도매가
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
-                        재고 상태
+                      <th className="px-2 sm:px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                        재고
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
+                      <th className="px-2 sm:px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide hidden md:table-cell" style={{ color: 'var(--muted-foreground)' }}>
                         최소 재고
                       </th>
                     </tr>
@@ -301,25 +301,28 @@ export default function StockOverview({ products = [], categories = [], formatPr
                         className="border-t transition-colors hover:bg-[var(--secondary)]"
                         style={{ borderColor: 'var(--border)', ...(getRowBg(product) || {}) }}
                       >
-                        <td className="px-4 py-3">
-                          <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+                        <td className="px-2 sm:px-4 py-3">
+                          <span className="font-medium text-xs sm:text-sm" style={{ color: 'var(--foreground)' }}>
                             {product.name}
                           </span>
+                          <span className="block sm:hidden text-[10px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                            {product.category} · {formatPrice(product.wholesale)}
+                          </span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-2 sm:px-4 py-3 hidden sm:table-cell">
                           <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
                             {product.category}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-2 sm:px-4 py-3 text-right hidden sm:table-cell">
                           <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                             {formatPrice(product.wholesale)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-2 sm:px-4 py-3 text-center">
                           {getStockBadge(product)}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-2 sm:px-4 py-3 text-center hidden md:table-cell">
                           <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
                             {product.min_stock || 5}개
                           </span>

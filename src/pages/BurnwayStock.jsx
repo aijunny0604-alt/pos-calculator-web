@@ -459,7 +459,7 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div
-        className="sticky top-0 z-10 flex items-center gap-4 px-5 py-4 border-b flex-shrink-0"
+        className="sticky top-0 z-10 flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-4 border-b flex-shrink-0"
         style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
       >
         <button
@@ -472,7 +472,7 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
           <ArrowLeft className="w-6 h-6" style={{ color: 'var(--foreground)' }} />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-extrabold" style={{ color: 'var(--foreground)' }}>번웨이 다운파이프</h1>
+          <h1 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>번웨이 다운파이프</h1>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
             <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>{stats.total}개 제품</span>
             <span className="text-sm font-bold" style={{ color: 'var(--success)' }}>{stats.totalStock}세트</span>
@@ -490,7 +490,7 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-5">
+        <div className="p-3 sm:p-5">
           {burnwayProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <Package className="w-14 h-14 mb-4" style={{ color: 'var(--muted-foreground)' }} />

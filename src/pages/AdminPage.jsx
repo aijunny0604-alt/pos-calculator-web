@@ -52,7 +52,7 @@ function InputField({ label, required, error, className = '', ...props }) {
         </label>
       )}
       <input
-        className={`px-4 py-3 text-base rounded-lg border ${
+        className={`px-3 sm:px-4 py-3 text-base rounded-lg border ${
           error ? 'border-[var(--destructive)]' : 'border-[var(--border)]'
         } bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all`}
         {...props}
@@ -548,7 +548,7 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[160px]">
+        <div className="relative flex-1 min-w-[120px] sm:min-w-[160px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
           <input
             type="text"
@@ -562,20 +562,26 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
         <select
           value={categoryFilter}
           onChange={e => setCategoryFilter(e.target.value)}
-          className="px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          className="px-2 sm:px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] max-w-[140px] sm:max-w-none"
         >
           <option value="">전체 카테고리</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <ActionBtn variant="secondary" Icon={Download} onClick={exportProductsCSV}>
+        <ActionBtn variant="secondary" Icon={Download} onClick={exportProductsCSV} className="hidden sm:inline-flex">
           엑셀 백업
         </ActionBtn>
-        <ActionBtn variant="secondary" Icon={Upload} onClick={() => fileRef.current?.click()}>
+        <ActionBtn variant="secondary" Icon={Download} onClick={exportProductsCSV} className="sm:hidden">
+          백업
+        </ActionBtn>
+        <ActionBtn variant="secondary" Icon={Upload} onClick={() => fileRef.current?.click()} className="hidden sm:inline-flex">
           CSV 가져오기
+        </ActionBtn>
+        <ActionBtn variant="secondary" Icon={Upload} onClick={() => fileRef.current?.click()} className="sm:hidden">
+          CSV
         </ActionBtn>
         <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSVImport} />
         <ActionBtn variant="primary" Icon={Plus} onClick={openNew}>
-          제품 추가
+          추가
         </ActionBtn>
       </div>
 
@@ -952,7 +958,7 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[160px]">
+        <div className="relative flex-1 min-w-[120px] sm:min-w-[160px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
           <input
             type="text"
@@ -963,11 +969,17 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
           />
         </div>
-        <ActionBtn variant="secondary" Icon={Download} onClick={exportCustomersCSV}>
+        <ActionBtn variant="secondary" Icon={Download} onClick={exportCustomersCSV} className="hidden sm:inline-flex">
           엑셀 백업
         </ActionBtn>
-        <ActionBtn variant="primary" Icon={UserPlus} onClick={openNew}>
+        <ActionBtn variant="secondary" Icon={Download} onClick={exportCustomersCSV} className="sm:hidden">
+          백업
+        </ActionBtn>
+        <ActionBtn variant="primary" Icon={UserPlus} onClick={openNew} className="hidden sm:inline-flex">
           새 거래처 등록
+        </ActionBtn>
+        <ActionBtn variant="primary" Icon={UserPlus} onClick={openNew} className="sm:hidden">
+          등록
         </ActionBtn>
       </div>
 
@@ -1440,18 +1452,18 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
           <SectionCard key={model.id}>
             <button
               onClick={() => setExpandedModel(isExpanded ? null : model.id)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--accent)] transition-colors rounded-xl"
+              className="w-full flex items-center justify-between px-3 sm:px-4 py-3 hover:bg-[var(--accent)] transition-colors rounded-xl"
             >
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg"
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0"
                   style={{ background: hasOut ? 'color-mix(in srgb, var(--destructive) 10%, transparent)' : 'color-mix(in srgb, var(--primary) 10%, transparent)' }}>
                   <Car className="w-4 h-4" style={{ color: hasOut ? 'var(--destructive)' : 'var(--primary)' }} />
                 </div>
-                <div className="text-left">
+                <div className="text-left min-w-0">
                   <span className="text-sm font-bold text-[var(--foreground)]">{model.label}</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                     <span className="text-xs" style={{ color: stockColor(modelStock) }}>{modelStock}세트</span>
-                    <span className="text-xs text-[var(--muted-foreground)]">{items.length}개 제품</span>
+                    <span className="text-xs text-[var(--muted-foreground)]">{items.length}개</span>
                     {hasOut && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)' }}>품절</span>}
                   </div>
                 </div>
@@ -1460,7 +1472,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
             </button>
 
             {isExpanded && (
-              <div className="px-4 pb-3">
+              <div className="px-2 sm:px-4 pb-3">
                 {items.length === 0 ? (
                   <p className="text-xs text-[var(--muted-foreground)] py-3 text-center">등록된 제품 없음</p>
                 ) : (
@@ -1469,10 +1481,10 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                       const stock = p.stock ?? 0;
                       const isEditing = editingStock?.id === p.id;
                       return (
-                        <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
-                          <span className="flex-1 truncate text-[var(--foreground)]">{p.name}</span>
+                        <div key={p.id} className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
+                          <span className="flex-1 truncate text-[var(--foreground)] text-xs sm:text-sm">{p.name}</span>
                           {isEditing ? (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               <input
                                 type="number"
                                 min="0"
@@ -1481,20 +1493,20 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                                 onKeyDown={(e) => { if (e.key === 'Enter') handleStockSave(p); if (e.key === 'Escape') setEditingStock(null); }}
                                 onBlur={() => handleStockSave(p)}
                                 autoFocus
-                                className="w-16 px-2 py-1 text-xs text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
+                                className="w-14 sm:w-16 px-2 py-1 text-xs text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
                               />
                             </div>
                           ) : (
                             <button
                               onClick={() => setEditingStock({ id: p.id, value: String(stock) })}
-                              className="px-2 py-1 rounded text-xs font-bold cursor-pointer hover:opacity-70 transition-opacity"
+                              className="px-1.5 sm:px-2 py-1 rounded text-xs font-bold cursor-pointer hover:opacity-70 transition-opacity flex-shrink-0"
                               style={{ color: stockColor(stock), background: stock === 0 ? 'color-mix(in srgb, var(--destructive) 10%, transparent)' : 'transparent' }}
                               title="클릭하여 재고 수정"
                             >
                               {stock === 0 ? '품절' : `${stock}세트`}
                             </button>
                           )}
-                          <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] transition-colors text-[var(--muted-foreground)] hover:text-[var(--destructive)]">
+                          <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] transition-colors text-[var(--muted-foreground)] hover:text-[var(--destructive)] flex-shrink-0">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -1513,7 +1525,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
         <SectionCard>
           <button
             onClick={() => setExpandedModel(expandedModel === 'unclassified' ? null : 'unclassified')}
-            className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--accent)] transition-colors rounded-xl"
+            className="w-full flex items-center justify-between px-3 sm:px-4 py-3 hover:bg-[var(--accent)] transition-colors rounded-xl"
           >
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-8 h-8 rounded-lg" style={{ background: 'color-mix(in srgb, var(--warning) 10%, transparent)' }}>
@@ -1525,28 +1537,28 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
             {expandedModel === 'unclassified' ? <ChevronDown className="w-4 h-4 text-[var(--muted-foreground)]" /> : <ChevronRight className="w-4 h-4 text-[var(--muted-foreground)]" />}
           </button>
           {expandedModel === 'unclassified' && (
-            <div className="px-4 pb-3 space-y-1">
+            <div className="px-2 sm:px-4 pb-3 space-y-1">
               {grouped['unclassified'].map((p) => {
                 const stock = p.stock ?? 0;
                 const isEditing = editingStock?.id === p.id;
                 return (
-                  <div key={p.id} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
-                    <span className="flex-1 truncate text-[var(--foreground)]">{p.name}</span>
+                  <div key={p.id} className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
+                    <span className="flex-1 truncate text-[var(--foreground)] text-xs sm:text-sm">{p.name}</span>
                     {isEditing ? (
                       <input type="number" min="0" value={editingStock.value}
                         onChange={(e) => setEditingStock({ ...editingStock, value: e.target.value })}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleStockSave(p); if (e.key === 'Escape') setEditingStock(null); }}
                         onBlur={() => handleStockSave(p)} autoFocus
-                        className="w-16 px-2 py-1 text-xs text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
+                        className="w-14 sm:w-16 px-2 py-1 text-xs text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
                       />
                     ) : (
                       <button onClick={() => setEditingStock({ id: p.id, value: String(stock) })}
-                        className="px-2 py-1 rounded text-xs font-bold cursor-pointer hover:opacity-70"
+                        className="px-1.5 sm:px-2 py-1 rounded text-xs font-bold cursor-pointer hover:opacity-70 flex-shrink-0"
                         style={{ color: stockColor(stock) }} title="클릭하여 재고 수정">
                         {stock === 0 ? '품절' : `${stock}세트`}
                       </button>
                     )}
-                    <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)]">
+                    <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] flex-shrink-0">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1690,14 +1702,14 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
   };
 
   const TierFormInline = ({ productId, tierIndex = null }) => (
-    <div className="mt-3 p-3 rounded-lg bg-[var(--muted)] border border-[var(--border)] flex flex-wrap gap-2 items-end">
+    <div className="mt-3 p-2 sm:p-3 rounded-lg bg-[var(--muted)] border border-[var(--border)] flex flex-wrap gap-2 items-end">
       <InputField
         label="최소수량"
         type="number"
         value={tierForm.minQty}
         onChange={e => setTierForm(p => ({ ...p, minQty: e.target.value }))}
         placeholder="1"
-        className="w-24"
+        className="w-20 sm:w-24"
       />
       <InputField
         label="최대수량"
@@ -1705,14 +1717,14 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
         value={tierForm.maxQty}
         onChange={e => setTierForm(p => ({ ...p, maxQty: e.target.value }))}
         placeholder="없음"
-        className="w-24"
+        className="w-20 sm:w-24"
       />
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-[var(--foreground)]">할인타입</label>
         <select
           value={tierForm.type}
           onChange={e => setTierForm(p => ({ ...p, type: e.target.value }))}
-          className="px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          className="px-2 sm:px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
         >
           <option value="percent">퍼센트 (%)</option>
           <option value="amount">금액 (원)</option>
@@ -1724,7 +1736,7 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
         value={tierForm.value}
         onChange={e => setTierForm(p => ({ ...p, value: e.target.value }))}
         placeholder={tierForm.type === 'percent' ? '10' : '1000'}
-        className="w-28"
+        className="w-24 sm:w-28"
       />
       <div className="flex gap-2">
         <ActionBtn
@@ -1772,28 +1784,28 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
               <SectionCard key={product.id}>
                 {/* Product Header Row */}
                 <div
-                  className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--accent)] transition-colors select-none"
+                  className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-3 cursor-pointer hover:bg-[var(--accent)] transition-colors select-none"
                   onClick={() => setExpandedId(isExpanded ? null : product.id)}
                 >
-                  <span className="text-[var(--muted-foreground)]">
+                  <span className="text-[var(--muted-foreground)] flex-shrink-0">
                     {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium text-[var(--foreground)]">{product.name}</span>
-                    <span className="ml-2 text-xs text-[var(--muted-foreground)]">{product.category}</span>
+                    <span className="font-medium text-[var(--foreground)] text-sm truncate block sm:inline">{product.name}</span>
+                    <span className="ml-0 sm:ml-2 text-xs text-[var(--muted-foreground)] hidden sm:inline">{product.category}</span>
                   </div>
                   {tiers.length > 0 && (
                     <span
-                      className="px-2 py-0.5 rounded-full text-xs font-medium"
+                      className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium flex-shrink-0"
                       style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}
                     >
-                      {tiers.length}개 구간
+                      {tiers.length}개
                     </span>
                   )}
-                  <span className="text-xs text-[var(--muted-foreground)]">도매 {formatPrice(product.wholesale)}원</span>
+                  <span className="text-xs text-[var(--muted-foreground)] hidden sm:inline flex-shrink-0">도매 {formatPrice(product.wholesale)}원</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); openAddTier(product.id); }}
-                    className="ml-2 p-1.5 rounded-lg hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                    className="ml-1 sm:ml-2 p-1.5 rounded-lg hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex-shrink-0"
                     title="할인구간 추가"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -1802,7 +1814,7 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
 
                 {/* Expanded Tiers */}
                 {isExpanded && (
-                  <div className="px-4 pb-4 border-t border-[var(--border)]">
+                  <div className="px-2 sm:px-4 pb-4 border-t border-[var(--border)]">
                     {tiers.length === 0 && !isAdding ? (
                       <p className="text-sm text-[var(--muted-foreground)] py-3">
                         할인 구간이 없습니다.
@@ -1819,8 +1831,8 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
                           const isEditingThis = editingTier?.productId === product.id && editingTier?.tierIndex === idx;
                           return (
                             <div key={idx}>
-                              <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--muted)] border border-[var(--border)]">
-                                <div className="flex-1 flex flex-wrap gap-4 text-sm">
+                              <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-[var(--muted)] border border-[var(--border)]">
+                                <div className="flex-1 flex flex-wrap gap-2 sm:gap-4 text-sm min-w-0">
                                   <span>
                                     <span className="text-[var(--muted-foreground)] text-xs mr-1">수량</span>
                                     <span className="font-medium">{tier.minQty}</span>
@@ -1831,7 +1843,7 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
                                     <span className="font-medium" style={{ color: 'var(--primary)' }}>
                                       {tier.type === 'percent' ? `${tier.value}%` : `${formatPrice(tier.value)}원`}
                                     </span>
-                                    <span className="text-xs text-[var(--muted-foreground)] ml-1">
+                                    <span className="text-xs text-[var(--muted-foreground)] ml-1 hidden sm:inline">
                                       ({tier.type === 'percent' ? '비율' : '정액'})
                                     </span>
                                   </span>
@@ -1902,7 +1914,7 @@ export default function AdminPage({
       <div className="bg-[var(--card)] border-b border-[var(--border)] px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-[var(--foreground)]">관리자 패널</h1>
+            <h1 className="text-base font-bold text-[var(--foreground)]">관리자 패널</h1>
             <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
               {supabaseConnected
                 ? <span style={{ color: 'var(--success)' }}>Supabase 연결됨</span>
@@ -1930,7 +1942,7 @@ export default function AdminPage({
                 role="tab"
                 aria-selected={activeTab === id}
                 onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all focus:outline-none ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-3 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-all focus:outline-none ${
                   activeTab === id
                     ? 'border-[var(--primary)] text-[var(--primary)]'
                     : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:border-[var(--border)]'

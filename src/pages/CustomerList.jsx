@@ -181,7 +181,7 @@ export default function CustomerList({
     <div className="h-full bg-[var(--background)] flex flex-col">
       {/* Header */}
       <header className="bg-[var(--card)] border-b border-[var(--border)] sticky top-0 z-40">
-        <div className="w-full px-4 pt-3 pb-2">
+        <div className="w-full px-2 sm:px-4 pt-3 pb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {/* Mobile: menu button (only at list level) or back arrow (when customer selected) */}
@@ -259,7 +259,7 @@ export default function CustomerList({
         {/* Expandable search / filter */}
         {!selectedCustomer && (
           <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isHeaderCollapsed ? 'max-h-0 opacity-0' : 'max-h-[400px] opacity-100'}`}>
-            <div className="px-4 pt-1 pb-4 space-y-3">
+            <div className="px-2 sm:px-4 pt-1 pb-4 space-y-3">
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
@@ -335,7 +335,7 @@ export default function CustomerList({
 
       {/* Main content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="w-full px-4 py-4">
+        <div className="w-full px-2 sm:px-4 py-4">
           {selectedCustomer ? (
             /* Customer detail view */
             <>
@@ -397,10 +397,10 @@ export default function CustomerList({
                           {totalReturned > 0 ? (
                             <>
                               <p className="text-[var(--muted-foreground)] text-sm line-through">{formatPrice(totalAmount)}</p>
-                              <p className="font-bold text-xl" style={{ color: 'var(--success)' }}>{formatPrice(netAmount)}</p>
+                              <p className="font-bold text-lg sm:text-xl" style={{ color: 'var(--success)' }}>{formatPrice(netAmount)}</p>
                             </>
                           ) : (
-                            <p className="font-bold text-xl" style={{ color: 'var(--success)' }}>{formatPrice(totalAmount)}</p>
+                            <p className="font-bold text-lg sm:text-xl" style={{ color: 'var(--success)' }}>{formatPrice(totalAmount)}</p>
                           )}
                         </div>
                       </div>

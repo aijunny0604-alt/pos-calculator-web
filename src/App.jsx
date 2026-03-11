@@ -950,6 +950,11 @@ export default function App() {
             });
             setShowSaveCartModal(false);
             setSaveCartCustomerOverride(null);
+            // 장바구니 초기화 + 메인화면(POS)으로 복귀
+            setCart([]);
+            setLoadedCustomer(null);
+            setSearchTerm('');
+            setSelectedCategory('전체');
           }}
           cart={cart}
           priceType={priceType}
@@ -959,7 +964,7 @@ export default function App() {
           initialAddress={saveCartCustomerOverride?.address || loadedCustomer?.address || ''}
           customers={customers}
           onBack={() => { setShowSaveCartModal(false); setSaveCartCustomerOverride(null); }}
-          onCloseAll={() => { setShowSaveCartModal(false); setSaveCartCustomerOverride(null); }}
+          onCloseAll={() => { setShowSaveCartModal(false); setSaveCartCustomerOverride(null); setCart([]); setLoadedCustomer(null); setSearchTerm(''); setSelectedCategory('전체'); }}
         />
       )}
 

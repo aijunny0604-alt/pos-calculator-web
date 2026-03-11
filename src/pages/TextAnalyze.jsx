@@ -426,7 +426,7 @@ ${text}
     <div className="flex flex-col h-full">
         {/* Header */}
         <div
-          className="sticky top-0 z-10 px-4 py-3 flex items-center justify-between flex-shrink-0 border-b"
+          className="sticky top-0 z-10 px-2 sm:px-4 py-3 flex items-center justify-between flex-shrink-0 border-b"
           style={{ borderColor: 'var(--border)', backgroundColor: isAiMode ? 'var(--success)' : 'var(--primary)' }}
         >
           <div className="flex items-center gap-3">
@@ -463,7 +463,7 @@ ${text}
         </div>
 
         {/* Input area */}
-        <div className="flex-shrink-0 px-4 pt-4" style={{ backgroundColor: 'var(--card)' }}>
+        <div className="flex-shrink-0 px-2 sm:px-4 pt-4" style={{ backgroundColor: 'var(--card)' }}>
           <div className="mb-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
               <label className="text-sm flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
@@ -589,7 +589,7 @@ ${text}
         </div>
 
         {/* Results scroll area */}
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="flex-1 overflow-y-auto px-2 sm:px-4 pb-4">
           {analyzedItems.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between pt-2">

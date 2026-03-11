@@ -22,7 +22,7 @@ export default function Header({ onMenuClick, currentPage, isOnline }) {
       >
         <Menu className="w-5 h-5" />
       </button>
-      <h1 className="ml-2 md:ml-0 text-lg font-bold">{pageTitles[currentPage] || 'MOVE MOTORS'}</h1>
+      <h1 className="ml-2 md:ml-0 text-base font-bold">{pageTitles[currentPage] || 'MOVE MOTORS'}</h1>
       <div className="flex-1" />
       <div className="flex items-center gap-2 md:hidden">
         <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-[var(--success)]' : 'bg-[var(--destructive)]'}`} />

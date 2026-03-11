@@ -535,7 +535,7 @@ export default function SavedCarts({
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="font-semibold text-sm min-w-[2.5rem] text-center">×{item.quantity}</span>
+                            <span className="font-semibold text-xs sm:text-sm min-w-[1.5rem] sm:min-w-[2.5rem] text-center">×{item.quantity}</span>
                             <button
                               onClick={() => {
                                 const newItems = [...currentCart.items];

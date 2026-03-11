@@ -192,7 +192,7 @@ export default function Dashboard({
               <QuickAction icon={Brain} label="AI 주문 인식" onClick={() => setCurrentPage('ai-order')} />
               <QuickAction icon={Truck} label="택배 송장" onClick={() => setCurrentPage('shipping')} />
             </div>
-            <div className="flex gap-2 mt-3">
+            <div className="flex flex-col sm:flex-row gap-2 mt-3">
               <a
                 href="https://docs.google.com/document/d/e/2PACX-1vTfbJ0wRV2bW5D-lJ1na9vFLjpjQzofyxh0MF5kcsrhz6KYydBqJRz7IFCvwrAuYhZeUrAHU0DBeCNj/pub"
                 target="_blank"

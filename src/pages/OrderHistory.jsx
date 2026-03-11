@@ -185,7 +185,7 @@ export default function OrderHistory({
         className="sticky top-0 z-40"
         style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)' }}
       >
-        <div className="px-4 py-3">
+        <div className="px-2 sm:px-4 py-3">
           {/* Top row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -206,7 +206,7 @@ export default function OrderHistory({
               <div className="flex items-center gap-2">
                 <List className="w-6 h-6" style={{ color: 'var(--primary)' }} />
                 <div>
-                  <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>주문 내역</h1>
+                  <h1 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>주문 내역</h1>
                   <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                     전체 {orders.length}건 · 필터 {filteredOrders.length}건
                   </p>
@@ -274,9 +274,9 @@ export default function OrderHistory({
             isHeaderCollapsed ? 'max-h-0 opacity-0' : 'max-h-[600px] opacity-100'
           }`}
         >
-          <div className="px-4 pb-4 space-y-3">
+          <div className="px-2 sm:px-4 pb-4 space-y-3">
             {/* Stats cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 overflow-hidden">
               <div
                 className="rounded-xl p-3 border"
                 style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
@@ -285,7 +285,7 @@ export default function OrderHistory({
                   <FileText className="w-3 h-3" />
                   {dateFilter === 'all' ? '총 주문' : '조회 주문'}
                 </p>
-                <p className="font-bold text-lg" style={{ color: 'var(--foreground)' }}>
+                <p className="font-bold text-base sm:text-lg" style={{ color: 'var(--foreground)' }}>
                   {filteredOrders.length}건
                 </p>
                 {dateFilter !== 'all' && (
@@ -303,7 +303,7 @@ export default function OrderHistory({
                   <Calculator className="w-3 h-3" />
                   {dateFilter === 'all' ? '총 매출' : '조회 매출'}
                 </p>
-                <p className="font-bold text-lg" style={{ color: 'var(--success)' }}>
+                <p className="font-bold text-base sm:text-lg truncate" style={{ color: 'var(--success)' }}>
                   {formatPrice(filteredTotalSales - filteredTotalReturned)}원
                 </p>
                 {filteredTotalReturned > 0 && (
@@ -326,7 +326,7 @@ export default function OrderHistory({
                   <Receipt className="w-3 h-3" />
                   공급가액
                 </p>
-                <p className="font-bold text-lg" style={{ color: 'var(--primary)' }}>
+                <p className="font-bold text-base sm:text-lg truncate" style={{ color: 'var(--primary)' }}>
                   {formatPrice(calcExVat(filteredTotalSales - filteredTotalReturned))}원
                 </p>
               </div>
@@ -339,7 +339,7 @@ export default function OrderHistory({
                   <Receipt className="w-3 h-3" />
                   부가세
                 </p>
-                <p className="font-bold text-lg" style={{ color: 'var(--purple)' }}>
+                <p className="font-bold text-base sm:text-lg truncate" style={{ color: 'var(--purple)' }}>
                   {formatPrice(
                     (filteredTotalSales - filteredTotalReturned) -
                     calcExVat(filteredTotalSales - filteredTotalReturned)
@@ -366,7 +366,7 @@ export default function OrderHistory({
                   반품 ({filteredReturnCount}건)
                 </p>
                 <p
-                  className="font-bold text-lg"
+                  className="font-bold text-base sm:text-lg truncate"
                   style={{ color: filteredTotalReturned > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}
                 >
                   {filteredTotalReturned > 0 ? `-${formatPrice(filteredTotalReturned)}원` : '0원'}
@@ -478,7 +478,7 @@ export default function OrderHistory({
       </header>
 
       {/* Order list */}
-      <div className="px-4 py-4">
+      <div className="px-2 sm:px-4 py-4">
         {isLoading && (
           <div className="flex flex-col items-center py-8">
             <RefreshCw className="w-8 h-8 animate-spin mb-2" style={{ color: 'var(--primary)' }} />

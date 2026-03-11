@@ -316,7 +316,7 @@ export default function MainPOS({
             </select>
 
             {/* Search input */}
-            <div className="relative flex-1 min-w-[160px]">
+            <div className="relative flex-1 min-w-[100px] sm:min-w-[160px]">
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
                 style={{ color: 'var(--muted-foreground)' }}

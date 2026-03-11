@@ -587,7 +587,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
     <div className="h-full bg-[var(--background)] flex flex-col">
       {/* Page header */}
       <header className="bg-[var(--card)] border-b border-[var(--border)] sticky top-0 z-40">
-        <div className="px-4 py-3 flex items-center justify-between">
+        <div className="px-2 sm:px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {/* Mobile: menu button */}
             <button
@@ -614,7 +614,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
       {/* Main content - two panel layout on large screens */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left panel: Order selection */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-4">
           {/* Date filter */}
           <div className="bg-[var(--card)] rounded-xl p-3 mb-4 border border-[var(--border)]">
             <p className="text-[var(--muted-foreground)] text-xs mb-2">날짜 필터</p>
@@ -1155,7 +1155,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[var(--muted-foreground)] text-sm mb-1">보내는 곳</label>
                   <select
@@ -1177,7 +1177,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                     <option value="선불">선불</option>
                   </select>
                 </div>
-                <div>
+                <div className="col-span-2 sm:col-span-1">
                   <label className="block text-[var(--muted-foreground)] text-sm mb-1">포장</label>
                   <input
                     type="text"
