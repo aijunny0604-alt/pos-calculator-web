@@ -857,59 +857,47 @@ ${text}
               )}
             </div>
 
-            {/* Result cards */}
-            <div className="space-y-2">
+            {/* Result cards - clean minimal design */}
+            <div className="space-y-1.5">
               {analyzedItems.map((item, index) => (
                 <div
                   key={index}
-                  className="rounded-2xl border transition-all overflow-hidden"
+                  className="rounded-xl overflow-hidden transition-all"
                   style={{
-                    borderColor: item.matchedProduct
-                      ? item.selected ? 'var(--primary)' : 'var(--border)'
-                      : 'var(--destructive)',
                     backgroundColor: 'var(--card)',
+                    boxShadow: item.matchedProduct && item.selected
+                      ? '0 0 0 1.5px var(--primary), 0 1px 3px rgba(0,0,0,0.06)'
+                      : !item.matchedProduct
+                        ? '0 0 0 1.5px var(--destructive), 0 1px 3px rgba(0,0,0,0.06)'
+                        : '0 1px 3px rgba(0,0,0,0.06)',
                   }}
                 >
-                  {/* Original text strip with confidence */}
-                  <div
-                    className="px-3 py-1.5 text-[11px] border-b flex items-center justify-between gap-2"
-                    style={{
-                      color: 'var(--muted-foreground)',
-                      backgroundColor: item.matchedProduct
-                        ? item.selected ? 'color-mix(in srgb, var(--primary) 6%, transparent)' : 'var(--secondary)'
-                        : 'color-mix(in srgb, var(--destructive) 6%, transparent)',
-                      borderColor: 'inherit',
-                    }}
-                  >
-                    <span className="truncate">{item.originalText}</span>
+                  {/* Top row: original text + confidence badge */}
+                  <div className="px-3 pt-2.5 pb-1 flex items-center gap-2">
+                    <span className="text-[11px] truncate flex-1" style={{ color: 'var(--muted-foreground)' }}>{item.originalText}</span>
                     {item.confidence && item.matchedProduct && (
                       <span
-                        className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold"
+                        className="flex-shrink-0 w-1.5 h-1.5 rounded-full"
                         style={{
-                          backgroundColor: item.confidence === 'high' ? 'color-mix(in srgb, var(--success) 15%, transparent)'
-                            : item.confidence === 'medium' ? 'color-mix(in srgb, var(--warning) 15%, transparent)'
-                            : 'color-mix(in srgb, var(--destructive) 15%, transparent)',
-                          color: item.confidence === 'high' ? 'var(--success)'
+                          backgroundColor: item.confidence === 'high' ? 'var(--success)'
                             : item.confidence === 'medium' ? 'var(--warning)'
                             : 'var(--destructive)',
                         }}
-                      >
-                        {item.confidence === 'high' ? '확실' : item.confidence === 'medium' ? '추측' : '불확실'}
-                      </span>
+                        title={item.confidence === 'high' ? '확실' : item.confidence === 'medium' ? '추측' : '불확실'}
+                      />
                     )}
                   </div>
 
-                  <div className="p-3">
+                  <div className="px-3 pb-2.5">
                     {item.matchedProduct ? (
                       <>
-                      <div className="flex items-center gap-3">
-                        {/* Checkbox */}
+                      <div className="flex items-center gap-2.5">
+                        {/* Checkbox - minimal */}
                         <button
                           onClick={() => toggleSelect(index)}
-                          className="w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all"
+                          className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all"
                           style={{
-                            borderColor: item.selected ? 'var(--primary)' : 'var(--border)',
-                            backgroundColor: item.selected ? 'var(--primary)' : 'transparent',
+                            backgroundColor: item.selected ? 'var(--primary)' : 'var(--secondary)',
                           }}
                         >
                           {item.selected && <Check className="w-3 h-3 text-white" />}
@@ -917,61 +905,58 @@ ${text}
 
                         {/* Product info */}
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm truncate" style={{ color: 'var(--foreground)' }}>
+                          <p className="font-semibold text-[13px] truncate" style={{ color: 'var(--foreground)' }}>
                             {item.matchedProduct.name}
                           </p>
-                          <p className="text-sm font-bold mt-0.5" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
+                          <p className="text-xs font-bold" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
                             {formatPrice(priceType === 'wholesale' ? item.matchedProduct.wholesale : (item.matchedProduct.retail || item.matchedProduct.wholesale))}
                           </p>
                         </div>
 
-                        {/* Controls */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {/* Quantity */}
-                          <div className="flex items-center rounded-xl border" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--secondary)' }}>
-                            <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-7 h-7 flex items-center justify-center rounded-l-xl hover:bg-[var(--muted)]">
-                              <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
-                            </button>
-                            <input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                              className="w-8 h-7 text-center text-xs font-bold bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              style={{ color: 'var(--foreground)' }}
-                            />
-                            <button onClick={() => updateQuantity(index, item.quantity + 1)} className="w-7 h-7 flex items-center justify-center rounded-r-xl hover:bg-[var(--muted)]">
-                              <Plus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
-                            </button>
-                          </div>
-                          {/* Change / Delete */}
-                          <button
-                            onClick={() => { setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg transition-all"
-                            style={{ backgroundColor: 'var(--secondary)', color: 'var(--muted-foreground)' }}
-                            title="제품 변경"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
+                        {/* Quantity - borderless */}
+                        <div className="flex items-center gap-0 flex-shrink-0 rounded-lg" style={{ backgroundColor: 'var(--secondary)' }}>
+                          <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-7 h-7 flex items-center justify-center rounded-l-lg hover:bg-[var(--muted)]">
+                            <Minus className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
                           </button>
-                          <button
-                            onClick={() => removeItem(index)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg transition-all"
-                            style={{ backgroundColor: 'color-mix(in srgb, var(--destructive) 10%, transparent)', color: 'var(--destructive)' }}
-                            title="삭제"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                            className="w-7 h-7 text-center text-xs font-bold bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            style={{ color: 'var(--foreground)' }}
+                          />
+                          <button onClick={() => updateQuantity(index, item.quantity + 1)} className="w-7 h-7 flex items-center justify-center rounded-r-lg hover:bg-[var(--muted)]">
+                            <Plus className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
                           </button>
                         </div>
+                        {/* Edit / Delete - ghost buttons */}
+                        <button
+                          onClick={() => { setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
+                          className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
+                          style={{ color: 'var(--muted-foreground)' }}
+                          title="제품 변경"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => removeItem(index)}
+                          className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
+                          style={{ color: 'var(--muted-foreground)' }}
+                          title="삭제"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      {/* Alternatives - show when confidence is not high */}
+                      {/* Alternatives - minimal chips, no border-t */}
                       {item.alternatives && item.alternatives.length > 0 && item.confidence !== 'high' && (
-                        <div className="mt-2 pt-2 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: 'var(--border)' }}>
-                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>다른 후보:</span>
+                        <div className="mt-1.5 ml-7.5 flex items-center gap-1 flex-wrap">
+                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>후보:</span>
                           {item.alternatives.map((alt, ai) => (
                             <button
                               key={ai}
                               onClick={() => selectProduct(index, alt)}
-                              className="px-2 py-0.5 text-[11px] rounded-lg border transition-all hover:border-[var(--primary)]"
-                              style={{ borderColor: 'var(--border)', color: 'var(--primary)', backgroundColor: 'var(--secondary)' }}
+                              className="px-1.5 py-0.5 text-[10px] rounded-md transition-all hover:bg-[var(--primary)] hover:text-white"
+                              style={{ color: 'var(--primary)', backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}
                             >
                               {alt.name}
                             </button>
@@ -980,40 +965,38 @@ ${text}
                       )}
                       </>
                     ) : (
-                      /* Unmatched item */
+                      /* Unmatched item - clean */
                       <>
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}>
-                          <X className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'color-mix(in srgb, var(--destructive) 10%, transparent)' }}>
+                          <X className="w-3 h-3" style={{ color: 'var(--destructive)' }} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium" style={{ color: 'var(--destructive)' }}>매칭 실패</span>
-                        </div>
+                        <span className="flex-1 text-[13px] font-medium" style={{ color: 'var(--destructive)' }}>매칭 실패</span>
                         <button
                           onClick={() => { setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
-                          className="px-3 py-1.5 text-xs rounded-xl flex items-center gap-1 font-semibold text-white transition-all active:scale-[0.97]"
+                          className="px-2.5 py-1 text-[11px] rounded-lg font-semibold text-white transition-all active:scale-[0.97]"
                           style={{ backgroundColor: 'var(--primary)' }}
                         >
-                          <Search className="w-3 h-3" />검색
+                          검색
                         </button>
                         <button
                           onClick={() => removeItem(index)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg transition-all flex-shrink-0"
-                          style={{ backgroundColor: 'color-mix(in srgb, var(--destructive) 10%, transparent)', color: 'var(--destructive)' }}
+                          className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
+                          style={{ color: 'var(--muted-foreground)' }}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      {/* Alternatives for unmatched items */}
+                      {/* Alternatives for unmatched - minimal */}
                       {item.alternatives && item.alternatives.length > 0 && (
-                        <div className="mt-2 pt-2 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: 'var(--border)' }}>
+                        <div className="mt-1.5 ml-7.5 flex items-center gap-1 flex-wrap">
                           <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>혹시:</span>
                           {item.alternatives.map((alt, ai) => (
                             <button
                               key={ai}
                               onClick={() => selectProduct(index, alt)}
-                              className="px-2 py-1 text-[11px] rounded-lg border transition-all hover:border-[var(--primary)] font-medium"
-                              style={{ borderColor: 'var(--primary)', color: 'var(--primary)', backgroundColor: 'color-mix(in srgb, var(--primary) 5%, transparent)' }}
+                              className="px-1.5 py-0.5 text-[10px] rounded-md transition-all font-medium hover:bg-[var(--primary)] hover:text-white"
+                              style={{ color: 'var(--primary)', backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}
                             >
                               {alt.name}
                             </button>
