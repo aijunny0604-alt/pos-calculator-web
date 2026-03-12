@@ -201,39 +201,74 @@ export default function TextAnalyze({
   // --- Gemini AI ---
   const analyzeWithGemini = async (text) => {
     if (!geminiApiKey) throw new Error('API 키가 설정되지 않았습니다.');
+    // Build enriched product list with category and price
     const grouped = {};
     products.forEach(p => {
       const cat = p.category || '기타';
       if (!grouped[cat]) grouped[cat] = [];
-      grouped[cat].push(p.name);
+      grouped[cat].push(`${p.name} (${p.wholesale?.toLocaleString() || '?'}원)`);
     });
-    const productList = Object.entries(grouped).map(([cat, names]) => `[${cat}] ${names.join(', ')}`).join('\n');
+    const productList = Object.entries(grouped).map(([cat, names]) => `[${cat}]\n${names.join('\n')}`).join('\n\n');
 
-    const prompt = `당신은 자동차 배기 부품 전문 주문서 분석 AI입니다.
+    const prompt = `당신은 자동차 튜닝/배기 부품 전문 주문서 분석 AI입니다.
+이 업체는 다운파이프, 머플러팁, 배기라인, 밴딩, 플랜지, 환봉 등 배기 부품을 판매합니다.
 
-제품 목록 (카테고리별):
+## 업계 용어 사전 (핵심!)
+- "카본" = 카본 소재, 머플러팁 제품명에 포함 (예: "카본 93" → "카본 듀얼 머플러팁 SCF 93D")
+- "듀얼" = 2구(출구 2개), "싱글" = 1구
+- "중통" = 중간통, 배기라인 중간 파이프 (예: "벨N 중통" → "벨N 중통 ... 배기라인")
+- "벨N" = 벨로스터N, "아N" = 아반떼N
+- "직관" = 직관형 다운파이프(촉매 없음), "촉매" = 촉매형 다운파이프
+- "자바라" = 플렉시블 파이프 (배기라인 연결용)
+- "밴딩" = 배관 구부러진 파이프 (각도: 45도, 90도 등)
+- "SCF" = 제품 시리즈 코드 (머플러팁)
+- "NPK" = 제품 시리즈 코드 (머플러팁)
+- 숫자 뒤에 "파이" = 파이프 직경(mm) (예: "54파이" = 54mm)
+- "D" = 듀얼(2구), "S" = 싱글(1구), "T"/"G"/"B" 등 = 팁 마감 타입
+- "원밴딩" = 1번 구부림, "투밴딩" = 2번 구부림
+- 숫자 패턴: "93D" → 93mm 듀얼, "80S" → 80mm 싱글
+- "환봉" = 원형 봉(지지대용), "니플" = 연결 피팅
+- "세트" = 1세트(좌+우 또는 구성품 묶음), "개" = 낱개
+- "스텐"/"스테인" = "스덴"(스테인레스), "벤딩" = "밴딩", "후렌지"/"후란지" = "플랜지"
+- "레듀서"/"리듀서" = "레듀샤", "쏘켓" = "소켓", "겐또" = "게이트"
+
+## 제품 목록
 ${productList}
 
-주문 텍스트:
+## 주문 텍스트
 ${text}
 
-핵심 규칙:
-1. matchedProduct는 반드시 위 제품 목록에 있는 정확한 이름을 사용하세요.
-2. 각 줄에서 제품명과 수량을 추출하세요.
-3. 오타, 줄임말, 띄어쓰기 오류를 자동 보정하세요.
-4. "하나", "두개" 등 한글 숫자도 인식하세요.
-5. 매칭 불가 시 matchedProduct를 null로 설정하세요.
-6. JSON 배열만 반환하세요.
+## 분석 규칙
+1. 각 줄에서 제품과 수량을 추출하세요.
+2. **추론하세요!** 정확한 제품명이 아니어도 키워드, 숫자, 맥락으로 가장 적합한 제품을 찾으세요.
+3. 오타/줄임말/띄어쓰기 오류/업계 은어를 자동 보정하세요.
+4. "하나", "두개" 등 한글 숫자, "1set", "x2" 등 다양한 수량 표현을 인식하세요.
+5. 확신이 낮을 때는 alternatives에 후보 제품명을 최대 3개 포함하세요.
+6. 매칭이 전혀 불가하면 matchedProduct를 null로 하되, 추측 가능한 alternatives는 포함하세요.
+7. **matchedProduct와 alternatives의 값은 반드시 위 제품 목록에 있는 정확한 제품명이어야 합니다.**
 
-응답 형식:
-[{"originalText":"원본","matchedProduct":"정확한 제품명 또는 null","quantity":숫자}]`;
+## 응답 형식 (JSON 배열만 반환)
+[{"originalText":"원본 텍스트","matchedProduct":"정확한 제품명 또는 null","quantity":숫자,"confidence":"high|medium|low","alternatives":["후보1","후보2"]}]
+
+## 예시
+입력: "카본 93 듀얼 1세트"
+→ [{"originalText":"카본 93 듀얼 1세트","matchedProduct":"카본 듀얼 머플러팁 SCF 93D - G","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "벨N 중통 원밴딩"
+→ [{"originalText":"벨N 중통 원밴딩","matchedProduct":"벨N 중통 원밴딩 배기라인","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "54 밴딩 45도 6개"
+→ [{"originalText":"54 밴딩 45도 6개","matchedProduct":"54파이 밴딩 45","quantity":6,"confidence":"medium","alternatives":["54파이 밴딩 90"]}]`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 8192 } }),
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 8192 },
+        }),
       }
     );
 
@@ -294,24 +329,59 @@ ${text}
     if (useAI && geminiApiKey) {
       try {
         const aiResults = await analyzeWithGemini(inputText);
-        const results = aiResults.map((item) => {
-          let matchedProduct = null;
-          const searchTerms = [item.matchedProduct, cleanSearchText(item.originalText), item.originalText].filter(Boolean);
-          for (const searchTerm of searchTerms) {
-            if (matchedProduct) break;
-            matchedProduct = products.find(p => p.name === searchTerm);
-            if (!matchedProduct) matchedProduct = products.find(p => p.name.toLowerCase() === searchTerm.toLowerCase());
-            if (!matchedProduct) matchedProduct = products.find(p => {
-              const included = p.name.includes(searchTerm) || searchTerm.includes(p.name);
+        const findProduct = (name) => {
+          if (!name) return null;
+          // Strip price info if AI included it
+          const clean = name.replace(/\s*\([\d,]+원?\)\s*$/, '').trim();
+          return products.find(p => p.name === clean)
+            || products.find(p => p.name.toLowerCase() === clean.toLowerCase())
+            || products.find(p => {
+              const included = p.name.includes(clean) || clean.includes(p.name);
               if (!included) return false;
-              const sNums = searchTerm.match(/\d+/g) || [];
+              const sNums = clean.match(/\d+/g) || [];
               const pNums = p.name.match(/\d+/g) || [];
               if (sNums.length === 0 || pNums.length === 0) return included;
               return sNums.some(sn => pNums.some(pn => Math.abs(parseInt(sn) - parseInt(pn)) <= 1));
-            });
-            if (!matchedProduct) matchedProduct = products.find(p => matchWithTolerance(searchTerm, p.name));
+            })
+            || products.find(p => matchWithTolerance(clean, p.name));
+        };
+
+        const results = aiResults.map((item) => {
+          // Try AI's primary match first, then alternatives, then original text
+          const searchTerms = [item.matchedProduct, ...(item.alternatives || []), cleanSearchText(item.originalText), item.originalText].filter(Boolean);
+          let matchedProduct = null;
+          const alternativeProducts = [];
+
+          for (const term of searchTerms) {
+            const found = findProduct(term);
+            if (found && !matchedProduct) {
+              matchedProduct = found;
+            } else if (found && !alternativeProducts.some(a => a.id === found.id) && found.id !== matchedProduct?.id) {
+              alternativeProducts.push(found);
+            }
           }
-          return { originalText: item.originalText, searchText: item.originalText, quantity: item.quantity || 1, matchedProduct, score: matchedProduct ? 100 : 0, selected: !!matchedProduct, aiMatched: true };
+
+          // Also resolve alternatives even if primary matched
+          if (item.alternatives && matchedProduct) {
+            for (const alt of item.alternatives) {
+              const found = findProduct(alt);
+              if (found && found.id !== matchedProduct.id && !alternativeProducts.some(a => a.id === found.id)) {
+                alternativeProducts.push(found);
+              }
+            }
+          }
+
+          return {
+            originalText: item.originalText,
+            searchText: item.originalText,
+            quantity: item.quantity || 1,
+            matchedProduct,
+            alternatives: alternativeProducts.slice(0, 3),
+            confidence: item.confidence || (matchedProduct ? 'high' : 'low'),
+            score: matchedProduct ? 100 : 0,
+            selected: !!matchedProduct,
+            aiMatched: true,
+          };
         });
         setAnalyzedItems(results);
         setIsAnalyzing(false);
@@ -657,9 +727,9 @@ ${text}
                     backgroundColor: 'var(--card)',
                   }}
                 >
-                  {/* Original text strip */}
+                  {/* Original text strip with confidence */}
                   <div
-                    className="px-3 py-1.5 text-[11px] truncate border-b"
+                    className="px-3 py-1.5 text-[11px] border-b flex items-center justify-between gap-2"
                     style={{
                       color: 'var(--muted-foreground)',
                       backgroundColor: item.matchedProduct
@@ -668,11 +738,27 @@ ${text}
                       borderColor: 'inherit',
                     }}
                   >
-                    {item.originalText}
+                    <span className="truncate">{item.originalText}</span>
+                    {item.confidence && item.matchedProduct && (
+                      <span
+                        className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold"
+                        style={{
+                          backgroundColor: item.confidence === 'high' ? 'color-mix(in srgb, var(--success) 15%, transparent)'
+                            : item.confidence === 'medium' ? 'color-mix(in srgb, var(--warning) 15%, transparent)'
+                            : 'color-mix(in srgb, var(--destructive) 15%, transparent)',
+                          color: item.confidence === 'high' ? 'var(--success)'
+                            : item.confidence === 'medium' ? 'var(--warning)'
+                            : 'var(--destructive)',
+                        }}
+                      >
+                        {item.confidence === 'high' ? '확실' : item.confidence === 'medium' ? '추측' : '불확실'}
+                      </span>
+                    )}
                   </div>
 
                   <div className="p-3">
                     {item.matchedProduct ? (
+                      <>
                       <div className="flex items-center gap-3">
                         {/* Checkbox */}
                         <button
@@ -733,8 +819,26 @@ ${text}
                           </button>
                         </div>
                       </div>
+                      {/* Alternatives - show when confidence is not high */}
+                      {item.alternatives && item.alternatives.length > 0 && item.confidence !== 'high' && (
+                        <div className="mt-2 pt-2 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: 'var(--border)' }}>
+                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>다른 후보:</span>
+                          {item.alternatives.map((alt, ai) => (
+                            <button
+                              key={ai}
+                              onClick={() => selectProduct(index, alt)}
+                              className="px-2 py-0.5 text-[11px] rounded-lg border transition-all hover:border-[var(--primary)]"
+                              style={{ borderColor: 'var(--border)', color: 'var(--primary)', backgroundColor: 'var(--secondary)' }}
+                            >
+                              {alt.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      </>
                     ) : (
                       /* Unmatched item */
+                      <>
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}>
                           <X className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
@@ -757,6 +861,23 @@ ${text}
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                      {/* Alternatives for unmatched items */}
+                      {item.alternatives && item.alternatives.length > 0 && (
+                        <div className="mt-2 pt-2 border-t flex items-center gap-1.5 flex-wrap" style={{ borderColor: 'var(--border)' }}>
+                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>혹시:</span>
+                          {item.alternatives.map((alt, ai) => (
+                            <button
+                              key={ai}
+                              onClick={() => selectProduct(index, alt)}
+                              className="px-2 py-1 text-[11px] rounded-lg border transition-all hover:border-[var(--primary)] font-medium"
+                              style={{ borderColor: 'var(--primary)', color: 'var(--primary)', backgroundColor: 'color-mix(in srgb, var(--primary) 5%, transparent)' }}
+                            >
+                              {alt.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      </>
                     )}
 
                     {/* Inline product search */}
