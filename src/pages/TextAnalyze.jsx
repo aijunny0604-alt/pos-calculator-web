@@ -210,27 +210,113 @@ export default function TextAnalyze({
     });
     const productList = Object.entries(grouped).map(([cat, names]) => `[${cat}]\n${names.join('\n')}`).join('\n\n');
 
-    const prompt = `당신은 자동차 튜닝/배기 부품 전문 주문서 분석 AI입니다.
-이 업체는 다운파이프, 머플러팁, 배기라인, 밴딩, 플랜지, 환봉 등 배기 부품을 판매합니다.
+    const prompt = `당신은 자동차 튜닝/배기 부품 전문 주문서 분석 AI입니다. 정확도가 최우선입니다.
 
-## 업계 용어 사전 (핵심!)
-- "카본" = 카본 소재, 머플러팁 제품명에 포함 (예: "카본 93" → "카본 듀얼 머플러팁 SCF 93D")
-- "듀얼" = 2구(출구 2개), "싱글" = 1구
-- "중통" = 중간통, 배기라인 중간 파이프 (예: "벨N 중통" → "벨N 중통 ... 배기라인")
-- "벨N" = 벨로스터N, "아N" = 아반떼N
-- "직관" = 직관형 다운파이프(촉매 없음), "촉매" = 촉매형 다운파이프
-- "자바라" = 플렉시블 파이프 (배기라인 연결용)
-- "밴딩" = 배관 구부러진 파이프 (각도: 45도, 90도 등)
-- "SCF" = 제품 시리즈 코드 (머플러팁)
-- "NPK" = 제품 시리즈 코드 (머플러팁)
-- 숫자 뒤에 "파이" = 파이프 직경(mm) (예: "54파이" = 54mm)
-- "D" = 듀얼(2구), "S" = 싱글(1구), "T"/"G"/"B" 등 = 팁 마감 타입
-- "원밴딩" = 1번 구부림, "투밴딩" = 2번 구부림
-- 숫자 패턴: "93D" → 93mm 듀얼, "80S" → 80mm 싱글
-- "환봉" = 원형 봉(지지대용), "니플" = 연결 피팅
-- "세트" = 1세트(좌+우 또는 구성품 묶음), "개" = 낱개
-- "스텐"/"스테인" = "스덴"(스테인레스), "벤딩" = "밴딩", "후렌지"/"후란지" = "플랜지"
-- "레듀서"/"리듀서" = "레듀샤", "쏘켓" = "소켓", "겐또" = "게이트"
+## 1. 차종 약어 사전 (최우선 적용!)
+| 입력 | 정식명 | 참고 |
+|------|--------|------|
+| 벨N, 벨로N, 벨로스타N, 벨n | 벨로스터N | 현대 벨로스터 N |
+| 아N, 아반떼n, 아반n | 아반떼N | 현대 아반떼 N |
+| 코나N, 코나n | 코나N | 현대 코나 N |
+| 스팅어 | 스팅어 | 기아 스팅어, G70 동일 플랫폼 |
+| 젠쿱 | 젠쿱 | 제네시스 쿠페 |
+
+**규칙**: 차종+부품 조합이 제품 목록에 있으면 반드시 해당 차종 제품으로 매칭. "벨N 싱글" → 벨로스터N 관련 싱글 제품.
+
+## 2. 제품 카테고리별 매칭 규칙
+
+### 머플러팁 (카본/NPK/SNPK)
+- 카본 머플러팁: "카본 [싱글/듀얼] [코드] [사이즈][D/S] - G"
+  - SCF 시리즈: 93, 103, 116, 130mm / CFK 시리즈: 80, 93, 103mm / NCF: 80, 93mm
+  - "카본 듀얼" → 카본 듀얼 SCF 계열, "카본 싱글" → 카본 싱글 SCF/CFK 계열
+- NPK 머플러팁: "[싱글/듀얼] NPK [사이즈][D/S]-[S/T/B]" (80,89,100,114mm)
+- SNPK 슬롯팁: "슬롯 [싱글/듀얼] SNPK [사이즈]-[S/T/B]" (89,100,127,142mm)
+- 사각팁: "사각 머플러팁" 계열
+- **"팁"만 있으면**: 사이즈/코드로 카본 vs NPK vs SNPK 구분. 코드 없으면 NPK가 가장 일반적.
+- **스타일 미지정 시**: -S(스퀘어) 기본값으로 매칭
+
+### 밴딩 파이프
+- 스덴(스테인레스): "스덴 밴딩 [직경]-[각도]" (직경: 51,54,60,63,70,76 / 각도: 15,30,45,60,75,90)
+- 알루미늄: "알루미늄 밴딩 [직경]-[각도]" (직경: 50,60,70,80 / 각도: 45,90)
+- 단엘보: "스덴 단엘보 [직경]-[각도]" (직경: 50,63,76 / 각도: 45,90)
+- **"밴딩" "벤딩" "밴딩파이프"** → 기본적으로 "스덴 밴딩"으로 매칭
+- **"54 45도" "54파이 밴딩 45도"** → "스덴 밴딩 54-45"
+
+### 자바라 (플렉시블 파이프)
+- 형식: "자바라 SF [직경] [S/L] 길이 [mm]"
+- 직경: 54, 61, 64, 70, 76mm / S타입: 80,100,120mm / L타입: 160mm
+- **차종+자바라**: 제품 목록에서 해당 차종의 자바라 제품 찾기
+- **"아반떼 자바라"** → "아반떼N 자바라" 관련 제품
+- **"스팅어 자바라"** → 스팅어 관련 자바라 제품
+- 직경/길이 미지정 시: 54 S 길이 100이 가장 일반적 (medium confidence)
+
+### 다운파이프 (직관/촉매)
+- **차종+직관/촉매**: 해당 차종의 다운파이프 제품
+- "벨N 직관" → 벨로스터N 직관 다운파이프
+- "스팅어 촉매 3.3" → 스팅어 3.3 촉매 다운파이프
+- 스포츠 촉매: "스포츠 촉매 C100S/C200S/C300S"
+
+### 스덴 직선 파이프
+- "스덴 직선 파이프 2m [직경]파이"
+- 직경: 50,54,60,63,70,76mm
+- **"직선" "스텐파이프" "직관파이프"** → 스덴 직선 파이프
+
+### 환봉
+- "[직경]파이 [길이] 환봉" 형식
+- **"환봉"만 있으면**: 가장 일반적인 사이즈 제시, medium confidence
+
+### 레듀샤 (실리콘)
+- "실리콘 레듀샤 SR[입구직경][출구직경]"
+- "레듀샤 54-76" → "실리콘 레듀샤 SR5476"
+- "레듀서 50 60" → "실리콘 레듀샤 SR5060"
+
+### 플랜지
+- "플랜지 FL [직경]" (51,54,61,63,65,70,76mm)
+
+### 클램프
+- "클램프 반도 [최소]-[최대]"
+
+### 레조 소음기
+- "레조 [챔버1] [챔버2] [코드]"
+
+### 실리콘 호스
+- 직선: "실리콘 직선 호스 SS[직경]"
+- 엘보: "실리콘 엘보 [각도]SEL[직경]"
+- 진공: "실리콘 진공 라인 5m SV[직경]"
+
+## 3. 동의어/오타 변환표
+| 입력(유저) | 정식(제품명) |
+|-----------|-------------|
+| 스텐,스테인,스덴레스,sus | 스덴 |
+| 벤딩,밴딩파이프 | 밴딩 |
+| 후렌지,후란지,플렌지 | 플랜지 |
+| 레듀서,리듀서,리듀샤 | 레듀샤 |
+| 쏘켓,소켙 | 소켓 |
+| 겐또,겐도 | 게이트 |
+| 싱그 → 싱글, 듀얼 → 듀얼 |
+| 머플러커터 → 제품에 없음, 머플러팁으로 추측 |
+
+## 4. 신뢰도 판정 기준 (매우 중요!)
+### HIGH - 아래 조건 중 하나 이상 만족:
+- 차종+부품타입이 명확하고 제품이 1~2개로 좁혀짐 (예: "아반떼N 자바라" → 확실)
+- 제품 코드가 명시됨 (예: "SCF 103D", "NPK 89", "CFK 80")
+- 직경+각도+재질이 모두 명시됨 (예: "스덴 밴딩 54 45도")
+- 차종+직관/촉매 (예: "벨N 직관", "스팅어 촉매 3.3")
+- 정확한 제품명 또는 거의 동일한 표현
+
+### MEDIUM - 아래 조건:
+- 부품 종류는 명확하나 사이즈/타입 일부 누락 (예: "카본 듀얼" → 사이즈 모름)
+- 차종 없이 부품만 (예: "자바라" → 어떤 자바라?)
+- 동의어로 변환 후 매칭 가능 (예: "스텐 밴딩" → "스덴 밴딩")
+
+### LOW - 아래 조건:
+- 부품 종류 자체가 모호 (예: "머플러 팁 하나" → 수백개 중 어느것?)
+- 제품 목록에 없는 부품 요청
+- 핵심 스펙(직경/사이즈)이 완전히 누락
+
+## 5. 한 줄에 여러 제품
+"카본듀얼이랑 싱글 각각 1개씩" → 2개 항목으로 분리
+"밴딩 54 45도 3개 76 90도 2개" → 2개 항목으로 분리
 
 ## 제품 목록
 ${productList}
@@ -239,26 +325,45 @@ ${productList}
 ${text}
 
 ## 분석 규칙
-1. 각 줄에서 제품과 수량을 추출하세요.
-2. **추론하세요!** 정확한 제품명이 아니어도 키워드, 숫자, 맥락으로 가장 적합한 제품을 찾으세요.
-3. 오타/줄임말/띄어쓰기 오류/업계 은어를 자동 보정하세요.
-4. "하나", "두개" 등 한글 숫자, "1set", "x2" 등 다양한 수량 표현을 인식하세요.
-5. 확신이 낮을 때는 alternatives에 후보 제품명을 최대 3개 포함하세요.
-6. 매칭이 전혀 불가하면 matchedProduct를 null로 하되, 추측 가능한 alternatives는 포함하세요.
-7. **matchedProduct와 alternatives의 값은 반드시 위 제품 목록에 있는 정확한 제품명이어야 합니다.**
+1. 각 줄에서 제품과 수량을 추출. 한 줄에 여러 제품이면 분리.
+2. 차종 약어를 먼저 변환 후 제품 목록에서 매칭.
+3. 오타/줄임말/업계은어를 동의어표로 보정.
+4. "하나"=1, "두개"=2, "세개"=3, "다섯"=5, "열개"=10, "한개만"=1 등 한글 수량 인식.
+5. **matchedProduct는 반드시 위 제품 목록의 정확한 제품명(괄호 가격 제외)이어야 합니다.**
+6. alternatives도 반드시 제품 목록에 있는 정확한 이름만.
+7. 주문과 무관한 인사말/요청("사장님", "보내주세요", "주문합니다")은 무시.
+8. **신뢰도는 위 §4 기준을 엄격히 적용하세요.**
 
-## 응답 형식 (JSON 배열만 반환)
-[{"originalText":"원본 텍스트","matchedProduct":"정확한 제품명 또는 null","quantity":숫자,"confidence":"high|medium|low","alternatives":["후보1","후보2"]}]
+## 응답 형식 (JSON 배열만, 다른 텍스트 없이)
+[{"originalText":"원본","matchedProduct":"정확한 제품명 or null","quantity":수량,"confidence":"high|medium|low","alternatives":["정확한 제품명1","정확한 제품명2"]}]
 
-## 예시
+## 예시 (9개)
 입력: "카본 93 듀얼 1세트"
-→ [{"originalText":"카본 93 듀얼 1세트","matchedProduct":"카본 듀얼 머플러팁 SCF 93D - G","quantity":1,"confidence":"high","alternatives":[]}]
+→ [{"originalText":"카본 93 듀얼 1세트","matchedProduct":"카본 듀얼 SCF 93D - G","quantity":1,"confidence":"high","alternatives":[]}]
 
-입력: "벨N 중통 원밴딩"
-→ [{"originalText":"벨N 중통 원밴딩","matchedProduct":"벨N 중통 원밴딩 배기라인","quantity":1,"confidence":"high","alternatives":[]}]
+입력: "벨N 카본 듀얼"
+→ [{"originalText":"벨N 카본 듀얼","matchedProduct":"카본 듀얼 SCF 93D - G","quantity":1,"confidence":"medium","alternatives":["카본 듀얼 SCF 103D - G","카본 듀얼 SCF 116D - G"]}]
+
+입력: "아N 직관 2개"
+→ [{"originalText":"아N 직관 2개","matchedProduct":"아반떼N 직관 다운파이프","quantity":2,"confidence":"high","alternatives":["아반떼N 촉매 다운파이프"]}]
+
+입력: "스팅어 자바라 3개"
+→ [{"originalText":"스팅어 자바라 3개","matchedProduct":"자바라 SF 54 S 길이 100","quantity":3,"confidence":"medium","alternatives":["자바라 SF 61 S 길이 100","자바라 SF 64 S 길이 100"]}]
 
 입력: "54 밴딩 45도 6개"
-→ [{"originalText":"54 밴딩 45도 6개","matchedProduct":"54파이 밴딩 45","quantity":6,"confidence":"medium","alternatives":["54파이 밴딩 90"]}]`;
+→ [{"originalText":"54 밴딩 45도 6개","matchedProduct":"스덴 밴딩 54-45","quantity":6,"confidence":"high","alternatives":[]}]
+
+입력: "CFK 80 싱글"
+→ [{"originalText":"CFK 80 싱글","matchedProduct":"카본 싱글 CFK 80S - G","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "레듀샤 54-76 하나"
+→ [{"originalText":"레듀샤 54-76 하나","matchedProduct":"실리콘 레듀샤 SR5476","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "npk 89 듀얼 2개"
+→ [{"originalText":"npk 89 듀얼 2개","matchedProduct":"듀얼 NPK 89D - S","quantity":2,"confidence":"high","alternatives":["듀얼 NPK 89D - T","듀얼 NPK 89D - B"]}]
+
+입력: "머플러 팁 하나"
+→ [{"originalText":"머플러 팁 하나","matchedProduct":"싱글 NPK 80S - S","quantity":1,"confidence":"low","alternatives":["듀얼 NPK 80D - S","카본 싱글 CFK 80S - G"]}]`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
@@ -267,7 +372,7 @@ ${text}
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 8192 },
+          generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
         }),
       }
     );
@@ -333,17 +438,55 @@ ${text}
           if (!name) return null;
           // Strip price info if AI included it
           const clean = name.replace(/\s*\([\d,]+원?\)\s*$/, '').trim();
-          return products.find(p => p.name === clean)
-            || products.find(p => p.name.toLowerCase() === clean.toLowerCase())
-            || products.find(p => {
-              const included = p.name.includes(clean) || clean.includes(p.name);
-              if (!included) return false;
-              const sNums = clean.match(/\d+/g) || [];
+          // 1. Exact match
+          const exact = products.find(p => p.name === clean);
+          if (exact) return exact;
+          // 2. Case-insensitive exact
+          const ciExact = products.find(p => p.name.toLowerCase() === clean.toLowerCase());
+          if (ciExact) return ciExact;
+          // 3. Normalize spaces/dashes and compare
+          const norm = (s) => s.replace(/[\s\-_]+/g, '').toLowerCase();
+          const normClean = norm(clean);
+          const normMatch = products.find(p => norm(p.name) === normClean);
+          if (normMatch) return normMatch;
+          // 4. Substring match with number validation
+          const subMatch = products.find(p => {
+            const included = p.name.includes(clean) || clean.includes(p.name);
+            if (!included) return false;
+            const sNums = clean.match(/\d+/g) || [];
+            const pNums = p.name.match(/\d+/g) || [];
+            if (sNums.length === 0 || pNums.length === 0) return included;
+            return sNums.some(sn => pNums.some(pn => Math.abs(parseInt(sn) - parseInt(pn)) <= 1));
+          });
+          if (subMatch) return subMatch;
+          // 5. Normalized substring match (ignore spaces/dashes)
+          const normSubMatch = products.find(p => {
+            const np = norm(p.name);
+            return np.includes(normClean) || normClean.includes(np);
+          });
+          if (normSubMatch) return normSubMatch;
+          // 6. Token-based scoring: find product with most keyword overlap
+          const cleanTokens = clean.toLowerCase().replace(/[^a-z0-9가-힣]/g, ' ').split(/\s+/).filter(t => t.length > 0);
+          if (cleanTokens.length >= 2) {
+            let bestScore = 0, bestProduct = null;
+            for (const p of products) {
+              const pTokens = p.name.toLowerCase().replace(/[^a-z0-9가-힣]/g, ' ').split(/\s+/).filter(t => t.length > 0);
+              let score = 0;
+              for (const ct of cleanTokens) {
+                if (pTokens.some(pt => pt.includes(ct) || ct.includes(pt))) score++;
+              }
+              // Bonus for matching numbers exactly
+              const cNums = clean.match(/\d+/g) || [];
               const pNums = p.name.match(/\d+/g) || [];
-              if (sNums.length === 0 || pNums.length === 0) return included;
-              return sNums.some(sn => pNums.some(pn => Math.abs(parseInt(sn) - parseInt(pn)) <= 1));
-            })
-            || products.find(p => matchWithTolerance(clean, p.name));
+              for (const cn of cNums) {
+                if (pNums.includes(cn)) score += 2;
+              }
+              if (score > bestScore) { bestScore = score; bestProduct = p; }
+            }
+            if (bestScore >= 2 && bestProduct) return bestProduct;
+          }
+          // 7. Fallback tolerance match
+          return products.find(p => matchWithTolerance(clean, p.name)) || null;
         };
 
         const results = aiResults.map((item) => {
