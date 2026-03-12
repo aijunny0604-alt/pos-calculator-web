@@ -277,31 +277,43 @@ export default function MainPOS({
           className="sticky top-12 lg:top-0 z-30 px-4 py-3 border-b"
           style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
         >
-          {/* Search bar - full width */}
-          <div
-            className="relative rounded-xl border-2 shadow-sm transition-all focus-within:shadow-md"
-            style={{ borderColor: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 5%, var(--background))' }}
-          >
-            <Search
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5"
-              style={{ color: 'var(--primary)' }}
-            />
-            <input
-              type="text"
-              placeholder="제품명 검색..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onFocus={handleSearchFocus}
-              className="w-full pl-11 pr-10 py-3 rounded-xl text-base focus:outline-none"
-              style={{ background: 'transparent', color: 'var(--foreground)', fontSize: '16px' }}
-            />
-            {searchTerm && (
+          {/* Search bar with AI button */}
+          <div className="flex gap-2 items-center">
+            <div
+              className="relative flex-1 min-w-0 rounded-xl border-2 shadow-sm transition-all focus-within:shadow-md"
+              style={{ borderColor: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 5%, var(--background))' }}
+            >
+              <Search
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5"
+                style={{ color: 'var(--primary)' }}
+              />
+              <input
+                type="text"
+                placeholder="제품명 검색..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={handleSearchFocus}
+                className="w-full pl-11 pr-10 py-3 rounded-xl text-base focus:outline-none"
+                style={{ background: 'transparent', color: 'var(--foreground)', fontSize: '16px' }}
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-[var(--muted)]"
+                  style={{ color: 'var(--muted-foreground)' }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {onOpenTextAnalyze && (
               <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-[var(--muted)]"
-                style={{ color: 'var(--muted-foreground)' }}
+                onClick={onOpenTextAnalyze}
+                className="flex-shrink-0 p-3 rounded-xl transition-colors hover:opacity-80 flex items-center justify-center"
+                style={{ background: 'var(--warning)', color: 'white' }}
+                title="AI 주문 인식"
               >
-                <X className="w-4 h-4" />
+                <Zap className="w-5 h-5" />
               </button>
             )}
           </div>
@@ -337,32 +349,18 @@ export default function MainPOS({
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl border text-xs font-medium focus:outline-none focus:ring-2 flex-shrink-0"
+              className="px-2.5 py-1.5 rounded-xl border text-xs font-medium focus:outline-none focus:ring-2"
               style={{
                 background: selectedCategory !== '전체' ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--background)',
                 borderColor: selectedCategory !== '전체' ? 'var(--primary)' : 'var(--border)',
                 color: selectedCategory !== '전체' ? 'var(--primary)' : 'var(--foreground)',
                 fontSize: '16px',
+                minWidth: 0,
               }}
             >
               <option value="전체">전체</option>
               {dynamicCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
-
-            <div className="flex-1" />
-
-            {/* AI recognize button */}
-            {onOpenTextAnalyze && (
-              <button
-                onClick={onOpenTextAnalyze}
-                className="px-3 py-1.5 rounded-xl border flex-shrink-0 transition-colors hover:opacity-80 flex items-center gap-1.5 text-xs font-semibold"
-                style={{ borderColor: 'var(--warning)', background: 'var(--warning)', color: 'white' }}
-                title="AI 주문 인식"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                AI인식
-              </button>
-            )}
           </div>
 
           <div className="mt-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>

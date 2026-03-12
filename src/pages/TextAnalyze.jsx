@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, X, Settings, Search, Plus, Minus, Trash2, Edit3,
   ShoppingCart, FileText, Save, FolderOpen, RotateCcw, RefreshCw,
-  AlertTriangle, Check, Zap, Package,
+  AlertTriangle, Check, Zap, Package, ArrowLeft, ChevronDown, ChevronUp,
+  Menu,
 } from 'lucide-react';
 
 // Utility: normalize text (remove whitespace, lowercase)
@@ -418,364 +419,442 @@ ${text}
   const searchResults = getSearchResults();
 
   const isAiMode = useAI && geminiApiKey;
+  const [inputCollapsed, setInputCollapsed] = useState(false);
 
-  const inputClass = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 transition-colors';
+  const inputClass = 'w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors';
   const inputStyle = { backgroundColor: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' };
 
   return (
-    <div className="flex flex-col h-full">
-        {/* Header */}
-        <div
-          className="sticky top-0 z-10 px-2 sm:px-4 py-3 flex items-center justify-between flex-shrink-0 border-b"
-          style={{ borderColor: 'var(--border)', backgroundColor: isAiMode ? 'var(--success)' : 'var(--primary)' }}
+    <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
+      {/* Header - clean white style matching other pages */}
+      <div
+        className="sticky top-0 z-40 flex items-center h-12 px-3 border-b flex-shrink-0"
+        style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+      >
+        <button
+          onClick={onBack}
+          className="p-1.5 -ml-1 rounded-lg transition-colors hover:bg-[var(--muted)]"
         >
-          <div className="flex items-center gap-3">
-            <button onClick={onBack} className="p-1.5 -ml-1 rounded-lg hover:bg-white/20 transition-colors">
-              <X className="w-5 h-5 text-white" />
-            </button>
-            <Sparkles className="w-5 h-5 text-white" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white">AI 주문 인식</h1>
-                <span className="px-2 py-0.5 bg-white/20 text-white text-[10px] rounded-full font-medium">
-                  {isAiMode ? 'Gemini AI' : '패턴 매칭'}
+          <ArrowLeft className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
+        </button>
+        <div className="ml-2 flex items-center gap-2 flex-1 min-w-0">
+          <h1 className="text-lg font-bold truncate" style={{ color: 'var(--foreground)' }}>AI 주문 인식</h1>
+          <button
+            onClick={() => { setTempApiKey(geminiApiKey); setShowApiSettings(true); }}
+            className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-colors"
+            style={{
+              backgroundColor: isAiMode ? 'color-mix(in srgb, var(--success) 15%, transparent)' : 'color-mix(in srgb, var(--primary) 15%, transparent)',
+              color: isAiMode ? 'var(--success)' : 'var(--primary)',
+            }}
+          >
+            {isAiMode ? 'Gemini AI' : '패턴 매칭'}
+          </button>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {selectedCount > 0 && (
+            <span
+              className="px-2 py-0.5 text-xs font-bold rounded-full"
+              style={{ backgroundColor: 'var(--primary)', color: 'white' }}
+            >
+              {selectedCount}
+            </span>
+          )}
+          <button
+            onClick={() => { setTempApiKey(geminiApiKey); setShowApiSettings(true); }}
+            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
+            title="AI 설정"
+          >
+            <Settings className="w-4.5 h-4.5" style={{ color: 'var(--muted-foreground)' }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Input Section */}
+      <div className="flex-shrink-0 px-4 pt-4 pb-2" style={{ background: 'var(--background)' }}>
+        {/* Collapsible input when results exist */}
+        {analyzedItems.length > 0 && (
+          <button
+            onClick={() => setInputCollapsed(!inputCollapsed)}
+            className="w-full flex items-center justify-between mb-2 text-sm font-medium"
+            style={{ color: 'var(--muted-foreground)' }}
+          >
+            <span className="flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5" />
+              메모 입력 영역
+            </span>
+            {inputCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </button>
+        )}
+
+        {(!inputCollapsed || analyzedItems.length === 0) && (
+          <>
+            {/* Textarea */}
+            <div className="relative">
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder={`주문 메모를 붙여넣으세요\n\n예시:\n카본 93 듀얼 1세트\n54파이 밴딩 45 6개\n2m 환봉 1개 12파이`}
+                rows={6}
+                className="w-full px-4 py-3 rounded-2xl border text-sm resize-none font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                style={{
+                  backgroundColor: 'var(--card)',
+                  borderColor: 'var(--border)',
+                  color: 'var(--foreground)',
+                  fontSize: '16px',
+                }}
+              />
+              {inputText && (
+                <span className="absolute top-2 right-3 text-[10px] px-1.5 py-0.5 rounded" style={{ color: 'var(--success)', background: 'color-mix(in srgb, var(--success) 10%, transparent)' }}>
+                  자동저장
                 </span>
-              </div>
-              <p className="text-white/80 text-xs hidden sm:block">
-                {isAiMode ? 'Google Gemini AI로 자연어 분석' : '메모를 붙여넣으면 자동으로 제품을 찾아드려요'}
-              </p>
+              )}
             </div>
+
+            {/* Action buttons row */}
+            <div className="flex items-center gap-2 mt-3">
+              <button
+                onClick={analyzeText}
+                disabled={!inputText.trim() || isAnalyzing}
+                className="flex-1 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed shadow-sm active:scale-[0.98]"
+                style={{ backgroundColor: isAiMode ? 'var(--success)' : 'var(--primary)' }}
+              >
+                {isAnalyzing
+                  ? <><RefreshCw className="w-4 h-4 animate-spin" />분석 중...</>
+                  : <><Sparkles className="w-4 h-4" />{isAiMode ? 'AI 분석' : '텍스트 분석'}</>
+                }
+              </button>
+              <button
+                onClick={() => setShowProductSearch(!showProductSearch)}
+                className="flex-shrink-0 p-3 rounded-2xl transition-all border active:scale-[0.98]"
+                style={{
+                  backgroundColor: showProductSearch ? 'var(--primary)' : 'var(--card)',
+                  color: showProductSearch ? 'white' : 'var(--foreground)',
+                  borderColor: showProductSearch ? 'var(--primary)' : 'var(--border)',
+                }}
+                title="직접 제품 추가"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Utility buttons */}
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={() => { if (inputText.trim() && confirm('메모 내용을 초기화할까요?')) { setInputText(''); localStorage.removeItem('aiOrderInputText'); } }}
+                className="flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-medium transition-colors border"
+                style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)', background: 'var(--card)' }}
+              >
+                <RotateCcw className="w-3 h-3" />초기화
+              </button>
+              <button
+                onClick={saveBackup}
+                className="flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-medium transition-colors border"
+                style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)', background: 'var(--card)' }}
+              >
+                <Save className="w-3 h-3" />백업
+              </button>
+              <button
+                onClick={() => setShowBackupModal(true)}
+                className="flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-medium transition-colors border"
+                style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)', background: 'var(--card)' }}
+              >
+                <FolderOpen className="w-3 h-3" />
+                불러오기{backupList.length > 0 ? ` (${backupList.length})` : ''}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* AI Error */}
+        {aiError && (
+          <div className="mt-3 p-3 rounded-xl border flex items-start gap-2" style={{ backgroundColor: 'color-mix(in srgb, var(--warning) 8%, transparent)', borderColor: 'var(--warning)' }}>
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--warning)' }} />
+            <p className="text-xs" style={{ color: 'var(--warning)' }}>{aiError}</p>
           </div>
-          <div className="flex items-center gap-2">
-            {selectedCount > 0 && (
-              <span className="px-3 py-1 bg-white/20 text-white text-sm font-medium rounded-lg">
-                {selectedCount}개 선택
-              </span>
+        )}
+
+        {/* Direct product search panel */}
+        {showProductSearch && (
+          <div className="mt-3 p-3 rounded-2xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--foreground)' }}>직접 제품 추가</p>
+            <div className="flex gap-2 mb-2">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+                <input
+                  type="text"
+                  value={productSearchQuery}
+                  onChange={(e) => setProductSearchQuery(e.target.value)}
+                  placeholder="제품명 검색..."
+                  className={`${inputClass} pl-9`}
+                  style={{ ...inputStyle, fontSize: '16px' }}
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center gap-0.5 rounded-xl px-1.5 flex-shrink-0" style={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}>
+                <button onClick={() => setAddQuantity(Math.max(1, addQuantity - 1))} className="p-1.5 rounded-lg hover:bg-[var(--secondary)]">
+                  <Minus className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
+                </button>
+                <span className="text-sm w-7 text-center font-bold" style={{ color: 'var(--foreground)' }}>{addQuantity}</span>
+                <button onClick={() => setAddQuantity(addQuantity + 1)} className="p-1.5 rounded-lg hover:bg-[var(--secondary)]">
+                  <Plus className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
+                </button>
+              </div>
+            </div>
+            {productAddResults.length > 0 && (
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {productAddResults.map(product => (
+                  <button
+                    key={product.id}
+                    onClick={() => addProductDirect(product)}
+                    className="w-full p-2.5 rounded-xl text-left flex justify-between items-center transition-colors hover:bg-[var(--muted)]"
+                    style={{ backgroundColor: 'var(--background)' }}
+                  >
+                    <span className="text-sm truncate mr-2" style={{ color: 'var(--foreground)' }}>{product.name}</span>
+                    <span className="text-sm font-bold flex-shrink-0" style={{ color: 'var(--success)' }}>
+                      {formatPrice(priceType === 'wholesale' ? product.wholesale : (product.retail || product.wholesale))}
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
-            <button
-              onClick={() => { setTempApiKey(geminiApiKey); setShowApiSettings(true); }}
-              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-              title="AI 설정"
-            >
-              <Settings className="w-5 h-5 text-white" />
-            </button>
+            {productSearchQuery && productAddResults.length === 0 && (
+              <p className="text-sm text-center py-3" style={{ color: 'var(--muted-foreground)' }}>검색 결과 없음</p>
+            )}
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Input area */}
-        <div className="flex-shrink-0 px-2 sm:px-4 pt-4" style={{ backgroundColor: 'var(--card)' }}>
-          <div className="mb-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-              <label className="text-sm flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
-                <FileText className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-                메모 입력
-                <span className="text-xs" style={{ color: 'var(--success)' }}>(자동저장)</span>
-              </label>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  onClick={() => { if (inputText.trim() && confirm('메모 내용을 초기화할까요?')) { setInputText(''); localStorage.removeItem('aiOrderInputText'); } }}
-                  className="px-2 py-1.5 rounded-lg flex items-center gap-1 text-xs transition-colors text-white"
-                  style={{ backgroundColor: 'var(--destructive)' }}
-                >
-                  <RotateCcw className="w-3 h-3" />초기화
-                </button>
-                <button
-                  onClick={saveBackup}
-                  className="px-2 py-1.5 rounded-lg flex items-center gap-1 text-xs transition-colors text-white"
-                  style={{ backgroundColor: 'var(--primary)' }}
-                >
-                  <Save className="w-3 h-3" />백업
-                </button>
-                <button
-                  onClick={() => setShowBackupModal(true)}
-                  className="px-2 py-1.5 rounded-lg flex items-center gap-1 text-xs transition-colors"
-                  style={{ backgroundColor: 'var(--secondary)', color: 'var(--foreground)' }}
-                >
-                  <FolderOpen className="w-3 h-3" />
-                  불러오기{backupList.length > 0 && ` (${backupList.length})`}
-                </button>
-              </div>
-            </div>
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={`예시:\n카본 93 듀얼 1세트\n54파이 밴딩 45 6개\n2m 환봉 1개 12파이`}
-              rows={5}
-              className="w-full px-4 py-3 rounded-xl border text-sm resize-none font-mono focus:outline-none focus:ring-2"
-              style={{ ...inputStyle, borderColor: 'var(--border)' }}
-            />
-          </div>
-
-          {aiError && (
-            <div className="mb-3 p-3 rounded-xl border flex items-center gap-2" style={{ backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'var(--warning)' }}>
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--warning)' }} />
-              <p className="text-sm" style={{ color: 'var(--warning)' }}>{aiError}</p>
-            </div>
-          )}
-
-          <div className="flex gap-2 mb-3">
-            <button
-              onClick={analyzeText}
-              disabled={!inputText.trim() || isAnalyzing}
-              className="flex-1 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: isAiMode ? 'var(--success)' : 'var(--primary)' }}
-            >
-              {isAnalyzing
-                ? <><RefreshCw className="w-4 h-4 animate-spin" />{isAiMode ? 'AI 분석 중...' : '분석 중...'}</>
-                : <><Sparkles className="w-4 h-4" />{isAiMode ? 'AI 분석' : '텍스트 분석'}</>
-              }
-            </button>
-            <button
-              onClick={() => setShowProductSearch(!showProductSearch)}
-              className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all"
-              style={{
-                backgroundColor: showProductSearch ? 'var(--success)' : 'var(--secondary)',
-                color: showProductSearch ? 'white' : 'var(--foreground)',
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              제품추가
-            </button>
-          </div>
-
-          {/* Direct product search */}
-          {showProductSearch && (
-            <div className="mb-3 p-3 rounded-xl border" style={{ backgroundColor: 'var(--secondary)', borderColor: 'var(--border)' }}>
-              <div className="flex gap-2 mb-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-                  <input
-                    type="text"
-                    value={productSearchQuery}
-                    onChange={(e) => setProductSearchQuery(e.target.value)}
-                    placeholder="제품명 검색..."
-                    className={`${inputClass} pl-9`}
-                    style={inputStyle}
-                    autoFocus
-                  />
-                </div>
-                <div className="flex items-center gap-1 rounded-lg px-2" style={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}>
-                  <button onClick={() => setAddQuantity(Math.max(1, addQuantity - 1))} className="p-1 rounded hover:bg-[var(--secondary)]">
-                    <Minus className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-                  </button>
-                  <span className="text-sm w-8 text-center" style={{ color: 'var(--foreground)' }}>{addQuantity}</span>
-                  <button onClick={() => setAddQuantity(addQuantity + 1)} className="p-1 rounded hover:bg-[var(--secondary)]">
-                    <Plus className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-                  </button>
-                </div>
-              </div>
-              {productAddResults.length > 0 && (
-                <div className="max-h-48 overflow-y-auto space-y-1">
-                  {productAddResults.map(product => (
-                    <button
-                      key={product.id}
-                      onClick={() => addProductDirect(product)}
-                      className="w-full p-2 rounded-lg text-left flex justify-between items-center transition-colors hover:bg-[var(--secondary)]"
-                      style={{ backgroundColor: 'var(--background)' }}
-                    >
-                      <span className="text-sm truncate" style={{ color: 'var(--foreground)' }}>{product.name}</span>
-                      <span className="text-sm font-medium" style={{ color: 'var(--success)' }}>
-                        {formatPrice(priceType === 'wholesale' ? product.wholesale : (product.retail || product.wholesale))}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {productSearchQuery && productAddResults.length === 0 && (
-                <p className="text-sm text-center py-2" style={{ color: 'var(--muted-foreground)' }}>검색 결과 없음</p>
+      {/* Results Section */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {analyzedItems.length > 0 && (
+          <>
+            {/* Results header */}
+            <div className="flex items-center justify-between py-3">
+              <h3 className="font-bold text-sm flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
+                <Package className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                분석 결과
+                <span className="text-xs font-normal" style={{ color: 'var(--muted-foreground)' }}>
+                  {analyzedItems.length}건
+                </span>
+              </h3>
+              {selectedCount > 0 && (
+                <span className="text-xs font-medium" style={{ color: 'var(--success)' }}>
+                  {selectedCount}개 선택됨
+                </span>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Results scroll area */}
-        <div className="flex-1 overflow-y-auto px-2 sm:px-4 pb-4">
-          {analyzedItems.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between pt-2">
-                <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
-                  <Package className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                  분석 결과 ({analyzedItems.length}줄)
-                </h3>
-              </div>
-
+            {/* Result cards */}
+            <div className="space-y-2">
               {analyzedItems.map((item, index) => (
                 <div
                   key={index}
-                  className="p-3 rounded-xl border-2 transition-all"
+                  className="rounded-2xl border transition-all overflow-hidden"
                   style={{
                     borderColor: item.matchedProduct
                       ? item.selected ? 'var(--primary)' : 'var(--border)'
                       : 'var(--destructive)',
-                    backgroundColor: item.matchedProduct
-                      ? item.selected ? 'rgba(37,99,235,0.05)' : 'var(--card)'
-                      : 'rgba(239,68,68,0.05)',
+                    backgroundColor: 'var(--card)',
                   }}
                 >
-                  <div className="flex items-start gap-2">
-                    {/* Checkbox */}
-                    <button
-                      onClick={() => item.matchedProduct && toggleSelect(index)}
-                      disabled={!item.matchedProduct}
-                      className="mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all"
-                      style={{
-                        borderColor: !item.matchedProduct ? 'var(--border)' : item.selected ? 'var(--primary)' : 'var(--border)',
-                        backgroundColor: item.selected && item.matchedProduct ? 'var(--primary)' : 'transparent',
-                      }}
-                    >
-                      {item.selected && item.matchedProduct && <Check className="w-2.5 h-2.5 text-white" />}
-                    </button>
+                  {/* Original text strip */}
+                  <div
+                    className="px-3 py-1.5 text-[11px] truncate border-b"
+                    style={{
+                      color: 'var(--muted-foreground)',
+                      backgroundColor: item.matchedProduct
+                        ? item.selected ? 'color-mix(in srgb, var(--primary) 6%, transparent)' : 'var(--secondary)'
+                        : 'color-mix(in srgb, var(--destructive) 6%, transparent)',
+                      borderColor: 'inherit',
+                    }}
+                  >
+                    {item.originalText}
+                  </div>
 
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs mb-1.5 truncate italic" style={{ color: 'var(--muted-foreground)' }}>
-                        "{item.originalText}"
-                      </p>
+                  <div className="p-3">
+                    {item.matchedProduct ? (
+                      <div className="flex items-center gap-3">
+                        {/* Checkbox */}
+                        <button
+                          onClick={() => toggleSelect(index)}
+                          className="w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all"
+                          style={{
+                            borderColor: item.selected ? 'var(--primary)' : 'var(--border)',
+                            backgroundColor: item.selected ? 'var(--primary)' : 'transparent',
+                          }}
+                        >
+                          {item.selected && <Check className="w-3 h-3 text-white" />}
+                        </button>
 
-                      {item.matchedProduct ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-sm truncate flex-1" style={{ color: 'var(--foreground)' }}>
-                              {item.matchedProduct.name}
-                            </p>
-                            <button
-                              onClick={() => { setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
-                              className="px-2 py-1 text-xs rounded-lg flex-shrink-0 flex items-center gap-1 transition-all"
-                              style={{ backgroundColor: 'var(--secondary)', color: 'var(--foreground)' }}
-                            >
-                              <Edit3 className="w-3 h-3" />변경
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-base font-bold" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
-                              {formatPrice(priceType === 'wholesale' ? item.matchedProduct.wholesale : (item.matchedProduct.retail || item.matchedProduct.wholesale))}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center rounded-lg p-0.5 border" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--secondary)' }}>
-                                <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--muted)]">
-                                  <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
-                                </button>
-                                <input
-                                  type="number"
-                                  value={item.quantity}
-                                  onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                                  className="w-8 h-6 text-center text-xs font-bold bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  style={{ color: 'var(--foreground)' }}
-                                />
-                                <button onClick={() => updateQuantity(index, item.quantity + 1)} className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--muted)]">
-                                  <Plus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
-                                </button>
-                              </div>
-                              <button
-                                onClick={() => removeItem(index)}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg transition-all"
-                                style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--destructive)' }}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
+                        {/* Product info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate" style={{ color: 'var(--foreground)' }}>
+                            {item.matchedProduct.name}
+                          </p>
+                          <p className="text-sm font-bold mt-0.5" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
+                            {formatPrice(priceType === 'wholesale' ? item.matchedProduct.wholesale : (item.matchedProduct.retail || item.matchedProduct.wholesale))}
+                          </p>
                         </div>
-                      ) : (
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="flex items-center gap-1 text-sm font-medium" style={{ color: 'var(--destructive)' }}>
-                              <X className="w-4 h-4" />매칭 실패
-                            </span>
-                            <button
-                              onClick={() => { setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
-                              className="px-3 py-1.5 text-xs rounded-lg flex items-center gap-1 font-medium text-white transition-all"
-                              style={{ backgroundColor: 'var(--primary)' }}
-                            >
-                              <Search className="w-3 h-3" />검색
+
+                        {/* Controls */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {/* Quantity */}
+                          <div className="flex items-center rounded-xl border" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--secondary)' }}>
+                            <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-7 h-7 flex items-center justify-center rounded-l-xl hover:bg-[var(--muted)]">
+                              <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                            </button>
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                              className="w-8 h-7 text-center text-xs font-bold bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              style={{ color: 'var(--foreground)' }}
+                            />
+                            <button onClick={() => updateQuantity(index, item.quantity + 1)} className="w-7 h-7 flex items-center justify-center rounded-r-xl hover:bg-[var(--muted)]">
+                              <Plus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
                             </button>
                           </div>
+                          {/* Change / Delete */}
+                          <button
+                            onClick={() => { setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg transition-all"
+                            style={{ backgroundColor: 'var(--secondary)', color: 'var(--muted-foreground)' }}
+                            title="제품 변경"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => removeItem(index)}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
-                            style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--destructive)' }}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg transition-all"
+                            style={{ backgroundColor: 'color-mix(in srgb, var(--destructive) 10%, transparent)', color: 'var(--destructive)' }}
+                            title="삭제"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      )}
+                      </div>
+                    ) : (
+                      /* Unmatched item */
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--muted)' }}>
+                          <X className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium" style={{ color: 'var(--destructive)' }}>매칭 실패</span>
+                        </div>
+                        <button
+                          onClick={() => { setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
+                          className="px-3 py-1.5 text-xs rounded-xl flex items-center gap-1 font-semibold text-white transition-all active:scale-[0.97]"
+                          style={{ backgroundColor: 'var(--primary)' }}
+                        >
+                          <Search className="w-3 h-3" />검색
+                        </button>
+                        <button
+                          onClick={() => removeItem(index)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg transition-all flex-shrink-0"
+                          style={{ backgroundColor: 'color-mix(in srgb, var(--destructive) 10%, transparent)', color: 'var(--destructive)' }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
 
-                      {/* Product search dropdown */}
-                      {searchingIndex === index && (
-                        <div className="mt-3 p-3 rounded-xl border-2" style={{ backgroundColor: 'var(--secondary)', borderColor: 'var(--primary)' }}>
-                          <div className="relative mb-2">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--primary)' }} />
-                            <input
-                              type="text"
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                              placeholder="제품명 검색..."
-                              autoFocus
-                              className={`${inputClass} pl-9`}
-                              style={inputStyle}
-                            />
-                          </div>
-                          {searchResults.length > 0 ? (
-                            <div className="max-h-48 overflow-y-auto space-y-1">
-                              {searchResults.map(product => (
-                                <button
-                                  key={product.id}
-                                  onClick={() => selectProduct(index, product)}
-                                  className="w-full p-2.5 text-left rounded-xl transition-all border border-transparent hover:border-[var(--primary)] hover:bg-[var(--background)]"
-                                >
-                                  <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>{product.name}</p>
-                                  <p className="text-xs mt-0.5 font-medium" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
-                                    {formatPrice(priceType === 'wholesale' ? product.wholesale : (product.retail || product.wholesale))}
-                                  </p>
-                                </button>
-                              ))}
-                            </div>
-                          ) : searchQuery.trim() ? (
-                            <p className="text-center py-3 text-sm" style={{ color: 'var(--muted-foreground)' }}>검색 결과 없음</p>
-                          ) : (
-                            <p className="text-center py-3 text-sm" style={{ color: 'var(--muted-foreground)' }}>검색어를 입력하세요</p>
-                          )}
-                          <button
-                            onClick={() => { setSearchingIndex(null); setSearchQuery(''); }}
-                            className="w-full mt-2 py-2 text-sm rounded-xl transition-all"
-                            style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
-                          >
-                            닫기
-                          </button>
+                    {/* Inline product search */}
+                    {searchingIndex === index && (
+                      <div className="mt-3 p-3 rounded-xl border" style={{ backgroundColor: 'var(--secondary)', borderColor: 'var(--primary)' }}>
+                        <div className="relative mb-2">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--primary)' }} />
+                          <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="제품명 검색..."
+                            autoFocus
+                            className={`${inputClass} pl-9`}
+                            style={{ ...inputStyle, fontSize: '16px' }}
+                          />
                         </div>
-                      )}
-                    </div>
+                        {searchResults.length > 0 ? (
+                          <div className="max-h-48 overflow-y-auto space-y-1">
+                            {searchResults.map(product => (
+                              <button
+                                key={product.id}
+                                onClick={() => selectProduct(index, product)}
+                                className="w-full p-2.5 text-left rounded-xl transition-all border border-transparent hover:border-[var(--primary)] hover:bg-[var(--background)]"
+                              >
+                                <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>{product.name}</p>
+                                <p className="text-xs mt-0.5 font-bold" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
+                                  {formatPrice(priceType === 'wholesale' ? product.wholesale : (product.retail || product.wholesale))}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        ) : searchQuery.trim() ? (
+                          <p className="text-center py-3 text-sm" style={{ color: 'var(--muted-foreground)' }}>검색 결과 없음</p>
+                        ) : (
+                          <p className="text-center py-3 text-sm" style={{ color: 'var(--muted-foreground)' }}>검색어를 입력하세요</p>
+                        )}
+                        <button
+                          onClick={() => { setSearchingIndex(null); setSearchQuery(''); }}
+                          className="w-full mt-2 py-2 text-sm font-medium rounded-xl transition-all"
+                          style={{ backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' }}
+                        >
+                          닫기
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </>
+        )}
 
-        {/* Footer CTA */}
-        {analyzedItems.length > 0 && (
-          <div className="border-t p-4 flex-shrink-0" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}>
-            <button
-              onClick={addSelectedToCart}
-              disabled={selectedCount === 0}
-              className="w-full py-3 rounded-xl font-medium flex items-center justify-center gap-2 transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: selectedCount === 0 ? 'var(--muted)' : 'var(--success)' }}
+        {/* Empty state */}
+        {analyzedItems.length === 0 && !isAnalyzing && (
+          <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+              style={{ backgroundColor: isAiMode ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'color-mix(in srgb, var(--primary) 12%, transparent)' }}
             >
-              <ShoppingCart className="w-5 h-5" />
-              {selectedCount}개 제품 장바구니에 담기
-            </button>
+              <Sparkles className="w-8 h-8" style={{ color: isAiMode ? 'var(--success)' : 'var(--primary)' }} />
+            </div>
+            <p className="font-semibold text-sm mb-1" style={{ color: 'var(--foreground)' }}>
+              주문 메모를 분석해보세요
+            </p>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
+              카톡이나 문자로 받은 주문 내용을<br />위에 붙여넣고 분석 버튼을 누르세요
+            </p>
           </div>
         )}
+      </div>
+
+      {/* Footer CTA - fixed bottom */}
+      {analyzedItems.length > 0 && (
+        <div className="border-t px-4 py-3 flex-shrink-0 safe-bottom" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}>
+          <button
+            onClick={addSelectedToCart}
+            disabled={selectedCount === 0}
+            className="w-full py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed shadow-sm active:scale-[0.98]"
+            style={{ backgroundColor: selectedCount === 0 ? 'var(--muted-foreground)' : 'var(--success)' }}
+          >
+            <ShoppingCart className="w-5 h-5" />
+            {selectedCount > 0 ? `${selectedCount}개 제품 장바구니에 담기` : '제품을 선택하세요'}
+          </button>
+        </div>
+      )}
 
       {/* AI Settings Modal */}
       {showApiSettings && (
-        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowApiSettings(false)}>
-          <div className="rounded-2xl w-full max-w-md overflow-hidden border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--success)' }}>
-              <h3 className="text-white font-bold flex items-center gap-2">
-                <Sparkles className="w-5 h-5" />분석 모드 설정
+        <div className="fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowApiSettings(false)}>
+          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)' }}>
+              <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
+                <Settings className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+                분석 모드 설정
               </h3>
-              <button onClick={() => setShowApiSettings(false)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
-                <X className="w-4 h-4 text-white" />
+              <button onClick={() => setShowApiSettings(false)} className="p-1.5 hover:bg-[var(--muted)] rounded-lg transition-colors">
+                <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
               </button>
             </div>
             <div className="p-4 space-y-3">
@@ -788,16 +867,16 @@ ${text}
                   <button
                     key={String(value)}
                     onClick={() => { const v = value; setUseAI(v); localStorage.setItem('useGeminiAI', String(v)); setShowApiSettings(false); }}
-                    className="w-full p-4 rounded-xl border-2 text-left transition-all"
-                    style={{ borderColor: isActive ? activeColor : 'var(--border)', backgroundColor: isActive ? `${activeColor}15` : 'var(--secondary)' }}
+                    className="w-full p-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98]"
+                    style={{ borderColor: isActive ? activeColor : 'var(--border)', backgroundColor: isActive ? `color-mix(in srgb, ${activeColor} 8%, transparent)` : 'var(--secondary)' }}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: isActive ? activeColor : 'var(--muted)' }}>
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: isActive ? activeColor : 'var(--muted)' }}>
                         {icon}
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-sm" style={{ color: isActive ? activeColor : 'var(--foreground)' }}>{label}</p>
-                        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{desc}</p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>{desc}</p>
                       </div>
                       {isActive && <Check className="w-5 h-5" style={{ color: activeColor }} />}
                     </div>
@@ -805,17 +884,19 @@ ${text}
                 );
               })}
             </div>
+            <div className="h-6" />
           </div>
         </div>
       )}
 
       {/* Backup Modal */}
       {showBackupModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}>
-          <div className="rounded-2xl w-full max-w-lg max-h-[70vh] flex flex-col border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-            <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
+        <div className="fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowBackupModal(false)}>
+          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[75vh] flex flex-col border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
-                <FolderOpen className="w-5 h-5" style={{ color: 'var(--primary)' }} />백업 목록
+                <FolderOpen className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                백업 목록
               </h3>
               <button onClick={() => setShowBackupModal(false)} className="p-1.5 rounded-lg hover:bg-[var(--secondary)] transition-colors">
                 <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
@@ -823,19 +904,22 @@ ${text}
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {backupList.length === 0 ? (
-                <div className="text-center py-8" style={{ color: 'var(--muted-foreground)' }}>저장된 백업이 없습니다.</div>
+                <div className="flex flex-col items-center justify-center py-12" style={{ color: 'var(--muted-foreground)' }}>
+                  <FolderOpen className="w-10 h-10 mb-3 opacity-30" />
+                  <p className="text-sm">저장된 백업이 없습니다</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {backupList.map((backup) => (
                     <div key={backup.id} className="p-3 rounded-xl border hover:border-[var(--primary)] transition-colors" style={{ backgroundColor: 'var(--secondary)', borderColor: 'var(--border)' }}>
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{backup.date}</span>
-                        <button onClick={() => deleteBackup(backup.id)} className="p-1 rounded transition-colors hover:bg-[color-mix(in_srgb,var(--destructive)_15%,transparent)]" style={{ color: 'var(--destructive)' }}>
-                          <Trash2 className="w-3 h-3" />
+                        <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>{backup.date}</span>
+                        <button onClick={(e) => { e.stopPropagation(); deleteBackup(backup.id); }} className="p-1 rounded transition-colors hover:bg-[color-mix(in_srgb,var(--destructive)_15%,transparent)]" style={{ color: 'var(--destructive)' }}>
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      <p className="text-sm mb-2 font-mono truncate" style={{ color: 'var(--foreground)' }}>{backup.preview}</p>
-                      <button onClick={() => loadBackup(backup)} className="w-full py-2 rounded-lg text-sm text-white transition-colors" style={{ backgroundColor: 'var(--primary)' }}>
+                      <p className="text-sm mb-2.5 font-mono truncate" style={{ color: 'var(--foreground)' }}>{backup.preview}</p>
+                      <button onClick={() => loadBackup(backup)} className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-colors active:scale-[0.98]" style={{ backgroundColor: 'var(--primary)' }}>
                         불러오기
                       </button>
                     </div>
