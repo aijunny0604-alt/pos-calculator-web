@@ -90,6 +90,13 @@ export default function TextAnalyze({
     '겐또': '게이트', 'gate': '게이트',
     '볼벨브': '볼밸브',
     '첵크': '체크', 'check': '체크',
+    // 색상 동의어
+    '티탄블루': '티탄', 'titan': '티탄', 'titanium': '티탄', '타이탄': '티탄',
+    '블루': '티탄', 'blue': '티탄', '파랑': '티탄',
+    'silver': '실버', '은색': '실버', '실바': '실버',
+    'black': '블랙', '검정': '블랙', '검은': '블랙', '까만': '블랙', '흑색': '블랙',
+    // 좌우 = 듀얼
+    '좌우': '듀얼', '양쪽': '듀얼', '한쌍': '듀얼',
   };
 
   const getChosung = (str) => {
@@ -227,13 +234,34 @@ export default function TextAnalyze({
 
 ### 머플러팁 (카본/NPK/SNPK)
 - 카본 머플러팁: "카본 [싱글/듀얼] [코드] [사이즈][D/S] - G"
-  - SCF 시리즈: 93, 103, 116, 130mm / CFK 시리즈: 80, 93, 103mm / NCF: 80, 93mm
+  - SCF 시리즈: 93, 103, 116, 130mm / CFK 시리즈: 80, 93, 103, 116mm / NCF: 130mm
   - "카본 듀얼" → 카본 듀얼 SCF 계열, "카본 싱글" → 카본 싱글 SCF/CFK 계열
-- NPK 머플러팁: "[싱글/듀얼] NPK [사이즈][D/S]-[S/T/B]" (80,89,100,114mm)
-- SNPK 슬롯팁: "슬롯 [싱글/듀얼] SNPK [사이즈]-[S/T/B]" (89,100,127,142mm)
+  - 카본은 색상이 G(건메탈) 하나뿐
+- NPK 머플러팁: "[싱글/듀얼] NPK [사이즈][D/S] - [색상]" (80,89,100,114mm)
+- SNPK 슬롯팁: "슬롯 [싱글/듀얼] SNPK [사이즈][D/S] - [색상]" (89,100,114,127,142mm)
 - 사각팁: "사각 머플러팁" 계열
 - **"팁"만 있으면**: 사이즈/코드로 카본 vs NPK vs SNPK 구분. 코드 없으면 NPK가 가장 일반적.
-- **스타일 미지정 시**: -S(스퀘어) 기본값으로 매칭
+
+#### ⚠️ NPK/SNPK 제품명 구조 (매우 중요!)
+형식: [싱글/듀얼] NPK [사이즈][D/S] - [색상코드]
+- **[사이즈]**: 80, 89, 100, 114mm (NPK) / 89, 100, 114, 127, 142mm (SNPK)
+- **D** = 듀얼(Dual), **S** = 싱글(Single) → 팁 개수 (사이즈 바로 뒤)
+- **색상코드** (하이픈 뒤, 최종 문자):
+  - **S** = 실버(Silver) 색상
+  - **T** = 티탄블루(Titan Blue) 색상
+  - **B** = 블랙(Black) 색상
+
+#### ⚠️ 색상 키워드 → 색상코드 변환표 (최우선 적용!)
+| 사용자 입력 | 색상코드 | 설명 |
+|------------|---------|------|
+| 티탄, 티탄블루, titan, titanium, 타이탄, 파랑, 블루, blue | **T** | 티탄블루 |
+| 실버, silver, 은색, 실바, 기본 | **S** | 실버 |
+| 블랙, black, 검정, 검은, 까만, 흑색 | **B** | 블랙 |
+
+**규칙**:
+- 색상 키워드가 입력에 있으면 **반드시** 해당 색상코드로 매칭. "티탄블루 듀얼 89" → "듀얼 NPK 89D - T" (T=티탄블루)
+- 색상 미지정 시: -S(실버)를 기본값으로 매칭하되 confidence를 medium으로, alternatives에 -T와 -B 포함
+- **"좌우"는 "듀얼(양쪽 2개)"을 의미** → D로 매칭
 
 ### 밴딩 파이프
 - 스덴(스테인레스): "스덴 밴딩 [직경]-[각도]" (직경: 51,54,60,63,70,76 / 각도: 15,30,45,60,75,90)
@@ -295,6 +323,12 @@ export default function TextAnalyze({
 | 겐또,겐도 | 게이트 |
 | 싱그 → 싱글, 듀얼 → 듀얼 |
 | 머플러커터 → 제품에 없음, 머플러팁으로 추측 |
+| 좌우,양쪽,한쌍,좌우한세트 → 듀얼 (D) |
+| 한쪽,편쪽,외쪽 → 싱글 (S) |
+| 티탄,티탄블루,titan,타이탄,파랑,블루 → 색상코드 T |
+| 실버,silver,은색,실바 → 색상코드 S |
+| 블랙,black,검정,검은,까만,흑색 → 색상코드 B |
+| 90 → 89mm (NPK에 90mm 없음, 89로 매칭) |
 
 ## 4. 신뢰도 판정 기준 (매우 중요!)
 ### HIGH - 아래 조건 중 하나 이상 만족:
@@ -333,11 +367,42 @@ ${text}
 6. alternatives도 반드시 제품 목록에 있는 정확한 이름만.
 7. 주문과 무관한 인사말/요청("사장님", "보내주세요", "주문합니다")은 무시.
 8. **신뢰도는 위 §4 기준을 엄격히 적용하세요.**
+9. **⚠️ NPK/SNPK 색상 매칭 최우선 규칙**: 입력에 색상 키워드(티탄/블루/블랙/검정/실버 등)가 있으면, 반드시 해당 색상코드(T/B/S)로 매칭해야 합니다. 색상을 무시하고 기본값(-S)으로 매칭하면 안 됩니다.
+10. **"좌우" = 듀얼**: "좌우", "양쪽", "한쌍"은 듀얼(D)을 의미합니다.
+11. **사이즈 근사 매칭**: 정확한 사이즈가 제품 목록에 없으면 가장 가까운 사이즈로 매칭 (예: 90→89, 115→114).
 
 ## 응답 형식 (JSON 배열만, 다른 텍스트 없이)
 [{"originalText":"원본","matchedProduct":"정확한 제품명 or null","quantity":수량,"confidence":"high|medium|low","alternatives":["정확한 제품명1","정확한 제품명2"]}]
 
-## 예시 (9개)
+## 예시 (15개)
+
+### 색상 지정 예시 (핵심!)
+입력: "티탄블루 듀얼 89 좌우"
+→ [{"originalText":"티탄블루 듀얼 89 좌우","matchedProduct":"듀얼 NPK 89D - T","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "블랙 싱글 100 팁"
+→ [{"originalText":"블랙 싱글 100 팁","matchedProduct":"싱글 NPK 100S - B","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "팁 티탄블루90 듀얼팁 좌우"
+→ [{"originalText":"팁 티탄블루90 듀얼팁 좌우","matchedProduct":"듀얼 NPK 89D - T","quantity":1,"confidence":"high","alternatives":["듀얼 NPK 100D - T"]}]
+
+입력: "실버 npk 114 싱글 2개"
+→ [{"originalText":"실버 npk 114 싱글 2개","matchedProduct":"싱글 NPK 114S - S","quantity":2,"confidence":"high","alternatives":[]}]
+
+입력: "슬롯 듀얼 89 블랙"
+→ [{"originalText":"슬롯 듀얼 89 블랙","matchedProduct":"슬롯 듀얼 SNPK 89D - B","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "슬롯 싱글 티탄 100"
+→ [{"originalText":"슬롯 싱글 티탄 100","matchedProduct":"슬롯 싱글 SNPK 100S - T","quantity":1,"confidence":"high","alternatives":[]}]
+
+### 색상 미지정 예시
+입력: "npk 89 듀얼 2개"
+→ [{"originalText":"npk 89 듀얼 2개","matchedProduct":"듀얼 NPK 89D - S","quantity":2,"confidence":"medium","alternatives":["듀얼 NPK 89D - T","듀얼 NPK 89D - B"]}]
+
+입력: "머플러 팁 하나"
+→ [{"originalText":"머플러 팁 하나","matchedProduct":"싱글 NPK 80S - S","quantity":1,"confidence":"low","alternatives":["듀얼 NPK 80D - S","카본 싱글 CFK 80S - G"]}]
+
+### 기타 제품 예시
 입력: "카본 93 듀얼 1세트"
 → [{"originalText":"카본 93 듀얼 1세트","matchedProduct":"카본 듀얼 SCF 93D - G","quantity":1,"confidence":"high","alternatives":[]}]
 
@@ -346,9 +411,6 @@ ${text}
 
 입력: "아N 직관 2개"
 → [{"originalText":"아N 직관 2개","matchedProduct":"아반떼N 직관 다운파이프","quantity":2,"confidence":"high","alternatives":["아반떼N 촉매 다운파이프"]}]
-
-입력: "스팅어 자바라 3개"
-→ [{"originalText":"스팅어 자바라 3개","matchedProduct":"자바라 SF 54 S 길이 100","quantity":3,"confidence":"medium","alternatives":["자바라 SF 61 S 길이 100","자바라 SF 64 S 길이 100"]}]
 
 입력: "54 밴딩 45도 6개"
 → [{"originalText":"54 밴딩 45도 6개","matchedProduct":"스덴 밴딩 54-45","quantity":6,"confidence":"high","alternatives":[]}]
@@ -359,11 +421,8 @@ ${text}
 입력: "레듀샤 54-76 하나"
 → [{"originalText":"레듀샤 54-76 하나","matchedProduct":"실리콘 레듀샤 SR5476","quantity":1,"confidence":"high","alternatives":[]}]
 
-입력: "npk 89 듀얼 2개"
-→ [{"originalText":"npk 89 듀얼 2개","matchedProduct":"듀얼 NPK 89D - S","quantity":2,"confidence":"high","alternatives":["듀얼 NPK 89D - T","듀얼 NPK 89D - B"]}]
-
-입력: "머플러 팁 하나"
-→ [{"originalText":"머플러 팁 하나","matchedProduct":"싱글 NPK 80S - S","quantity":1,"confidence":"low","alternatives":["듀얼 NPK 80D - S","카본 싱글 CFK 80S - G"]}]`;
+입력: "스팅어 자바라 3개"
+→ [{"originalText":"스팅어 자바라 3개","matchedProduct":"자바라 SF 54 S 길이 100","quantity":3,"confidence":"medium","alternatives":["자바라 SF 61 S 길이 100","자바라 SF 64 S 길이 100"]}]`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,

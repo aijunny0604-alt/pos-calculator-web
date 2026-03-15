@@ -1,6 +1,6 @@
 # POS Calculator Web - AI 핸드오프 가이드
 
-> 마지막 업데이트: 2026-03-11
+> 마지막 업데이트: 2026-03-15
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 ---
@@ -35,10 +35,11 @@ npx gh-pages -d dist # GitHub Pages 배포
 
 ## 2. Supabase 연결 정보
 
-- URL: `https://icqxomltplewrhopafpq.supabase.co`
+- URL: `https://gbhckliupphoqkzffwvd.supabase.co`
 - 키: `src/lib/supabase.js`에 하드코딩 (publishable key)
-- 테이블: `orders`, `products`, `customers`, `saved_carts`
-- 기존 앱 `pos-calculator`와 동일 DB 공유
+- 테이블: `orders`, `products`, `customers`, `saved_carts`, `customer_returns`
+- **웹 버전 전용 DB** (2026-03-15 마이그레이션 완료, 기존 `icqxomltplewrhopafpq` 프로젝트에서 이전)
+- 기존 앱 `pos-calculator`와 DB 분리됨
 
 ---
 
@@ -186,6 +187,17 @@ useEffect(() => {
 - 상세 모달의 타입별 재고, 개별 제품 리스트에서도 자바라는 "개" 단위 표시
 - 다운파이프(촉매/직관)는 기존대로 "세트" 유지
 
+### 2026-03-15 작업 내역
+
+#### Supabase 마이그레이션
+- **원인**: 기존 Supabase 프로젝트(`icqxomltplewrhopafpq`) egress 쿼터 초과로 API 차단 (HTTP 402)
+- **원인 분석**: 기존 앱(`pos-calculator`)과 웹 버전이 같은 DB를 공유하여 트래픽 합산 초과
+- **조치**: 새 Supabase 계정/프로젝트(`gbhckliupphoqkzffwvd`)로 완전 이전
+- **이전 데이터**: products 583건, customers 117건, orders 144건, saved_carts 2건, customer_returns 8건
+- **데이터 손실**: 없음 (건수 100% 일치 검증 완료)
+- **코드 변경**: `src/lib/supabase.js`의 URL/KEY만 변경
+- **주의**: 기존 앱(`pos-calculator`)과 DB가 분리되었으므로, 기존 앱은 별도 DB 연결 필요
+
 ---
 
 ## 6. 디자인 시스템
@@ -272,6 +284,6 @@ App.jsx (상태 관리)
 
 ## 10. 원본 프로젝트 참조
 
-- 기존 앱: `C:\Users\MOVEAM_PC\pos-calculator` (같은 Supabase DB)
+- 기존 앱: `C:\Users\MOVEAM_PC\pos-calculator` (DB 분리됨 - 기존 Supabase `icqxomltplewrhopafpq`)
 - GitHub Pages: `https://aijunny0604-alt.github.io/pos-calculator/`
 - 인라인 편집, 제품 복사 등 기존 앱 기능을 참조하여 웹 버전으로 포팅함
