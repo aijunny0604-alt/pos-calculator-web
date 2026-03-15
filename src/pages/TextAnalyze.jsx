@@ -655,8 +655,13 @@ ${text}
 
   const addSelectedToCart = () => {
     const selectedItems = analyzedItems.filter(item => item.selected && item.matchedProduct);
-    selectedItems.forEach(item => onAddToCart(item.matchedProduct, item.quantity));
-    onBack();
+    const cartItems = selectedItems.map(item => ({
+      ...item.matchedProduct,
+      quantity: item.quantity,
+    }));
+    if (cartItems.length > 0) {
+      onAddToCart(cartItems);
+    }
   };
 
   const saveBackup = () => {
