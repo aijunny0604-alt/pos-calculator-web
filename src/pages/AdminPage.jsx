@@ -1873,6 +1873,7 @@ function AIStockTab({ products, setProducts, supabaseConnected, showToast, supab
   const [parsedItems, setParsedItems] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [defaultAction, setDefaultAction] = useState('add'); // add | set
 
   const getGeminiKey = () => {
     const stored = localStorage.getItem('geminiApiKey');
@@ -1964,7 +1965,7 @@ function AIStockTab({ products, setProducts, supabaseConnected, showToast, supab
 - "입고", "입고 완료", "추가", "들어옴", "도착" → action: "add" (현재 재고에 추가)
 - "출고", "차감", "빠짐", "나감", "사용" → action: "subtract" (현재 재고에서 차감)
 - "재고 설정", "재고 30개로", "30개로 변경" → action: "set" (절대값 설정)
-- **동작 미지정 시 기본값: "add"** (입고가 가장 일반적)
+- **동작 미지정 시 기본값: "${defaultAction}"** (${defaultAction === 'set' ? '재고 설정 모드 - 입력 수량이 곧 현재 실재고' : '입고 모드 - 기존 재고에 추가'})
 
 ## 제품 목록 (현재 재고 포함)
 ${productList}
@@ -2008,7 +2009,7 @@ ${inputText}
           if (found && !matched) matched = found;
           else if (found && !alts.some(a => a.id === found.id) && found.id !== matched?.id) alts.push(found);
         }
-        const action = item.action || 'add';
+        const action = defaultAction === 'set' ? 'set' : (item.action || 'add');
         const qty = item.quantity || 1;
         let newStock = matched ? (matched.stock ?? 0) : 0;
         if (action === 'add') newStock += qty;
@@ -2084,14 +2085,32 @@ ${inputText}
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-bold">AI 재고 관리</h2>
-      <p className="text-sm text-gray-500">자연어로 입고/출고를 입력하면 AI가 제품을 매칭하고 재고를 업데이트합니다.</p>
+
+      {/* Mode Toggle */}
+      <div className="flex gap-2">
+        <button onClick={() => setDefaultAction('add')}
+          className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition-all ${defaultAction === 'add' ? 'bg-green-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          + 입고 모드
+        </button>
+        <button onClick={() => setDefaultAction('set')}
+          className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition-all ${defaultAction === 'set' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          = 재고 설정 모드
+        </button>
+      </div>
+      <p className="text-sm text-gray-500">
+        {defaultAction === 'add'
+          ? '기존 재고에 입력한 수량을 추가합니다. (예: 현재 10개 + 입고 20개 = 30개)'
+          : '기존 재고를 무시하고 입력한 수량으로 교체합니다. (예: 입력 20개 → 재고 20개)'}
+      </p>
 
       {/* Input */}
       <div className="space-y-2">
         <textarea
           value={inputText}
           onChange={e => setInputText(e.target.value)}
-          placeholder={"예시:\nJSR 레조 100 250 64 20개\n100 250 54 20개\n중통 원밴딩 76 아N 4개 벨N 3개\n\n입고 완료"}
+          placeholder={defaultAction === 'add'
+            ? "예시:\nJSR 레조 100 250 64 20개\n100 250 54 20개\n중통 원밴딩 76 아N 4개 벨N 3개\n\n입고 완료"
+            : "예시:\n레조 100 250 64 20개\n100 250 54 15개\nCH 200 54 10개\n\n(입력한 수량이 곧 현재 실재고)"}
           className="w-full h-40 p-3 border rounded-lg text-sm resize-y focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
         />
         <button
