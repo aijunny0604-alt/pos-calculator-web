@@ -4,7 +4,7 @@ import {
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
   ChevronDown
 } from 'lucide-react';
-import { formatPrice, calcExVat, formatDateTime } from '@/lib/utils';
+import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST } from '@/lib/utils';
 
 export default function OrderHistory({
   orders,
@@ -25,7 +25,8 @@ export default function OrderHistory({
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showFilterDeleteConfirm, setShowFilterDeleteConfirm] = useState(false);
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
+  const [showReturnsOnly, setShowReturnsOnly] = useState(false);
 
   // Get blacklist info for customer
   const getBlacklistInfo = (customerName) => {
@@ -64,40 +65,29 @@ export default function OrderHistory({
   // Date filter function
   const filterByDate = (order) => {
     if (dateFilter === 'all') return true;
-    const orderDate = new Date(order.createdAt);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const orderDateKST = toDateKST(order.createdAt);
+    const todayKST = getTodayKST();
 
     if (dateFilter === 'today') {
-      const orderDay = new Date(orderDate);
-      orderDay.setHours(0, 0, 0, 0);
-      return orderDay.getTime() === today.getTime();
+      return orderDateKST === todayKST;
     }
     if (dateFilter === 'yesterday') {
-      const yesterday = new Date(today);
+      const yesterday = new Date(todayKST + 'T00:00:00+09:00');
       yesterday.setDate(yesterday.getDate() - 1);
-      const orderDay = new Date(orderDate);
-      orderDay.setHours(0, 0, 0, 0);
-      return orderDay.getTime() === yesterday.getTime();
+      return orderDateKST === yesterday.toISOString().split('T')[0];
     }
     if (dateFilter === 'week') {
-      const weekAgo = new Date(today);
+      const weekAgo = new Date(todayKST + 'T00:00:00+09:00');
       weekAgo.setDate(weekAgo.getDate() - 7);
-      return orderDate >= weekAgo;
+      return orderDateKST >= weekAgo.toISOString().split('T')[0];
     }
     if (dateFilter === 'month') {
-      const monthAgo = new Date(today);
+      const monthAgo = new Date(todayKST + 'T00:00:00+09:00');
       monthAgo.setMonth(monthAgo.getMonth() - 1);
-      return orderDate >= monthAgo;
+      return orderDateKST >= monthAgo.toISOString().split('T')[0];
     }
     if (dateFilter === 'custom' && customDate) {
-      const selectedDate = new Date(customDate);
-      const orderDay = new Date(orderDate);
-      return (
-        orderDay.getFullYear() === selectedDate.getFullYear() &&
-        orderDay.getMonth() === selectedDate.getMonth() &&
-        orderDay.getDate() === selectedDate.getDate()
-      );
+      return orderDateKST === customDate;
     }
     return true;
   };
@@ -111,7 +101,8 @@ export default function OrderHistory({
       const customerName = (order.customerName || '').toLowerCase().replace(/\s/g, '');
       const customerPhone = (order.customerPhone || '').replace(/\s/g, '');
       return orderNum.includes(search) || customerName.includes(search) || customerPhone.includes(search);
-    });
+    })
+    .filter(order => !showReturnsOnly || (order.totalReturned || 0) > 0);
 
   // Stats
   const filteredTotalSales = filteredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
@@ -191,7 +182,7 @@ export default function OrderHistory({
             <div className="flex items-center gap-3">
               {/* Mobile: menu button */}
               <button
-                onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+                onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
                 className="md:hidden p-2 rounded-lg transition-colors hover:bg-[var(--accent)]"
               >
                 <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
@@ -263,6 +254,38 @@ export default function OrderHistory({
               </span>
               {searchTerm && (
                 <span style={{ color: 'var(--primary)' }}>검색: {searchTerm}</span>
+              )}
+            </div>
+          )}
+
+          {/* Date filter buttons - always visible */}
+          {isHeaderCollapsed && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {dateFilterOptions.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => { setDateFilter(key); setSelectedOrders([]); }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
+                  style={{
+                    background: dateFilter === key ? 'var(--primary)' : 'var(--muted)',
+                    color: dateFilter === key ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+              {dateFilter === 'custom' && (
+                <input
+                  type="date"
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                  className="px-2.5 py-1 rounded-lg border text-xs focus:outline-none"
+                  style={{
+                    background: 'var(--background)',
+                    borderColor: 'var(--border)',
+                    color: 'var(--foreground)',
+                  }}
+                />
               )}
             </div>
           )}
@@ -347,27 +370,34 @@ export default function OrderHistory({
                 </p>
               </div>
 
-              <div
-                className="rounded-xl p-3 border"
+              <button
+                onClick={() => setShowReturnsOnly(prev => !prev)}
+                className="rounded-xl p-3 border text-left transition-all"
                 style={{
-                  background: filteredTotalReturned > 0
-                    ? 'color-mix(in srgb, var(--warning) 10%, var(--card))'
-                    : 'var(--card)',
-                  borderColor: filteredTotalReturned > 0
-                    ? 'color-mix(in srgb, var(--warning) 40%, var(--border))'
-                    : 'var(--border)',
+                  background: showReturnsOnly
+                    ? 'color-mix(in srgb, var(--warning) 25%, var(--card))'
+                    : filteredTotalReturned > 0
+                      ? 'color-mix(in srgb, var(--warning) 10%, var(--card))'
+                      : 'var(--card)',
+                  borderColor: showReturnsOnly
+                    ? 'var(--warning)'
+                    : filteredTotalReturned > 0
+                      ? 'color-mix(in srgb, var(--warning) 40%, var(--border))'
+                      : 'var(--border)',
+                  boxShadow: showReturnsOnly ? '0 0 0 1px var(--warning)' : 'none',
                 }}
               >
                 <p
                   className="text-xs flex items-center gap-1 mb-1"
-                  style={{ color: filteredTotalReturned > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}
+                  style={{ color: filteredTotalReturned > 0 || showReturnsOnly ? 'var(--warning)' : 'var(--muted-foreground)' }}
                 >
                   <RotateCcw className="w-3 h-3" />
                   반품 ({filteredReturnCount}건)
+                  {showReturnsOnly && <span className="ml-1 text-[10px] font-bold">필터 ON</span>}
                 </p>
                 <p
                   className="font-bold text-base sm:text-lg truncate"
-                  style={{ color: filteredTotalReturned > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}
+                  style={{ color: filteredTotalReturned > 0 || showReturnsOnly ? 'var(--warning)' : 'var(--muted-foreground)' }}
                 >
                   {filteredTotalReturned > 0 ? `-${formatPrice(filteredTotalReturned)}원` : '0원'}
                 </p>
@@ -376,7 +406,7 @@ export default function OrderHistory({
                     전체 {totalReturned > 0 ? `-${formatPrice(totalReturned)}원` : '0원'} ({totalReturnCount}건)
                   </p>
                 )}
-              </div>
+              </button>
             </div>
 
             {/* Date filter buttons */}

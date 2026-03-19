@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calculateDiscount } from '@/lib/utils';
 import OrderPage from './OrderPage';
+import TextAnalyze from './TextAnalyze';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 // Static fallback price data (478 products)
@@ -55,7 +56,9 @@ export default function MainPOS({
   const [orderMemo, setOrderMemo] = useState('');
   const [orderPaymentMethod, setOrderPaymentMethod] = useState('card');
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [showAiModal, setShowAiModal] = useState(false);
   const { isFullscreen: isCartFullscreen, toggleFullscreen: toggleCartFullscreen } = useModalFullscreen();
+  const { isFullscreen: isAiFullscreen, toggleFullscreen: toggleAiFullscreen } = useModalFullscreen();
 
   // 장바구니가 비워지면 주문확인 모달도 자동 닫기 (장바구니 저장 후 초기화 시)
   useEffect(() => {
@@ -137,34 +140,30 @@ export default function MainPOS({
     const isOutOfStock = baseStock === 0 && !isIncoming;
 
     if (currentQty >= baseStock && baseStock > 0) {
-      showToast && showToast('재고가 부족합니다', 'error');
-      return;
-    }
-    if (isIncoming && currentQty === 0) {
+      showToast && showToast(`재고 부족 (재고: ${baseStock}개) - 초과 주문`, 'warning');
+    } else if (isIncoming && currentQty === 0) {
       showToast && showToast('입고대기 상품입니다 (예약 주문)', 'warning');
     } else if (isOutOfStock && currentQty === 0) {
       showToast && showToast('품절 상품입니다 (예약 주문)', 'warning');
     }
 
     if (existingItem) {
-      setCart(cart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
+      setCart(prev => prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
     } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+      setCart(prev => [...prev, { ...product, quantity: 1 }]);
     }
   };
 
-  const removeFromCart = (productId) => setCart(cart.filter(item => item.id !== productId));
+  const removeFromCart = (productId) => setCart(prev => prev.filter(item => item.id !== productId));
 
   const updateQuantity = (productId, newQuantity) => {
     if (newQuantity < 1) return removeFromCart(productId);
     const product = products.find(p => p.id === productId);
     const baseStock = product?.stock !== undefined ? product.stock : 50;
-    const isIncoming = product?.stock_status === 'incoming';
-    if (newQuantity > baseStock && baseStock > 0 && !isIncoming) {
-      showToast && showToast('재고가 부족합니다', 'error');
-      return;
+    if (newQuantity > baseStock && baseStock > 0) {
+      showToast && showToast(`재고 부족 (재고: ${baseStock}개) - 초과 주문`, 'warning');
     }
-    setCart(cart.map(item => item.id === productId ? { ...item, quantity: newQuantity } : item));
+    setCart(prev => prev.map(item => item.id === productId ? { ...item, quantity: newQuantity } : item));
   };
 
   const replaceItem = (oldId, newProduct, qty) => {
@@ -214,11 +213,11 @@ export default function MainPOS({
       customer_phone: orderCustomerPhone.trim(),
       memo: orderMemo.trim(),
       payment_method: orderPaymentMethod,
-      items: cart.map(item => ({
+      items: cartWithDiscount.map(item => ({
         id: item.id,
         name: item.name,
         category: item.category,
-        price: priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale),
+        price: item.discountedPrice,
         quantity: item.quantity,
       })),
       total_amount: totalAmount,
@@ -306,16 +305,14 @@ export default function MainPOS({
                 </button>
               )}
             </div>
-            {onOpenTextAnalyze && (
-              <button
-                onClick={onOpenTextAnalyze}
-                className="flex-shrink-0 p-3 rounded-xl transition-colors hover:opacity-80 flex items-center justify-center"
-                style={{ background: 'var(--warning)', color: 'white' }}
-                title="AI 주문 인식"
-              >
-                <Zap className="w-5 h-5" />
-              </button>
-            )}
+            <button
+              onClick={() => setShowAiModal(true)}
+              className="flex-shrink-0 p-3 rounded-xl transition-colors hover:opacity-80 flex items-center justify-center"
+              style={{ background: 'var(--warning)', color: 'white' }}
+              title="AI 주문 인식"
+            >
+              <Zap className="w-5 h-5" />
+            </button>
           </div>
 
           {/* Controls row */}
@@ -427,7 +424,7 @@ export default function MainPOS({
                             <div
                               key={product.id}
                               onClick={() => !cartItem && addToCart(product)}
-                              className={`card-interactive px-2 py-2 rounded-lg cursor-pointer select-none border ${
+                              className={`card-interactive px-3 py-4 rounded-lg cursor-pointer select-none border min-h-[5.5rem] flex flex-col justify-between ${
                                 inCart
                                   ? 'ring-2'
                                   : ''
@@ -451,15 +448,15 @@ export default function MainPOS({
                               }}
                             >
                               {/* Product name & stock badge */}
-                              <div className="flex items-center justify-between mb-1 gap-1">
+                              <div className="flex items-center justify-between mb-1.5 gap-1">
                                 <p
-                                  className="text-xs font-medium truncate flex-1"
+                                  className="text-sm font-medium truncate flex-1"
                                   style={{ color: 'var(--foreground)' }}
                                 >
                                   {product.name}
                                 </p>
                                 <span
-                                  className="text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 flex items-center gap-0.5"
+                                  className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 flex items-center gap-0.5"
                                   style={{
                                     background: isIncoming
                                       ? 'color-mix(in srgb, var(--warning) 20%, transparent)'
@@ -501,27 +498,27 @@ export default function MainPOS({
                                   >
                                     <button
                                       onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity - 1); }}
-                                      className="w-6 h-6 flex items-center justify-center hover:bg-[var(--accent)] rounded-l transition-colors"
+                                      className="w-9 h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-l-lg transition-colors"
                                     >
-                                      <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                                      <Minus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                                     </button>
                                     <input
                                       type="number"
                                       value={cartItem.quantity}
                                       onClick={(e) => e.stopPropagation()}
                                       onChange={(e) => {
-                                        const val = parseInt(e.target.value) || 0;
-                                        if (val >= 0) updateQuantity(product.id, val);
+                                        const val = parseInt(e.target.value);
+                                        if (!isNaN(val) && val >= 0) updateQuantity(product.id, val);
                                       }}
                                       onFocus={(e) => { e.stopPropagation(); e.target.select(); }}
-                                      className="w-8 h-6 text-center text-xs font-bold bg-transparent border-none focus:outline-none"
+                                      className="w-10 h-9 text-center text-sm font-bold bg-transparent border-none focus:outline-none"
                                       style={{ color: 'var(--foreground)' }}
                                     />
                                     <button
                                       onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity + 1); }}
-                                      className="w-6 h-6 flex items-center justify-center hover:bg-[var(--accent)] rounded-r transition-colors"
+                                      className="w-9 h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-r-lg transition-colors"
                                     >
-                                      <Plus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                                      <Plus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                                     </button>
                                   </div>
                                 </div>
@@ -694,8 +691,8 @@ export default function MainPOS({
                           type="number"
                           value={item.quantity}
                           onChange={(e) => {
-                            const val = parseInt(e.target.value) || 0;
-                            if (val >= 0) updateQuantity(item.id, val);
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val) && val >= 0) updateQuantity(item.id, val);
                           }}
                           onFocus={(e) => e.target.select()}
                           className="w-9 h-6 text-center text-sm font-bold bg-transparent border-none focus:outline-none"
@@ -944,8 +941,8 @@ export default function MainPOS({
                             type="number"
                             value={item.quantity}
                             onChange={(e) => {
-                              const val = parseInt(e.target.value) || 0;
-                              if (val >= 0) updateQuantity(item.id, val);
+                              const val = parseInt(e.target.value);
+                              if (!isNaN(val) && val >= 0) updateQuantity(item.id, val);
                             }}
                             onFocus={(e) => e.target.select()}
                             className="w-14 h-8 text-center text-lg font-bold bg-transparent border-none focus:outline-none"
@@ -1024,6 +1021,51 @@ export default function MainPOS({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* AI 주문 인식 모달 */}
+      {showAiModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowAiModal(false)}
+        >
+          <div
+            className="w-full overflow-hidden flex flex-col modal-fs-transition animate-modal-up"
+            style={{
+              backgroundColor: 'var(--background)',
+              maxWidth: isAiFullscreen ? '100vw' : '64rem',
+              height: isAiFullscreen ? '100vh' : '95vh',
+              maxHeight: isAiFullscreen ? '100vh' : '90vh',
+              borderRadius: isAiFullscreen ? '0' : '1rem',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <TextAnalyze
+              products={products}
+              onAddToCart={(newItems) => {
+                setCart(prev => {
+                  const merged = [...prev];
+                  for (const newItem of newItems) {
+                    const idx = merged.findIndex(i => i.id === newItem.id && i.price === newItem.price);
+                    if (idx >= 0) {
+                      merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + newItem.quantity };
+                    } else {
+                      merged.push(newItem);
+                    }
+                  }
+                  return merged;
+                });
+                showToast && showToast('상품이 장바구니에 추가되었습니다', 'success');
+              }}
+              formatPrice={formatPrice}
+              priceType={priceType}
+              onBack={() => setShowAiModal(false)}
+              isFullscreen={isAiFullscreen}
+              onToggleFullscreen={toggleAiFullscreen}
+              onClose={() => setShowAiModal(false)}
+            />
           </div>
         </div>
       )}

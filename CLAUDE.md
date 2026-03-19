@@ -1,6 +1,6 @@
 # POS Calculator Web - AI 핸드오프 가이드
 
-> 마지막 업데이트: 2026-03-15
+> 마지막 업데이트: 2026-03-12
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 ---
@@ -35,11 +35,10 @@ npx gh-pages -d dist # GitHub Pages 배포
 
 ## 2. Supabase 연결 정보
 
-- URL: `https://gbhckliupphoqkzffwvd.supabase.co`
+- URL: `https://jubzppndcclhnvgbvrxr.supabase.co`
 - 키: `src/lib/supabase.js`에 하드코딩 (publishable key)
-- 테이블: `orders`, `products`, `customers`, `saved_carts`, `customer_returns`
-- **웹 버전 전용 DB** (2026-03-15 마이그레이션 완료, 기존 `icqxomltplewrhopafpq` 프로젝트에서 이전)
-- 기존 앱 `pos-calculator`와 DB 분리됨
+- 테이블: `orders`, `products`, `customers`, `customer_returns`, `saved_carts`
+- 2026-03-19 새 Supabase 프로젝트로 이전 완료 (이전: icqxomltplewrhopafpq → 현재: jubzppndcclhnvgbvrxr)
 
 ---
 
@@ -48,26 +47,26 @@ npx gh-pages -d dist # GitHub Pages 배포
 ### 핵심 파일
 | 파일 | 줄 수 | 역할 |
 |------|-------|------|
-| `src/App.jsx` | ~800 | 메인 앱. 라우팅, 상태관리, Supabase 실시간 구독, saveOrder 로직 |
+| `src/App.jsx` | ~1045 | 메인 앱. 라우팅, 상태관리, Supabase 실시간 구독, saveOrder, deductStock 로직 |
 | `src/lib/supabase.js` | ~206 | Supabase REST API 래퍼 (CRUD). `Array.isArray(data) ? data[0] : data` 정규화 적용 |
 | `src/lib/priceData.js` | - | 478개 하드코딩 상품 (오프라인 폴백) |
-| `src/lib/utils.js` | ~102 | formatPrice, formatDateTime, getTodayKST, toDateKST 유틸리티 |
-| `src/index.css` | ~234 | CSS 변수 테마, 카드 애니메이션, 프린트 스타일 |
+| `src/lib/utils.js` | ~104 | formatPrice, formatDateTime, getTodayKST, toDateKST, matchesSearchQuery, normalizeText 유틸리티 |
+| `src/index.css` | ~218 | CSS 변수 테마, 카드 애니메이션, 프린트 스타일 |
 
 ### 페이지 (src/pages/)
 | 파일 | 줄 수 | 라우팅 ID | 설명 | 상태 |
 |------|-------|-----------|------|------|
 | `Dashboard.jsx` | 244 | `dashboard` | 대시보드 (통계카드, 최근주문, 바로가기) | 정상 |
-| `MainPOS.jsx` | 1028 | `pos` | POS 계산기 (상품그리드 + 장바구니 + 주문확인) | **핵심 기능**, 정상 |
-| `OrderHistory.jsx` | 809 | `orders` | 주문 내역 조회/필터/삭제 | 정상 |
-| `OrderDetail.jsx` | 1385 | (모달) | 주문 상세 보기/수정/인쇄/제품교체 | 정상 |
-| `SavedCarts.jsx` | 1215 | `saved-carts` | 저장된 장바구니 관리 | 정상 |
-| `CustomerList.jsx` | 1073 | `customers` | 거래처 목록/상세/주문이력/반품 | 정상 |
-| `StockOverview.jsx` | 338 | `stock` | 재고 현황 테이블 | 정상 |
-| `BurnwayStock.jsx` | ~523 | `burnway-stock` | 번웨이 다운파이프 재고 (대시보드 카드 스타일) | 정상 |
-| `ShippingLabel.jsx` | 1217 | `shipping` | 택배 송장 출력/관리 | 정상 |
-| `TextAnalyze.jsx` | 851 | `ai-order` | AI 텍스트 주문 인식 | 정상 |
-| `AdminPage.jsx` | 1575 | `admin` | 관리자 패널 (비번: `dpfldl1!`) | 정상 |
+| `MainPOS.jsx` | 1074 | `pos` | POS 계산기 (상품그리드 + 장바구니 + 주문확인) | **핵심 기능**, 정상 |
+| `OrderHistory.jsx` | 839 | `orders` | 주문 내역 조회/필터/삭제/반품필터 | 정상 |
+| `OrderDetail.jsx` | 1420 | (모달) | 주문 상세 보기/수정/인쇄/제품교체/배송정보복사 | 정상 |
+| `SavedCarts.jsx` | 1314 | `saved-carts` | 저장된 장바구니 관리 | 정상 |
+| `CustomerList.jsx` | 1100 | `customers` | 거래처 목록/상세/주문이력/반품/배송정보복사 | 정상 |
+| `StockOverview.jsx` | 341 | `stock` | 재고 현황 테이블 | 정상 |
+| `BurnwayStock.jsx` | 562 | `burnway-stock` | 번웨이 다운파이프 재고 (대시보드 카드 스타일) | 정상 |
+| `ShippingLabel.jsx` | 1238 | `shipping` | 택배 송장 출력/관리 | 정상 |
+| `TextAnalyze.jsx` | 1216 | `ai-order` | AI 텍스트 주문 인식 | 정상 |
+| `AdminPage.jsx` | 2203 | `admin` | 관리자 패널 (비번: `4321`) | 정상 |
 | `OrderPage.jsx` | 1000 | - | (미사용 레거시) | 미사용 |
 | `SaveCartModal.jsx` | 289 | (모달) | 장바구니 저장 모달 | 정상 |
 | `QuickCalculator.jsx` | 298 | (모달) | 빠른 계산기 | 정상 |
@@ -76,7 +75,7 @@ npx gh-pages -d dist # GitHub Pages 배포
 ### 레이아웃 (src/components/layout/)
 | 파일 | 역할 |
 |------|------|
-| `AppLayout.jsx` | 사이드바 + 헤더 + 메인 래퍼. 풀스크린 페이지 자동 감지 |
+| `AppLayout.jsx` | 사이드바 + 헤더 + 메인 래퍼. 풀스크린 페이지 자동 감지. toggle-sidebar 이벤트 |
 | `Sidebar.jsx` | 데스크톱 좌측 사이드바 (텍스트 로고 + 10개 메뉴 + 빠른 계산기) |
 | `MobileNav.jsx` | 모바일 하단 네비게이션 (6개 메뉴, POS에서 숨김) |
 | `Header.jsx` | 상단 헤더 (페이지 타이틀, 모바일 햄버거 메뉴) |
@@ -104,14 +103,14 @@ npx gh-pages -d dist # GitHub Pages 배포
 - 풀스크린 페이지는 AppLayout의 state에 직접 접근 불가
 - **Custom DOM Event 패턴** 사용:
 ```javascript
-// 페이지에서 사이드바 열기
-window.dispatchEvent(new CustomEvent('open-sidebar'));
+// 페이지에서 사이드바 토글 (열기/닫기)
+window.dispatchEvent(new CustomEvent('toggle-sidebar'));
 
 // AppLayout에서 수신
 useEffect(() => {
-  const handler = () => setSidebarOpen(true);
-  window.addEventListener('open-sidebar', handler);
-  return () => window.removeEventListener('open-sidebar', handler);
+  const toggleHandler = () => setSidebarOpen(prev => !prev);
+  window.addEventListener('toggle-sidebar', toggleHandler);
+  return () => window.removeEventListener('toggle-sidebar', toggleHandler);
 }, []);
 ```
 
@@ -120,7 +119,7 @@ useEffect(() => {
   - **모바일**: 메뉴(≡) 버튼 → 사이드바 열기
   - **데스크톱**: 뒤로가기(←) 버튼 → 대시보드로 이동
 ```jsx
-<button className="md:hidden" onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}>
+<button className="md:hidden" onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}>
   <Menu />
 </button>
 <button className="hidden md:flex" onClick={() => setCurrentPage('dashboard')}>
@@ -187,16 +186,130 @@ useEffect(() => {
 - 상세 모달의 타입별 재고, 개별 제품 리스트에서도 자바라는 "개" 단위 표시
 - 다운파이프(촉매/직관)는 기존대로 "세트" 유지
 
-### 2026-03-15 작업 내역
+### 2026-03-12 작업 내역
 
-#### Supabase 마이그레이션
-- **원인**: 기존 Supabase 프로젝트(`icqxomltplewrhopafpq`) egress 쿼터 초과로 API 차단 (HTTP 402)
-- **원인 분석**: 기존 앱(`pos-calculator`)과 웹 버전이 같은 DB를 공유하여 트래픽 합산 초과
-- **조치**: 새 Supabase 계정/프로젝트(`gbhckliupphoqkzffwvd`)로 완전 이전
-- **이전 데이터**: products 583건, customers 117건, orders 144건, saved_carts 2건, customer_returns 8건
-- **데이터 손실**: 없음 (건수 100% 일치 검증 완료)
-- **코드 변경**: `src/lib/supabase.js`의 URL/KEY만 변경
-- **주의**: 기존 앱(`pos-calculator`)과 DB가 분리되었으므로, 기존 앱은 별도 DB 연결 필요
+#### QuickCalculator 상태 버그 수정
+- `inputDigit`에서 `setDisplay` 콜백 안에서 `setWaitingForOperand` 호출하던 사이드이펙트 수정
+- 함수 바깥에서 상태 업데이트하도록 변경
+
+#### AI 주문 인식 검색 로직 통일 (TextAnalyze.jsx)
+- **문제**: TextAnalyze의 로컬 `matchesSearchQuery`가 단순 `includes` 방식이라 띄어쓰기/특수문자 검색이 안 됨
+- **해결**: 로컬 함수 삭제 → `@/lib/utils`의 `matchesSearchQuery` import (subsequence matching, 멀티워드, `[\s\-_]` 제거)
+- 제품 직접 추가 검색(line 632)도 `matchesSearchQuery` 사용으로 변경
+
+#### 재고 부족 시 주문 허용 (MainPOS.jsx)
+- **이전**: 재고 초과 시 `return`으로 주문 차단
+- **현재**: 경고 토스트만 표시하고 주문은 계속 가능
+- `addToCart`, `updateQuantity` 모두 적용
+
+#### 주문 시 실시간 재고 차감 (App.jsx)
+- `deductStock(items)` 함수 추가: `supabase.updateProduct(id, { stock: newStock })` 호출
+- `saveOrder` 성공 후 `await deductStock(items)` 실행 (신규/병합 주문 모두)
+- 로컬 `setProducts` 즉시 업데이트로 BurnwayStock 등에 실시간 반영
+
+#### 배송 정보 복사 기능
+- **거래처 관리 (CustomerList.jsx)**: 전화번호/주소 개별 복사 + "배송 정보 복사" 통합 버튼
+- **주문 내역 상세 (OrderDetail.jsx)**: 전화번호/주소 개별 복사 + "배송 정보 복사" 통합 버튼
+- `showToast` prop을 App.jsx → OrderDetail에 전달하도록 추가
+- 복사 양식: `업체명 : OOO\n연락처 : 010-XXXX\n주소지 : OOO`
+
+#### 모바일 사이드바 토글 개선
+- **이전**: 메뉴(≡) 버튼으로 열기만 가능, 닫으려면 배경 클릭 필요
+- **현재**: 메뉴 버튼 다시 누르면 사이드바 닫힘 (토글 동작)
+- `AppLayout.jsx`: `toggle-sidebar` 커스텀 이벤트 추가, Header의 `onMenuClick`도 토글로 변경
+- 7개 풀스크린 페이지 모두 `open-sidebar` → `toggle-sidebar` 변경
+
+#### 주문 내역 반품 필터 기능 (OrderHistory.jsx)
+- 상단 헤더의 반품 카드 클릭 시 반품 내역만 필터링 (토글)
+- `showReturnsOnly` state 추가, `filteredOrders`에 `.filter()` 체인 추가
+- 반품 카드: `<div>` → `<button>` 변환, 활성 시 진한 warning 배경 + "필터 ON" 표시
+
+#### 모바일 사이드바 z-index 충돌 수정
+- **문제**: 모바일 사이드바(`z-40 fixed`)와 풀스크린 페이지 sticky 헤더(`z-40 sticky`)가 같은 z-index → 갤럭시 폴드 등에서 헤더가 사이드바를 가림
+- **근본 원인**: `index.css`의 `will-change: scroll-position`이 `main` 태그에 적용되어 새로운 stacking context 생성
+- **수정 1**: `index.css`에서 `will-change: scroll-position` 제거
+- **수정 2**: `AppLayout.jsx` 모바일 사이드바 `z-40` → `z-[45]`로 상향
+
+#### 택배 송장 모바일 레이아웃 최적화 (ShippingLabel.jsx)
+- **문제**: 소형 화면(갤럭시 폴드 280px, 아이폰 SE 375px)에서 하단 버튼 3개가 화면 절반 차지
+- **수정**:
+  - 선택 현황 + 보내는 곳별 현황: 세로 2블록 → **가로 2열** (`grid-cols-2 sm:grid-cols-1`)
+  - CSV/Excel/인쇄 버튼: 세로 3블록 → **가로 3열** (`grid-cols-3 sm:grid-cols-1`) + 텍스트 축약
+  - 패딩/폰트 반응형: `p-3 sm:p-4`, `text-xs sm:text-sm`
+
+### 2026-03-19 작업 내역
+
+#### Supabase egress quota 초과 장애 및 API 최적화 (App.jsx)
+- **장애**: Supabase Free 플랜 egress quota(5GB/월) 초과 → HTTP 402 전면 차단
+- **원인**: 과도한 API 호출 패턴 (하루 ~1,080회 전체 테이블 조회)
+- **조치**: Pro 플랜 업그레이드($25/월) + Spend cap 해제 + 서포트 제한 해제 요청 중
+- **다음 달 Free로 다운그레이드 예정** (최적화 후 월 ~0.5GB로 충분)
+
+#### API 호출 최적화 3가지 (App.jsx만 수정)
+1. **visibilitychange 쓰로틀링**: 탭 전환 시 30초 이내 재호출 차단
+   - `lastFetchRef = useRef(0)` + `FETCH_THROTTLE_MS = 30000` 추가
+   - `handleVisibility`에서 `Date.now() - lastFetchRef.current < FETCH_THROTTLE_MS` 체크
+2. **폴링 주기 연장**: 2분(120000) → 5분(300000)
+3. **WebSocket 이벤트 개별 반영**: 전체 테이블 재조회 제거
+   - INSERT: `payload.record`를 로컬 state에 직접 추가
+   - UPDATE: `payload.record`로 해당 항목만 교체
+   - DELETE: `payload.old_record.id`로 해당 항목만 제거
+   - 4개 테이블(orders, products, customers, saved_carts) 모두 적용
+
+#### 예상 트래픽 감소
+| 항목 | 최적화 전 | 최적화 후 |
+|------|----------|----------|
+| 일간 API 호출 | ~1,080회 | ~232회 (-78%) |
+| 월간 트래픽 | 5GB+ (초과) | ~0.5GB |
+
+> **2026-03-19 배포 완료**
+
+#### Supabase 프로젝트 이전 (2026-03-19)
+- **이전 프로젝트**: `icqxomltplewrhopafpq` (egress 초과로 차단됨, 별도 계정)
+- **새 프로젝트**: `jubzppndcclhnvgbvrxr` (Free 플랜, lyjcg0604@naver 계정)
+- **작업 내용**:
+  - 새 프로젝트에 테이블 5개 생성 (products, customers, orders, customer_returns, saved_carts)
+  - D드라이브 CSV 원본 → REST API 벌크 insert로 데이터 864건 이전
+  - `App.jsx:186-187` WebSocket URL/키를 새 프로젝트로 변경
+  - `supabase.js`는 이미 새 프로젝트 URL이었음 (변경 불필요)
+  - RLS 정책 + Realtime 구독 설정 완료
+- **스키마 참고**: customers.id는 TEXT(UUID), customer_returns는 items JSONB 형식
+- **데이터 검증**: 브라우저 테스트 완료 (products 585, customers 117, orders 152, customer_returns 8, saved_carts 2)
+
+#### AI 주문 인식 개선 (TextAnalyze.jsx) (2026-03-19)
+- **가변소음기 세트 규칙**: "63h 2개" → TVB 64 h 좌,우 1세트 (qty:1). h/Y + 2개 = 1세트 매칭
+  - 4개 = 2세트, 1개 = L 또는 R 개별 매칭
+  - 내경 63→64 자동 매핑 (제품에 63 없고 64 있음)
+- **직관 레조 = CH 뻥레조**: "직관 레조", "직관레조" → CH 제품으로 매칭 (일반 레조 아님)
+  - "일반 레조" / 단순 "레조" → 진짜 일반 레조
+- **변경 위치**: Gemini 프롬프트 규칙/동의어표/예시, synonyms 맵
+- 동의어 추가: 직관레조→CH, 가변소음기→TVB, 가변→TVB
+
+#### AI 재고 관리 기능 추가 (AdminPage.jsx) (2026-03-19)
+- **위치**: 관리자 페이지 → 'AI 입고' 탭 (TABS 배열에 추가)
+- **기능**: 자연어 텍스트 → Gemini AI 파싱 → 제품 매칭 → 확인 후 일괄 재고 업데이트
+- **동작 종류**: 입고(add), 출고(subtract), 설정(set) - 기본값 입고
+- **플로우**: 텍스트 입력 → AI 분석 → 결과 확인(현재재고→변경후재고 표시) → 일괄 적용
+- **재사용**: TextAnalyze.jsx의 Gemini 호출 패턴, synonyms, calculateMatchScore, findProduct 로직
+- **컴포넌트**: `AIStockTab` (AdminPage.jsx 내부 함수형 컴포넌트)
+
+#### 백업/복구 방법
+- **현재 배포 버전**: AI 재고 관리 추가 (2026-03-19)
+- **이전 배포 버전**: Supabase 이전 + AI 인식 개선 (2026-03-19)
+- **그 이전 배포 버전**: 최적화 미적용 (2026-03-11, gh-pages 브랜치에 기록)
+
+#### 전체 점검 결과 요약 (에이전트 3개 투입)
+- **빌드**: 정상 (에러 0건)
+- **코드 품질**: 62/100 (code-analyzer)
+- **설계-구현 일치율**: 90% (gap-detector)
+- **보안**: Critical 3건 (Gemini API 키 노출, RLS 미확인, 인증 부재)
+- **핵심 기능**: 100% 구현 완료
+
+#### 발견된 추가 이슈 (미수정, 향후 작업)
+- **[Critical]** TextAnalyze.jsx:44 - Gemini API 키 Base64 노출 → 즉시 revoke 필요
+- **[High]** OrderDetail.jsx, ShippingLabel.jsx - `document.write()` XSS 취약점
+- **[Medium]** supabase.js:206 - 미사용 `ADMIN_PASSWORD = '1234'` 잔존
+- **[Info]** shippingCount와 todayOrderCount가 동일 로직 중복
 
 ---
 
@@ -211,6 +324,16 @@ useEffect(() => {
 ### 반응형 기준
 - 모바일: < 768px (하단 네비, 1열 레이아웃)
 - 데스크톱: >= 768px (좌측 사이드바 256px + 유동 콘텐츠)
+
+### z-index 계층 구조
+| z-index | 요소 | 위치 |
+|---------|------|------|
+| z-50 | 모달/다이얼로그 | 각 페이지 내 fixed 모달 |
+| z-[45] | 모바일 사이드바 오버레이 | AppLayout.jsx |
+| z-40 | 풀스크린 페이지 sticky 헤더 | OrderHistory, CustomerList, ShippingLabel 등 |
+| z-30 | 모바일 하단 네비게이션 | MobileNav.jsx |
+
+> **주의**: `will-change`, `transform` 등 stacking context를 생성하는 CSS를 `main`, `nav`, `aside`에 적용하면 z-index 비교가 깨짐. `index.css`에서 `will-change: scroll-position` 제거한 이유.
 
 ### 주요 CSS 클래스 (index.css)
 - `.card-interactive` - 카드 호버/클릭 spring 애니메이션
@@ -275,15 +398,21 @@ App.jsx (상태 관리)
 
 ### 모바일 (390x844 기준)
 - [x] 모든 풀스크린 페이지 메뉴 버튼 동작
-- [x] 사이드바 열기/닫기
+- [x] 사이드바 열기/닫기 (메뉴 버튼 토글)
+- [x] 사이드바가 sticky 헤더 위에 정상 표시 (z-[45] > z-40)
 - [x] 하단 네비게이션 정상
 - [x] 스크롤 잠김 없음
 - [x] 번웨이 카드/모달 정상
+- [x] 배송 정보 복사 (거래처 관리, 주문 상세)
+- [x] 재고 부족 시 주문 허용 (경고만 표시)
+- [x] 주문 후 재고 실시간 차감
+- [x] 주문 내역 반품 카드 클릭 필터
+- [x] 택배 송장 소형 화면 레이아웃 (280px~375px 검증)
 
 ---
 
 ## 10. 원본 프로젝트 참조
 
-- 기존 앱: `C:\Users\MOVEAM_PC\pos-calculator` (DB 분리됨 - 기존 Supabase `icqxomltplewrhopafpq`)
+- 기존 앱: `C:\Users\MOVEAM_PC\pos-calculator` (같은 Supabase DB)
 - GitHub Pages: `https://aijunny0604-alt.github.io/pos-calculator/`
 - 인라인 편집, 제품 복사 등 기존 앱 기능을 참조하여 웹 버전으로 포팅함

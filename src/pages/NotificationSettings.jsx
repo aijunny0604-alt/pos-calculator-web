@@ -90,7 +90,7 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-5 flex-1 overflow-y-auto">
           {/* Enable toggle */}
           <div
             className="rounded-xl p-4 border"

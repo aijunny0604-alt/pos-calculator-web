@@ -60,13 +60,12 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
   }, [onClose]);
 
   const inputDigit = (digit) => {
-    setDisplay((prev) => {
-      if (waitingForOperand) {
-        setWaitingForOperand(false);
-        return digit;
-      }
-      return prev === '0' ? digit : prev + digit;
-    });
+    if (waitingForOperand) {
+      setDisplay(digit);
+      setWaitingForOperand(false);
+    } else {
+      setDisplay((prev) => prev === '0' ? digit : prev + digit);
+    }
   };
 
   const inputDot = () => {

@@ -9,6 +9,9 @@ import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 
+// Safe price getter - fallback for items without price field
+const getItemPrice = (item) => item.price ?? item.wholesale ?? 0;
+
 export default function OrderDetail({
   isOpen,
   onClose,
@@ -17,6 +20,7 @@ export default function OrderDetail({
   products = [],
   onSaveCustomerReturn,
   onDeleteCustomerReturn,
+  showToast,
 }) {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -124,7 +128,7 @@ export default function OrderDetail({
   if (!isOpen || !order || !editedOrder) return null;
 
   const currentItems = isEditing ? editedOrder.items : order.items;
-  const currentTotal = currentItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const currentTotal = currentItems.reduce((sum, item) => sum + (getItemPrice(item) * item.quantity), 0);
   const totalQuantity = currentItems.reduce((sum, item) => sum + item.quantity, 0);
   const exVat = calcExVat(currentTotal);
   const vat = currentTotal - exVat;
@@ -251,7 +255,7 @@ export default function OrderDetail({
       return;
     }
 
-    const returnTotal = itemsToReturn.reduce((sum, item) => sum + (item.price * item.returnQuantity), 0);
+    const returnTotal = itemsToReturn.reduce((sum, item) => sum + (getItemPrice(item) * item.returnQuantity), 0);
     const returnId = `RET-${Date.now()}`;
     const returnedAt = new Date().toISOString();
 
@@ -259,9 +263,9 @@ export default function OrderDetail({
       returnId,
       itemId: item.id,
       itemName: item.name,
-      price: item.price,
+      price: getItemPrice(item),
       quantity: item.returnQuantity,
-      total: item.price * item.returnQuantity,
+      total: getItemPrice(item) * item.returnQuantity,
       returnedAt,
     }));
 
@@ -272,7 +276,11 @@ export default function OrderDetail({
       updatedAt: new Date().toISOString(),
     };
 
-    if (onUpdateOrder) onUpdateOrder(updatedOrder);
+    if (onUpdateOrder) onUpdateOrder(order.id || order.orderNumber, {
+      returns: updatedOrder.returns,
+      totalReturned: updatedOrder.totalReturned,
+      updatedAt: updatedOrder.updatedAt,
+    });
 
     if (onSaveCustomerReturn && order.customerName) {
       const customerReturnData = {
@@ -312,13 +320,17 @@ export default function OrderDetail({
       updatedAt: new Date().toISOString(),
     };
 
-    if (onUpdateOrder) onUpdateOrder(updatedOrder);
+    if (onUpdateOrder) onUpdateOrder(order.id || order.orderNumber, {
+      returns: updatedOrder.returns,
+      totalReturned: updatedOrder.totalReturned,
+      updatedAt: updatedOrder.updatedAt,
+    });
     if (onDeleteCustomerReturn) await onDeleteCustomerReturn(returnId);
 
     setDeletingReturnId(null);
   };
 
-  const returnTotal = returnItems.reduce((sum, item) => sum + (item.price * item.returnQuantity), 0);
+  const returnTotal = returnItems.reduce((sum, item) => sum + (getItemPrice(item) * item.returnQuantity), 0);
 
   // Generate order text
   const generateOrderText = () => {
@@ -331,7 +343,7 @@ export default function OrderDetail({
     text += `[ 상품 목록 ]\n\n`;
     order.items.forEach((item, index) => {
       text += `${index + 1}. ${item.name}\n`;
-      text += `   ${formatPrice(item.price)}원 × ${item.quantity}개 = ${formatPrice(item.price * item.quantity)}원\n\n`;
+      text += `   ${formatPrice(getItemPrice(item))}원 × ${item.quantity}개 = ${formatPrice(getItemPrice(item) * item.quantity)}원\n\n`;
     });
     text += `[ 결제 정보 ]\n\n`;
     text += `총 수량: ${totalQuantity}개\n`;
@@ -390,7 +402,7 @@ export default function OrderDetail({
             <thead><tr><th>No</th><th>상품명</th><th>단가</th><th>수량</th><th>금액</th></tr></thead>
             <tbody>
               ${order.items.map((item, index) => `
-                <tr><td>${index + 1}</td><td>${escapeHtml(item.name)}</td><td>${formatPrice(item.price)}원</td><td>${item.quantity}</td><td>${formatPrice(item.price * item.quantity)}원</td></tr>
+                <tr><td>${index + 1}</td><td>${escapeHtml(item.name)}</td><td>${formatPrice(getItemPrice(item))}원</td><td>${item.quantity}</td><td>${formatPrice(getItemPrice(item) * item.quantity)}원</td></tr>
               `).join('')}
             </tbody>
           </table>
@@ -544,7 +556,18 @@ export default function OrderDetail({
                   <Phone className="w-4 h-4" style={{ color: 'var(--success)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>전화번호</div>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>전화번호</div>
+                    {!isEditing && order.customerPhone && (
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(order.customerPhone); showToast?.('전화번호 복사됨', 'success'); }}
+                        className="p-0.5 rounded hover:bg-[var(--accent)] transition-colors"
+                        title="전화번호 복사"
+                      >
+                        <Copy className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                      </button>
+                    )}
+                  </div>
                   {isEditing ? (
                     <input
                       type="text"
@@ -574,7 +597,18 @@ export default function OrderDetail({
                   <MapPin className="w-4 h-4" style={{ color: 'var(--warning)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>배송주소</div>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>배송주소</div>
+                    {!isEditing && order.customerAddress && (
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(order.customerAddress); showToast?.('주소 복사됨', 'success'); }}
+                        className="p-0.5 rounded hover:bg-[var(--accent)] transition-colors"
+                        title="주소 복사"
+                      >
+                        <Copy className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                      </button>
+                    )}
+                  </div>
                   {isEditing ? (
                     <textarea
                       value={editedOrder.customerAddress || ''}
@@ -591,6 +625,27 @@ export default function OrderDetail({
                   )}
                 </div>
               </div>
+
+              {/* 배송 정보 통합 복사 */}
+              {!isEditing && (order.customerPhone || order.customerAddress) && (
+                <div className="md:col-span-2 flex justify-end">
+                  <button
+                    onClick={() => {
+                      const parts = [];
+                      if (order.customerName) parts.push(`업체명 : ${order.customerName}`);
+                      if (order.customerPhone) parts.push(`연락처 : ${order.customerPhone}`);
+                      if (order.customerAddress) parts.push(`주소지 : ${order.customerAddress}`);
+                      navigator.clipboard.writeText(parts.join('\n'));
+                      showToast?.('배송 정보 복사됨', 'success');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--accent)]"
+                    style={{ color: 'var(--primary)', border: '1px solid var(--border)' }}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    배송 정보 복사
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -827,11 +882,11 @@ export default function OrderDetail({
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div className="rounded-lg p-2" style={{ background: 'var(--muted)' }}>
                           <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>단가</div>
-                          <div className="font-medium" style={{ color: 'var(--foreground)' }}>{formatPrice(item.price)}원</div>
+                          <div className="font-medium" style={{ color: 'var(--foreground)' }}>{formatPrice(getItemPrice(item))}원</div>
                         </div>
                         <div className="rounded-lg p-2" style={{ background: 'var(--muted)' }}>
                           <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>금액</div>
-                          <div className="font-bold" style={{ color: 'var(--primary)' }}>{formatPrice(item.price * item.quantity)}원</div>
+                          <div className="font-bold" style={{ color: 'var(--primary)' }}>{formatPrice(getItemPrice(item) * item.quantity)}원</div>
                         </div>
                       </div>
 
@@ -893,7 +948,7 @@ export default function OrderDetail({
                           )}
                         </div>
                         <div className="col-span-2 text-right text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                          {formatPrice(item.price)}원
+                          {formatPrice(getItemPrice(item))}원
                         </div>
                         <div className={`${isEditing ? 'col-span-2' : 'col-span-1'} text-center`}>
                           {isEditing ? (
@@ -921,7 +976,7 @@ export default function OrderDetail({
                           )}
                         </div>
                         <div className="col-span-2 text-right font-bold text-sm" style={{ color: 'var(--primary)' }}>
-                          {formatPrice(item.price * item.quantity)}원
+                          {formatPrice(getItemPrice(item) * item.quantity)}원
                         </div>
                         {isEditing && (
                           <div className="col-span-1 flex justify-center">

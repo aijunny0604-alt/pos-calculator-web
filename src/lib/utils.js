@@ -18,6 +18,7 @@ export const handleSearchFocus = (e) => e.target.select();
 
 export const matchesSearchQuery = (productName, searchTerm) => {
   if (!searchTerm || !searchTerm.trim()) return true;
+  if (!productName) return false;
   const normalizedName = normalizeText(productName);
   const normalizedSearch = normalizeText(searchTerm);
   if (normalizedName.includes(normalizedSearch)) return true;
@@ -74,7 +75,8 @@ export const calcExVat = (price) => Math.round(price / 1.1);
 // 한국시간(KST) 기준 오늘 날짜 (YYYY-MM-DD)
 export const getTodayKST = () => {
   const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const utc = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
+  const kst = new Date(utc + 9 * 60 * 60 * 1000);
   return kst.toISOString().split('T')[0];
 };
 
@@ -82,7 +84,8 @@ export const getTodayKST = () => {
 export const toDateKST = (dateString) => {
   if (!dateString) return '';
   const d = new Date(dateString);
-  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const utc = d.getTime() + d.getTimezoneOffset() * 60 * 1000;
+  const kst = new Date(utc + 9 * 60 * 60 * 1000);
   return kst.toISOString().split('T')[0];
 };
 

@@ -32,6 +32,10 @@ export default function App() {
   const [savedCarts, setSavedCarts] = useState([]);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
 
+  // ─── API 호출 쓰로틀링 (egress 최적화) ─────────────────────
+  const lastFetchRef = useRef(0);
+  const FETCH_THROTTLE_MS = 30000; // 30초
+
   // ─── POS state ────────────────────────────────────────────────
   const [cart, setCart] = useState([]);
 
@@ -179,8 +183,8 @@ export default function App() {
     if (!supabaseConnected) return;
 
     // Derive WSS URL from Supabase REST URL
-    const supabaseUrl = 'https://icqxomltplewrhopafpq.supabase.co';
-    const supabaseKey = 'sb_publishable_YB9UnUwuMql8hUGHgC0bsg_DhrAxpji';
+    const supabaseUrl = 'https://jubzppndcclhnvgbvrxr.supabase.co';
+    const supabaseKey = 'sb_publishable_td4p48nPHKjXByMngvyjZQ_AJttp5KU';
     const wsUrl =
       supabaseUrl.replace('https://', 'wss://') +
       '/realtime/v1/websocket?apikey=' +
@@ -205,18 +209,43 @@ export default function App() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (['INSERT', 'UPDATE', 'DELETE'].includes(msg.event)) {
-          const table = msg.topic?.split(':')[2];
-          if (table === 'orders') {
-            supabase.getOrders().then((d) => d && setOrders(d.map(formatOrder)));
-          } else if (table === 'products') {
-            supabase.getProducts().then((d) => {
-              if (d && d.length > 0) setProducts(d);
-            });
-          } else if (table === 'customers') {
-            supabase.getCustomers().then((d) => d && setCustomers(d));
-          } else if (table === 'saved_carts') {
-            supabase.getSavedCarts().then((d) => d && setSavedCarts(d));
+        const evt = msg.event;
+        if (!['INSERT', 'UPDATE', 'DELETE'].includes(evt)) return;
+        const table = msg.topic?.split(':')[2];
+        const record = msg.payload?.record;
+        const oldRecord = msg.payload?.old_record;
+
+        if (table === 'orders') {
+          if (evt === 'INSERT' && record) {
+            setOrders((prev) => [formatOrder(record), ...prev]);
+          } else if (evt === 'UPDATE' && record) {
+            setOrders((prev) => prev.map((o) => o.id === record.id ? formatOrder(record) : o));
+          } else if (evt === 'DELETE' && oldRecord) {
+            setOrders((prev) => prev.filter((o) => o.id !== oldRecord.id));
+          }
+        } else if (table === 'products') {
+          if (evt === 'INSERT' && record) {
+            setProducts((prev) => [...prev, record]);
+          } else if (evt === 'UPDATE' && record) {
+            setProducts((prev) => prev.map((p) => p.id === record.id ? record : p));
+          } else if (evt === 'DELETE' && oldRecord) {
+            setProducts((prev) => prev.filter((p) => p.id !== oldRecord.id));
+          }
+        } else if (table === 'customers') {
+          if (evt === 'INSERT' && record) {
+            setCustomers((prev) => [...prev, record]);
+          } else if (evt === 'UPDATE' && record) {
+            setCustomers((prev) => prev.map((c) => c.id === record.id ? record : c));
+          } else if (evt === 'DELETE' && oldRecord) {
+            setCustomers((prev) => prev.filter((c) => c.id !== oldRecord.id));
+          }
+        } else if (table === 'saved_carts') {
+          if (evt === 'INSERT' && record) {
+            setSavedCarts((prev) => [record, ...prev]);
+          } else if (evt === 'UPDATE' && record) {
+            setSavedCarts((prev) => prev.map((c) => c.id === record.id ? record : c));
+          } else if (evt === 'DELETE' && oldRecord) {
+            setSavedCarts((prev) => prev.filter((c) => c.id !== oldRecord.id));
           }
         }
       } catch (err) {
@@ -241,8 +270,30 @@ export default function App() {
       }
     }, 30000);
 
+    // 폴링 백업 (WebSocket 연결 실패 대비, 5분마다)
+    const pollInterval = setInterval(() => {
+      supabase.getOrders().then((d) => d && setOrders(d.map(formatOrder)));
+      supabase.getSavedCarts().then((d) => d && setSavedCarts(d));
+    }, 300000);
+
+    // 탭 포커스 복귀 시 갱신 (30초 쓰로틀링 적용)
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        const now = Date.now();
+        if (now - lastFetchRef.current < FETCH_THROTTLE_MS) return;
+        lastFetchRef.current = now;
+        supabase.getOrders().then((d) => d && setOrders(d.map(formatOrder)));
+        supabase.getProducts().then((d) => d && d.length > 0 && setProducts(d));
+        supabase.getCustomers().then((d) => d && setCustomers(d));
+        supabase.getSavedCarts().then((d) => d && setSavedCarts(d));
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       clearInterval(heartbeat);
+      clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', handleVisibility);
       ws.close();
     };
   }, [supabaseConnected]);
@@ -287,6 +338,19 @@ export default function App() {
     const data = await supabase.getSavedCarts();
     if (data) setSavedCarts(data);
   }, []);
+
+  // ─── 재고 차감 ───────────────────
+  const deductStock = useCallback(async (items) => {
+    for (const item of items) {
+      const product = products.find(p => p.id === item.id);
+      if (!product || product.stock === undefined || product.stock === null) continue;
+      const newStock = Math.max(0, product.stock - (item.quantity || 1));
+      const updated = await supabase.updateProduct(product.id, { stock: newStock });
+      if (updated) {
+        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
+      }
+    }
+  }, [products]);
 
   // ─── Save order (with same-day merge logic) ───────────────────
   const saveOrder = useCallback(
@@ -350,6 +414,8 @@ export default function App() {
           });
           if (updated) {
             await refreshOrders();
+            // 재고 차감 (새로 추가된 items만)
+            await deductStock(items);
             setCartWithHistory([]);
             showToast('기존 주문에 합산되었습니다', 'success');
             return updated;
@@ -358,7 +424,7 @@ export default function App() {
       }
 
       // New order
-      const orderId = orderData.orderNumber || orderData.id || `ORD-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(Math.floor(Math.random()*10000)).padStart(4,'0')}`;
+      const orderId = orderData.orderNumber || orderData.id || `ORD-${getTodayKST().replace(/-/g,'')}-${String(Math.floor(Math.random()*10000)).padStart(4,'0')}`;
       const created = await supabase.saveOrder({
         id: orderId,
         customer_name,
@@ -374,6 +440,8 @@ export default function App() {
 
       if (created) {
         await refreshOrders();
+        // 재고 차감
+        await deductStock(items);
         setCartWithHistory([]);
         showToast('주문이 저장되었습니다', 'success');
       } else {
@@ -939,6 +1007,7 @@ export default function App() {
           products={products}
           onSaveCustomerReturn={handleSaveCustomerReturn}
           onDeleteCustomerReturn={handleDeleteCustomerReturn}
+          showToast={showToast}
         />
       )}
 

@@ -195,7 +195,7 @@ export default function CustomerList({
               ) : (
                 <>
                   <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+                    onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
                     className="md:hidden p-2 rounded-lg transition-colors hover:bg-[var(--accent)]"
                   >
                     <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
@@ -346,13 +346,37 @@ export default function CustomerList({
                     <div className="flex items-center gap-2">
                       <Phone className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
                       <span>{selectedCustomer.phone}</span>
+                      <button onClick={() => { navigator.clipboard.writeText(selectedCustomer.phone); showToast?.('전화번호 복사됨', 'success'); }} className="p-1 rounded hover:bg-[var(--accent)] transition-colors" title="전화번호 복사">
+                        <Copy className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
+                      </button>
                     </div>
                   )}
                   {selectedCustomer.address && (
                     <div className="flex items-center gap-2 flex-1">
                       <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
                       <span className="text-[var(--muted-foreground)]">{selectedCustomer.address}</span>
+                      <button onClick={() => { navigator.clipboard.writeText(selectedCustomer.address); showToast?.('주소 복사됨', 'success'); }} className="p-1 rounded hover:bg-[var(--accent)] transition-colors" title="주소 복사">
+                        <Copy className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
+                      </button>
                     </div>
+                  )}
+                  {(selectedCustomer.phone || selectedCustomer.address) && (
+                    <button
+                      onClick={() => {
+                        const parts = [];
+                          if (selectedCustomer.name) parts.push(`업체명 : ${selectedCustomer.name}`);
+                          if (selectedCustomer.phone) parts.push(`연락처 : ${selectedCustomer.phone}`);
+                          if (selectedCustomer.address) parts.push(`주소지 : ${selectedCustomer.address}`);
+                          const info = parts.join('\n');
+                        navigator.clipboard.writeText(info);
+                        showToast?.('배송 정보 복사됨', 'success');
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--accent)]"
+                      style={{ color: 'var(--primary)', border: '1px solid var(--border)' }}
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      배송 정보 복사
+                    </button>
                   )}
                 </div>
                 {selectedCustomer.memo && (

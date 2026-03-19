@@ -4,7 +4,7 @@ import {
   Printer, Check, Maximize2, Minimize2
 } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
-import { formatPrice, escapeHtml, handleSearchFocus } from '@/lib/utils';
+import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
@@ -51,11 +51,14 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onBack();
+      if (e.key === 'Escape') {
+        if (showAddCustomModal) { setShowAddCustomModal(false); return; }
+        onBack();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onBack]);
+  }, [onBack, showAddCustomModal]);
 
   useEffect(() => {
     if (refreshCustomers) refreshCustomers();
@@ -102,20 +105,20 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
   // -- Filtering --
 
   const safeOrders = orders || [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const weekAgo = new Date(today);
-  weekAgo.setDate(weekAgo.getDate() - 7);
+  const todayKST = getTodayKST();
+  const yesterdayDate = new Date(todayKST + 'T00:00:00+09:00');
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayKST = yesterdayDate.toISOString().split('T')[0];
+  const weekAgoDate = new Date(todayKST + 'T00:00:00+09:00');
+  weekAgoDate.setDate(weekAgoDate.getDate() - 7);
+  const weekAgoKST = weekAgoDate.toISOString().split('T')[0];
 
   const filteredOrders = safeOrders.filter(order => {
     if (!order.createdAt) return false;
-    const orderDate = new Date(order.createdAt);
-    orderDate.setHours(0, 0, 0, 0);
-    if (dateFilter === 'today') return orderDate.getTime() === today.getTime();
-    if (dateFilter === 'yesterday') return orderDate.getTime() === yesterday.getTime();
-    if (dateFilter === 'week') return orderDate >= weekAgo;
+    const orderDateKST = toDateKST(order.createdAt);
+    if (dateFilter === 'today') return orderDateKST === todayKST;
+    if (dateFilter === 'yesterday') return orderDateKST === yesterdayKST;
+    if (dateFilter === 'week') return orderDateKST >= weekAgoKST;
     return true;
   });
 
@@ -592,7 +595,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
           <div className="flex items-center gap-2">
             {/* Mobile: menu button */}
             <button
-              onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+              onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
               className="md:hidden p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
             >
               <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
@@ -990,32 +993,34 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
 
         {/* Right panel (or bottom on mobile): Export actions */}
         <div className="lg:w-72 border-t lg:border-t-0 lg:border-l border-[var(--border)] bg-[var(--card)] flex flex-col">
-          <div className="p-4 flex-1 flex flex-col justify-between lg:justify-start gap-4">
+          <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between lg:justify-start gap-3 sm:gap-4">
+            {/* Selection summary + Sender preview: 모바일 가로 2열 */}
+            <div className="grid grid-cols-2 sm:grid-cols-1 gap-2 sm:gap-4">
             {/* Selection summary */}
-            <div className="bg-[var(--secondary)] rounded-xl p-4">
-              <p className="text-[var(--muted-foreground)] text-xs mb-2">선택 현황</p>
-              <div className="space-y-1">
-                <div className="flex justify-between text-sm">
+            <div className="bg-[var(--secondary)] rounded-xl p-3 sm:p-4">
+              <p className="text-[var(--muted-foreground)] text-[10px] sm:text-xs mb-1 sm:mb-2">선택 현황</p>
+              <div className="space-y-0.5 sm:space-y-1">
+                <div className="flex justify-between text-xs sm:text-sm">
                   <span className="text-[var(--muted-foreground)]">주문 선택</span>
                   <span className="font-semibold">{selectedOrders.filter(id => filteredOrders.some(o => o.orderNumber === id)).length}건</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs sm:text-sm">
                   <span className="text-[var(--muted-foreground)]">임의 추가</span>
                   <span className="font-semibold">{selectedOrders.filter(id => customEntries.some(e => e.id === id)).length}건</span>
                 </div>
-                <div className="flex justify-between text-sm font-bold border-t border-[var(--border)] pt-1 mt-1">
+                <div className="flex justify-between text-xs sm:text-sm font-bold border-t border-[var(--border)] pt-1 mt-1">
                   <span>합계</span>
                   <span style={{ color: 'var(--warning)' }}>{selectedOrders.length}건</span>
                 </div>
               </div>
               {selectedOrders.length === 0 && (
-                <p className="text-[var(--muted-foreground)] text-xs mt-2">주문을 선택하지 않으면 빈 양식이 출력됩니다</p>
+                <p className="text-[var(--muted-foreground)] text-[10px] sm:text-xs mt-1 sm:mt-2">선택 없으면 빈 양식 출력</p>
               )}
             </div>
 
             {/* Sender preview */}
             <div className="bg-[var(--secondary)] rounded-xl p-3">
-              <p className="text-[var(--muted-foreground)] text-xs mb-2">보내는 곳별 현황</p>
+              <p className="text-[var(--muted-foreground)] text-[10px] sm:text-xs mb-1 sm:mb-2">보내는 곳별 현황</p>
               {senderList.map(sender => {
                 const senderCount = selectedOrders.filter(id => {
                   const order = filteredOrders.find(o => o.orderNumber === id);
@@ -1028,37 +1033,40 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                   return false;
                 }).length;
                 return (
-                  <div key={sender} className="flex justify-between text-sm py-0.5">
+                  <div key={sender} className="flex justify-between text-xs sm:text-sm py-0.5">
                     <span className="text-[var(--muted-foreground)]">{sender}</span>
                     <span className="font-medium">{senderCount}건</span>
                   </div>
                 );
               })}
             </div>
+            </div>
 
-            {/* Export buttons */}
-            <div className="space-y-2">
+            {/* Export buttons - 모바일: 가로 한줄, 데스크톱: 세로 */}
+            <div className="grid grid-cols-3 sm:grid-cols-1 gap-2">
               <button
                 onClick={generateShippingLabel}
-                className="w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors hover:opacity-90 text-white"
+                className="w-full py-2 sm:py-2.5 rounded-lg font-medium flex items-center justify-center gap-1 sm:gap-2 transition-colors hover:opacity-90 text-white text-xs sm:text-sm"
                 style={{ background: 'var(--success)', color: 'white' }}
               >
-                <Download className="w-4 h-4" />
-                CSV 다운로드
+                <Download className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">CSV 다운로드</span>
+                <span className="sm:hidden">CSV</span>
               </button>
               <button
                 onClick={generateXlsxLabel}
-                className="w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors bg-[var(--primary)] hover:opacity-90 text-white"
+                className="w-full py-2 sm:py-2.5 rounded-lg font-medium flex items-center justify-center gap-1 sm:gap-2 transition-colors bg-[var(--primary)] hover:opacity-90 text-white text-xs sm:text-sm"
               >
-                <FileText className="w-4 h-4" />
-                Excel 다운로드
+                <FileText className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Excel 다운로드</span>
+                <span className="sm:hidden">Excel</span>
               </button>
               <button
                 onClick={printShippingLabels}
-                className="w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors hover:opacity-90 text-white"
+                className="w-full py-2 sm:py-2.5 rounded-lg font-medium flex items-center justify-center gap-1 sm:gap-2 transition-colors hover:opacity-90 text-white text-xs sm:text-sm"
                 style={{ background: 'var(--warning)', color: 'white' }}
               >
-                <Printer className="w-4 h-4" />
+                <Printer className="w-4 h-4 flex-shrink-0" />
                 인쇄
               </button>
             </div>

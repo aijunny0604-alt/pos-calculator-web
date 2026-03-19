@@ -72,11 +72,10 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Main scrollable areas - GPU acceleration & smooth touch */
+/* Main scrollable areas - smooth touch */
 main, nav, aside, [class*="flex-1"][class*="overflow"] {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  will-change: scroll-position;
 }
 
 /* Prevent body bounce on iOS */

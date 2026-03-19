@@ -3,18 +3,9 @@ import {
   Sparkles, X, Settings, Search, Plus, Minus, Trash2, Edit3,
   ShoppingCart, FileText, Save, FolderOpen, RotateCcw, RefreshCw,
   AlertTriangle, Check, Zap, Package, ArrowLeft, ChevronDown, ChevronUp,
-  Menu,
+  Menu, Maximize2, Minimize2,
 } from 'lucide-react';
-
-// Utility: normalize text (remove whitespace, lowercase)
-function normalizeText(str) {
-  return (str || '').toLowerCase().replace(/\s/g, '');
-}
-
-function matchesSearchQuery(name, query) {
-  if (!query.trim()) return true;
-  return normalizeText(name).includes(normalizeText(query));
-}
+import { matchesSearchQuery, normalizeText } from '@/lib/utils';
 
 export default function TextAnalyze({
   products = [],
@@ -23,6 +14,9 @@ export default function TextAnalyze({
   priceType = 'wholesale',
   initialText = '',
   onBack,
+  isFullscreen,
+  onToggleFullscreen,
+  onClose,
 }) {
   const [inputText, setInputText] = useState(() => {
     const saved = localStorage.getItem('aiOrderInputText');
@@ -69,11 +63,11 @@ export default function TextAnalyze({
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onBack();
+      if (e.key === 'Escape') (onClose || onBack)?.()
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onBack]);
+  }, [onBack, onClose]);
 
   // --- Synonym map ---
   const synonyms = {
@@ -90,13 +84,8 @@ export default function TextAnalyze({
     '겐또': '게이트', 'gate': '게이트',
     '볼벨브': '볼밸브',
     '첵크': '체크', 'check': '체크',
-    // 색상 동의어
-    '티탄블루': '티탄', 'titan': '티탄', 'titanium': '티탄', '타이탄': '티탄',
-    '블루': '티탄', 'blue': '티탄', '파랑': '티탄',
-    'silver': '실버', '은색': '실버', '실바': '실버',
-    'black': '블랙', '검정': '블랙', '검은': '블랙', '까만': '블랙', '흑색': '블랙',
-    // 좌우 = 듀얼
-    '좌우': '듀얼', '양쪽': '듀얼', '한쌍': '듀얼',
+    '직관레조': 'CH', '직관 레조': 'CH', '공갈레조': 'CH', '뻥레조': 'CH',
+    '가변소음기': 'TVB', '가변': 'TVB', '진공가변': 'TVB',
   };
 
   const getChosung = (str) => {
@@ -233,35 +222,38 @@ export default function TextAnalyze({
 ## 2. 제품 카테고리별 매칭 규칙
 
 ### 머플러팁 (카본/NPK/SNPK)
-- 카본 머플러팁: "카본 [싱글/듀얼] [코드] [사이즈][D/S] - G"
+
+#### 제품명 체계 (매우 중요!)
+- **D = 듀얼(Dual)**: 좌우 한 쌍이 1개 단위. 제품명에 D가 붙음
+- **S = 싱글(Single)**: 한 쪽만 1개 단위. 제품명에 S가 붙음
+- 예: "듀얼 NPK 89D-T" → 듀얼팁 1개(좌우 포함), "싱글 NPK 89S-T" → 싱글팁 1개(한쪽)
+
+#### ★ 좌우(좌,우) 수량 규칙 — 최우선 적용!
+머플러팁에서 "좌우", "좌,우", "좌 우", "양쪽", "한쌍", "L/R", "LR", "한세트" 등의 표현이 나오면 **좌측 1개 + 우측 1개 = 2개**라는 뜻입니다:
+- **싱글팁 + 좌우 = 수량 ×2** (좌 1개 + 우 1개)
+  - "싱글 NPK 89 좌우 1세트" → 싱글 NPK 89S-S, quantity: **2**
+  - "카본 싱글 103 좌우" → 카본 싱글 SCF 103S-G, quantity: **2**
+- **듀얼팁 + 좌우 = 수량 ×2** (좌 1개 + 우 1개)
+  - "듀얼 NPK 89 좌우 1세트" → 듀얼 NPK 89D-S, quantity: **2**
+  - "NPK 89D-T 좌,우" → 듀얼 NPK 89D-T, quantity: **2**
+- **좌우 N세트 = 수량 N×2**
+  - "싱글 NPK 89 좌우 2세트" → 싱글 NPK 89S-S, quantity: **4**
+  - "듀얼 NPK 100 좌우 3세트" → 듀얼 NPK 100D-S, quantity: **6**
+- **좌우 없이 "N세트" 또는 "N개" = 그대로 수량 N**
+  - "듀얼 NPK 89 2개" → 듀얼 NPK 89D-S, quantity: **2**
+  - "카본 싱글 103 1개" → 카본 싱글 SCF 103S-G, quantity: **1**
+
+#### 카테고리별 제품명 형식
+- 카본 머플러팁: "카본 [싱글/듀얼] [코드] [사이즈][S/D]-G"
   - SCF 시리즈: 93, 103, 116, 130mm / CFK 시리즈: 80, 93, 103, 116mm / NCF: 130mm
   - "카본 듀얼" → 카본 듀얼 SCF 계열, "카본 싱글" → 카본 싱글 SCF/CFK 계열
-  - 카본은 색상이 G(건메탈) 하나뿐
-- NPK 머플러팁: "[싱글/듀얼] NPK [사이즈][D/S] - [색상]" (80,89,100,114mm)
-- SNPK 슬롯팁: "슬롯 [싱글/듀얼] SNPK [사이즈][D/S] - [색상]" (89,100,114,127,142mm)
-- 사각팁: "사각 머플러팁" 계열
+- NPK 머플러팁: "[싱글/듀얼] NPK [사이즈][S/D]-[S/T/B]" (80,89,100,114mm)
+  - 스타일: S=스퀘어(기본), T=턴다운, B=번트
+  - 사이즈 뒤 문자: S=싱글, D=듀얼 (예: 89**D**=듀얼89mm, 89**S**=싱글89mm)
+- SNPK 슬롯팁: "슬롯 [싱글/듀얼] SNPK [사이즈][S/D]-[S/T/B]" (89,100,114,127,142mm)
+- 사각팁: "사각팁 DSQ[1/2]-[S/T/B/R/G]" / AMG 커버팁
 - **"팁"만 있으면**: 사이즈/코드로 카본 vs NPK vs SNPK 구분. 코드 없으면 NPK가 가장 일반적.
-
-#### ⚠️ NPK/SNPK 제품명 구조 (매우 중요!)
-형식: [싱글/듀얼] NPK [사이즈][D/S] - [색상코드]
-- **[사이즈]**: 80, 89, 100, 114mm (NPK) / 89, 100, 114, 127, 142mm (SNPK)
-- **D** = 듀얼(Dual), **S** = 싱글(Single) → 팁 개수 (사이즈 바로 뒤)
-- **색상코드** (하이픈 뒤, 최종 문자):
-  - **S** = 실버(Silver) 색상
-  - **T** = 티탄블루(Titan Blue) 색상
-  - **B** = 블랙(Black) 색상
-
-#### ⚠️ 색상 키워드 → 색상코드 변환표 (최우선 적용!)
-| 사용자 입력 | 색상코드 | 설명 |
-|------------|---------|------|
-| 티탄, 티탄블루, titan, titanium, 타이탄, 파랑, 블루, blue | **T** | 티탄블루 |
-| 실버, silver, 은색, 실바, 기본 | **S** | 실버 |
-| 블랙, black, 검정, 검은, 까만, 흑색 | **B** | 블랙 |
-
-**규칙**:
-- 색상 키워드가 입력에 있으면 **반드시** 해당 색상코드로 매칭. "티탄블루 듀얼 89" → "듀얼 NPK 89D - T" (T=티탄블루)
-- 색상 미지정 시: -S(실버)를 기본값으로 매칭하되 confidence를 medium으로, alternatives에 -T와 -B 포함
-- **"좌우"는 "듀얼(양쪽 2개)"을 의미** → D로 매칭
+- **스타일 미지정 시**: -S(스퀘어) 기본값으로 매칭
 
 ### 밴딩 파이프
 - 스덴(스테인레스): "스덴 밴딩 [직경]-[각도]" (직경: 51,54,60,63,70,76 / 각도: 15,30,45,60,75,90)
@@ -284,6 +276,28 @@ export default function TextAnalyze({
 - "스팅어 촉매 3.3" → 스팅어 3.3 촉매 다운파이프
 - 스포츠 촉매: "스포츠 촉매 C100S/C200S/C300S"
 
+### ★ 가변 소음기 (TVB/MVB) — 세트 수량 규칙 매우 중요!
+- 제품 종류: TVB(진공식), MVB(전자식). 용접O/용접X 구분.
+- **제품명 형식**: "용접된 TVB [내경] [h/Y] [좌, 우 1세트 / L / R]"
+  - 내경: 54, 64, 77mm
+  - h = 곡관형, Y = Y자형
+  - "좌, 우 1세트" = 좌+우 한 세트 제품 (가격이 세트 가격)
+  - L = 좌측만, R = 우측만
+
+#### ★★ "가변소음기 2개" = 1세트 규칙 (최우선!)
+- **"[내경][h/Y] 2개"** → h/Y + 2개는 좌+우 = **1세트** 제품으로 매칭!
+  - "63h 2개" → "용접된 TVB 64 h 좌, 우 1세트" quantity: **1**
+  - "54y 2개" → "용접된 TVB 54 Y 좌,우 1세트" quantity: **1**
+  - "54h 2개" → "용접된 TVB 54 h 좌, 우 1세트" quantity: **1**
+  - "64Y 2개" → "용접된 TVB 64 Y 좌, 우 1세트" quantity: **1**
+- **"[내경][h/Y] 4개"** → 2세트
+  - "63h 4개" → "용접된 TVB 64 h 좌, 우 1세트" quantity: **2**
+- **"[내경][h/Y] 1개"** → 좌 또는 우 1개 (L 또는 R)
+  - "63h 1개" → "용접된 TVB 64 h L" quantity: **1** (alternatives에 R도 포함)
+- **별명**: "가변소음기", "가변", "TVB", "진공가변" → TVB 가변 소음기
+- **내경 매핑**: 63→64로 매칭 (제품에 63이 없고 64가 있음)
+- **"가변소음기"만 단독** → medium confidence, TVB 54 h 세트를 기본 제시
+
 ### 스덴 직선 파이프
 - "스덴 직선 파이프 2m [직경]파이"
 - 직경: 50,54,60,63,70,76mm
@@ -304,8 +318,20 @@ export default function TextAnalyze({
 ### 클램프
 - "클램프 반도 [최소]-[최대]"
 
-### 레조 소음기
-- "레조 [챔버1] [챔버2] [코드]"
+### 레조 소음기 (레조네이터)
+- 일반 레조: "레조 [외경] [길이] [내경]" 형식. 예: "레조 100 200 64" = 외경100 길이200 내경64
+  - 외경 종류: 100, 114, 150
+- CH 공갈 레조 (=뻥레조=직관레조): "CH [길이] [내경]" 형식. 외경은 항상 100 고정 (표기 생략)
+  - 예: "CH 200 64" = 외경100(생략) 길이200 내경64
+- **레조 vs CH 구분**: 숫자 3개 → 일반 레조, "CH"+숫자 2개 → CH 공갈 레조
+- **★ "직관 레조" / "직관레조"** → 반드시 **CH 뻥레조** 제품으로 매칭! (일반 레조 아님)
+  - "직관 레조 100 250 63 2개" → "CH 250 64" 2개 (100은 외경이므로 무시, 63→64 가장 가까운 사이즈)
+  - "직관 레조 54" → "CH 200 54" (길이 미지정시 200 기본)
+  - "직관 레조 200 54 1개" → "CH 200 54" 1개
+- **"일반 레조"** / 단순히 **"레조"** → 진짜 일반 레조 제품 (레조 100 250 64 등)
+- **별명**: "공갈레조", "뻥레조", "공갈", "직관레조", "직관 레조" → CH 공갈 레조
+- **"레조네이터"** = "레조"의 정식 명칭
+- **숫자 2개만** (예: "레조 200 64") → 외경 100 기본 적용 → "레조 100 200 64"
 
 ### 실리콘 호스
 - 직선: "실리콘 직선 호스 SS[직경]"
@@ -319,16 +345,13 @@ export default function TextAnalyze({
 | 벤딩,밴딩파이프 | 밴딩 |
 | 후렌지,후란지,플렌지 | 플랜지 |
 | 레듀서,리듀서,리듀샤 | 레듀샤 |
+| 공갈레조,뻥레조,공갈,직관레조,직관 레조 | CH 공갈 레조 |
+| 가변소음기,가변,진공가변 | TVB 가변 소음기 |
+| 레조네이터 | 레조 |
 | 쏘켓,소켙 | 소켓 |
 | 겐또,겐도 | 게이트 |
 | 싱그 → 싱글, 듀얼 → 듀얼 |
 | 머플러커터 → 제품에 없음, 머플러팁으로 추측 |
-| 좌우,양쪽,한쌍,좌우한세트 → 듀얼 (D) |
-| 한쪽,편쪽,외쪽 → 싱글 (S) |
-| 티탄,티탄블루,titan,타이탄,파랑,블루 → 색상코드 T |
-| 실버,silver,은색,실바 → 색상코드 S |
-| 블랙,black,검정,검은,까만,흑색 → 색상코드 B |
-| 90 → 89mm (NPK에 90mm 없음, 89로 매칭) |
 
 ## 4. 신뢰도 판정 기준 (매우 중요!)
 ### HIGH - 아래 조건 중 하나 이상 만족:
@@ -363,66 +386,83 @@ ${text}
 2. 차종 약어를 먼저 변환 후 제품 목록에서 매칭.
 3. 오타/줄임말/업계은어를 동의어표로 보정.
 4. "하나"=1, "두개"=2, "세개"=3, "다섯"=5, "열개"=10, "한개만"=1 등 한글 수량 인식.
-5. **matchedProduct는 반드시 위 제품 목록의 정확한 제품명(괄호 가격 제외)이어야 합니다.**
-6. alternatives도 반드시 제품 목록에 있는 정확한 이름만.
-7. 주문과 무관한 인사말/요청("사장님", "보내주세요", "주문합니다")은 무시.
-8. **신뢰도는 위 §4 기준을 엄격히 적용하세요.**
-9. **⚠️ NPK/SNPK 색상 매칭 최우선 규칙**: 입력에 색상 키워드(티탄/블루/블랙/검정/실버 등)가 있으면, 반드시 해당 색상코드(T/B/S)로 매칭해야 합니다. 색상을 무시하고 기본값(-S)으로 매칭하면 안 됩니다.
-10. **"좌우" = 듀얼**: "좌우", "양쪽", "한쌍"은 듀얼(D)을 의미합니다.
-11. **사이즈 근사 매칭**: 정확한 사이즈가 제품 목록에 없으면 가장 가까운 사이즈로 매칭 (예: 90→89, 115→114).
+5. **★ 머플러팁 좌우 수량**: "좌우/좌,우/좌 우/양쪽/한쌍/L/R" 표현이 있으면 수량을 ×2 해야 합니다. "좌우 N세트"=N×2개, "좌우"만 있으면=2개. 좌우 표현이 없는 "N개/N세트"는 그대로 N개.
+6. **matchedProduct는 반드시 위 제품 목록의 정확한 제품명(괄호 가격 제외)이어야 합니다.**
+7. alternatives도 반드시 제품 목록에 있는 정확한 이름만.
+8. 주문과 무관한 인사말/요청("사장님", "보내주세요", "주문합니다")은 무시.
+9. **신뢰도는 위 §4 기준을 엄격히 적용하세요.**
 
 ## 응답 형식 (JSON 배열만, 다른 텍스트 없이)
 [{"originalText":"원본","matchedProduct":"정확한 제품명 or null","quantity":수량,"confidence":"high|medium|low","alternatives":["정확한 제품명1","정확한 제품명2"]}]
 
-## 예시 (15개)
+## 예시 (15개 — 좌우 수량 포함)
 
-### 색상 지정 예시 (핵심!)
-입력: "티탄블루 듀얼 89 좌우"
-→ [{"originalText":"티탄블루 듀얼 89 좌우","matchedProduct":"듀얼 NPK 89D - T","quantity":1,"confidence":"high","alternatives":[]}]
-
-입력: "블랙 싱글 100 팁"
-→ [{"originalText":"블랙 싱글 100 팁","matchedProduct":"싱글 NPK 100S - B","quantity":1,"confidence":"high","alternatives":[]}]
-
-입력: "팁 티탄블루90 듀얼팁 좌우"
-→ [{"originalText":"팁 티탄블루90 듀얼팁 좌우","matchedProduct":"듀얼 NPK 89D - T","quantity":1,"confidence":"high","alternatives":["듀얼 NPK 100D - T"]}]
-
-입력: "실버 npk 114 싱글 2개"
-→ [{"originalText":"실버 npk 114 싱글 2개","matchedProduct":"싱글 NPK 114S - S","quantity":2,"confidence":"high","alternatives":[]}]
-
-입력: "슬롯 듀얼 89 블랙"
-→ [{"originalText":"슬롯 듀얼 89 블랙","matchedProduct":"슬롯 듀얼 SNPK 89D - B","quantity":1,"confidence":"high","alternatives":[]}]
-
-입력: "슬롯 싱글 티탄 100"
-→ [{"originalText":"슬롯 싱글 티탄 100","matchedProduct":"슬롯 싱글 SNPK 100S - T","quantity":1,"confidence":"high","alternatives":[]}]
-
-### 색상 미지정 예시
-입력: "npk 89 듀얼 2개"
-→ [{"originalText":"npk 89 듀얼 2개","matchedProduct":"듀얼 NPK 89D - S","quantity":2,"confidence":"medium","alternatives":["듀얼 NPK 89D - T","듀얼 NPK 89D - B"]}]
-
-입력: "머플러 팁 하나"
-→ [{"originalText":"머플러 팁 하나","matchedProduct":"싱글 NPK 80S - S","quantity":1,"confidence":"low","alternatives":["듀얼 NPK 80D - S","카본 싱글 CFK 80S - G"]}]
-
-### 기타 제품 예시
+### 기본 매칭
 입력: "카본 93 듀얼 1세트"
-→ [{"originalText":"카본 93 듀얼 1세트","matchedProduct":"카본 듀얼 SCF 93D - G","quantity":1,"confidence":"high","alternatives":[]}]
+→ [{"originalText":"카본 93 듀얼 1세트","matchedProduct":"카본 듀얼 SCF 93D-G","quantity":1,"confidence":"high","alternatives":[]}]
 
 입력: "벨N 카본 듀얼"
-→ [{"originalText":"벨N 카본 듀얼","matchedProduct":"카본 듀얼 SCF 93D - G","quantity":1,"confidence":"medium","alternatives":["카본 듀얼 SCF 103D - G","카본 듀얼 SCF 116D - G"]}]
+→ [{"originalText":"벨N 카본 듀얼","matchedProduct":"카본 듀얼 SCF 93D-G","quantity":1,"confidence":"medium","alternatives":["카본 듀얼 SCF 103D-G","카본 듀얼 SCF 116D-G"]}]
 
 입력: "아N 직관 2개"
 → [{"originalText":"아N 직관 2개","matchedProduct":"아반떼N 직관 다운파이프","quantity":2,"confidence":"high","alternatives":["아반떼N 촉매 다운파이프"]}]
+
+입력: "스팅어 자바라 3개"
+→ [{"originalText":"스팅어 자바라 3개","matchedProduct":"자바라 SF 54 S 길이 100","quantity":3,"confidence":"medium","alternatives":["자바라 SF 61 S 길이 100","자바라 SF 64 S 길이 100"]}]
 
 입력: "54 밴딩 45도 6개"
 → [{"originalText":"54 밴딩 45도 6개","matchedProduct":"스덴 밴딩 54-45","quantity":6,"confidence":"high","alternatives":[]}]
 
 입력: "CFK 80 싱글"
-→ [{"originalText":"CFK 80 싱글","matchedProduct":"카본 싱글 CFK 80S - G","quantity":1,"confidence":"high","alternatives":[]}]
+→ [{"originalText":"CFK 80 싱글","matchedProduct":"카본 싱글 CFK 80S-G","quantity":1,"confidence":"high","alternatives":[]}]
 
 입력: "레듀샤 54-76 하나"
 → [{"originalText":"레듀샤 54-76 하나","matchedProduct":"실리콘 레듀샤 SR5476","quantity":1,"confidence":"high","alternatives":[]}]
 
-입력: "스팅어 자바라 3개"
-→ [{"originalText":"스팅어 자바라 3개","matchedProduct":"자바라 SF 54 S 길이 100","quantity":3,"confidence":"medium","alternatives":["자바라 SF 61 S 길이 100","자바라 SF 64 S 길이 100"]}]`;
+입력: "npk 89 듀얼 2개"
+→ [{"originalText":"npk 89 듀얼 2개","matchedProduct":"듀얼 NPK 89D-S","quantity":2,"confidence":"high","alternatives":["듀얼 NPK 89D-T","듀얼 NPK 89D-B"]}]
+
+입력: "머플러 팁 하나"
+→ [{"originalText":"머플러 팁 하나","matchedProduct":"싱글 NPK 80S-S","quantity":1,"confidence":"low","alternatives":["듀얼 NPK 80D-S","카본 싱글 CFK 80S-G"]}]
+
+### ★ 좌우 수량 예시 (핵심!)
+입력: "듀얼 NPK 89 턴다운 좌,우 1세트"
+→ [{"originalText":"듀얼 NPK 89 턴다운 좌,우 1세트","matchedProduct":"듀얼 NPK 89D-T","quantity":2,"confidence":"high","alternatives":[]}]
+
+입력: "싱글 NPK 100 좌우"
+→ [{"originalText":"싱글 NPK 100 좌우","matchedProduct":"싱글 NPK 100S-S","quantity":2,"confidence":"high","alternatives":["싱글 NPK 100S-T","싱글 NPK 100S-B"]}]
+
+입력: "카본 싱글 SCF 103 좌 우 2세트"
+→ [{"originalText":"카본 싱글 SCF 103 좌 우 2세트","matchedProduct":"카본 싱글 SCF 103S-G","quantity":4,"confidence":"high","alternatives":[]}]
+
+입력: "SNPK 89 듀얼 좌우 1세트"
+→ [{"originalText":"SNPK 89 듀얼 좌우 1세트","matchedProduct":"슬롯 듀얼 SNPK 89D-S","quantity":2,"confidence":"high","alternatives":["슬롯 듀얼 SNPK 89D-T","슬롯 듀얼 SNPK 89D-B"]}]
+
+입력: "NPK 114 싱글 턴다운 양쪽"
+→ [{"originalText":"NPK 114 싱글 턴다운 양쪽","matchedProduct":"싱글 NPK 114S-T","quantity":2,"confidence":"high","alternatives":[]}]
+
+입력: "듀얼 NPK 89 3개"
+→ [{"originalText":"듀얼 NPK 89 3개","matchedProduct":"듀얼 NPK 89D-S","quantity":3,"confidence":"high","alternatives":["듀얼 NPK 89D-T","듀얼 NPK 89D-B"]}]
+
+### ★ 가변소음기 세트 예시
+입력: "63 가변소음기 h 2개"
+→ [{"originalText":"63 가변소음기 h 2개","matchedProduct":"용접된 TVB 64 h 좌, 우 1세트","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "54 가변소음기 y 2개"
+→ [{"originalText":"54 가변소음기 y 2개","matchedProduct":"용접된 TVB 54 Y 좌,우 1세트","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "64h 가변 4개"
+→ [{"originalText":"64h 가변 4개","matchedProduct":"용접된 TVB 64 h 좌, 우 1세트","quantity":2,"confidence":"high","alternatives":[]}]
+
+### ★ 직관 레조 = CH 뻥레조 예시
+입력: "직관 레조 100 250 63 2개"
+→ [{"originalText":"직관 레조 100 250 63 2개","matchedProduct":"CH 250 64","quantity":2,"confidence":"high","alternatives":["CH 200 64"]}]
+
+입력: "직관레조 200 54 1개"
+→ [{"originalText":"직관레조 200 54 1개","matchedProduct":"CH 200 54","quantity":1,"confidence":"high","alternatives":[]}]
+
+입력: "일반 레조 100 250 54 1개"
+→ [{"originalText":"일반 레조 100 250 54 1개","matchedProduct":"레조 100 250 54","quantity":1,"confidence":"high","alternatives":[]}]`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
@@ -654,14 +694,19 @@ ${text}
   };
 
   const addSelectedToCart = () => {
-    const selectedItems = analyzedItems.filter(item => item.selected && item.matchedProduct);
-    const cartItems = selectedItems.map(item => ({
-      ...item.matchedProduct,
-      quantity: item.quantity,
-    }));
-    if (cartItems.length > 0) {
-      onAddToCart(cartItems);
+    const selectedItems = analyzedItems
+      .filter(item => item.selected && item.matchedProduct)
+      .map(item => ({
+        ...item.matchedProduct,
+        quantity: item.quantity,
+        price: priceType === 'wholesale'
+          ? item.matchedProduct.wholesale
+          : (item.matchedProduct.retail || item.matchedProduct.wholesale)
+      }));
+    if (selectedItems.length > 0) {
+      onAddToCart(selectedItems);
     }
+    onBack();
   };
 
   const saveBackup = () => {
@@ -689,7 +734,7 @@ ${text}
   };
 
   const productAddResults = productSearchQuery.trim()
-    ? products.filter(p => normalizeText(p.name).includes(normalizeText(productSearchQuery)) || p.name.toLowerCase().includes(productSearchQuery.toLowerCase())).slice(0, 10)
+    ? products.filter(p => matchesSearchQuery(p.name, productSearchQuery)).slice(0, 10)
     : [];
 
   const selectedCount = analyzedItems.filter(item => item.selected && item.matchedProduct).length;
@@ -708,9 +753,17 @@ ${text}
         className="sticky top-0 z-40 flex items-center h-12 px-3 border-b flex-shrink-0"
         style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
       >
+        {!onClose && (
+          <button
+            className="md:hidden p-1.5 -ml-1 rounded-lg transition-colors hover:bg-[var(--muted)]"
+            onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
+          >
+            <Menu className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
+          </button>
+        )}
         <button
-          onClick={onBack}
-          className="p-1.5 -ml-1 rounded-lg transition-colors hover:bg-[var(--muted)]"
+          onClick={onClose || onBack}
+          className={`p-1.5 ${!onClose ? 'hidden md:flex' : ''} -ml-1 rounded-lg transition-colors hover:bg-[var(--muted)]`}
         >
           <ArrowLeft className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
         </button>
@@ -738,11 +791,32 @@ ${text}
           )}
           <button
             onClick={() => { setTempApiKey(geminiApiKey); setShowApiSettings(true); }}
-            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
+            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)] active:scale-90"
             title="AI 설정"
           >
             <Settings className="w-4.5 h-4.5" style={{ color: 'var(--muted-foreground)' }} />
           </button>
+          {onToggleFullscreen && (
+            <button
+              onClick={onToggleFullscreen}
+              className="p-1.5 rounded-lg transition-all hover:bg-[var(--muted)] active:scale-90"
+              title={isFullscreen ? '축소' : '확대'}
+            >
+              {isFullscreen
+                ? <Minimize2 className="w-4.5 h-4.5" style={{ color: 'var(--muted-foreground)' }} />
+                : <Maximize2 className="w-4.5 h-4.5" style={{ color: 'var(--muted-foreground)' }} />
+              }
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg transition-all hover:bg-red-100 hover:text-red-500 active:scale-90"
+              title="닫기"
+            >
+              <X className="w-4.5 h-4.5" style={{ color: 'var(--muted-foreground)' }} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -926,7 +1000,8 @@ ${text}
               {analyzedItems.map((item, index) => (
                 <div
                   key={index}
-                  className="rounded-xl overflow-hidden transition-all"
+                  className="rounded-xl overflow-hidden transition-all cursor-pointer active:scale-[0.99]"
+                  onClick={() => item.matchedProduct && toggleSelect(index)}
                   style={{
                     backgroundColor: 'var(--card)',
                     boxShadow: item.matchedProduct && item.selected
@@ -958,7 +1033,7 @@ ${text}
                       <div className="flex items-center gap-2.5">
                         {/* Checkbox - minimal */}
                         <button
-                          onClick={() => toggleSelect(index)}
+                          onClick={(e) => { e.stopPropagation(); toggleSelect(index); }}
                           className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all"
                           style={{
                             backgroundColor: item.selected ? 'var(--primary)' : 'var(--secondary)',
@@ -978,7 +1053,7 @@ ${text}
                         </div>
 
                         {/* Quantity - borderless */}
-                        <div className="flex items-center gap-0 flex-shrink-0 rounded-lg" style={{ backgroundColor: 'var(--secondary)' }}>
+                        <div className="flex items-center gap-0 flex-shrink-0 rounded-lg" style={{ backgroundColor: 'var(--secondary)' }} onClick={e => e.stopPropagation()}>
                           <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-7 h-7 flex items-center justify-center rounded-l-lg hover:bg-[var(--muted)]">
                             <Minus className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
                           </button>
@@ -995,7 +1070,7 @@ ${text}
                         </div>
                         {/* Edit / Delete - ghost buttons */}
                         <button
-                          onClick={() => { setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
+                          onClick={(e) => { e.stopPropagation(); setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
                           className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
                           style={{ color: 'var(--muted-foreground)' }}
                           title="제품 변경"
@@ -1003,7 +1078,7 @@ ${text}
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => removeItem(index)}
+                          onClick={(e) => { e.stopPropagation(); removeItem(index); }}
                           className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
                           style={{ color: 'var(--muted-foreground)' }}
                           title="삭제"
@@ -1018,7 +1093,7 @@ ${text}
                           {item.alternatives.map((alt, ai) => (
                             <button
                               key={ai}
-                              onClick={() => selectProduct(index, alt)}
+                              onClick={(e) => { e.stopPropagation(); selectProduct(index, alt); }}
                               className="px-1.5 py-0.5 text-[10px] rounded-md transition-all hover:bg-[var(--primary)] hover:text-white"
                               style={{ color: 'var(--primary)', backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}
                             >
@@ -1037,14 +1112,14 @@ ${text}
                         </div>
                         <span className="flex-1 text-[13px] font-medium" style={{ color: 'var(--destructive)' }}>매칭 실패</span>
                         <button
-                          onClick={() => { setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
+                          onClick={(e) => { e.stopPropagation(); setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
                           className="px-2.5 py-1 text-[11px] rounded-lg font-semibold text-white transition-all active:scale-[0.97]"
                           style={{ backgroundColor: 'var(--primary)' }}
                         >
                           검색
                         </button>
                         <button
-                          onClick={() => removeItem(index)}
+                          onClick={(e) => { e.stopPropagation(); removeItem(index); }}
                           className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
                           style={{ color: 'var(--muted-foreground)' }}
                         >
@@ -1058,7 +1133,7 @@ ${text}
                           {item.alternatives.map((alt, ai) => (
                             <button
                               key={ai}
-                              onClick={() => selectProduct(index, alt)}
+                              onClick={(e) => { e.stopPropagation(); selectProduct(index, alt); }}
                               className="px-1.5 py-0.5 text-[10px] rounded-md transition-all font-medium hover:bg-[var(--primary)] hover:text-white"
                               style={{ color: 'var(--primary)', backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}
                             >
@@ -1072,7 +1147,7 @@ ${text}
 
                     {/* Inline product search */}
                     {searchingIndex === index && (
-                      <div className="mt-3 p-3 rounded-xl border" style={{ backgroundColor: 'var(--secondary)', borderColor: 'var(--primary)' }}>
+                      <div className="mt-3 p-3 rounded-xl border" onClick={e => e.stopPropagation()} style={{ backgroundColor: 'var(--secondary)', borderColor: 'var(--primary)' }}>
                         <div className="relative mb-2">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--primary)' }} />
                           <input

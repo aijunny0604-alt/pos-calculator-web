@@ -225,6 +225,7 @@ export default function SaveCartModal({
                 className={inputClass}
                 style={inputStyle}
               >
+                <option value="pending">대기</option>
                 <option value="draft">작성 중</option>
                 <option value="scheduled">예약됨</option>
                 <option value="ready">준비 완료</option>

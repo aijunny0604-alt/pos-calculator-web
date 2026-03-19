@@ -85,13 +85,38 @@ function classifyProducts(model, products) {
 
 // 세트 계산
 function calculateSetInfo(model, classified) {
+  const catalyticStock = classified.catalytic.stock;
+  const straightStock = classified.straight.stock;
+  const totalDownpipes = catalyticStock + straightStock;
+
+  // 타입별 보유 여부 (모든 모델 공통)
+  const catalyticOk = catalyticStock > 0;
+  const straightOk = straightStock > 0;
+
   if (!model.hasJabara) {
-    return { completeSets: 0, totalDownpipes: 0, totalJabara: 0, shortage: { type: null, count: 0 }, hasSetSystem: false };
+    return {
+      completeSets: 0, totalDownpipes, totalJabara: 0,
+      shortage: { type: null, count: 0 }, hasSetSystem: false, dctSets: 0, manualSets: 0,
+      catalyticOk, straightOk, allTypesOk: catalyticOk && straightOk,
+    };
   }
-  const totalDownpipes = classified.catalytic.stock + classified.straight.stock;
-  const totalJabara = model.hasDctManual
-    ? (classified.jabara_dct?.stock ?? 0) + (classified.jabara_manual?.stock ?? 0)
-    : (classified.jabara?.stock ?? 0);
+
+  let totalJabara, dctSets = 0, manualSets = 0;
+  if (model.hasDctManual) {
+    const dctJabara = classified.jabara_dct?.stock ?? 0;
+    const manualJabara = classified.jabara_manual?.stock ?? 0;
+    totalJabara = dctJabara + manualJabara;
+    // 다운파이프가 충분하면 각각 세트 완성, 부족하면 비율 배분
+    if (totalDownpipes >= totalJabara) {
+      dctSets = dctJabara;
+      manualSets = manualJabara;
+    } else if (totalJabara > 0) {
+      dctSets = Math.min(dctJabara, Math.floor(totalDownpipes * dctJabara / totalJabara));
+      manualSets = Math.min(manualJabara, totalDownpipes - dctSets);
+    }
+  } else {
+    totalJabara = classified.jabara?.stock ?? 0;
+  }
   const completeSets = Math.min(totalDownpipes, totalJabara);
   let shortage = { type: null, count: 0 };
   if (totalDownpipes !== totalJabara) {
@@ -101,7 +126,14 @@ function calculateSetInfo(model, classified) {
       shortage = { type: 'jabara', count: totalDownpipes - totalJabara };
     }
   }
-  return { completeSets, totalDownpipes, totalJabara, shortage, hasSetSystem: true };
+  const jabaraOk = totalJabara > 0;
+  return {
+    completeSets, totalDownpipes, totalJabara, shortage, hasSetSystem: true, dctSets, manualSets,
+    catalyticOk, straightOk, jabaraOk,
+    catalyticSetOk: catalyticOk && jabaraOk,  // 촉매+자바라 세트 구성 가능
+    straightSetOk: straightOk && jabaraOk,     // 직관+자바라 세트 구성 가능
+    allTypesOk: catalyticOk && straightOk && jabaraOk,
+  };
 }
 
 // 재고 표시 뱃지
@@ -196,35 +228,116 @@ function ModelCard({ model, products, onClick }) {
               : 'color-mix(in srgb, var(--warning) 8%, transparent)',
           }}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Link className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-              <span className="text-base font-extrabold" style={{ color: 'var(--foreground)' }}>완성 세트</span>
-            </div>
-            <span className="text-xl font-extrabold" style={{
-              color: setInfo.completeSets === 0 ? 'var(--destructive)' : 'var(--success)',
-            }}>
-              {setInfo.completeSets}세트
-            </span>
-          </div>
-          <div className="mt-2">
-            {setInfo.shortage.type === null && setInfo.completeSets > 0 ? (
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" style={{ color: 'var(--success)' }} />
-                <span className="text-sm font-bold" style={{ color: 'var(--success)' }}>짝 완성</span>
+          {model.hasDctManual ? (
+            <>
+              <div className="flex items-center gap-2 mb-3">
+                <Link className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                <span className="text-base font-extrabold" style={{ color: 'var(--foreground)' }}>세트 현황</span>
               </div>
-            ) : setInfo.shortage.type !== null ? (
-              <div
-                className="flex items-center gap-2 px-3 py-2 rounded-lg"
-                style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)' }}
-              >
-                <AlertTriangle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--destructive)' }} />
-                <span className="text-sm font-extrabold" style={{ color: 'var(--destructive)' }}>
-                  {setInfo.shortage.type === 'downpipe' ? '다운파이프' : '자바라'} {setInfo.shortage.count}개 부족
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl py-2.5" style={{ background: 'color-mix(in srgb, var(--foreground) 4%, transparent)' }}>
+                  <div className="text-2xl font-extrabold" style={{ color: setInfo.dctSets === 0 ? 'var(--destructive)' : 'var(--success)' }}>{setInfo.dctSets}</div>
+                  <div className="text-xs font-bold mt-0.5" style={{ color: 'var(--muted-foreground)' }}>DCT 세트</div>
+                </div>
+                <div className="rounded-xl py-2.5" style={{ background: 'color-mix(in srgb, var(--foreground) 4%, transparent)' }}>
+                  <div className="text-2xl font-extrabold" style={{ color: setInfo.manualSets === 0 ? 'var(--destructive)' : 'var(--success)' }}>{setInfo.manualSets}</div>
+                  <div className="text-xs font-bold mt-0.5" style={{ color: 'var(--muted-foreground)' }}>수동 세트</div>
+                </div>
+                <div className="rounded-xl py-2.5" style={{ background: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}>
+                  <div className="text-2xl font-extrabold" style={{ color: setInfo.completeSets === 0 ? 'var(--destructive)' : 'var(--primary)' }}>{setInfo.completeSets}</div>
+                  <div className="text-xs font-bold mt-0.5" style={{ color: 'var(--muted-foreground)' }}>총 세트</div>
+                </div>
+              </div>
+              {setInfo.shortage.type !== null && (
+                <div className="flex items-center gap-2 px-3 py-2 mt-2 rounded-lg" style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)' }}>
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--destructive)' }} />
+                  <span className="text-xs font-extrabold" style={{ color: 'var(--destructive)' }}>
+                    {setInfo.shortage.type === 'downpipe' ? '다운파이프' : '자바라'} {setInfo.shortage.count}개 부족
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Link className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                  <span className="text-base font-extrabold" style={{ color: 'var(--foreground)' }}>완성 세트</span>
+                </div>
+                <span className="text-2xl font-extrabold" style={{
+                  color: setInfo.completeSets === 0 ? 'var(--destructive)' : 'var(--success)',
+                }}>
+                  {setInfo.completeSets}세트
                 </span>
               </div>
-            ) : null}
-          </div>
+              <div className="mt-2">
+                {setInfo.shortage.type === null && setInfo.completeSets > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5" style={{ color: 'var(--success)' }} />
+                    <span className="text-sm font-bold" style={{ color: 'var(--success)' }}>짝 완성</span>
+                  </div>
+                ) : setInfo.shortage.type !== null ? (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)' }}>
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--destructive)' }} />
+                    <span className="text-sm font-extrabold" style={{ color: 'var(--destructive)' }}>
+                      {setInfo.shortage.type === 'downpipe' ? '다운파이프' : '자바라'} {setInfo.shortage.count}개 부족
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Type-specific set availability badges */}
+      {setInfo.hasSetSystem ? (
+        <div className="flex flex-wrap gap-2 mb-3">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+            style={{
+              background: setInfo.catalyticSetOk ? 'color-mix(in srgb, var(--success) 10%, transparent)' : 'color-mix(in srgb, var(--destructive) 10%, transparent)',
+              color: setInfo.catalyticSetOk ? 'var(--success)' : 'var(--destructive)',
+            }}>
+            {setInfo.catalyticSetOk ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+            촉매 세트
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+            style={{
+              background: setInfo.straightSetOk ? 'color-mix(in srgb, var(--success) 10%, transparent)' : 'color-mix(in srgb, var(--destructive) 10%, transparent)',
+              color: setInfo.straightSetOk ? 'var(--success)' : 'var(--destructive)',
+            }}>
+            {setInfo.straightSetOk ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+            직관 세트
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2 mb-3">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+            style={{
+              background: setInfo.catalyticOk ? 'color-mix(in srgb, var(--success) 10%, transparent)' : 'color-mix(in srgb, var(--destructive) 10%, transparent)',
+              color: setInfo.catalyticOk ? 'var(--success)' : 'var(--destructive)',
+            }}>
+            {setInfo.catalyticOk ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+            촉매
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+            style={{
+              background: setInfo.straightOk ? 'color-mix(in srgb, var(--success) 10%, transparent)' : 'color-mix(in srgb, var(--destructive) 10%, transparent)',
+              color: setInfo.straightOk ? 'var(--success)' : 'var(--destructive)',
+            }}>
+            {setInfo.straightOk ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+            직관
+          </span>
+          {setInfo.allTypesOk && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+              style={{
+                background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
+                color: 'var(--primary)',
+              }}>
+              <CheckCircle className="w-3.5 h-3.5" />
+              전 타입 보유
+            </span>
+          )}
         </div>
       )}
 
@@ -328,49 +441,140 @@ function DetailModal({ model, products, onClose }) {
                   세트 현황
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="rounded-xl py-3" style={{ background: 'color-mix(in srgb, var(--foreground) 3%, transparent)' }}>
-                  <div className="text-2xl font-extrabold" style={{
-                    color: setInfo.completeSets === 0 ? 'var(--destructive)' : 'var(--success)',
-                  }}>
-                    {setInfo.completeSets}
+              {model.hasDctManual ? (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                    <div className="rounded-xl py-4" style={{ background: 'color-mix(in srgb, var(--foreground) 3%, transparent)' }}>
+                      <div className="text-3xl font-extrabold" style={{ color: setInfo.dctSets === 0 ? 'var(--destructive)' : 'var(--success)' }}>
+                        {setInfo.dctSets}
+                      </div>
+                      <div className="text-sm font-bold mt-1" style={{ color: 'var(--muted-foreground)' }}>DCT 세트</div>
+                    </div>
+                    <div className="rounded-xl py-4" style={{ background: 'color-mix(in srgb, var(--foreground) 3%, transparent)' }}>
+                      <div className="text-3xl font-extrabold" style={{ color: setInfo.manualSets === 0 ? 'var(--destructive)' : 'var(--success)' }}>
+                        {setInfo.manualSets}
+                      </div>
+                      <div className="text-sm font-bold mt-1" style={{ color: 'var(--muted-foreground)' }}>수동 세트</div>
+                    </div>
+                    <div className="rounded-xl py-4" style={{ background: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}>
+                      <div className="text-3xl font-extrabold" style={{ color: setInfo.completeSets === 0 ? 'var(--destructive)' : 'var(--primary)' }}>
+                        {setInfo.completeSets}
+                      </div>
+                      <div className="text-sm font-bold mt-1" style={{ color: 'var(--muted-foreground)' }}>총 세트</div>
+                    </div>
+                    <div className="rounded-xl py-4" style={{ background: 'color-mix(in srgb, var(--foreground) 3%, transparent)' }}>
+                      <div className="text-3xl font-extrabold" style={{ color: 'var(--foreground)' }}>
+                        {setInfo.totalDownpipes}
+                      </div>
+                      <div className="text-sm font-bold mt-1" style={{ color: 'var(--muted-foreground)' }}>다운파이프</div>
+                    </div>
                   </div>
-                  <div className="text-xs font-semibold mt-1" style={{ color: 'var(--muted-foreground)' }}>완성 세트</div>
-                </div>
-                <div className="rounded-xl py-3" style={{ background: 'color-mix(in srgb, var(--foreground) 3%, transparent)' }}>
-                  <div className="text-2xl font-extrabold" style={{ color: 'var(--foreground)' }}>
-                    {setInfo.totalDownpipes}
+                  {setInfo.shortage.type !== null && (
+                    <div className="flex items-center justify-center gap-2 px-4 py-2 mt-3 rounded-lg" style={{ background: 'color-mix(in srgb, var(--destructive) 8%, transparent)' }}>
+                      <AlertTriangle className="w-5 h-5" style={{ color: 'var(--destructive)' }} />
+                      <span className="text-sm font-extrabold" style={{ color: 'var(--destructive)' }}>
+                        {setInfo.shortage.type === 'downpipe' ? '다운파이프' : '자바라'} {setInfo.shortage.count}개 부족
+                      </span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="rounded-xl py-4" style={{ background: 'color-mix(in srgb, var(--foreground) 3%, transparent)' }}>
+                      <div className="text-3xl font-extrabold" style={{
+                        color: setInfo.completeSets === 0 ? 'var(--destructive)' : 'var(--success)',
+                      }}>
+                        {setInfo.completeSets}
+                      </div>
+                      <div className="text-sm font-bold mt-1" style={{ color: 'var(--muted-foreground)' }}>완성 세트</div>
+                    </div>
+                    <div className="rounded-xl py-4" style={{ background: 'color-mix(in srgb, var(--foreground) 3%, transparent)' }}>
+                      <div className="text-3xl font-extrabold" style={{ color: 'var(--foreground)' }}>
+                        {setInfo.totalDownpipes}
+                      </div>
+                      <div className="text-sm font-bold mt-1" style={{ color: 'var(--muted-foreground)' }}>다운파이프</div>
+                    </div>
+                    <div className="rounded-xl py-4" style={{ background: 'color-mix(in srgb, var(--foreground) 3%, transparent)' }}>
+                      <div className="text-3xl font-extrabold" style={{ color: 'var(--foreground)' }}>
+                        {setInfo.totalJabara}
+                      </div>
+                      <div className="text-sm font-bold mt-1" style={{ color: 'var(--muted-foreground)' }}>자바라</div>
+                    </div>
                   </div>
-                  <div className="text-xs font-semibold mt-1" style={{ color: 'var(--muted-foreground)' }}>다운파이프</div>
-                </div>
-                <div className="rounded-xl py-3" style={{ background: 'color-mix(in srgb, var(--foreground) 3%, transparent)' }}>
-                  <div className="text-2xl font-extrabold" style={{ color: 'var(--foreground)' }}>
-                    {setInfo.totalJabara}
+                  <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                    {setInfo.shortage.type === null && setInfo.completeSets > 0 ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <CheckCircle className="w-5 h-5" style={{ color: 'var(--success)' }} />
+                        <span className="text-sm font-bold" style={{ color: 'var(--success)' }}>짝 완성</span>
+                      </div>
+                    ) : setInfo.shortage.type !== null ? (
+                      <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg" style={{ background: 'color-mix(in srgb, var(--destructive) 8%, transparent)' }}>
+                        <AlertTriangle className="w-5 h-5" style={{ color: 'var(--destructive)' }} />
+                        <span className="text-sm font-extrabold" style={{ color: 'var(--destructive)' }}>
+                          {setInfo.shortage.type === 'downpipe' ? '다운파이프' : '자바라'} {setInfo.shortage.count}개 부족
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center">
+                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>재고 없음</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-xs font-semibold mt-1" style={{ color: 'var(--muted-foreground)' }}>자바라</div>
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-                {setInfo.shortage.type === null && setInfo.completeSets > 0 ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <CheckCircle className="w-5 h-5" style={{ color: 'var(--success)' }} />
-                    <span className="text-sm font-bold" style={{ color: 'var(--success)' }}>짝 완성</span>
-                  </div>
-                ) : setInfo.shortage.type !== null ? (
-                  <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg" style={{ background: 'color-mix(in srgb, var(--destructive) 8%, transparent)' }}>
-                    <AlertTriangle className="w-5 h-5" style={{ color: 'var(--destructive)' }} />
-                    <span className="text-sm font-extrabold" style={{ color: 'var(--destructive)' }}>
-                      {setInfo.shortage.type === 'downpipe' ? '다운파이프' : '자바라'} {setInfo.shortage.count}개 부족
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center">
-                    <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>재고 없음</span>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           )}
+
+          {/* Type-specific set availability */}
+          <div className="flex flex-wrap gap-2">
+            {setInfo.hasSetSystem ? (
+              <>
+                <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+                  style={{
+                    background: setInfo.catalyticSetOk ? 'color-mix(in srgb, var(--success) 8%, transparent)' : 'color-mix(in srgb, var(--destructive) 8%, transparent)',
+                    color: setInfo.catalyticSetOk ? 'var(--success)' : 'var(--destructive)',
+                  }}>
+                  {setInfo.catalyticSetOk ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  촉매+자바라 세트 {setInfo.catalyticSetOk ? '가능' : '불가'}
+                </span>
+                <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+                  style={{
+                    background: setInfo.straightSetOk ? 'color-mix(in srgb, var(--success) 8%, transparent)' : 'color-mix(in srgb, var(--destructive) 8%, transparent)',
+                    color: setInfo.straightSetOk ? 'var(--success)' : 'var(--destructive)',
+                  }}>
+                  {setInfo.straightSetOk ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  직관+자바라 세트 {setInfo.straightSetOk ? '가능' : '불가'}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+                  style={{
+                    background: setInfo.catalyticOk ? 'color-mix(in srgb, var(--success) 8%, transparent)' : 'color-mix(in srgb, var(--destructive) 8%, transparent)',
+                    color: setInfo.catalyticOk ? 'var(--success)' : 'var(--destructive)',
+                  }}>
+                  {setInfo.catalyticOk ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  촉매 타입 {setInfo.catalyticOk ? '보유' : '품절'}
+                </span>
+                <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+                  style={{
+                    background: setInfo.straightOk ? 'color-mix(in srgb, var(--success) 8%, transparent)' : 'color-mix(in srgb, var(--destructive) 8%, transparent)',
+                    color: setInfo.straightOk ? 'var(--success)' : 'var(--destructive)',
+                  }}>
+                  {setInfo.straightOk ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  직관 타입 {setInfo.straightOk ? '보유' : '품절'}
+                </span>
+                {setInfo.allTypesOk && (
+                  <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+                    style={{ background: 'color-mix(in srgb, var(--primary) 8%, transparent)', color: 'var(--primary)' }}>
+                    <CheckCircle className="w-4 h-4" />
+                    전 타입 보유
+                  </span>
+                )}
+              </>
+            )}
+          </div>
 
           {Object.entries(classified).map(([key, val]) => (
             <div key={key}>
@@ -502,7 +706,7 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
         style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
       >
         <button
-          onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+          onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
           className="md:hidden p-2 -ml-1 rounded-lg transition-colors hover:bg-[var(--muted)]"
         >
           <Menu className="w-6 h-6" style={{ color: 'var(--muted-foreground)' }} />

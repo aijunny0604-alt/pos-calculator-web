@@ -2,13 +2,14 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search, Plus, Trash2, Edit, Upload, Users, Package, Tag, Percent,
   Lock, ChevronDown, ChevronRight, X, Save, AlertTriangle, ShieldAlert, Fingerprint,
-  UserPlus, Download, Copy, Car, Maximize2, Minimize2,
+  UserPlus, Download, Copy, Car, Maximize2, Minimize2, Zap, Loader2,
+  Check, Minus, ArrowRight, RefreshCw,
 } from 'lucide-react';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import StatusBadge from '../components/ui/StatusBadge';
-import { formatPrice, matchesSearchQuery, handleSearchFocus } from '../lib/utils';
+import { formatPrice, matchesSearchQuery, handleSearchFocus, normalizeText } from '../lib/utils';
 import { priceData } from '../lib/priceData';
 
 // ---------------------------------------------------------------------------
@@ -19,6 +20,7 @@ const ADMIN_PASSWORD = '4321';
 const TABS = [
   { id: 'products',    label: '제품관리',    Icon: Package },
   { id: 'customers',   label: '거래처관리',  Icon: Users   },
+  { id: 'ai-stock',    label: 'AI 입고',     Icon: Zap     },
   { id: 'burnway',     label: '번웨이',      Icon: Car     },
   { id: 'categories',  label: '카테고리',    Icon: Tag     },
   { id: 'discounts',   label: '할인설정',    Icon: Percent },
@@ -89,9 +91,9 @@ function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-5xl' }) {
     >
       <div className="absolute inset-0" onClick={onClose} />
       <div
-        className={`relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition ${isFullscreen ? '' : maxWidth}`}
+        className="relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition"
         style={{
-          maxWidth: isFullscreen ? '100vw' : undefined,
+          maxWidth: isFullscreen ? '100vw' : ({ 'max-w-md': '28rem', 'max-w-lg': '32rem', 'max-w-xl': '36rem', 'max-w-2xl': '42rem', 'max-w-3xl': '48rem', 'max-w-4xl': '56rem', 'max-w-5xl': '64rem' }[maxWidth] || '64rem'),
           maxHeight: isFullscreen ? '100vh' : '90vh',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
@@ -312,7 +314,7 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
       if (supabaseConnected && supabase?.saveProduct) {
         const product = products.find(p => p.id === id);
         const saved = await supabase.saveProduct({ ...product, ...updateData });
-        setProducts(prev => prev.map(p => p.id === id ? saved : p));
+        if (saved) setProducts(prev => prev.map(p => p.id === id ? saved : p));
       } else {
         setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updateData } : p));
       }
@@ -835,7 +837,7 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
       if (supabaseConnected && supabase?.saveCustomer) {
         const customer = customers.find(c => c.id === id);
         const saved = await supabase.saveCustomer({ ...customer, [field]: value });
-        setCustomers(prev => prev.map(c => c.id === id ? saved : c));
+        if (saved) setCustomers(prev => prev.map(c => c.id === id ? saved : c));
       } else {
         setCustomers(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
       }
@@ -1071,7 +1073,7 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
                       )}
                     </td>
                     <td className="px-2 sm:px-4 py-2.5 text-center">
-                      {customer.blacklist
+                      {(customer.is_blacklist || customer.blacklist)
                         ? <StatusBadge status="blacklist" />
                         : <span className="text-xs text-[var(--muted-foreground)]">일반</span>
                       }
@@ -1350,7 +1352,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
   const [expandedModel, setExpandedModel] = useState(null);
   const [editingStock, setEditingStock] = useState(null); // { id, value }
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', stock: '', carModel: '' });
+  const [addForm, setAddForm] = useState({ name: '', stock: '', carModel: '', productType: '' });
   const [saving, setSaving] = useState(false);
   const [allModels, setAllModels] = useState(() => loadBurnwayModels());
   const [showModelManager, setShowModelManager] = useState(false);
@@ -1435,7 +1437,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
         setProducts(prev => [...prev, newProduct]);
         showToast(`${newProduct.name} 등록 (로컬)`, 'success');
       }
-      setAddForm({ name: '', stock: '', carModel: '' });
+      setAddForm({ name: '', stock: '', carModel: '', productType: '' });
       setShowAddModal(false);
     } catch { showToast('등록 실패', 'error'); }
     setSaving(false);
@@ -1525,8 +1527,8 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-bold text-[var(--foreground)]">번웨이 다운파이프</h2>
-          <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+          <h2 className="text-lg font-bold text-[var(--foreground)]">번웨이 다운파이프</h2>
+          <p className="text-sm text-[var(--muted-foreground)] mt-1">
             {stats.total}개 제품 · <span style={{ color: 'var(--success)' }}>{stats.totalStock}개</span>
             {stats.outOfStock > 0 && <span style={{ color: 'var(--destructive)' }}> · {stats.outOfStock} 품절</span>}
           </p>
@@ -1542,13 +1544,13 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
       {/* Car Model Manager */}
       {showModelManager && (
         <SectionCard>
-          <div className="px-3 sm:px-4 py-3">
-            <div className="flex items-center gap-2 mb-3">
-              <Car className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-              <span className="text-sm font-bold text-[var(--foreground)]">차량 모델 관리</span>
+          <div className="px-4 sm:px-5 py-4">
+            <div className="flex items-center gap-2.5 mb-4">
+              <Car className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+              <span className="text-base font-bold text-[var(--foreground)]">차량 모델 관리</span>
             </div>
             {/* Add new model */}
-            <div className="space-y-2 mb-3">
+            <div className="space-y-3 mb-4">
               <div className="flex items-center gap-2">
                 <input
                   type="text"
@@ -1556,37 +1558,37 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                   onChange={(e) => setNewModelName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleAddModel(); }}
                   placeholder="새 차량 모델명 입력"
-                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="flex-1 px-4 py-3 text-base rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 />
                 <ActionBtn Icon={Plus} onClick={handleAddModel}>추가</ActionBtn>
               </div>
               <div className="flex items-center gap-4 px-1">
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={newModelJabara} onChange={(e) => { setNewModelJabara(e.target.checked); if (!e.target.checked) setNewModelDctManual(false); }} className="rounded" />
-                  <span className="text-xs text-[var(--muted-foreground)]">자바라 세트</span>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={newModelJabara} onChange={(e) => { setNewModelJabara(e.target.checked); if (!e.target.checked) setNewModelDctManual(false); }} className="rounded w-4 h-4" />
+                  <span className="text-sm text-[var(--muted-foreground)]">자바라 세트</span>
                 </label>
                 {newModelJabara && (
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input type="checkbox" checked={newModelDctManual} onChange={(e) => setNewModelDctManual(e.target.checked)} className="rounded" />
-                    <span className="text-xs text-[var(--muted-foreground)]">DCT/수동 구분</span>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" checked={newModelDctManual} onChange={(e) => setNewModelDctManual(e.target.checked)} className="rounded w-4 h-4" />
+                    <span className="text-sm text-[var(--muted-foreground)]">DCT/수동 구분</span>
                   </label>
                 )}
               </div>
             </div>
             {/* Model list */}
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {allModels.map((model) => {
                 const count = (grouped[model.id] || []).length;
                 if (editingModel && editingModel.id === model.id) {
                   return (
-                    <div key={model.id} className="px-3 py-2 rounded-lg space-y-2" style={{ background: 'var(--background)' }}>
+                    <div key={model.id} className="px-4 py-3 rounded-lg space-y-3" style={{ background: 'var(--background)' }}>
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
                           value={editingModel.label}
                           onChange={(e) => setEditingModel({ ...editingModel, label: e.target.value })}
                           placeholder="모델명"
-                          className="flex-1 px-2 py-1.5 text-sm rounded border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                          className="flex-1 px-3 py-2.5 text-base rounded border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -1595,54 +1597,62 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                           value={editingModel.keywords}
                           onChange={(e) => setEditingModel({ ...editingModel, keywords: e.target.value })}
                           placeholder="키워드 (쉼표 구분)"
-                          className="flex-1 px-2 py-1.5 text-sm rounded border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                          className="flex-1 px-3 py-2.5 text-base rounded border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                         />
                       </div>
                       <div className="flex items-center gap-4 px-1">
-                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                          <input type="checkbox" checked={editingModel.hasJabara} onChange={(e) => setEditingModel({ ...editingModel, hasJabara: e.target.checked, hasDctManual: e.target.checked ? editingModel.hasDctManual : false })} className="rounded" />
-                          <span className="text-xs text-[var(--muted-foreground)]">자바라 세트</span>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input type="checkbox" checked={editingModel.hasJabara} onChange={(e) => setEditingModel({ ...editingModel, hasJabara: e.target.checked, hasDctManual: e.target.checked ? editingModel.hasDctManual : false })} className="rounded w-4 h-4" />
+                          <span className="text-sm text-[var(--muted-foreground)]">자바라 세트</span>
                         </label>
                         {editingModel.hasJabara && (
-                          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                            <input type="checkbox" checked={editingModel.hasDctManual} onChange={(e) => setEditingModel({ ...editingModel, hasDctManual: e.target.checked })} className="rounded" />
-                            <span className="text-xs text-[var(--muted-foreground)]">DCT/수동 구분</span>
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" checked={editingModel.hasDctManual} onChange={(e) => setEditingModel({ ...editingModel, hasDctManual: e.target.checked })} className="rounded w-4 h-4" />
+                            <span className="text-sm text-[var(--muted-foreground)]">DCT/수동 구분</span>
                           </label>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 justify-end">
-                        <button onClick={handleSaveEditModel} className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--success)] transition-colors">
-                          <Save className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <button onClick={handleSaveEditModel} className="p-2 rounded hover:bg-[var(--accent)] text-[var(--success)] transition-colors">
+                          <Save className="w-4 h-4" />
                         </button>
-                        <button onClick={() => setEditingModel(null)} className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] transition-colors">
-                          <X className="w-3.5 h-3.5" />
+                        <button onClick={() => setEditingModel(null)} className="p-2 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] transition-colors">
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
                   );
                 }
                 return (
-                  <div key={model.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: 'var(--background)' }}>
-                    <div className="flex items-center gap-2">
-                      <Car className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-                      <span className="text-sm font-medium text-[var(--foreground)]">{model.label}</span>
-                      <span className="text-xs text-[var(--muted-foreground)]">{count}개</span>
-                      {model.hasJabara && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>세트</span>}
+                  <div key={model.id} className="flex items-center justify-between px-4 py-3 rounded-lg" style={{ background: 'var(--background)' }}>
+                    <div className="flex items-center gap-2.5">
+                      <Car className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                      <span className="text-base font-medium text-[var(--foreground)]">{model.label}</span>
+                      <span className="text-sm text-[var(--muted-foreground)]">{count}개</span>
+                      {model.hasJabara ? (
+                        model.hasDctManual ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>자바라 DCT/수동</span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}>자바라</span>
+                        )
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--muted-foreground) 12%, transparent)', color: 'var(--muted-foreground)' }}>다운파이프만</span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleEditModel(model)}
-                        className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
+                        className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--primary)] transition-colors"
                         title="수정"
                       >
-                        <Edit className="w-3.5 h-3.5" />
+                        <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteModel(model)}
-                        className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
+                        className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
                         title="삭제"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -1664,37 +1674,37 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
           <SectionCard key={model.id}>
             <button
               onClick={() => setExpandedModel(isExpanded ? null : model.id)}
-              className="w-full flex items-center justify-between px-3 sm:px-4 py-3 hover:bg-[var(--accent)] transition-colors rounded-xl"
+              className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-[var(--accent)] transition-colors rounded-xl"
             >
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0"
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0"
                   style={{ background: hasOut ? 'color-mix(in srgb, var(--destructive) 10%, transparent)' : 'color-mix(in srgb, var(--primary) 10%, transparent)' }}>
-                  <Car className="w-4 h-4" style={{ color: hasOut ? 'var(--destructive)' : 'var(--primary)' }} />
+                  <Car className="w-5 h-5" style={{ color: hasOut ? 'var(--destructive)' : 'var(--primary)' }} />
                 </div>
                 <div className="text-left min-w-0">
-                  <span className="text-sm font-bold text-[var(--foreground)]">{model.label}</span>
-                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                    <span className="text-xs" style={{ color: stockColor(modelStock) }}>{modelStock}개</span>
-                    <span className="text-xs text-[var(--muted-foreground)]">{items.length}개</span>
-                    {hasOut && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)' }}>품절</span>}
+                  <span className="text-base font-bold text-[var(--foreground)]">{model.label}</span>
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <span className="text-sm" style={{ color: stockColor(modelStock) }}>{modelStock}개</span>
+                    <span className="text-sm text-[var(--muted-foreground)]">{items.length}종</span>
+                    {hasOut && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)' }}>품절</span>}
                   </div>
                 </div>
               </div>
-              {isExpanded ? <ChevronDown className="w-4 h-4 text-[var(--muted-foreground)]" /> : <ChevronRight className="w-4 h-4 text-[var(--muted-foreground)]" />}
+              {isExpanded ? <ChevronDown className="w-5 h-5 text-[var(--muted-foreground)]" /> : <ChevronRight className="w-5 h-5 text-[var(--muted-foreground)]" />}
             </button>
 
             {isExpanded && (
-              <div className="px-2 sm:px-4 pb-3">
+              <div className="px-3 sm:px-5 pb-4">
                 {items.length === 0 ? (
-                  <p className="text-xs text-[var(--muted-foreground)] py-3 text-center">등록된 제품 없음</p>
+                  <p className="text-sm text-[var(--muted-foreground)] py-4 text-center">등록된 제품 없음</p>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {items.map((p) => {
                       const stock = p.stock ?? 0;
                       const isEditing = editingStock?.id === p.id;
                       return (
-                        <div key={p.id} className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
-                          <span className="flex-1 truncate text-[var(--foreground)] text-xs sm:text-sm">{p.name}</span>
+                        <div key={p.id} className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
+                          <span className="flex-1 truncate text-[var(--foreground)] text-sm sm:text-base">{p.name}</span>
                           {isEditing ? (
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <input
@@ -1705,21 +1715,21 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                                 onKeyDown={(e) => { if (e.key === 'Enter') handleStockSave(p); if (e.key === 'Escape') setEditingStock(null); }}
                                 onBlur={() => handleStockSave(p)}
                                 autoFocus
-                                className="w-14 sm:w-16 px-2 py-1 text-xs text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
+                                className="w-16 sm:w-20 px-3 py-2 text-sm text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
                               />
                             </div>
                           ) : (
                             <button
                               onClick={() => setEditingStock({ id: p.id, value: String(stock) })}
-                              className="px-1.5 sm:px-2 py-1 rounded text-xs font-bold cursor-pointer hover:opacity-70 transition-opacity flex-shrink-0"
+                              className="px-2.5 sm:px-3 py-1.5 rounded text-sm font-bold cursor-pointer hover:opacity-70 transition-opacity flex-shrink-0"
                               style={{ color: stockColor(stock), background: stock === 0 ? 'color-mix(in srgb, var(--destructive) 10%, transparent)' : 'transparent' }}
                               title="클릭하여 재고 수정"
                             >
                               {stock === 0 ? '품절' : `${stock}개`}
                             </button>
                           )}
-                          <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] transition-colors text-[var(--muted-foreground)] hover:text-[var(--destructive)] flex-shrink-0">
-                            <Trash2 className="w-3.5 h-3.5" />
+                          <button onClick={() => handleDelete(p)} className="p-1.5 rounded hover:bg-[var(--accent)] transition-colors text-[var(--muted-foreground)] hover:text-[var(--destructive)] flex-shrink-0">
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       );
@@ -1737,41 +1747,41 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
         <SectionCard>
           <button
             onClick={() => setExpandedModel(expandedModel === 'unclassified' ? null : 'unclassified')}
-            className="w-full flex items-center justify-between px-3 sm:px-4 py-3 hover:bg-[var(--accent)] transition-colors rounded-xl"
+            className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-[var(--accent)] transition-colors rounded-xl"
           >
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg" style={{ background: 'color-mix(in srgb, var(--warning) 10%, transparent)' }}>
-                <AlertTriangle className="w-4 h-4" style={{ color: 'var(--warning)' }} />
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg" style={{ background: 'color-mix(in srgb, var(--warning) 10%, transparent)' }}>
+                <AlertTriangle className="w-5 h-5" style={{ color: 'var(--warning)' }} />
               </div>
-              <span className="text-sm font-bold text-[var(--foreground)]">미분류</span>
-              <span className="text-xs text-[var(--muted-foreground)]">{grouped['unclassified'].length}개</span>
+              <span className="text-base font-bold text-[var(--foreground)]">미분류</span>
+              <span className="text-sm text-[var(--muted-foreground)]">{grouped['unclassified'].length}개</span>
             </div>
-            {expandedModel === 'unclassified' ? <ChevronDown className="w-4 h-4 text-[var(--muted-foreground)]" /> : <ChevronRight className="w-4 h-4 text-[var(--muted-foreground)]" />}
+            {expandedModel === 'unclassified' ? <ChevronDown className="w-5 h-5 text-[var(--muted-foreground)]" /> : <ChevronRight className="w-5 h-5 text-[var(--muted-foreground)]" />}
           </button>
           {expandedModel === 'unclassified' && (
-            <div className="px-2 sm:px-4 pb-3 space-y-1">
+            <div className="px-3 sm:px-5 pb-4 space-y-1.5">
               {grouped['unclassified'].map((p) => {
                 const stock = p.stock ?? 0;
                 const isEditing = editingStock?.id === p.id;
                 return (
-                  <div key={p.id} className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
-                    <span className="flex-1 truncate text-[var(--foreground)] text-xs sm:text-sm">{p.name}</span>
+                  <div key={p.id} className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
+                    <span className="flex-1 truncate text-[var(--foreground)] text-sm sm:text-base">{p.name}</span>
                     {isEditing ? (
                       <input type="number" min="0" value={editingStock.value}
                         onChange={(e) => setEditingStock({ ...editingStock, value: e.target.value })}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleStockSave(p); if (e.key === 'Escape') setEditingStock(null); }}
                         onBlur={() => handleStockSave(p)} autoFocus
-                        className="w-14 sm:w-16 px-2 py-1 text-xs text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
+                        className="w-16 sm:w-20 px-3 py-2 text-sm text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
                       />
                     ) : (
                       <button onClick={() => setEditingStock({ id: p.id, value: String(stock) })}
-                        className="px-1.5 sm:px-2 py-1 rounded text-xs font-bold cursor-pointer hover:opacity-70 flex-shrink-0"
+                        className="px-2.5 sm:px-3 py-1.5 rounded text-sm font-bold cursor-pointer hover:opacity-70 flex-shrink-0"
                         style={{ color: stockColor(stock) }} title="클릭하여 재고 수정">
                         {stock === 0 ? '품절' : `${stock}개`}
                       </button>
                     )}
-                    <button onClick={() => handleDelete(p)} className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] flex-shrink-0">
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <button onClick={() => handleDelete(p)} className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] flex-shrink-0">
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 );
@@ -1791,12 +1801,11 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
               value={addForm.carModel}
               onChange={(e) => {
                 const modelId = e.target.value;
-                setAddForm(prev => ({ ...prev, carModel: modelId }));
-                // Auto-prefix name if empty
-                if (modelId && !addForm.name.trim()) {
-                  const model = allModels.find(m => m.id === modelId);
-                  if (model) setAddForm(prev => ({ ...prev, carModel: modelId, name: model.label + ' ' }));
-                }
+                const model = allModels.find(m => m.id === modelId);
+                const autoName = model && addForm.productType
+                  ? `${model.label} ${addForm.productType}`
+                  : model ? model.label + ' ' : '';
+                setAddForm(prev => ({ ...prev, carModel: modelId, name: autoName }));
               }}
               className="px-3 py-3 text-base rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all"
             >
@@ -1806,7 +1815,30 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
               ))}
             </select>
           </div>
-          <InputField label="제품명" required placeholder="예: 벨로스터N 전용 자바라 DCT" value={addForm.name}
+          {/* Product type selector */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-[var(--foreground)]">제품 타입</label>
+            <select
+              value={addForm.productType}
+              onChange={(e) => {
+                const type = e.target.value;
+                const model = allModels.find(m => m.id === addForm.carModel);
+                const autoName = model && type
+                  ? `${model.label} ${type}`
+                  : model ? model.label + ' ' + type : type;
+                setAddForm(prev => ({ ...prev, productType: type, name: autoName.trim() }));
+              }}
+              className="px-3 py-3 text-base rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all"
+            >
+              <option value="">선택하세요</option>
+              <option value="촉매 다운파이프">촉매 다운파이프</option>
+              <option value="직관 다운파이프">직관 다운파이프</option>
+              <option value="자바라 DCT">자바라 DCT</option>
+              <option value="자바라 수동">자바라 수동</option>
+              <option value="자바라">자바라 (단일)</option>
+            </select>
+          </div>
+          <InputField label="제품명" required placeholder="차량 모델 + 타입 선택 시 자동 생성" value={addForm.name}
             onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} />
           <InputField label="초기 재고 (개)" type="number" min="0" placeholder="0" value={addForm.stock}
             onChange={(e) => setAddForm({ ...addForm, stock: e.target.value })} />
@@ -1817,6 +1849,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                   ? allModels.find(m => m.id === addForm.carModel)?.label || '미분류'
                   : getDetectedModelLabel(addForm.name)}
               </span>
+              {addForm.productType && <> · 타입: <span className="font-medium text-[var(--foreground)]">{addForm.productType}</span></>}
               {' '}· 카테고리: 번웨이
             </p>
           )}
@@ -1832,6 +1865,329 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
 
 // ---------------------------------------------------------------------------
 // DiscountTiersTab
+// ---------------------------------------------------------------------------
+// AI Stock Tab
+// ---------------------------------------------------------------------------
+function AIStockTab({ products, setProducts, supabaseConnected, showToast, supabase }) {
+  const [inputText, setInputText] = useState('');
+  const [parsedItems, setParsedItems] = useState([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
+
+  const getGeminiKey = () => {
+    const stored = localStorage.getItem('geminiApiKey');
+    if (stored) return stored;
+    try { return atob('QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj'); } catch { return ''; }
+  };
+
+  const synonyms = {
+    '스텐': '스덴', '스테인': '스덴', 'sus': '스덴',
+    '밴드': '밴딩', '벤딩': '밴딩',
+    '후렌지': '플랜지', '후란지': '플랜지',
+    '공갈레조': 'CH', '뻥레조': 'CH', '직관레조': 'CH', '직관 레조': 'CH',
+    '가변소음기': 'TVB', '가변': 'TVB', '진공가변': 'TVB',
+    '레듀서': '레듀샤', '리듀서': '레듀샤',
+  };
+
+  const applySynonyms = (text) => {
+    let r = text.toLowerCase();
+    Object.entries(synonyms).forEach(([k, v]) => { r = r.replace(new RegExp(k, 'gi'), v); });
+    return r;
+  };
+
+  const calculateMatchScore = (productName, searchText) => {
+    let score = 0;
+    const np = normalizeText(productName);
+    const ns = normalizeText(searchText);
+    if (np === ns) return 1000;
+    if (np.includes(ns)) score += 100 + ns.length * 5;
+    if (applySynonyms(np).includes(applySynonyms(ns))) score += 80 + ns.length * 4;
+    const parts = ns.match(/[가-힣a-z]+|\d+/gi) || [];
+    if (parts.length > 0) {
+      let lastIdx = -1, seq = 0;
+      parts.forEach(p => { const fi = np.indexOf(p, lastIdx + 1); if (fi > lastIdx) { seq++; lastIdx = fi + p.length - 1; score += p.length * 3; } });
+      if (seq === parts.length) score += 40;
+    }
+    const sw = searchText.toLowerCase().split(/[\s\-_]+/).filter(w => w.length > 0);
+    let mw = 0;
+    sw.forEach(w => { if (np.includes(normalizeText(w)) || applySynonyms(np).includes(applySynonyms(w))) { mw++; score += w.length * 2; } });
+    if (mw === sw.length && sw.length > 1) score += 30;
+    return score;
+  };
+
+  const findProduct = (name) => {
+    if (!name) return null;
+    const exact = products.find(p => p.name === name);
+    if (exact) return exact;
+    const lower = name.toLowerCase();
+    const ci = products.find(p => p.name.toLowerCase() === lower);
+    if (ci) return ci;
+    const norm = normalizeText(name);
+    const ni = products.find(p => normalizeText(p.name) === norm);
+    if (ni) return ni;
+    let best = null, bestScore = 0;
+    products.forEach(p => {
+      const s = calculateMatchScore(p.name, name);
+      if (s > bestScore) { bestScore = s; best = p; }
+    });
+    return bestScore >= 20 ? best : null;
+  };
+
+  const analyzeStock = async () => {
+    if (!inputText.trim()) return;
+    setIsAnalyzing(true);
+    setParsedItems([]);
+
+    const geminiKey = getGeminiKey();
+    if (!geminiKey) { showToast('Gemini API 키가 없습니다', 'error'); setIsAnalyzing(false); return; }
+
+    const grouped = {};
+    products.forEach(p => {
+      const cat = p.category || '기타';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(`${p.name} (재고:${p.stock ?? '?'})`);
+    });
+    const productList = Object.entries(grouped).map(([c, ns]) => `[${c}]\n${ns.join('\n')}`).join('\n\n');
+
+    const prompt = `당신은 자동차 튜닝/배기 부품 재고 관리 AI입니다. 텍스트에서 제품과 수량, 동작(입고/출고/설정)을 추출하세요.
+
+## 제품 매칭 규칙 (최우선!)
+- "직관 레조", "직관레조" → **CH 뻥레조** (CH 200 64 등). "일반 레조" → 진짜 레조 (레조 100 250 64 등)
+- "가변소음기 63h 2개" → "용접된 TVB 64 h 좌, 우 1세트" qty:1 (h/Y 2개=1세트)
+- "가변소음기 54y 2개" → "용접된 TVB 54 Y 좌,우 1세트" qty:1
+- 내경 63→64 매핑 (제품에 63 없음)
+- "중통 원밴딩 76" → 76파이 관련 중통/원밴딩 제품
+- 차종 약어: 벨N=벨로스터N, 아N=아반떼N, 코나N=코나N
+- 숫자가 여러개인 레조: "100 250 64" → 외경100 길이250 내경64
+
+## 동작 판정
+- "입고", "입고 완료", "추가", "들어옴", "도착" → action: "add" (현재 재고에 추가)
+- "출고", "차감", "빠짐", "나감", "사용" → action: "subtract" (현재 재고에서 차감)
+- "재고 설정", "재고 30개로", "30개로 변경" → action: "set" (절대값 설정)
+- **동작 미지정 시 기본값: "add"** (입고가 가장 일반적)
+
+## 제품 목록 (현재 재고 포함)
+${productList}
+
+## 입력 텍스트
+${inputText}
+
+## 응답 형식 (JSON 배열만, 다른 텍스트 없이)
+[{"originalText":"원본","matchedProduct":"정확한 제품명 or null","quantity":수량,"action":"add|subtract|set","confidence":"high|medium|low","alternatives":["제품명1"]}]
+
+## 예시
+입력: "레조 100 250 64 20개 입고 완료"
+→ [{"originalText":"레조 100 250 64 20개 입고 완료","matchedProduct":"레조 100 250 64","quantity":20,"action":"add","confidence":"high","alternatives":[]}]
+
+입력: "중통 원밴딩 76 아N 4개 벨N 3개 입고"
+→ [{"originalText":"중통 원밴딩 76 아N 4개","matchedProduct":"76파이 아N 중통 원밴딩 배기라인","quantity":4,"action":"add","confidence":"high","alternatives":[]},{"originalText":"중통 원밴딩 76 벨N 3개","matchedProduct":"벨N 중통 원밴딩 배기라인","quantity":3,"action":"add","confidence":"high","alternatives":[]}]
+
+입력: "직관 레조 200 54 재고 10개로 설정"
+→ [{"originalText":"직관 레조 200 54 재고 10개로 설정","matchedProduct":"CH 200 54","quantity":10,"action":"set","confidence":"high","alternatives":[]}]`;
+
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
+      );
+      if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+      const data = await resp.json();
+      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      let jsonStr = aiText;
+      const jsonMatch = aiText.match(/```json\s*([\s\S]*?)\s*```/) || aiText.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) jsonStr = jsonMatch[1] || jsonMatch[0];
+      const aiResults = JSON.parse(jsonStr);
+
+      const items = aiResults.map(item => {
+        const searchTerms = [item.matchedProduct, ...(item.alternatives || []), item.originalText].filter(Boolean);
+        let matched = null;
+        const alts = [];
+        for (const term of searchTerms) {
+          const found = findProduct(term);
+          if (found && !matched) matched = found;
+          else if (found && !alts.some(a => a.id === found.id) && found.id !== matched?.id) alts.push(found);
+        }
+        const action = item.action || 'add';
+        const qty = item.quantity || 1;
+        let newStock = matched ? (matched.stock ?? 0) : 0;
+        if (action === 'add') newStock += qty;
+        else if (action === 'subtract') newStock = Math.max(0, newStock - qty);
+        else if (action === 'set') newStock = qty;
+
+        return {
+          originalText: item.originalText,
+          matchedProduct: matched,
+          quantity: qty,
+          action,
+          newStock,
+          confidence: item.confidence || (matched ? 'high' : 'low'),
+          alternatives: alts.slice(0, 3),
+          selected: !!matched,
+        };
+      });
+      setParsedItems(items);
+    } catch (e) {
+      console.error('AI Stock error:', e);
+      showToast(`AI 분석 실패: ${e.message}`, 'error');
+    }
+    setIsAnalyzing(false);
+  };
+
+  const recalcStock = (item) => {
+    const current = item.matchedProduct?.stock ?? 0;
+    if (item.action === 'add') return current + item.quantity;
+    if (item.action === 'subtract') return Math.max(0, current - item.quantity);
+    if (item.action === 'set') return item.quantity;
+    return current;
+  };
+
+  const updateItem = (idx, changes) => {
+    setParsedItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const updated = { ...item, ...changes };
+      updated.newStock = recalcStock(updated);
+      return updated;
+    }));
+  };
+
+  const switchProduct = (idx, product) => {
+    setParsedItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const updated = { ...item, matchedProduct: product, selected: true };
+      updated.newStock = recalcStock(updated);
+      return updated;
+    }));
+  };
+
+  const applyChanges = async () => {
+    const selected = parsedItems.filter(it => it.selected && it.matchedProduct);
+    if (selected.length === 0) { showToast('적용할 항목이 없습니다', 'error'); return; }
+    setIsApplying(true);
+    let success = 0, fail = 0;
+    for (const item of selected) {
+      const updated = await supabase.updateProduct(item.matchedProduct.id, { stock: item.newStock });
+      if (updated) {
+        setProducts(prev => prev.map(p => p.id === item.matchedProduct.id ? { ...p, stock: item.newStock } : p));
+        success++;
+      } else { fail++; }
+    }
+    showToast(`${success}건 적용 완료${fail ? `, ${fail}건 실패` : ''}`, fail ? 'error' : 'success');
+    if (success > 0) { setParsedItems([]); setInputText(''); }
+    setIsApplying(false);
+  };
+
+  const actionLabel = { add: '입고', subtract: '출고', set: '설정' };
+  const actionColor = { add: 'text-green-600', subtract: 'text-red-600', set: 'text-blue-600' };
+  const confBadge = { high: 'bg-green-100 text-green-700', medium: 'bg-yellow-100 text-yellow-700', low: 'bg-red-100 text-red-700' };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold">AI 재고 관리</h2>
+      <p className="text-sm text-gray-500">자연어로 입고/출고를 입력하면 AI가 제품을 매칭하고 재고를 업데이트합니다.</p>
+
+      {/* Input */}
+      <div className="space-y-2">
+        <textarea
+          value={inputText}
+          onChange={e => setInputText(e.target.value)}
+          placeholder={"예시:\nJSR 레조 100 250 64 20개\n100 250 54 20개\n중통 원밴딩 76 아N 4개 벨N 3개\n\n입고 완료"}
+          className="w-full h-40 p-3 border rounded-lg text-sm resize-y focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+        />
+        <button
+          onClick={analyzeStock}
+          disabled={isAnalyzing || !inputText.trim()}
+          className="w-full py-3 bg-[var(--primary)] text-white rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {isAnalyzing ? <><Loader2 size={18} className="animate-spin" /> 분석 중...</> : <><Zap size={18} /> AI 분석</>}
+        </button>
+      </div>
+
+      {/* Results */}
+      {parsedItems.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-base">분석 결과 ({parsedItems.filter(i => i.selected).length}/{parsedItems.length}건 선택)</h3>
+            <button
+              onClick={applyChanges}
+              disabled={isApplying || !parsedItems.some(i => i.selected && i.matchedProduct)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
+            >
+              {isApplying ? <><Loader2 size={16} className="animate-spin" /> 적용 중...</> : <><Check size={16} /> 일괄 적용</>}
+            </button>
+          </div>
+
+          {parsedItems.map((item, idx) => (
+            <div key={idx} className={`p-3 rounded-lg border ${item.selected ? 'border-green-300 bg-green-50/50' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+              {/* Header: checkbox + original text + confidence */}
+              <div className="flex items-start gap-2 mb-2">
+                <input type="checkbox" checked={item.selected} onChange={e => updateItem(idx, { selected: e.target.checked })}
+                  className="mt-1 w-4 h-4 rounded" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm text-gray-500">{item.originalText}</span>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${confBadge[item.confidence] || confBadge.low}`}>
+                  {item.confidence}
+                </span>
+              </div>
+
+              {item.matchedProduct ? (
+                <>
+                  {/* Product name + stock change */}
+                  <div className="ml-6 mb-2">
+                    <div className="font-medium text-sm">{item.matchedProduct.name}</div>
+                    <div className="flex items-center gap-2 mt-1 text-sm">
+                      <span className="text-gray-500">현재 <strong>{item.matchedProduct.stock ?? 0}</strong>개</span>
+                      <ArrowRight size={14} className="text-gray-400" />
+                      <span className={`font-bold ${actionColor[item.action]}`}>{item.newStock}개</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${item.action === 'add' ? 'bg-green-100 text-green-700' : item.action === 'subtract' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {actionLabel[item.action]} {item.action !== 'set' && `${item.action === 'add' ? '+' : '-'}${item.quantity}`}
+                        {item.action === 'set' && `→ ${item.quantity}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Controls: action + quantity */}
+                  <div className="ml-6 flex items-center gap-3 flex-wrap">
+                    <select value={item.action} onChange={e => updateItem(idx, { action: e.target.value })}
+                      className="text-xs border rounded px-2 py-1">
+                      <option value="add">입고 (+)</option>
+                      <option value="subtract">출고 (-)</option>
+                      <option value="set">설정 (=)</option>
+                    </select>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateItem(idx, { quantity: Math.max(1, item.quantity - 1) })}
+                        className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300"><Minus size={12} /></button>
+                      <input type="number" value={item.quantity} min={1}
+                        onChange={e => updateItem(idx, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                        className="w-14 text-center text-sm border rounded px-1 py-0.5" />
+                      <button onClick={() => updateItem(idx, { quantity: item.quantity + 1 })}
+                        className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300"><Plus size={12} /></button>
+                    </div>
+                  </div>
+
+                  {/* Alternatives */}
+                  {item.alternatives.length > 0 && (
+                    <div className="ml-6 mt-2 flex gap-1 flex-wrap">
+                      <span className="text-xs text-gray-400">대안:</span>
+                      {item.alternatives.map((alt, ai) => (
+                        <button key={ai} onClick={() => switchProduct(idx, alt)}
+                          className="text-xs px-2 py-0.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600">{alt.name}</button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="ml-6 text-sm text-red-500">매칭 실패 - 제품을 찾을 수 없습니다</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 const EMPTY_TIER = { minQty: '', maxQty: '', type: 'percent', value: '' };
 
@@ -2194,6 +2550,7 @@ export default function AdminPage({
       <main className="px-4 sm:px-6 py-6">
         {activeTab === 'products' && <ProductsTab {...tabProps} initialCategory={selectedCategory} />}
         {activeTab === 'customers' && <CustomersTab {...tabProps} />}
+        {activeTab === 'ai-stock' && <AIStockTab {...tabProps} />}
         {activeTab === 'burnway' && <BurnwayTab {...tabProps} />}
         {activeTab === 'categories' && <CategoriesTab {...tabProps} onSelectCategory={(cat) => { setSelectedCategory(cat); setActiveTab('products'); }} />}
         {activeTab === 'discounts' && <DiscountTiersTab {...tabProps} />}

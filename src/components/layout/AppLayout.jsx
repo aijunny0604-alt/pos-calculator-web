@@ -10,11 +10,16 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isFullScreen = fullScreenPages.includes(currentPage);
 
-  // Listen for 'open-sidebar' custom events from fullscreen pages
+  // Listen for 'toggle-sidebar' custom events from fullscreen pages
   useEffect(() => {
-    const handler = () => setSidebarOpen(true);
-    window.addEventListener('open-sidebar', handler);
-    return () => window.removeEventListener('open-sidebar', handler);
+    const toggleHandler = () => setSidebarOpen(prev => !prev);
+    const openHandler = () => setSidebarOpen(true);
+    window.addEventListener('toggle-sidebar', toggleHandler);
+    window.addEventListener('open-sidebar', openHandler);
+    return () => {
+      window.removeEventListener('toggle-sidebar', toggleHandler);
+      window.removeEventListener('open-sidebar', openHandler);
+    };
   }, []);
 
   return (
@@ -26,7 +31,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
 
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-[45] md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
           <aside className="relative w-64 h-full bg-[var(--card)] shadow-xl">
             <Sidebar
@@ -44,7 +49,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
       {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {!isFullScreen && (
-          <Header onMenuClick={() => setSidebarOpen(true)} currentPage={currentPage} isOnline={isOnline} />
+          <Header onMenuClick={() => setSidebarOpen(prev => !prev)} currentPage={currentPage} isOnline={isOnline} />
         )}
         <main className={`flex-1 overflow-y-auto scroll-smooth ${
           isFullScreen

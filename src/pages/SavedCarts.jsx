@@ -7,7 +7,7 @@ import {
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { formatPrice, matchesSearchQuery, handleSearchFocus } from '@/lib/utils';
+import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST } from '@/lib/utils';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
@@ -40,8 +40,9 @@ export default function SavedCarts({
   const [productSearchTermDetail, setProductSearchTermDetail] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
+  const [customDate, setCustomDate] = useState('');
   const [deliveryFilter, setDeliveryFilter] = useState('all');
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [calculatorInitialValue, setCalculatorInitialValue] = useState(null);
   const { isFullscreen: isDetailFullscreen, toggleFullscreen: toggleDetailFullscreen } = useModalFullscreen();
@@ -125,11 +126,11 @@ export default function SavedCarts({
 
   const getDeliveryDateLabel = (deliveryDate) => {
     if (!deliveryDate) return null;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const delivery = new Date(deliveryDate);
-    delivery.setHours(0, 0, 0, 0);
-    const diffDays = Math.floor((delivery - today) / (1000 * 60 * 60 * 24));
+    const todayKST = getTodayKST();
+    const todayMs = new Date(todayKST + 'T00:00:00+09:00').getTime();
+    const deliveryKST = toDateKST(deliveryDate);
+    const deliveryMs = new Date(deliveryKST + 'T00:00:00+09:00').getTime();
+    const diffDays = Math.floor((deliveryMs - todayMs) / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) return { label: '오늘 발송', colorStyle: { color: 'var(--destructive)', fontWeight: 'bold' }, urgent: true };
     if (diffDays === 1) return { label: '내일 발송', colorStyle: { color: 'var(--warning)', fontWeight: 600 }, urgent: true };
@@ -158,38 +159,38 @@ export default function SavedCarts({
     if (dateFilter === 'all') return true;
     if (!cart.date && !cart.created_at) return false;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    let cartDate;
+    const todayKST = getTodayKST();
+    let cartDateKST;
     if (cart.created_at) {
-      cartDate = new Date(cart.created_at);
+      cartDateKST = toDateKST(cart.created_at);
     } else {
       const dateStr = cart.date.replace(/\s/g, '').replace(/\./g, '-').replace(/-$/, '');
       const parts = dateStr.split('-').filter(p => p);
       if (parts.length === 3) {
-        cartDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        cartDateKST = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
       } else {
         return false;
       }
     }
-    cartDate.setHours(0, 0, 0, 0);
 
-    if (dateFilter === 'today') return cartDate.getTime() === today.getTime();
+    if (dateFilter === 'today') return cartDateKST === todayKST;
     if (dateFilter === 'yesterday') {
-      const yesterday = new Date(today);
+      const yesterday = new Date(todayKST + 'T00:00:00+09:00');
       yesterday.setDate(yesterday.getDate() - 1);
-      return cartDate.getTime() === yesterday.getTime();
+      return cartDateKST === yesterday.toISOString().split('T')[0];
     }
     if (dateFilter === 'week') {
-      const weekAgo = new Date(today);
+      const weekAgo = new Date(todayKST + 'T00:00:00+09:00');
       weekAgo.setDate(weekAgo.getDate() - 7);
-      return cartDate >= weekAgo;
+      return cartDateKST >= weekAgo.toISOString().split('T')[0];
     }
     if (dateFilter === 'month') {
-      const monthAgo = new Date(today);
+      const monthAgo = new Date(todayKST + 'T00:00:00+09:00');
       monthAgo.setMonth(monthAgo.getMonth() - 1);
-      return cartDate >= monthAgo;
+      return cartDateKST >= monthAgo.toISOString().split('T')[0];
+    }
+    if (dateFilter === 'custom' && customDate) {
+      return cartDateKST === customDate;
     }
     return true;
   };
@@ -228,6 +229,7 @@ export default function SavedCarts({
       case 'yesterday': return '어제';
       case 'week': return '이번 주';
       case 'month': return '이번 달';
+      case 'custom': return customDate || '날짜 선택';
       default: return '전체';
     }
   };
@@ -765,7 +767,7 @@ export default function SavedCarts({
             <div className="flex items-center gap-2">
               {/* Mobile: menu button */}
               <button
-                onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+                onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
                 className="md:hidden p-2 hover:bg-[var(--accent)] rounded-lg transition-colors"
               >
                 <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
@@ -895,6 +897,45 @@ export default function SavedCarts({
               {searchTerm && <span className="text-[var(--primary)]">검색: {searchTerm}</span>}
             </div>
           )}
+
+          {/* Date filter buttons - always visible */}
+          {isHeaderCollapsed && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { key: 'today', label: '오늘' },
+                { key: 'yesterday', label: '어제' },
+                { key: 'week', label: '이번 주' },
+                { key: 'month', label: '이번 달' },
+                { key: 'custom', label: '날짜 선택' },
+                { key: 'all', label: '전체' }
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => { setDateFilter(key); setSelectedItems([]); }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    dateFilter === key
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+              {dateFilter === 'custom' && (
+                <input
+                  type="date"
+                  value={customDate}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                  className="px-2.5 py-1 rounded-lg border text-xs focus:outline-none"
+                  style={{
+                    background: 'var(--background)',
+                    borderColor: 'var(--border)',
+                    color: 'var(--foreground)',
+                  }}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Expandable filter + search area */}
@@ -925,6 +966,7 @@ export default function SavedCarts({
                   { key: 'yesterday', label: '어제' },
                   { key: 'week', label: '이번 주' },
                   { key: 'month', label: '이번 달' },
+                  { key: 'custom', label: '날짜 선택' },
                   { key: 'all', label: '전체' }
                 ].map(({ key, label }) => (
                   <button
@@ -939,6 +981,19 @@ export default function SavedCarts({
                     {label}
                   </button>
                 ))}
+                {dateFilter === 'custom' && (
+                  <input
+                    type="date"
+                    value={customDate}
+                    onChange={(e) => setCustomDate(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border text-sm focus:outline-none"
+                    style={{
+                      background: 'var(--background)',
+                      borderColor: 'var(--border)',
+                      color: 'var(--foreground)',
+                    }}
+                  />
+                )}
               </div>
             </div>
 

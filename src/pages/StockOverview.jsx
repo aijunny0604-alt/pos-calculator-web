@@ -12,7 +12,7 @@ export default function StockOverview({ products = [], categories = [], formatPr
   const [selectedCategory, setSelectedCategory] = useState('전체');
   const [stockFilter, setStockFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -114,7 +114,7 @@ export default function StockOverview({ products = [], categories = [], formatPr
             <div className="flex items-center gap-3">
               {/* Mobile: menu button */}
               <button
-                onClick={() => window.dispatchEvent(new CustomEvent('open-sidebar'))}
+                onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
                 className="md:hidden p-2 rounded-lg transition-colors hover:bg-[var(--secondary)]"
               >
                 <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
