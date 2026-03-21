@@ -1096,7 +1096,7 @@ export default function MainPOS({
               {savingStep || '처리 중...'}
             </p>
             <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-              화면이 멈춘 것이 아닙니다
+              잠시만 기다려주세요
             </p>
           </div>
         </div>
