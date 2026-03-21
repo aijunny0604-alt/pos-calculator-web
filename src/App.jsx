@@ -78,6 +78,8 @@ export default function App() {
   const [saveCartCustomerOverride, setSaveCartCustomerOverride] = useState(null);
   const [showQuickCalc, setShowQuickCalc] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savingStep, setSavingStep] = useState('');
 
   // ─── Toast ────────────────────────────────────────────────────
   const [toast, setToast] = useState({ message: '', type: 'info' });
@@ -339,117 +341,150 @@ export default function App() {
     if (data) setSavedCarts(data);
   }, []);
 
-  // ─── 재고 차감 ───────────────────
+  // ─── 재고 차감 (병렬 처리) ───────────────────
   const deductStock = useCallback(async (items) => {
-    for (const item of items) {
+    const updates = items.map(item => {
       const product = products.find(p => p.id === item.id);
-      if (!product || product.stock === undefined || product.stock === null) continue;
+      if (!product || product.stock === undefined || product.stock === null) return null;
       const newStock = Math.max(0, product.stock - (item.quantity || 1));
-      const updated = await supabase.updateProduct(product.id, { stock: newStock });
-      if (updated) {
-        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
-      }
-    }
+      return { productId: product.id, newStock };
+    }).filter(Boolean);
+
+    if (updates.length === 0) return;
+
+    // 로컬 state 즉시 반영 (UI 빠른 업데이트)
+    setProducts(prev => prev.map(p => {
+      const u = updates.find(x => x.productId === p.id);
+      return u ? { ...p, stock: u.newStock } : p;
+    }));
+
+    // API 호출은 병렬로 (백그라운드)
+    await Promise.all(
+      updates.map(u => supabase.updateProduct(u.productId, { stock: u.newStock }))
+    );
   }, [products]);
 
   // ─── Save order (with same-day merge logic) ───────────────────
   const saveOrder = useCallback(
     async (orderData) => {
-      const customer_name = orderData.customer_name || orderData.customerName || '일반고객';
-      const items = orderData.items || [];
-      const price_type = orderData.price_type || orderData.priceType || 'wholesale';
-      const totalVal = orderData.total_amount || orderData.totalAmount || 0;
+      setIsSaving(true);
+      setSavingStep('주문 정보 확인 중...');
+      try {
+        const customer_name = orderData.customer_name || orderData.customerName || '일반고객';
+        const items = orderData.items || [];
+        const price_type = orderData.price_type || orderData.priceType || 'wholesale';
+        const totalVal = orderData.total_amount || orderData.totalAmount || 0;
 
-      // Auto-register unknown customers (skip 일반고객)
-      if (
-        customer_name &&
-        customer_name !== '일반고객' &&
-        !customers.find(
-          (c) => c.name?.toLowerCase() === customer_name?.toLowerCase()
-        )
-      ) {
-        const newCustomer = await supabase.addCustomer({ name: customer_name });
-        if (newCustomer) {
-          setCustomers((prev) => [...prev, newCustomer]);
+        // Auto-register unknown customers (skip 일반고객)
+        if (
+          customer_name &&
+          customer_name !== '일반고객' &&
+          !customers.find(
+            (c) => c.name?.toLowerCase() === customer_name?.toLowerCase()
+          )
+        ) {
+          setSavingStep('신규 거래처 등록 중...');
+          const newCustomer = await supabase.addCustomer({ name: customer_name });
+          if (newCustomer) {
+            setCustomers((prev) => [...prev, newCustomer]);
+          }
         }
-      }
 
-      const today = getTodayKST();
+        const today = getTodayKST();
 
-      // Check for same-customer same-day order to merge (skip for 일반고객)
-      if (customer_name && customer_name !== '일반고객') {
-        const existingOrder = orders.find((o) => {
-          const orderDate = o.createdAt ? toDateKST(o.createdAt) : '';
-          return (
-            o.customerName?.toLowerCase() === customer_name?.toLowerCase() &&
-            orderDate === today
-          );
-        });
-
-        if (existingOrder) {
-          // Merge items: match by id + price, accumulate quantities
-          const mergedItems = [...(existingOrder.items || [])];
-          for (const newItem of items) {
-            const idx = mergedItems.findIndex(
-              (i) => i.id === newItem.id && i.price === newItem.price
+        // Check for same-customer same-day order to merge (skip for 일반고객)
+        if (customer_name && customer_name !== '일반고객') {
+          const existingOrder = orders.find((o) => {
+            const orderDate = o.createdAt ? toDateKST(o.createdAt) : '';
+            return (
+              o.customerName?.toLowerCase() === customer_name?.toLowerCase() &&
+              orderDate === today
             );
-            if (idx >= 0) {
-              mergedItems[idx] = {
-                ...mergedItems[idx],
-                quantity: mergedItems[idx].quantity + newItem.quantity,
-              };
-            } else {
-              mergedItems.push(newItem);
+          });
+
+          if (existingOrder) {
+            setSavingStep('기존 주문에 합산 중...');
+            // Merge items: match by id + price, accumulate quantities
+            const mergedItems = [...(existingOrder.items || [])];
+            for (const newItem of items) {
+              const idx = mergedItems.findIndex(
+                (i) => i.id === newItem.id && i.price === newItem.price
+              );
+              if (idx >= 0) {
+                mergedItems[idx] = {
+                  ...mergedItems[idx],
+                  quantity: mergedItems[idx].quantity + newItem.quantity,
+                };
+              } else {
+                mergedItems.push(newItem);
+              }
+            }
+            const mergedTotal = mergedItems.reduce(
+              (sum, i) => sum + (i.price || 0) * (i.quantity || 1),
+              0
+            );
+            const mergeData = {
+              items: mergedItems,
+              total: mergedTotal,
+              subtotal: Math.round(mergedTotal / 1.1),
+              vat: mergedTotal - Math.round(mergedTotal / 1.1),
+            };
+            const updated = await supabase.updateOrder(existingOrder.id, mergeData);
+            if (updated) {
+              // 로컬 state 직접 업데이트 (refreshOrders 제거)
+              setOrders(prev => prev.map(o =>
+                o.id === existingOrder.id
+                  ? { ...o, ...mergeData, items: mergedItems, totalAmount: mergedTotal }
+                  : o
+              ));
+              // 재고 차감 (병렬) + 장바구니 초기화 동시
+              setSavingStep('재고 반영 중...');
+              await deductStock(items);
+              setCartWithHistory([]);
+              showToast('기존 주문에 합산되었습니다', 'success');
+              return { ...updated, merged: true };
             }
           }
-          const mergedTotal = mergedItems.reduce(
-            (sum, i) => sum + (i.price || 0) * (i.quantity || 1),
-            0
-          );
-          const updated = await supabase.updateOrder(existingOrder.id, {
-            items: mergedItems,
-            total: mergedTotal,
-            subtotal: Math.round(mergedTotal / 1.1),
-            vat: mergedTotal - Math.round(mergedTotal / 1.1),
-          });
-          if (updated) {
-            await refreshOrders();
-            // 재고 차감 (새로 추가된 items만)
-            await deductStock(items);
-            setCartWithHistory([]);
-            showToast('기존 주문에 합산되었습니다', 'success');
-            return updated;
-          }
         }
-      }
 
-      // New order
-      const orderId = orderData.orderNumber || orderData.id || `ORD-${getTodayKST().replace(/-/g,'')}-${String(Math.floor(Math.random()*10000)).padStart(4,'0')}`;
-      const created = await supabase.saveOrder({
-        id: orderId,
-        customer_name,
-        customer_phone: orderData.customer_phone || orderData.customerPhone || '',
-        customer_address: orderData.customer_address || orderData.customerAddress || '',
-        price_type: price_type || 'wholesale',
-        items,
-        total: totalVal,
-        subtotal: Math.round(totalVal / 1.1),
-        vat: totalVal - Math.round(totalVal / 1.1),
-        memo: orderData.memo || null,
-      });
+        // New order
+        setSavingStep('주문 저장 중...');
+        const orderId = orderData.orderNumber || orderData.id || `ORD-${getTodayKST().replace(/-/g,'')}-${String(Math.floor(Math.random()*10000)).padStart(4,'0')}`;
+        const orderPayload = {
+          id: orderId,
+          customer_name,
+          customer_phone: orderData.customer_phone || orderData.customerPhone || '',
+          customer_address: orderData.customer_address || orderData.customerAddress || '',
+          price_type: price_type || 'wholesale',
+          items,
+          total: totalVal,
+          subtotal: Math.round(totalVal / 1.1),
+          vat: totalVal - Math.round(totalVal / 1.1),
+          memo: orderData.memo || null,
+        };
+        const created = await supabase.saveOrder(orderPayload);
 
-      if (created) {
-        await refreshOrders();
-        // 재고 차감
-        await deductStock(items);
-        setCartWithHistory([]);
-        showToast('주문이 저장되었습니다', 'success');
-      } else {
-        showToast('주문 저장에 실패했습니다', 'error');
+        if (created) {
+          // 로컬 state 직접 업데이트 (refreshOrders 제거)
+          const newOrder = Array.isArray(created) ? created[0] : created;
+          if (newOrder) {
+            setOrders(prev => [formatOrder(newOrder), ...prev]);
+          }
+          // 재고 차감 (병렬)
+          setSavingStep('재고 반영 중...');
+          await deductStock(items);
+          setCartWithHistory([]);
+          showToast('주문이 저장되었습니다', 'success');
+        } else {
+          showToast('주문 저장에 실패했습니다', 'error');
+        }
+        return created;
+      } finally {
+        setIsSaving(false);
+        setSavingStep('');
       }
-      return created;
     },
-    [customers, orders, refreshOrders, showToast]
+    [customers, orders, formatOrder, showToast, deductStock]
   );
 
   // ─── Order handlers ───────────────────────────────────────────
@@ -738,6 +773,8 @@ export default function App() {
             onOpenQuickCalculator={() => setShowQuickCalc(true)}
             showToast={showToast}
             saveOrder={saveOrder}
+            isSaving={isSaving}
+            savingStep={savingStep}
             customers={customers}
             onSaveCartModal={(customerInfo) => {
               if (customerInfo) setSaveCartCustomerOverride(customerInfo);
@@ -1079,6 +1116,36 @@ export default function App() {
             showToast('알림 설정이 저장되었습니다', 'success');
           }}
         />
+      )}
+
+      {/* 주문 저장 로딩 오버레이 (POS 외 페이지용) */}
+      {isSaving && currentPage !== 'pos' && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            className="flex flex-col items-center gap-4 p-8 rounded-2xl shadow-2xl mx-4"
+            style={{ background: 'var(--card)', minWidth: '220px' }}
+          >
+            <div className="relative w-14 h-14">
+              <div
+                className="absolute inset-0 rounded-full border-4 animate-spin"
+                style={{ borderColor: 'var(--muted)', borderTopColor: 'var(--primary)' }}
+              />
+              <div
+                className="absolute inset-2 rounded-full border-4 animate-spin"
+                style={{ borderColor: 'transparent', borderBottomColor: 'var(--primary)', animationDirection: 'reverse', animationDuration: '0.8s' }}
+              />
+            </div>
+            <p className="text-base font-semibold" style={{ color: 'var(--foreground)' }}>
+              {savingStep || '처리 중...'}
+            </p>
+            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+              잠시만 기다려주세요
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Toast notifications */}
