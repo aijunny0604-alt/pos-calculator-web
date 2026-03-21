@@ -1121,14 +1121,14 @@ export default function App() {
       {/* 주문 저장 로딩 오버레이 (POS 외 페이지용) */}
       {isSaving && currentPage !== 'pos' && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+          className="fixed inset-0 z-[80] flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
         >
           <div
-            className="flex flex-col items-center gap-4 p-8 rounded-2xl shadow-2xl mx-4"
-            style={{ background: 'var(--card)', minWidth: '220px' }}
+            className="flex flex-col items-center gap-4 p-8 rounded-2xl shadow-2xl mx-4 animate-pulse"
+            style={{ background: 'var(--card)', minWidth: '240px' }}
           >
-            <div className="relative w-14 h-14">
+            <div className="relative w-16 h-16">
               <div
                 className="absolute inset-0 rounded-full border-4 animate-spin"
                 style={{ borderColor: 'var(--muted)', borderTopColor: 'var(--primary)' }}
@@ -1138,11 +1138,11 @@ export default function App() {
                 style={{ borderColor: 'transparent', borderBottomColor: 'var(--primary)', animationDirection: 'reverse', animationDuration: '0.8s' }}
               />
             </div>
-            <p className="text-base font-semibold" style={{ color: 'var(--foreground)' }}>
+            <p className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>
               {savingStep || '처리 중...'}
             </p>
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              잠시만 기다려주세요
+            <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+              화면이 멈춘 것이 아닙니다
             </p>
           </div>
         </div>
