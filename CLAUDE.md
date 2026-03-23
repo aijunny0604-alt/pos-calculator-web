@@ -1,6 +1,6 @@
 # POS Calculator Web - AI 핸드오프 가이드
 
-> 마지막 업데이트: 2026-03-12
+> 마지막 업데이트: 2026-03-23
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 ---
@@ -47,8 +47,8 @@ npx gh-pages -d dist # GitHub Pages 배포
 ### 핵심 파일
 | 파일 | 줄 수 | 역할 |
 |------|-------|------|
-| `src/App.jsx` | ~1045 | 메인 앱. 라우팅, 상태관리, Supabase 실시간 구독, saveOrder, deductStock 로직 |
-| `src/lib/supabase.js` | ~206 | Supabase REST API 래퍼 (CRUD). `Array.isArray(data) ? data[0] : data` 정규화 적용 |
+| `src/App.jsx` | ~1094 | 메인 앱. 라우팅, 상태관리, Supabase 실시간 구독, saveOrder, deductStock, Global Undo 시스템 |
+| `src/lib/supabase.js` | ~208 | Supabase REST API 래퍼 (CRUD). `Array.isArray(data) ? data[0] : data` 정규화. addProduct id 자동생성 |
 | `src/lib/priceData.js` | - | 478개 하드코딩 상품 (오프라인 폴백) |
 | `src/lib/utils.js` | ~104 | formatPrice, formatDateTime, getTodayKST, toDateKST, matchesSearchQuery, normalizeText 유틸리티 |
 | `src/index.css` | ~218 | CSS 변수 테마, 카드 애니메이션, 프린트 스타일 |
@@ -57,16 +57,16 @@ npx gh-pages -d dist # GitHub Pages 배포
 | 파일 | 줄 수 | 라우팅 ID | 설명 | 상태 |
 |------|-------|-----------|------|------|
 | `Dashboard.jsx` | 244 | `dashboard` | 대시보드 (통계카드, 최근주문, 바로가기) | 정상 |
-| `MainPOS.jsx` | 1074 | `pos` | POS 계산기 (상품그리드 + 장바구니 + 주문확인) | **핵심 기능**, 정상 |
+| `MainPOS.jsx` | 1080 | `pos` | POS 계산기 (상품그리드 + 장바구니 + 주문확인 + isSaving 로딩) | **핵심 기능**, 정상 |
 | `OrderHistory.jsx` | 839 | `orders` | 주문 내역 조회/필터/삭제/반품필터 | 정상 |
-| `OrderDetail.jsx` | 1420 | (모달) | 주문 상세 보기/수정/인쇄/제품교체/배송정보복사 | 정상 |
+| `OrderDetail.jsx` | 1445 | (모달) | 주문 상세 보기/수정/인쇄/제품교체/배송정보복사 | 정상 |
 | `SavedCarts.jsx` | 1314 | `saved-carts` | 저장된 장바구니 관리 | 정상 |
-| `CustomerList.jsx` | 1100 | `customers` | 거래처 목록/상세/주문이력/반품/배송정보복사 | 정상 |
+| `CustomerList.jsx` | 1105 | `customers` | 거래처 목록/상세/주문이력/반품/배송정보복사 | 정상 |
 | `StockOverview.jsx` | 341 | `stock` | 재고 현황 테이블 | 정상 |
-| `BurnwayStock.jsx` | 562 | `burnway-stock` | 번웨이 다운파이프 재고 (대시보드 카드 스타일) | 정상 |
-| `ShippingLabel.jsx` | 1238 | `shipping` | 택배 송장 출력/관리 | 정상 |
-| `TextAnalyze.jsx` | 1216 | `ai-order` | AI 텍스트 주문 인식 | 정상 |
-| `AdminPage.jsx` | 2203 | `admin` | 관리자 패널 (비번: `4321`) | 정상 |
+| `BurnwayStock.jsx` | 766 | `burnway-stock` | 번웨이 다운파이프 재고 (카드+세트구성) | 정상 |
+| `ShippingLabel.jsx` | 1241 | `shipping` | 택배 송장 출력/관리 | 정상 |
+| `TextAnalyze.jsx` | 1321 | `ai-order` | AI 텍스트 주문 인식 | 정상 |
+| `AdminPage.jsx` | 2565 | `admin` | 관리자 패널 (비번: `4321`) + AI 입고 | 정상 |
 | `OrderPage.jsx` | 1000 | - | (미사용 레거시) | 미사용 |
 | `SaveCartModal.jsx` | 289 | (모달) | 장바구니 저장 모달 | 정상 |
 | `QuickCalculator.jsx` | 298 | (모달) | 빠른 계산기 | 정상 |
@@ -129,11 +129,19 @@ useEffect(() => {
 
 ### 주문 저장 플로우 (saveOrder in App.jsx)
 1. 장바구니 아이템 + 고객정보 → saveOrder 호출
-2. 같은 고객의 당일 주문이 있으면 **병합** (items 합치기)
-3. 없으면 새 주문 생성
-4. 고객이 DB에 없으면 자동 등록
-5. Supabase orders 테이블에 저장
-6. 실시간 구독으로 자동 반영
+2. 고객이 DB에 없으면 **자동 등록** (name + phone + address 포함)
+3. 기존 고객의 phone/address가 비어있으면 **자동 업데이트**
+4. 같은 고객의 당일 주문이 있으면 **병합** (items 합치기)
+5. 없으면 새 주문 생성
+6. 재고 차감 (`deductStock`)
+7. 실시간 구독으로 자동 반영
+
+### Global Undo 시스템 (App.jsx)
+- `undoStackRef` (useRef) - 최대 20개 스택
+- `pushUndo(entry)` - undo 항목 추가
+- `setCartWithHistory` - 장바구니 변경 시 자동 undo 기록
+- **Ctrl+Z** 단축키로 되돌리기 (INPUT/TEXTAREA 포커스 시 제외)
+- 지원: 장바구니 변경, 주문 삭제/복원, 제품 추가/수정/삭제, 장바구니 삭제/전체삭제
 
 ---
 
@@ -308,11 +316,54 @@ useEffect(() => {
 - **보안**: Critical 3건 (Gemini API 키 노출, RLS 미확인, 인증 부재)
 - **핵심 기능**: 100% 구현 완료
 
-#### 발견된 추가 이슈 (미수정, 향후 작업)
-- **[Critical]** TextAnalyze.jsx:44 - Gemini API 키 Base64 노출 → 즉시 revoke 필요
-- **[High]** OrderDetail.jsx, ShippingLabel.jsx - `document.write()` XSS 취약점
-- **[Medium]** supabase.js:206 - 미사용 `ADMIN_PASSWORD = '1234'` 잔존
+#### 발견된 추가 이슈
+- **[Critical]** TextAnalyze.jsx:45, AdminPage.jsx:1881 - Gemini API 키 Base64 노출 (사용자 유지 결정)
+- **[High]** OrderDetail.jsx, ShippingLabel.jsx - `document.write()` XSS (escapeHtml 적용됨, 위험 낮음)
+- ~~**[Medium]** supabase.js:206 - 미사용 `ADMIN_PASSWORD = '1234'` 잔존~~ → **2026-03-23 삭제 완료**
 - **[Info]** shippingCount와 todayOrderCount가 동일 로직 중복
+
+### 2026-03-23 작업 내역
+
+#### 버그 수정 11건 (전체 점검 + PDCA 기법)
+
+##### 1. Supabase 장애 복구
+- Pro 플랜 업그레이드 + Spend cap 해제 + Restart project
+- 이전 프로젝트(`icqxomltplewrhopafpq`)는 별도 계정, 현재 프로젝트와 무관
+
+##### 2. 제품 등록 빈 페이지 크래시 (supabase.js + AdminPage.jsx)
+- **원인**: products 테이블 `id`가 auto-increment 아닌 수동 할당 (이전 시 설정 누락)
+- **수정**: `addProduct`에서 id 없으면 `max(id)+1` 자동 생성 (`supabase.js:69-76`)
+- **추가**: `retail`/`stock`/`min_stock` 빈값을 `null` → `0`으로 변경 (NOT NULL 제약)
+- **추가**: `saved` 결과 null 체크로 products 배열에 null 삽입 방지
+
+##### 3. 반품 기능 버그 (CustomerList.jsx)
+- **원인**: `onUpdateOrder(updatedOrder)` → `handleUpdateOrder(id, data)` 시그니처 불일치
+- **수정**: `onUpdateOrder(id, { returns, total_returned })` 형태로 변경
+- **추가**: 반품 데이터 형식을 OrderDetail.jsx와 통일 (개별 레코드 → items JSONB)
+- **추가**: `customer_id`, `customer_name` 필드 추가
+
+##### 4. 거래처 등록 오류 (AdminPage.jsx + App.jsx)
+- **AdminPage**: `...formData` 스프레드 → 명시적 필드 나열 (DB에 없는 `blacklist` 필드 제거)
+- **App.jsx saveOrder**: 자동 거래처 등록 시 `phone`/`address` 포함 (기존: name만)
+- **App.jsx saveOrder**: 기존 거래처의 빈 phone/address 자동 업데이트
+
+##### 5. 택배 송장 빈값 덮어쓰기 (ShippingLabel.jsx)
+- 빈 phone/address로 기존 값 덮어쓰기 방지 (빈 값은 업데이트에서 제외)
+
+##### 6. 기타 수정
+- `ADMIN_PASSWORD = '1234'` 미사용 export 삭제 (supabase.js)
+- 디버그 `console.log` 제거 (supabase.js deleteSavedCart)
+- 모바일 제품명 잘림 수정: `truncate` → `break-keep` (MainPOS.jsx)
+- PC 주문 로딩 애니메이션: `isSaving={false}` 하드코딩 → 실제 상태 관리 (MainPOS.jsx)
+- 거래처 저장 null 체크 추가 (AdminPage.jsx CustomersTab)
+
+#### PDCA 점검 결과 (에이전트 6회 투입)
+- **코드 품질**: 72/100 (code-analyzer)
+- **설계-구현 일치율**: 82% (gap-detector)
+- **보안 점수**: 22/100 (security-architect) - Gemini API 키/관리자 비번은 사용자 유지 결정
+- **등록 플로우 전수검사**: 10개 플로우 중 3건 수정, 7건 정상 확인
+- **Playwright E2E 테스트**: 9개 페이지 네비게이션 + 제품 등록 + 주문 저장 검증 완료
+- **보고서**: `docs/04-report/2026-03-23-*.md` (코드분석/보안감사/갭분석)
 
 ---
 
@@ -350,19 +401,20 @@ useEffect(() => {
 ```
 App.jsx (상태 관리)
 ├── orders, products, customers, savedCarts ← Supabase 로드
-├── saveOrder(orderData) - 주문 저장
+├── saveOrder(orderData) - 주문 저장 (자동 거래처 등록/업데이트 포함)
 ├── setCurrentPage(pageId) - 라우팅
+├── pushUndo(entry) - Global Undo 시스템
 │
-├── MainPOS ← products, cart, saveOrder, customers, onSaveCartModal
-├── Dashboard ← orders, products, savedCarts, customers, setCurrentPage
-├── OrderHistory ← orders, setOrders, supabase, onViewOrder
-├── CustomerList ← customers, setCustomers, orders, products, supabase
-├── SavedCarts ← savedCarts, customers, products, loadCartToPos
-├── StockOverview ← products
-├── BurnwayStock ← products
-├── ShippingLabel ← orders, customers
-├── TextAnalyze ← products, customers, saveOrder
-└── AdminPage ← products, customers, supabase, setProducts, setCustomers
+├── MainPOS ← products, cart, saveOrder, customers, priceType, isSaving, onSaveCartModal, onOpenTextAnalyze, onOpenQuickCalculator, loadedCustomer, onClearLoadedCustomer
+├── Dashboard ← orders, products, savedCarts, customers, setCurrentPage, supabaseConnected, onViewOrder
+├── OrderHistory ← orders, onDeleteOrder, onDeleteMultiple, onViewOrder, onRefresh, isLoading, onSaveToCart, customers
+├── CustomerList ← customers, orders, onAddCustomer, onSaveCustomerReturn, onRefreshOrders, onUpdateOrder, showToast
+├── SavedCarts ← savedCarts, customers, products, onLoad, onDelete, onDeleteAll, onUpdate, onOrder, onRefresh, isLoading, showToast
+├── StockOverview ← products, categories, formatPrice, onBack
+├── BurnwayStock ← products, formatPrice, onBack
+├── ShippingLabel ← orders, customers, onBack, refreshCustomers, showToast
+├── TextAnalyze ← products, onAddToCart, formatPrice, priceType, onBack
+└── AdminPage ← products, customers, supabase, setProducts, setCustomers, supabaseConnected, showToast, pushUndo
 ```
 
 ---
@@ -373,6 +425,15 @@ App.jsx (상태 관리)
 - `OrderPage.jsx` (~1000줄) 미사용 레거시 파일 → 삭제 가능
 - 스크린샷 PNG 파일 다수 → `.gitignore`에 추가 권장
 - `.playwright-cli/` 폴더 → `.gitignore`에 추가 권장
+- `saveOrder` useCallback deps 배열에 `deductStock` 누락 (연속 주문 시 stale closure 가능, 실질 영향 낮음)
+- `shippingCount`와 `todayOrderCount` 동일 로직 중복 (`App.jsx:302-318`)
+
+### Supabase 스키마 주의사항
+- `products.id`: auto-increment 아님! `supabase.js addProduct`에서 `max(id)+1`로 자동 생성
+- `products` NOT NULL 컬럼: `id`, `name`, `category`, `wholesale`, `retail`, `stock`, `min_stock`
+- `customers.id`: TEXT (UUID, Supabase 자동 생성)
+- `customer_returns.return_id`: NOT NULL (코드에서 `RET-${Date.now()}` 생성)
+- `saved_carts.id`: auto-increment (정상)
 
 ### 향후 개선 아이디어
 - 다크 모드 지원
@@ -411,6 +472,19 @@ App.jsx (상태 관리)
 - [x] 주문 후 재고 실시간 차감
 - [x] 주문 내역 반품 카드 클릭 필터
 - [x] 택배 송장 소형 화면 레이아웃 (280px~375px 검증)
+
+### 2026-03-23 추가 검증
+- [x] 관리자: 제품 등록 (id 자동생성, NOT NULL 처리)
+- [x] 관리자: 거래처 등록 (blacklist 필드 제거)
+- [x] 주문 시 신규 거래처 자동 등록 (phone + address 포함)
+- [x] 주문 시 기존 거래처 빈 phone/address 자동 업데이트
+- [x] 반품 처리 → 주문 업데이트 DB 반영
+- [x] 반품 데이터 customer_id/name 포함
+- [x] 택배 송장 빈값 덮어쓰기 방지
+- [x] PC 주문 로딩 스피너 표시
+- [x] 모바일 제품명 전체 표시 (break-keep)
+- [x] 9개 페이지 네비게이션 정상 (Playwright E2E)
+- [x] 5개 테이블 INSERT 정상 (API 직접 테스트)
 
 ---
 
