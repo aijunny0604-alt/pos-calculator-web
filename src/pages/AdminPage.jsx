@@ -887,9 +887,11 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
     setSaving(true);
     try {
       const payload = {
-        ...formData,
         name: formData.name.trim(),
-        is_blacklist: formData.blacklist,
+        phone: formData.phone || '',
+        address: formData.address || '',
+        memo: formData.memo || '',
+        is_blacklist: formData.blacklist || false,
       };
       const isNew = !editTarget?.id;
       if (supabaseConnected && supabase?.saveCustomer) {
