@@ -179,9 +179,7 @@ export const supabase = {
   },
   async deleteSavedCart(id) {
     try {
-      console.log('[supabase.deleteSavedCart] id:', id, 'type:', typeof id);
       const r = await fetch(`${SUPABASE_URL}/rest/v1/saved_carts?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
-      console.log('[supabase.deleteSavedCart] status:', r.status, 'ok:', r.ok);
       return r.ok;
     } catch (e) { console.error('deleteSavedCart:', e); return false; }
   },
@@ -202,5 +200,3 @@ export const supabase = {
     return await this.addCustomer(customer);
   },
 };
-
-export const ADMIN_PASSWORD = '1234';
