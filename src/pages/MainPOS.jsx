@@ -51,6 +51,7 @@ export default function MainPOS({
   const [expandedCategories, setExpandedCategories] = useState({});
   const [isCartExpanded, setIsCartExpanded] = useState(false);
   const [showOrderConfirm, setShowOrderConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [orderCustomerName, setOrderCustomerName] = useState('');
   const [orderCustomerPhone, setOrderCustomerPhone] = useState('');
   const [orderMemo, setOrderMemo] = useState('');
@@ -779,21 +780,26 @@ export default function MainPOS({
           formatPrice={formatPrice}
           onSaveOrder={async (orderData) => {
             if (!saveOrder) return null;
-            const result = await saveOrder({
-              customer_name: orderData.customerName || '일반고객',
-              customer_phone: orderData.customerPhone || '',
-              customer_address: orderData.customerAddress || '',
-              memo: orderData.memo || '',
-              items: orderData.items,
-              total_amount: orderData.totalAmount,
-              price_type: orderData.priceType,
-              order_number: orderData.orderNumber,
-              existing_customer_id: orderData.existingCustomerId,
-            });
-            if (result) onClearLoadedCustomer?.();
-            return result;
+            setIsSaving(true);
+            try {
+              const result = await saveOrder({
+                customer_name: orderData.customerName || '일반고객',
+                customer_phone: orderData.customerPhone || '',
+                customer_address: orderData.customerAddress || '',
+                memo: orderData.memo || '',
+                items: orderData.items,
+                total_amount: orderData.totalAmount,
+                price_type: orderData.priceType,
+                order_number: orderData.orderNumber,
+                existing_customer_id: orderData.existingCustomerId,
+              });
+              if (result) onClearLoadedCustomer?.();
+              return result;
+            } finally {
+              setIsSaving(false);
+            }
           }}
-          isSaving={false}
+          isSaving={isSaving}
           onUpdateQuantity={updateQuantity}
           onRemoveItem={removeFromCart}
           onAddItem={addToCart}
