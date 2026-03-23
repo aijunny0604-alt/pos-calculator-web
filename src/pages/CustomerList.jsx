@@ -100,20 +100,24 @@ export default function CustomerList({
     }
 
     const returnId = `RET-${Date.now()}`;
-    const returnData = returnedItems.map(item => ({
-      order_number: detailOrder.orderNumber,
+    const returnedAt = new Date().toISOString();
+    const returnTotal = returnedItems.reduce((sum, i) => sum + i.price * i.returnQty, 0);
+    const customerReturnData = {
       return_id: returnId,
-      item_id: item.id,
-      item_name: item.name,
-      quantity: item.returnQty,
-      price: item.price,
-      total: item.price * item.returnQty,
-      returned_at: new Date().toISOString()
-    }));
-
-    for (const data of returnData) {
-      await onSaveCustomerReturn(data);
-    }
+      customer_name: selectedCustomer?.name || detailOrder.customerName,
+      customer_id: selectedCustomer?.id || null,
+      order_number: detailOrder.orderNumber,
+      items: returnedItems.map(item => ({
+        itemId: item.id,
+        itemName: item.name,
+        quantity: item.returnQty,
+        price: item.price,
+        total: item.price * item.returnQty,
+      })),
+      total_amount: returnTotal,
+      returned_at: returnedAt,
+    };
+    await onSaveCustomerReturn(customerReturnData);
 
     const newReturns = [
       ...(detailOrder.returns || []),

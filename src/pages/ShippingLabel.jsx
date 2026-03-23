@@ -213,7 +213,11 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
 
   const saveCustomerInfo = async (customerId) => {
     try {
-      const updated = await supabase.updateCustomer(customerId, { address: tempAddress, phone: tempPhone });
+      const updates = {};
+      if (tempAddress) updates.address = tempAddress;
+      if (tempPhone) updates.phone = tempPhone;
+      if (Object.keys(updates).length === 0) { setEditingCustomer(null); return; }
+      const updated = await supabase.updateCustomer(customerId, updates);
       if (updated) {
         if (refreshCustomers) await refreshCustomers();
         setEditingCustomer(null);
