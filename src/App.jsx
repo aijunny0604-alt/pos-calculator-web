@@ -360,17 +360,29 @@ export default function App() {
       const price_type = orderData.price_type || orderData.priceType || 'wholesale';
       const totalVal = orderData.total_amount || orderData.totalAmount || 0;
 
-      // Auto-register unknown customers (skip 일반고객)
-      if (
-        customer_name &&
-        customer_name !== '일반고객' &&
-        !customers.find(
+      // Auto-register or update customers (skip 일반고객)
+      if (customer_name && customer_name !== '일반고객') {
+        const existingCustomer = customers.find(
           (c) => c.name?.toLowerCase() === customer_name?.toLowerCase()
-        )
-      ) {
-        const newCustomer = await supabase.addCustomer({ name: customer_name });
-        if (newCustomer) {
-          setCustomers((prev) => [...prev, newCustomer]);
+        );
+        const phone = orderData.customer_phone || orderData.customerPhone || '';
+        const address = orderData.customer_address || orderData.customerAddress || '';
+
+        if (!existingCustomer) {
+          // 신규 거래처 등록
+          const newCustomer = await supabase.addCustomer({ name: customer_name, phone, address });
+          if (newCustomer) {
+            setCustomers((prev) => [...prev, newCustomer]);
+          }
+        } else if (phone || address) {
+          // 기존 거래처: 전화/주소가 비어있으면 업데이트
+          const updates = {};
+          if (phone && !existingCustomer.phone) updates.phone = phone;
+          if (address && !existingCustomer.address) updates.address = address;
+          if (Object.keys(updates).length > 0) {
+            await supabase.updateCustomer(existingCustomer.id, updates);
+            setCustomers((prev) => prev.map(c => c.id === existingCustomer.id ? { ...c, ...updates } : c));
+          }
         }
       }
 
