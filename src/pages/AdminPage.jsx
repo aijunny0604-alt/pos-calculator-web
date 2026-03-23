@@ -383,13 +383,14 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
         name: formData.name.trim(),
         category: formData.category.trim(),
         wholesale: Number(formData.wholesale),
-        retail: formData.retail !== '' ? Number(formData.retail) : null,
-        stock: formData.stock !== '' ? Number(formData.stock) : null,
-        min_stock: formData.min_stock !== '' ? Number(formData.min_stock) : null,
+        retail: formData.retail !== '' ? Number(formData.retail) : 0,
+        stock: formData.stock !== '' ? Number(formData.stock) : 0,
+        min_stock: formData.min_stock !== '' ? Number(formData.min_stock) : 0,
       };
       const isNew = !editTarget?.id;
       if (supabaseConnected && supabase?.saveProduct) {
         const saved = await supabase.saveProduct(isNew ? payload : { ...payload, id: editTarget.id });
+        if (!saved) throw new Error('서버 저장 실패');
         if (isNew) {
           setProducts(prev => [...prev, saved]);
         } else {
@@ -493,7 +494,7 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
             name: cols[nameIdx],
             category: cols[catIdx] || '',
             wholesale: wsIdx !== -1 ? Number(cols[wsIdx]) || 0 : 0,
-            retail: rtIdx !== -1 && cols[rtIdx] ? Number(cols[rtIdx]) : null,
+            retail: rtIdx !== -1 && cols[rtIdx] ? Number(cols[rtIdx]) : 0,
           });
         }
         setProducts(prev => [...prev, ...imported]);

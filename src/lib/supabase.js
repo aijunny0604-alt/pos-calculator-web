@@ -68,6 +68,12 @@ export const supabase = {
   },
   async addProduct(product) {
     try {
+      // id가 없으면 현재 최대 id + 1로 자동 생성
+      if (!product.id) {
+        const all = await fetchJSON(`${SUPABASE_URL}/rest/v1/products?select=id&order=id.desc&limit=1`, { headers });
+        const maxId = Array.isArray(all) && all.length > 0 ? all[0].id : 0;
+        product = { ...product, id: maxId + 1 };
+      }
       const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/products`, {
         method: 'POST', headers: headersWithReturn, body: JSON.stringify(product)
       });
