@@ -139,7 +139,10 @@ export default function CustomerList({
     setDetailOrder(updatedOrder);
 
     if (onUpdateOrder) {
-      await onUpdateOrder(updatedOrder);
+      await onUpdateOrder(updatedOrder.id || updatedOrder.orderNumber, {
+        returns: updatedOrder.returns,
+        total_returned: updatedOrder.totalReturned,
+      });
     }
 
     setIsReturning(false);

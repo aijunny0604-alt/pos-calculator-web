@@ -894,6 +894,7 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
       const isNew = !editTarget?.id;
       if (supabaseConnected && supabase?.saveCustomer) {
         const saved = await supabase.saveCustomer(isNew ? payload : { ...payload, id: editTarget.id });
+        if (!saved) throw new Error('서버 저장 실패');
         if (isNew) {
           setCustomers(prev => [...prev, saved]);
         } else {
