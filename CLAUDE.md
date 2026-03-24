@@ -350,10 +350,14 @@ useEffect(() => {
 ##### 5. 택배 송장 빈값 덮어쓰기 (ShippingLabel.jsx)
 - 빈 phone/address로 기존 값 덮어쓰기 방지 (빈 값은 업데이트에서 제외)
 
-##### 6. 기타 수정
+##### 6. 주문확인 페이지 제품명 잘림 수정 (OrderPage.jsx)
+- 제품 검색 목록, 장바구니 아이템, 제품 변경 드롭다운 3곳: `truncate` → `break-keep leading-tight`
+- Playwright 모바일(390x844) 테스트 완료: "스덴 밴딩 파이프 51 - 15" 전체 표시 확인
+
+##### 7. 기타 수정
 - `ADMIN_PASSWORD = '1234'` 미사용 export 삭제 (supabase.js)
 - 디버그 `console.log` 제거 (supabase.js deleteSavedCart)
-- 모바일 제품명 잘림 수정: `truncate` → `break-keep` (MainPOS.jsx)
+- 모바일 제품명 잘림 수정: `truncate` → `break-keep` (MainPOS.jsx 상품그리드)
 - PC 주문 로딩 애니메이션: `isSaving={false}` 하드코딩 → 실제 상태 관리 (MainPOS.jsx)
 - 거래처 저장 null 체크 추가 (AdminPage.jsx CustomersTab)
 
@@ -482,7 +486,8 @@ App.jsx (상태 관리)
 - [x] 반품 데이터 customer_id/name 포함
 - [x] 택배 송장 빈값 덮어쓰기 방지
 - [x] PC 주문 로딩 스피너 표시
-- [x] 모바일 제품명 전체 표시 (break-keep)
+- [x] 모바일 제품명 전체 표시 - MainPOS 상품그리드 (break-keep)
+- [x] 모바일 제품명 전체 표시 - OrderPage 주문확인 3곳 (break-keep, Playwright 검증)
 - [x] 9개 페이지 네비게이션 정상 (Playwright E2E)
 - [x] 5개 테이블 INSERT 정상 (API 직접 테스트)
 
