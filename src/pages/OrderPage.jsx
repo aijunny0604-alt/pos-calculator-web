@@ -568,10 +568,10 @@ export default function OrderPage({
                       }}
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>{product.name}</p>
+                        <p className="text-sm font-medium break-keep leading-tight" style={{ color: 'var(--foreground)' }}>{product.name}</p>
                         <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{product.category}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-medium" style={{ color: 'var(--primary)' }}>{fmt(price)}</span>
                         {isInCart ? (
                           <span
@@ -646,7 +646,7 @@ export default function OrderPage({
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="font-medium truncate" style={{ color: 'var(--foreground)' }}>{item.name}</p>
+                            <p className="font-medium break-keep leading-tight" style={{ color: 'var(--foreground)' }}>{item.name}</p>
                             {hasDiscount && (
                               <span
                                 className="text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0"
@@ -766,7 +766,7 @@ export default function OrderPage({
                                     style={{ borderBottom: '1px solid color-mix(in srgb, var(--border) 50%, transparent)' }}
                                   >
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>{product.name}</p>
+                                      <p className="text-sm font-medium break-keep leading-tight" style={{ color: 'var(--foreground)' }}>{product.name}</p>
                                       <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{product.category}</p>
                                     </div>
                                     <span className="text-sm font-medium ml-2" style={{ color: 'var(--primary)' }}>{fmt(productPrice)}</span>
