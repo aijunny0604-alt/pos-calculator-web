@@ -135,19 +135,23 @@ export default function App() {
   }, [showToast]);
 
   // ─── Format order: snake_case → camelCase (이전 버전과 동일) ──
-  const formatOrder = useCallback((o) => ({
-    ...o,
-    orderNumber: o.id,
-    createdAt: o.created_at,
-    customerName: o.customer_name,
-    customerPhone: o.customer_phone,
-    customerAddress: o.customer_address || '',
-    priceType: o.price_type,
-    totalAmount: o.total || o.total_amount || 0,
-    totalReturned: o.total_returned || 0,
-    returns: o.returns || [],
-    items: o.items || [],
-  }), []);
+  const formatOrder = useCallback((o) => {
+    const allItems = o.items || [];
+    return {
+      ...o,
+      orderNumber: o.id,
+      createdAt: o.created_at,
+      customerName: o.customer_name,
+      customerPhone: o.customer_phone,
+      customerAddress: o.customer_address || '',
+      priceType: o.price_type,
+      totalAmount: o.total || o.total_amount || 0,
+      totalReturned: o.total_returned || 0,
+      returns: o.returns || [],
+      items: allItems.filter(i => !i._jabara_deduction),
+      _jabaraDeductions: allItems.filter(i => i._jabara_deduction),
+    };
+  }, []);
 
   // ─── Initial data load ────────────────────────────────────────
   useEffect(() => {
@@ -442,13 +446,28 @@ export default function App() {
 
       // New order
       const orderId = orderData.orderNumber || orderData.id || `ORD-${getTodayKST().replace(/-/g,'')}-${String(Math.floor(Math.random()*10000)).padStart(4,'0')}`;
+      // 자바라 차감 정보를 items에 포함 (삭제 시 복구용)
+      const jabaraDeductions = orderData.linkedJabaraDeductions;
+      const itemsWithJabara = [...items];
+      if (jabaraDeductions && jabaraDeductions.length > 0) {
+        for (const jd of jabaraDeductions) {
+          itemsWithJabara.push({
+            id: jd.productId,
+            name: jd.productName,
+            quantity: jd.quantity,
+            price: 0,
+            _jabara_deduction: true,
+          });
+        }
+      }
+
       const created = await supabase.saveOrder({
         id: orderId,
         customer_name,
         customer_phone: orderData.customer_phone || orderData.customerPhone || '',
         customer_address: orderData.customer_address || orderData.customerAddress || '',
         price_type: price_type || 'wholesale',
-        items,
+        items: itemsWithJabara,
         total: totalVal,
         subtotal: Math.round(totalVal / 1.1),
         vat: totalVal - Math.round(totalVal / 1.1),
@@ -491,16 +510,18 @@ export default function App() {
       const ok = await supabase.deleteOrder(id);
       if (ok) {
         setOrders((prev) => prev.filter((o) => o.id !== id));
-        // 재고 복구 (차감의 역연산)
-        if (deletedOrder?.items && Array.isArray(deletedOrder.items)) {
-          for (const item of deletedOrder.items) {
-            const product = products.find(p => p.id === item.id);
-            if (product && product.stock !== undefined) {
-              const restoredStock = product.stock + (item.quantity || 1);
-              const updated = await supabase.updateProduct(product.id, { stock: restoredStock });
-              if (updated) {
-                setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: restoredStock } : p));
-              }
+        // 재고 복구 (일반 아이템 + 자바라 연동분 모두)
+        const allItemsToRestore = [
+          ...(deletedOrder?.items || []),
+          ...(deletedOrder?._jabaraDeductions || []),
+        ];
+        for (const item of allItemsToRestore) {
+          const product = products.find(p => p.id === item.id);
+          if (product && product.stock !== undefined) {
+            const restoredStock = product.stock + (item.quantity || 1);
+            const updated = await supabase.updateProduct(product.id, { stock: restoredStock });
+            if (updated) {
+              setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: restoredStock } : p));
             }
           }
         }
