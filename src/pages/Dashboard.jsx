@@ -13,8 +13,9 @@ export default function Dashboard({
   supabaseConnected,
   setCurrentPage,
   onViewOrder,
+  todayKST,
 }) {
-  const today = getTodayKST();
+  const today = todayKST || getTodayKST();
 
   const todayStats = useMemo(() => {
     const todayOrders = orders.filter(o => toDateKST(o.createdAt) === today);

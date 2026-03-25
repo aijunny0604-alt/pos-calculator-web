@@ -36,6 +36,9 @@ export default function App() {
   const lastFetchRef = useRef(0);
   const FETCH_THROTTLE_MS = 30000; // 30초
 
+  // ─── 날짜 변경 감지 (자정 넘김 시 대시보드 리셋) ──────────
+  const [todayKST, setTodayKST] = useState(getTodayKST);
+
   // ─── POS state ────────────────────────────────────────────────
   const [cart, setCart] = useState([]);
 
@@ -276,9 +279,13 @@ export default function App() {
       supabase.getSavedCarts().then((d) => d && setSavedCarts(d));
     }, 300000);
 
-    // 탭 포커스 복귀 시 갱신 (30초 쓰로틀링 적용)
+    // 탭 포커스 복귀 시 갱신 (30초 쓰로틀링 적용 + 날짜 변경 감지)
     const handleVisibility = () => {
       if (!document.hidden) {
+        // 날짜가 바뀌었으면 todayKST 갱신 → useMemo 재계산 트리거
+        const currentDay = getTodayKST();
+        setTodayKST(prev => prev !== currentDay ? currentDay : prev);
+
         const now = Date.now();
         if (now - lastFetchRef.current < FETCH_THROTTLE_MS) return;
         lastFetchRef.current = now;
@@ -300,22 +307,20 @@ export default function App() {
 
   // ─── Derived: badge counts ──────────────────────────────────
   const todayOrderCount = useMemo(() => {
-    const today = getTodayKST();
     return orders.filter((o) => {
       if (!o.createdAt) return false;
-      return toDateKST(o.createdAt) === today;
+      return toDateKST(o.createdAt) === todayKST;
     }).length;
-  }, [orders]);
+  }, [orders, todayKST]);
 
   const savedCartCount = useMemo(() => savedCarts.length, [savedCarts]);
 
   const shippingCount = useMemo(() => {
-    const today = getTodayKST();
     return orders.filter((o) => {
       if (!o.createdAt) return false;
-      return toDateKST(o.createdAt) === today;
+      return toDateKST(o.createdAt) === todayKST;
     }).length;
-  }, [orders]);
+  }, [orders, todayKST]);
 
   // ─── Derived: product categories ──────────────────────────────
   const productCategories = useMemo(
@@ -734,6 +739,7 @@ export default function App() {
             supabaseConnected={supabaseConnected}
             setCurrentPage={setCurrentPage}
             onViewOrder={(order) => setSelectedOrder(order)}
+            todayKST={todayKST}
           />
         );
 
@@ -970,6 +976,7 @@ export default function App() {
             supabaseConnected={supabaseConnected}
             setCurrentPage={setCurrentPage}
             onViewOrder={(order) => setSelectedOrder(order)}
+            todayKST={todayKST}
           />
         );
     }
