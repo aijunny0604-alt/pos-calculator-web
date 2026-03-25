@@ -4,6 +4,7 @@ import {
   Printer, Check, Maximize2, Minimize2
 } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
+import DatePicker from '@/components/ui/DatePicker';
 import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
@@ -13,6 +14,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [senderList] = useState(['무브모터스', '엠파츠']);
   const [dateFilter, setDateFilter] = useState('today');
+  const [customDate, setCustomDate] = useState('');
   const [orderSettings, setOrderSettings] = useState({});
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [tempAddress, setTempAddress] = useState('');
@@ -119,6 +121,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
     if (dateFilter === 'today') return orderDateKST === todayKST;
     if (dateFilter === 'yesterday') return orderDateKST === yesterdayKST;
     if (dateFilter === 'week') return orderDateKST >= weekAgoKST;
+    if (dateFilter === 'custom' && customDate) return orderDateKST === customDate;
     return true;
   });
 
@@ -627,7 +630,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
           <div className="bg-[var(--card)] rounded-xl p-3 mb-4 border border-[var(--border)]">
             <p className="text-[var(--muted-foreground)] text-xs mb-2">날짜 필터</p>
             <div className="flex flex-wrap gap-2">
-              {[{ key: 'today', label: '오늘' }, { key: 'yesterday', label: '어제' }, { key: 'week', label: '최근 7일' }, { key: 'all', label: '전체' }].map(({ key, label }) => (
+              {[{ key: 'today', label: '오늘' }, { key: 'yesterday', label: '어제' }, { key: 'week', label: '최근 7일' }, { key: 'custom', label: '날짜 선택' }, { key: 'all', label: '전체' }].map(({ key, label }) => (
                 <button
                   key={key}
                   onClick={() => { setDateFilter(key); setSelectedOrders([]); }}
@@ -641,6 +644,9 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                   {label}
                 </button>
               ))}
+              {dateFilter === 'custom' && (
+                <DatePicker value={customDate} onChange={setCustomDate} placeholder="날짜 선택" />
+              )}
             </div>
           </div>
 

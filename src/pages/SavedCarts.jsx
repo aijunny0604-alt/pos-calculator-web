@@ -7,6 +7,7 @@ import {
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import DatePicker from '@/components/ui/DatePicker';
 import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST } from '@/lib/utils';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
@@ -617,11 +618,11 @@ export default function SavedCarts({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[var(--muted-foreground)] text-xs mb-1 block">배송 예정일</label>
-                    <input
-                      type="date"
+                    <DatePicker
                       value={editedDetailCart?.delivery_date || ''}
-                      onChange={(e) => setEditedDetailCart({ ...editedDetailCart, delivery_date: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                      onChange={(v) => setEditedDetailCart({ ...editedDetailCart, delivery_date: v })}
+                      placeholder="배송일 선택"
+                      className="w-full"
                     />
                   </div>
                   <div>
@@ -922,17 +923,7 @@ export default function SavedCarts({
                 </button>
               ))}
               {dateFilter === 'custom' && (
-                <input
-                  type="date"
-                  value={customDate}
-                  onChange={(e) => setCustomDate(e.target.value)}
-                  className="px-2.5 py-1 rounded-lg border text-xs focus:outline-none"
-                  style={{
-                    background: 'var(--background)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--foreground)',
-                  }}
-                />
+                <DatePicker value={customDate} onChange={setCustomDate} placeholder="날짜 선택" compact />
               )}
             </div>
           )}
@@ -982,17 +973,7 @@ export default function SavedCarts({
                   </button>
                 ))}
                 {dateFilter === 'custom' && (
-                  <input
-                    type="date"
-                    value={customDate}
-                    onChange={(e) => setCustomDate(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border text-sm focus:outline-none"
-                    style={{
-                      background: 'var(--background)',
-                      borderColor: 'var(--border)',
-                      color: 'var(--foreground)',
-                    }}
-                  />
+                  <DatePicker value={customDate} onChange={setCustomDate} placeholder="날짜 선택" />
                 )}
               </div>
             </div>

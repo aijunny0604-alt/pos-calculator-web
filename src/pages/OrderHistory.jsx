@@ -5,6 +5,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST } from '@/lib/utils';
+import DatePicker from '@/components/ui/DatePicker';
 
 export default function OrderHistory({
   orders,
@@ -275,16 +276,11 @@ export default function OrderHistory({
                 </button>
               ))}
               {dateFilter === 'custom' && (
-                <input
-                  type="date"
+                <DatePicker
                   value={customDate}
-                  onChange={(e) => setCustomDate(e.target.value)}
-                  className="px-2.5 py-1 rounded-lg border text-xs focus:outline-none"
-                  style={{
-                    background: 'var(--background)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--foreground)',
-                  }}
+                  onChange={setCustomDate}
+                  placeholder="날짜 선택"
+                  compact
                 />
               )}
             </div>
@@ -425,16 +421,10 @@ export default function OrderHistory({
                 </button>
               ))}
               {dateFilter === 'custom' && (
-                <input
-                  type="date"
+                <DatePicker
                   value={customDate}
-                  onChange={(e) => setCustomDate(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg border text-sm focus:outline-none"
-                  style={{
-                    background: 'var(--background)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--foreground)',
-                  }}
+                  onChange={setCustomDate}
+                  placeholder="날짜 선택"
                 />
               )}
               <button
