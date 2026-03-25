@@ -135,6 +135,83 @@ export default function OrderPage({
   const today = new Date();
   const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // ─── 자바라 자동 연동 ──────────────────────────────────────
+  // 번웨이 다운파이프 주문 시 해당 차종 자바라 재고도 함께 차감
+  // 차종별로 그룹핑, 여러 자바라 타입이 있으면 선택 가능
+  const [linkedJabaras, setLinkedJabaras] = useState([]);
+  // { carModel, jabaraOptions: [{id, name, stock}], selectedId, qty }
+
+  useEffect(() => {
+    if (!products || products.length === 0) return;
+
+    // 번웨이 다운파이프만 필터 (스팅어/G70 제외, 자바라 제외)
+    const downpipeItems = cart.filter(item => {
+      const cat = (item.category || '').toLowerCase();
+      const name = (item.name || '').toLowerCase().replace(/\s/g, '');
+      if (cat !== '번웨이') return false;
+      if (!name.includes('다운파이프') && !name.includes('직관') && !name.includes('촉매')) return false;
+      if (name.includes('자바라')) return false;
+      if (name.includes('스팅어') || name.includes('g70')) return false;
+      return true;
+    });
+
+    if (downpipeItems.length === 0) {
+      setLinkedJabaras([]);
+      return;
+    }
+
+    // 차종별 그룹핑
+    const carGroups = new Map(); // carModel → { totalQty, fromItems }
+    for (const item of downpipeItems) {
+      const name = item.name || '';
+      let carModel = '';
+      if (/벨로스터/i.test(name)) carModel = '벨로스터N';
+      else if (/아반떼/i.test(name)) carModel = '아반떼N';
+      else if (/젠쿠/i.test(name)) carModel = '젠쿠비';
+      else {
+        const parts = name.split(/\s+/);
+        carModel = parts[0] || '';
+      }
+      if (!carModel) continue;
+
+      if (carGroups.has(carModel)) {
+        const g = carGroups.get(carModel);
+        g.totalQty += item.quantity;
+        g.fromItems.push(item.name);
+      } else {
+        carGroups.set(carModel, { totalQty: item.quantity, fromItems: [item.name] });
+      }
+    }
+
+    // 차종별 자바라 옵션 찾기
+    setLinkedJabaras(prev => {
+      const newList = [];
+      for (const [carModel, group] of carGroups) {
+        const jabaraOptions = products.filter(p => {
+          const pName = (p.name || '').toLowerCase().replace(/\s/g, '');
+          const pCat = (p.category || '').toLowerCase();
+          return pCat === '번웨이' && pName.includes('자바라') && pName.includes(carModel.toLowerCase().replace(/\s/g, ''));
+        }).map(p => ({ id: p.id, name: p.name, stock: p.stock }));
+
+        if (jabaraOptions.length === 0) continue;
+
+        // 이전 선택 유지
+        const prevEntry = prev.find(j => j.carModel === carModel);
+        const defaultSelected = jabaraOptions[0].id;
+
+        newList.push({
+          carModel,
+          fromItems: group.fromItems,
+          jabaraOptions,
+          selectedId: prevEntry ? (jabaraOptions.find(o => o.id === prevEntry.selectedId) ? prevEntry.selectedId : defaultSelected) : defaultSelected,
+          qty: prevEntry !== undefined ? prevEntry.qty : group.totalQty,
+          suggestedQty: group.totalQty,
+        });
+      }
+      return newList;
+    });
+  }, [cart, products]);
+
   // 실시간 총액 계산 (할인 적용)
   const currentTotal = cartWithDiscount.length > 0
     ? cartWithDiscount.reduce((sum, item) => sum + item.finalTotal, 0)
@@ -212,7 +289,16 @@ export default function OrderPage({
         name: item.name,
         price: priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale),
         quantity: item.quantity
-      }))
+      })),
+      // 자바라 연동 차감 정보
+      linkedJabaraDeductions: linkedJabaras.filter(j => j.qty > 0).map(j => {
+        const selected = j.jabaraOptions.find(o => o.id === j.selectedId);
+        return {
+          productId: j.selectedId,
+          productName: selected?.name || '',
+          quantity: j.qty,
+        };
+      }),
     };
 
     const result = await onSaveOrder(orderData);
@@ -839,6 +925,88 @@ export default function OrderPage({
               )}
             </div>
           </div>
+
+          {/* 자바라 연동 차감 */}
+          {linkedJabaras.length > 0 && (
+            <div
+              className="rounded-xl p-4 mb-4"
+              style={{
+                background: 'color-mix(in srgb, var(--primary) 8%, var(--card))',
+                border: '1px solid color-mix(in srgb, var(--primary) 25%, transparent)',
+              }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Package className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                <span className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>자바라 연동 차감</span>
+                <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}>자동</span>
+              </div>
+              {linkedJabaras.map((j) => {
+                const selectedOption = j.jabaraOptions.find(o => o.id === j.selectedId);
+                const stock = selectedOption?.stock;
+                return (
+                  <div key={j.carModel} className="py-3 border-b last:border-0" style={{ borderColor: 'color-mix(in srgb, var(--border) 50%, transparent)' }}>
+                    {/* 차종명 */}
+                    <p className="text-xs mb-1.5" style={{ color: 'var(--muted-foreground)' }}>{j.carModel} 다운파이프</p>
+
+                    {/* 자바라 타입 선택 (2개 이상일 때만) */}
+                    {j.jabaraOptions.length > 1 ? (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {j.jabaraOptions.map(opt => {
+                          const isSelected = opt.id === j.selectedId;
+                          // "벨로스터N DCT 자바라" → "DCT", "벨로스터N 수동 자바라" → "수동"
+                          const typeLabel = opt.name.replace(/자바라/g, '').replace(new RegExp(j.carModel, 'gi'), '').trim() || opt.name;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setLinkedJabaras(prev => prev.map(x => x.carModel === j.carModel ? { ...x, selectedId: opt.id } : x))}
+                              className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                              style={{
+                                background: isSelected ? 'var(--primary)' : 'var(--muted)',
+                                color: isSelected ? 'var(--primary-foreground)' : 'var(--foreground)',
+                              }}
+                            >
+                              {typeLabel} ({opt.stock ?? '?'})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm font-medium break-keep leading-tight mb-1" style={{ color: 'var(--foreground)' }}>
+                        {selectedOption?.name}
+                      </p>
+                    )}
+
+                    {/* 수량 + 재고 */}
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                        재고: {stock ?? '?'}개 {j.qty > 0 && `→ ${Math.max(0, (stock || 0) - j.qty)}개`}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setLinkedJabaras(prev => prev.map(x => x.carModel === j.carModel ? { ...x, qty: Math.max(0, x.qty - 1) } : x))}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--muted)]"
+                          style={{ border: '1px solid var(--border)' }}
+                        >
+                          <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                        </button>
+                        <span className="w-6 text-center text-sm font-semibold" style={{ color: j.qty === 0 ? 'var(--muted-foreground)' : 'var(--primary)' }}>{j.qty}</span>
+                        <button
+                          type="button"
+                          onClick={() => setLinkedJabaras(prev => prev.map(x => x.carModel === j.carModel ? { ...x, qty: x.qty + 1 } : x))}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--muted)]"
+                          style={{ border: '1px solid var(--border)' }}
+                        >
+                          <Plus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* 메모 */}
           <div className="mb-4">

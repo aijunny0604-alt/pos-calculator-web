@@ -360,7 +360,24 @@ useEffect(() => {
 - `todayOrderCount`/`shippingCount`가 `todayKST` state 의존 → 날짜 변경 시 자동 재계산
 - Dashboard에 `todayKST` prop 전달
 
-##### 9. 기타 수정 (이전)
+##### 10. 자바라 자동 연동 차감 (OrderPage.jsx + App.jsx + MainPOS.jsx)
+- **기능**: 번웨이 다운파이프 주문 시 해당 차종 자바라 재고 자동 차감
+- **차종 감지**: 벨로스터N, 아반떼N, 젠쿠비 자동 매칭 (스팅어/G70 제외)
+- **타입 선택**: 벨로스터N은 DCT/수동 자바라 2종 → 버튼으로 선택 가능
+- **수량 조절**: +/- 버튼으로 자바라 차감 수량 직접 설정 (0이면 차감 안 함)
+- **UI 위치**: 주문 확인 페이지 → 메모 위 "자바라 연동 차감" 섹션
+- **차감 처리**: App.jsx saveOrder에서 `linkedJabaraDeductions` 배열로 별도 차감
+- **데이터 흐름**: OrderPage → MainPOS(onSaveOrder) → App.jsx(saveOrder+deductStock)
+
+##### 11. 커스텀 DatePicker + 택배 송장 날짜 필터
+- **DatePicker 컴포넌트**: `src/components/ui/DatePicker.jsx` 신규 생성
+  - Portal 방식(fixed+z-9999): 부모 overflow/z-index에 영향 안 받음
+  - 일/토 색상 구분, 오늘 점 표시, ESC/스크롤 자동 닫기
+  - compact 모드, 열기 애니메이션
+- **적용**: OrderHistory(2곳), SavedCarts(3곳), ShippingLabel(1곳)
+- **택배 송장**: 날짜 선택 필터 추가 (기존 4옵션→5옵션+DatePicker)
+
+##### 12. 기타 수정 (이전)
 - `ADMIN_PASSWORD = '1234'` 미사용 export 삭제 (supabase.js)
 - 디버그 `console.log` 제거 (supabase.js deleteSavedCart)
 - 모바일 제품명 잘림 수정: `truncate` → `break-keep` (MainPOS.jsx 상품그리드)
@@ -497,6 +514,15 @@ App.jsx (상태 관리)
 - [x] 9개 페이지 네비게이션 정상 (Playwright E2E)
 - [x] 5개 테이블 INSERT 정상 (API 직접 테스트)
 - [x] 자정 넘김 시 주문건수 리셋 (todayKST state + visibilitychange 감지)
+
+### 2026-03-25 추가 검증
+- [x] 자바라 연동: 벨로스터N 다운파이프 → DCT/수동 선택 UI 표시
+- [x] 자바라 연동: 아반떼N 다운파이프 → 자바라 1종 자동 표시
+- [x] 자바라 연동: 스팅어/G70 → 자바라 표시 안 됨
+- [x] 자바라 연동: 수량 +/- 조절 정상
+- [x] 자바라 연동: 주문 시 자바라 재고 차감 정상
+- [x] 커스텀 DatePicker: portal 방식 z-index 겹침 없음
+- [x] 택배 송장: 날짜 선택 필터 정상
 
 ---
 

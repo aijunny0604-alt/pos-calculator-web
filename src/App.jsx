@@ -459,6 +459,20 @@ export default function App() {
         await refreshOrders();
         // 재고 차감
         await deductStock(items);
+        // 자바라 연동 차감
+        const jabaraDeductions = orderData.linkedJabaraDeductions;
+        if (jabaraDeductions && jabaraDeductions.length > 0) {
+          for (const jd of jabaraDeductions) {
+            const jabaraProduct = products.find(p => p.id === jd.productId);
+            if (jabaraProduct && jabaraProduct.stock !== undefined) {
+              const newStock = Math.max(0, jabaraProduct.stock - jd.quantity);
+              const updated = await supabase.updateProduct(jd.productId, { stock: newStock });
+              if (updated) {
+                setProducts(prev => prev.map(p => p.id === jd.productId ? { ...p, stock: newStock } : p));
+              }
+            }
+          }
+        }
         setCartWithHistory([]);
         showToast('주문이 저장되었습니다', 'success');
       } else {

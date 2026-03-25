@@ -792,6 +792,7 @@ export default function MainPOS({
                 price_type: orderData.priceType,
                 order_number: orderData.orderNumber,
                 existing_customer_id: orderData.existingCustomerId,
+                linkedJabaraDeductions: orderData.linkedJabaraDeductions,
               });
               if (result) onClearLoadedCustomer?.();
               return result;
