@@ -354,7 +354,13 @@ useEffect(() => {
 - 제품 검색 목록, 장바구니 아이템, 제품 변경 드롭다운 3곳: `truncate` → `break-keep leading-tight`
 - Playwright 모바일(390x844) 테스트 완료: "스덴 밴딩 파이프 51 - 15" 전체 표시 확인
 
-##### 7. 기타 수정
+##### 8. 자정 넘김 시 주문건수 미리셋 (App.jsx + Dashboard.jsx)
+- **원인**: `getTodayKST()`가 컴포넌트 렌더링 시 1번만 계산 → 자정 지나도 어제 날짜 유지
+- **수정**: `todayKST` state 추가, `visibilitychange` 시 날짜 변경 감지
+- `todayOrderCount`/`shippingCount`가 `todayKST` state 의존 → 날짜 변경 시 자동 재계산
+- Dashboard에 `todayKST` prop 전달
+
+##### 9. 기타 수정 (이전)
 - `ADMIN_PASSWORD = '1234'` 미사용 export 삭제 (supabase.js)
 - 디버그 `console.log` 제거 (supabase.js deleteSavedCart)
 - 모바일 제품명 잘림 수정: `truncate` → `break-keep` (MainPOS.jsx 상품그리드)
@@ -490,6 +496,7 @@ App.jsx (상태 관리)
 - [x] 모바일 제품명 전체 표시 - OrderPage 주문확인 3곳 (break-keep, Playwright 검증)
 - [x] 9개 페이지 네비게이션 정상 (Playwright E2E)
 - [x] 5개 테이블 INSERT 정상 (API 직접 테스트)
+- [x] 자정 넘김 시 주문건수 리셋 (todayKST state + visibilitychange 감지)
 
 ---
 
