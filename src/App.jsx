@@ -491,7 +491,20 @@ export default function App() {
       const ok = await supabase.deleteOrder(id);
       if (ok) {
         setOrders((prev) => prev.filter((o) => o.id !== id));
-        showToast('주문이 삭제되었습니다', 'success');
+        // 재고 복구 (차감의 역연산)
+        if (deletedOrder?.items && Array.isArray(deletedOrder.items)) {
+          for (const item of deletedOrder.items) {
+            const product = products.find(p => p.id === item.id);
+            if (product && product.stock !== undefined) {
+              const restoredStock = product.stock + (item.quantity || 1);
+              const updated = await supabase.updateProduct(product.id, { stock: restoredStock });
+              if (updated) {
+                setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: restoredStock } : p));
+              }
+            }
+          }
+        }
+        showToast('주문이 삭제되었습니다 (재고 복구됨)', 'success');
         if (deletedOrder) {
           pushUndo({
             type: 'order-delete',
