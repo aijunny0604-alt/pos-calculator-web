@@ -377,7 +377,14 @@ useEffect(() => {
 - **적용**: OrderHistory(2곳), SavedCarts(3곳), ShippingLabel(1곳)
 - **택배 송장**: 날짜 선택 필터 추가 (기존 4옵션→5옵션+DatePicker)
 
-##### 12. 기타 수정 (이전)
+##### 13. 주문 삭제 시 재고+자바라 자동 복구 (App.jsx)
+- 주문 삭제 시 해당 주문의 아이템별 수량만큼 재고 복구
+- 자바라 차감 정보를 주문 items에 `_jabara_deduction` 플래그로 저장
+- `formatOrder`에서 items와 `_jabaraDeductions` 분리 (UI에 자바라 미표시)
+- 삭제 시 일반 아이템 + 자바라 모두 재고 복구
+- 토스트: "주문이 삭제되었습니다 (재고 복구됨)"
+
+##### 14. 기타 수정 (이전)
 - `ADMIN_PASSWORD = '1234'` 미사용 export 삭제 (supabase.js)
 - 디버그 `console.log` 제거 (supabase.js deleteSavedCart)
 - 모바일 제품명 잘림 수정: `truncate` → `break-keep` (MainPOS.jsx 상품그리드)
