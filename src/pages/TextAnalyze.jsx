@@ -40,6 +40,8 @@ export default function TextAnalyze({
   const [addQuantity, setAddQuantity] = useState(1);
   const [showApiSettings, setShowApiSettings] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationDone, setVerificationDone] = useState(false);
 
   const getDefaultApiKey = () => {
     const encoded = 'QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj';
@@ -495,6 +497,131 @@ ${text}
     }
   };
 
+  // --- AI 2차 검증 ---
+  const verifyWithGemini = async (originalText, results) => {
+    if (!geminiApiKey || results.length === 0) return results;
+    setIsVerifying(true);
+
+    const matchSummary = results.map((r, i) =>
+      `${i+1}. "${r.originalText}" → ${r.matchedProduct?.name || '매칭 실패'} (수량: ${r.quantity}, 신뢰도: ${r.confidence || 'unknown'})`
+    ).join('\n');
+
+    const verifyPrompt = `당신은 자동차 튜닝/배기 부품 주문서 검증 AI입니다. 1차 AI가 분석한 결과를 검증합니다.
+
+## 원본 주문 텍스트
+${originalText}
+
+## 1차 분석 결과
+${matchSummary}
+
+## 검증 규칙
+1. 각 매칭이 원본 텍스트의 의도와 맞는지 확인
+2. 수량이 정확한지 확인 (좌우 규칙, 세트 규칙 등)
+3. 제품명이 원본의 요청과 일치하는지 확인
+4. 각 항목에 0~100 신뢰도 점수 부여
+5. 잘못된 매칭이 있으면 수정 제안
+
+## 신뢰도 점수 기준
+- 95-100: 완벽한 매칭 (제품코드/차종+부품 정확)
+- 80-94: 높은 확신 (주요 키워드 일치)
+- 60-79: 보통 (일부 추측 포함)
+- 40-59: 낮음 (사이즈/타입 불확실)
+- 0-39: 매우 낮음 (거의 추측)
+
+## 응답 형식 (JSON 배열만)
+[{"index":0,"score":95,"correct":true,"reason":"차종+부품 정확 매칭","suggestedProduct":null,"suggestedQty":null},{"index":1,"score":60,"correct":false,"reason":"사이즈 54가 아닌 51로 매칭됨","suggestedProduct":"정확한 제품명","suggestedQty":2}]`;
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: verifyPrompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
+          }),
+        }
+      );
+
+      if (!response.ok) { setIsVerifying(false); return results; }
+
+      const data = await response.json();
+      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      let jsonStr = aiText;
+      const jsonMatch = aiText.match(/```json\s*([\s\S]*?)\s*```/) || aiText.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) jsonStr = jsonMatch[1] || jsonMatch[0];
+      jsonStr = jsonStr.replace(/,\s*]/g, ']').replace(/,\s*}/g, '}').replace(/[\x00-\x1F]/g, ' ').trim();
+
+      let verifications;
+      try { verifications = JSON.parse(jsonStr); } catch {
+        const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
+        if (arrayMatch) { try { verifications = JSON.parse(arrayMatch[0].replace(/,\s*]/g, ']')); } catch { verifications = null; } }
+      }
+
+      if (!verifications || !Array.isArray(verifications)) {
+        setIsVerifying(false);
+        return results;
+      }
+
+      // Apply verification results
+      const verified = results.map((item, idx) => {
+        const v = verifications.find(v => v.index === idx);
+        if (!v) return { ...item, verifyScore: item.matchedProduct ? 75 : 0 };
+
+        const updated = {
+          ...item,
+          verifyScore: v.score,
+          verifyCorrect: v.correct,
+          verifyReason: v.reason,
+        };
+
+        // If verification suggests a different product and score < 60
+        if (!v.correct && v.suggestedProduct && v.score < 60) {
+          const findProduct = (name) => {
+            if (!name) return null;
+            const clean = name.replace(/\s*\([\d,]+원?\)\s*$/, '').trim();
+            const norm = (s) => s.replace(/[\s\-_]+/g, '').toLowerCase();
+            return products.find(p => p.name === clean)
+              || products.find(p => p.name.toLowerCase() === clean.toLowerCase())
+              || products.find(p => norm(p.name) === norm(clean))
+              || null;
+          };
+          const suggested = findProduct(v.suggestedProduct);
+          if (suggested) {
+            updated.suggestedProduct = suggested;
+          }
+        }
+        if (v.suggestedQty && v.suggestedQty !== item.quantity) {
+          updated.suggestedQty = v.suggestedQty;
+        }
+
+        return updated;
+      });
+
+      setIsVerifying(false);
+      setVerificationDone(true);
+      return verified;
+    } catch (e) {
+      console.error('검증 실패:', e);
+      setIsVerifying(false);
+      return results;
+    }
+  };
+
+  const applyVerifySuggestion = (index, type) => {
+    setAnalyzedItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      if (type === 'product' && item.suggestedProduct) {
+        return { ...item, matchedProduct: item.suggestedProduct, suggestedProduct: null, verifyCorrect: true, selected: true };
+      }
+      if (type === 'qty' && item.suggestedQty) {
+        return { ...item, quantity: item.suggestedQty, suggestedQty: null, verifyCorrect: true };
+      }
+      return item;
+    }));
+  };
+
   const cleanSearchText = (text) => {
     if (!text) return '';
     return text.replace(/\d+\s*(개|세트|set|ea|pcs|본|장|박스|box)\s*$/i, '').replace(/[x×*]\s*\d+\s*$/i, '').replace(/[,.\-_\/\\()[\]{}]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -529,6 +656,7 @@ ${text}
     setIsAnalyzing(true);
     setSearchingIndex(null);
     setAiError('');
+    setVerificationDone(false);
 
     if (useAI && geminiApiKey) {
       try {
@@ -627,6 +755,9 @@ ${text}
         });
         setAnalyzedItems(results);
         setIsAnalyzing(false);
+        // 2차 AI 검증 자동 실행
+        const verified = await verifyWithGemini(inputText, results);
+        setAnalyzedItems(verified);
         return;
       } catch (error) {
         setAiError(`AI 분석 실패: ${error.message}. 기본 분석으로 전환합니다.`);
@@ -987,6 +1118,17 @@ ${text}
                 <span className="text-xs font-normal" style={{ color: 'var(--muted-foreground)' }}>
                   {analyzedItems.length}건
                 </span>
+                {isVerifying && (
+                  <span className="flex items-center gap-1 text-[11px] font-medium" style={{ color: 'var(--warning)' }}>
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    AI 검증 중...
+                  </span>
+                )}
+                {verificationDone && !isVerifying && (
+                  <span className="text-[11px] font-medium" style={{ color: 'var(--success)' }}>
+                    ✓ 검증 완료
+                  </span>
+                )}
               </h3>
               {selectedCount > 0 && (
                 <span className="text-xs font-medium" style={{ color: 'var(--success)' }}>
@@ -1011,19 +1153,40 @@ ${text}
                         : '0 1px 3px rgba(0,0,0,0.06)',
                   }}
                 >
-                  {/* Top row: original text + confidence badge */}
+                  {/* Top row: original text + verification score */}
                   <div className="px-3 pt-2.5 pb-1 flex items-center gap-2">
                     <span className="text-[11px] truncate flex-1" style={{ color: 'var(--muted-foreground)' }}>{item.originalText}</span>
-                    {item.confidence && item.matchedProduct && (
-                      <span
-                        className="flex-shrink-0 w-1.5 h-1.5 rounded-full"
-                        style={{
-                          backgroundColor: item.confidence === 'high' ? 'var(--success)'
-                            : item.confidence === 'medium' ? 'var(--warning)'
-                            : 'var(--destructive)',
-                        }}
-                        title={item.confidence === 'high' ? '확실' : item.confidence === 'medium' ? '추측' : '불확실'}
-                      />
+                    {item.matchedProduct && (
+                      item.verifyScore != null ? (
+                        <span
+                          className="flex-shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-bold"
+                          style={{
+                            backgroundColor: item.verifyScore >= 80
+                              ? 'color-mix(in srgb, var(--success) 15%, transparent)'
+                              : item.verifyScore >= 60
+                                ? 'color-mix(in srgb, var(--warning) 15%, transparent)'
+                                : 'color-mix(in srgb, var(--destructive) 15%, transparent)',
+                            color: item.verifyScore >= 80
+                              ? 'var(--success)'
+                              : item.verifyScore >= 60
+                                ? 'var(--warning)'
+                                : 'var(--destructive)',
+                          }}
+                          title={item.verifyReason || ''}
+                        >
+                          {item.verifyScore}%
+                        </span>
+                      ) : (
+                        <span
+                          className="flex-shrink-0 w-1.5 h-1.5 rounded-full"
+                          style={{
+                            backgroundColor: item.confidence === 'high' ? 'var(--success)'
+                              : item.confidence === 'medium' ? 'var(--warning)'
+                              : 'var(--destructive)',
+                          }}
+                          title={item.confidence === 'high' ? '확실' : item.confidence === 'medium' ? '추측' : '불확실'}
+                        />
+                      )
                     )}
                   </div>
 
@@ -1086,6 +1249,33 @@ ${text}
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                      {/* AI 검증 수정 제안 */}
+                      {item.verifyScore != null && item.verifyScore < 80 && item.verifyReason && (
+                        <div className="mt-1.5 ml-7.5 px-2 py-1.5 rounded-lg text-[11px]"
+                          style={{ backgroundColor: 'color-mix(in srgb, var(--warning) 8%, transparent)', color: 'var(--warning)' }}>
+                          <span className="font-semibold">⚠ 검증:</span> {item.verifyReason}
+                          <div className="flex gap-1 mt-1">
+                            {item.suggestedProduct && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); applyVerifySuggestion(index, 'product'); }}
+                                className="px-2 py-0.5 rounded-md text-[10px] font-semibold text-white"
+                                style={{ backgroundColor: 'var(--primary)' }}
+                              >
+                                → {item.suggestedProduct.name}
+                              </button>
+                            )}
+                            {item.suggestedQty && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); applyVerifySuggestion(index, 'qty'); }}
+                                className="px-2 py-0.5 rounded-md text-[10px] font-semibold text-white"
+                                style={{ backgroundColor: 'var(--primary)' }}
+                              >
+                                수량 → {item.suggestedQty}개
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       {/* Alternatives - minimal chips, no border-t */}
                       {item.alternatives && item.alternatives.length > 0 && item.confidence !== 'high' && (
                         <div className="mt-1.5 ml-7.5 flex items-center gap-1 flex-wrap">
