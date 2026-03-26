@@ -43,6 +43,15 @@ export default function TextAnalyze({
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationDone, setVerificationDone] = useState(false);
 
+  // --- 피드백 학습 시스템 ---
+  const [corrections, setCorrections] = useState(() => {
+    try {
+      const saved = localStorage.getItem('aiOrderCorrections');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [showFeedbackToast, setShowFeedbackToast] = useState(null); // index of item showing toast
+
   const getDefaultApiKey = () => {
     const encoded = 'QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj';
     try { return atob(encoded); } catch { return ''; }
@@ -379,6 +388,11 @@ export default function TextAnalyze({
 
 ## 제품 목록
 ${productList}
+
+## 과거 수정 사례 (사용자 피드백 — 이 패턴을 우선 적용!)
+${corrections.length > 0 ? corrections.map(c =>
+  `- "${c.input}" → 정답: "${c.correctProduct}" (수량: ${c.quantity})${c.wrongProduct ? ` [오답: "${c.wrongProduct}"]` : ''}`
+).join('\n') : '(아직 수정 사례 없음)'}
 
 ## 주문 텍스트
 ${text}
@@ -814,9 +828,62 @@ ${matchSummary}
   };
 
   const selectProduct = (index, product) => {
-    setAnalyzedItems(prev => prev.map((item, i) => i === index ? { ...item, matchedProduct: product, selected: true, score: 100 } : item));
+    setAnalyzedItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      const wasChanged = item.matchedProduct && item.matchedProduct.id !== product.id;
+      return {
+        ...item,
+        matchedProduct: product,
+        selected: true,
+        score: 100,
+        // 사용자가 제품을 변경했으면 피드백 가능 표시
+        userCorrected: wasChanged || item.userCorrected,
+        previousProduct: wasChanged ? (item.previousProduct || item.matchedProduct) : item.previousProduct,
+      };
+    }));
     setSearchingIndex(null);
     setSearchQuery('');
+  };
+
+  // 피드백 학습 저장
+  const saveFeedback = (index) => {
+    const item = analyzedItems[index];
+    if (!item || !item.matchedProduct || !item.originalText) return;
+
+    const correction = {
+      id: Date.now(),
+      input: item.originalText.trim(),
+      wrongProduct: item.previousProduct?.name || null,
+      correctProduct: item.matchedProduct.name,
+      quantity: item.quantity,
+      date: new Date().toISOString(),
+    };
+
+    const updated = [...corrections.filter(c =>
+      // 같은 입력에 대한 이전 학습은 최신으로 덮어쓰기
+      c.input.toLowerCase() !== correction.input.toLowerCase()
+    ), correction].slice(-50); // 최대 50개
+
+    setCorrections(updated);
+    localStorage.setItem('aiOrderCorrections', JSON.stringify(updated));
+    // 학습 완료 표시
+    setAnalyzedItems(prev => prev.map((it, i) =>
+      i === index ? { ...it, feedbackSaved: true, userCorrected: false } : it
+    ));
+    setShowFeedbackToast(index);
+    setTimeout(() => setShowFeedbackToast(null), 2000);
+  };
+
+  // 학습 이력 삭제
+  const clearCorrections = () => {
+    setCorrections([]);
+    localStorage.removeItem('aiOrderCorrections');
+  };
+
+  const deleteCorrection = (id) => {
+    const updated = corrections.filter(c => c.id !== id);
+    setCorrections(updated);
+    localStorage.setItem('aiOrderCorrections', JSON.stringify(updated));
   };
 
   const getSearchResults = () => {
@@ -1249,6 +1316,35 @@ ${matchSummary}
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                      {/* 사용자 수정 → 학습 버튼 */}
+                      {item.userCorrected && !item.feedbackSaved && (
+                        <div className="mt-1.5 ml-7.5 flex items-center gap-2">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); saveFeedback(index); }}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all active:scale-[0.97]"
+                            style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}
+                          >
+                            <Zap className="w-3 h-3" />
+                            학습시키기
+                          </button>
+                          {item.previousProduct && (
+                            <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                              {item.previousProduct.name} → {item.matchedProduct.name}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {item.feedbackSaved && (
+                        <div className="mt-1.5 ml-7.5 text-[11px] font-medium" style={{ color: 'var(--success)' }}>
+                          ✓ 학습 완료 — 다음 분석에 반영됩니다
+                        </div>
+                      )}
+                      {showFeedbackToast === index && (
+                        <div className="mt-1 ml-7.5 px-2 py-1 rounded-lg text-[10px] font-medium animate-pulse"
+                          style={{ backgroundColor: 'color-mix(in srgb, var(--success) 10%, transparent)', color: 'var(--success)' }}>
+                          학습 데이터가 저장되었습니다!
+                        </div>
+                      )}
                       {/* AI 검증 수정 제안 */}
                       {item.verifyScore != null && item.verifyScore < 80 && item.verifyReason && (
                         <div className="mt-1.5 ml-7.5 px-2 py-1.5 rounded-lg text-[11px]"
@@ -1460,6 +1556,45 @@ ${matchSummary}
                 );
               })}
             </div>
+            {/* 학습 이력 관리 */}
+            {corrections.length > 0 && (
+              <div className="px-4 pb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold flex items-center gap-1.5" style={{ color: 'var(--foreground)' }}>
+                    <Zap className="w-3.5 h-3.5" style={{ color: 'var(--warning)' }} />
+                    학습 이력 ({corrections.length}건)
+                  </h4>
+                  <button
+                    onClick={() => { if (confirm('모든 학습 이력을 삭제할까요?')) clearCorrections(); }}
+                    className="text-[10px] px-2 py-0.5 rounded-md transition-colors"
+                    style={{ color: 'var(--destructive)', backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)' }}
+                  >
+                    전체 삭제
+                  </button>
+                </div>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {corrections.map(c => (
+                    <div key={c.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px]" style={{ backgroundColor: 'var(--secondary)' }}>
+                      <div className="flex-1 min-w-0">
+                        <span style={{ color: 'var(--muted-foreground)' }}>"{c.input}"</span>
+                        <span className="mx-1" style={{ color: 'var(--muted-foreground)' }}>→</span>
+                        <span className="font-semibold" style={{ color: 'var(--success)' }}>{c.correctProduct}</span>
+                        {c.wrongProduct && (
+                          <span className="ml-1 line-through" style={{ color: 'var(--destructive)' }}>{c.wrongProduct}</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => deleteCorrection(c.id)}
+                        className="flex-shrink-0 p-0.5 rounded hover:bg-[var(--muted)]"
+                        style={{ color: 'var(--muted-foreground)' }}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="h-6" />
           </div>
         </div>
