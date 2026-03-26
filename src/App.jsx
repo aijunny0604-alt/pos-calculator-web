@@ -39,6 +39,17 @@ export default function App() {
   // ─── 날짜 변경 감지 (자정 넘김 시 대시보드 리셋) ──────────
   const [todayKST, setTodayKST] = useState(getTodayKST);
 
+  // 자정 자동 리셋 타이머 (앱을 열어놓고 자정 넘길 때 대비)
+  useEffect(() => {
+    const checkDate = () => {
+      const current = getTodayKST();
+      setTodayKST(prev => prev !== current ? current : prev);
+    };
+    // 1분마다 날짜 변경 체크
+    const interval = setInterval(checkDate, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   // ─── POS state ────────────────────────────────────────────────
   const [cart, setCart] = useState([]);
 
