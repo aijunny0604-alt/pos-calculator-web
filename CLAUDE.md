@@ -65,7 +65,7 @@ npx gh-pages -d dist # GitHub Pages 배포
 | `StockOverview.jsx` | 341 | `stock` | 재고 현황 테이블 | 정상 |
 | `BurnwayStock.jsx` | 766 | `burnway-stock` | 번웨이 다운파이프 재고 (카드+세트구성) | 정상 |
 | `ShippingLabel.jsx` | 1241 | `shipping` | 택배 송장 출력/관리 | 정상 |
-| `TextAnalyze.jsx` | 1511 | `ai-order` | AI 텍스트 주문 인식 + 2차 검증 | 정상 |
+| `TextAnalyze.jsx` | 1646 | `ai-order` | AI 텍스트 주문 인식 + 2차 검증 + 피드백 학습 | 정상 |
 | `AdminPage.jsx` | 2565 | `admin` | 관리자 패널 (비번: `4321`) + AI 입고 | 정상 |
 | `OrderPage.jsx` | 1000 | - | (미사용 레거시) | 미사용 |
 | `SaveCartModal.jsx` | 289 | (모달) | 장바구니 저장 모달 | 정상 |
@@ -409,6 +409,14 @@ useEffect(() => {
 - **수정 제안**: 잘못된 제품/수량을 원클릭으로 교체하는 버튼
 - **상태 표시**: "AI 검증 중..." / "✓ 검증 완료"
 - **state 추가**: `isVerifying`, `verificationDone`, `verifyScore/verifyCorrect/verifyReason/suggestedProduct/suggestedQty` (항목별)
+
+#### AI 주문 인식 피드백 학습 시스템 (TextAnalyze.jsx)
+- **기능**: 사용자가 잘못된 매칭을 수정하면 "학습시키기" 버튼 표시
+- **저장**: localStorage `aiOrderCorrections` 키에 수정 이력 저장 (최대 50건)
+- **주입**: 다음 AI 분석 시 Gemini 프롬프트 "과거 수정 사례" 섹션에 자동 포함
+- **관리**: AI 설정 모달에서 학습 이력 확인/개별 삭제/전체 삭제
+- **플로우**: 제품 변경 → `userCorrected: true` → "학습시키기" 버튼 → `saveFeedback()` → localStorage 저장
+- **state**: `corrections[]`, `showFeedbackToast`, `item.userCorrected`, `item.previousProduct`, `item.feedbackSaved`
 
 #### 자정 자동 리셋 강화 (App.jsx)
 - **기존**: visibilitychange(탭 전환)에서만 날짜 체크
