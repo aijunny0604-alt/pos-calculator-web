@@ -65,7 +65,7 @@ npx gh-pages -d dist # GitHub Pages 배포
 | `StockOverview.jsx` | 341 | `stock` | 재고 현황 테이블 | 정상 |
 | `BurnwayStock.jsx` | 766 | `burnway-stock` | 번웨이 다운파이프 재고 (카드+세트구성) | 정상 |
 | `ShippingLabel.jsx` | 1241 | `shipping` | 택배 송장 출력/관리 | 정상 |
-| `TextAnalyze.jsx` | 1321 | `ai-order` | AI 텍스트 주문 인식 | 정상 |
+| `TextAnalyze.jsx` | 1511 | `ai-order` | AI 텍스트 주문 인식 + 2차 검증 | 정상 |
 | `AdminPage.jsx` | 2565 | `admin` | 관리자 패널 (비번: `4321`) + AI 입고 | 정상 |
 | `OrderPage.jsx` | 1000 | - | (미사용 레거시) | 미사용 |
 | `SaveCartModal.jsx` | 289 | (모달) | 장바구니 저장 모달 | 정상 |
@@ -398,6 +398,23 @@ useEffect(() => {
 - **등록 플로우 전수검사**: 10개 플로우 중 3건 수정, 7건 정상 확인
 - **Playwright E2E 테스트**: 9개 페이지 네비게이션 + 제품 등록 + 주문 저장 검증 완료
 - **보고서**: `docs/04-report/2026-03-23-*.md` (코드분석/보안감사/갭분석)
+
+### 2026-03-26 작업 내역
+
+#### AI 주문 인식 2차 검증 시스템 (TextAnalyze.jsx)
+- **기능**: 1차 Gemini 분석 후 자동으로 2차 검증 AI 실행
+- **검증 프롬프트**: 원본 텍스트 + 1차 결과 → "각 매칭이 맞는지 검증"
+- **신뢰도 점수**: 0~100% 점수 표시 (80%+ 녹색, 60-79% 노란색, 60% 미만 빨간색)
+- **검증 사유**: 낮은 신뢰도 항목에 "⚠ 검증: ..." 경고 표시
+- **수정 제안**: 잘못된 제품/수량을 원클릭으로 교체하는 버튼
+- **상태 표시**: "AI 검증 중..." / "✓ 검증 완료"
+- **state 추가**: `isVerifying`, `verificationDone`, `verifyScore/verifyCorrect/verifyReason/suggestedProduct/suggestedQty` (항목별)
+
+#### 자정 자동 리셋 강화 (App.jsx)
+- **기존**: visibilitychange(탭 전환)에서만 날짜 체크
+- **문제**: 앱을 열어놓고 자정 넘기면 리셋 안 됨
+- **수정**: 1분마다 getTodayKST() 비교 타이머 추가
+- visibilitychange + 타이머 이중 체크로 확실한 리셋
 
 ---
 
