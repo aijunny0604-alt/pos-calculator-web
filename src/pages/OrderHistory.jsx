@@ -4,7 +4,7 @@ import {
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
   ChevronDown
 } from 'lucide-react';
-import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST } from '@/lib/utils';
+import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
 
 export default function OrderHistory({
   orders,
@@ -72,19 +72,13 @@ export default function OrderHistory({
       return orderDateKST === todayKST;
     }
     if (dateFilter === 'yesterday') {
-      const yesterday = new Date(todayKST + 'T00:00:00+09:00');
-      yesterday.setDate(yesterday.getDate() - 1);
-      return orderDateKST === yesterday.toISOString().split('T')[0];
+      return orderDateKST === offsetDateKST(todayKST, -1);
     }
     if (dateFilter === 'week') {
-      const weekAgo = new Date(todayKST + 'T00:00:00+09:00');
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return orderDateKST >= weekAgo.toISOString().split('T')[0];
+      return orderDateKST >= offsetDateKST(todayKST, -7);
     }
     if (dateFilter === 'month') {
-      const monthAgo = new Date(todayKST + 'T00:00:00+09:00');
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      return orderDateKST >= monthAgo.toISOString().split('T')[0];
+      return orderDateKST >= offsetMonthKST(todayKST, -1);
     }
     if (dateFilter === 'custom' && customDate) {
       return orderDateKST === customDate;

@@ -73,19 +73,32 @@ export const formatPrice = (price) => {
 export const calcExVat = (price) => Math.round(price / 1.1);
 
 // 한국시간(KST) 기준 오늘 날짜 (YYYY-MM-DD)
+// getTime()은 항상 UTC 밀리초를 반환하므로 9시간만 더하면 KST
 export const getTodayKST = () => {
   const now = new Date();
-  const utc = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
-  const kst = new Date(utc + 9 * 60 * 60 * 1000);
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return kst.toISOString().split('T')[0];
+};
+
+// KST YYYY-MM-DD 문자열에서 일수를 더하거나 빼서 새 YYYY-MM-DD 반환
+export const offsetDateKST = (dateStr, days) => {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split('T')[0];
+};
+
+// KST YYYY-MM-DD 문자열에서 월을 빼서 새 YYYY-MM-DD 반환
+export const offsetMonthKST = (dateStr, months) => {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().split('T')[0];
 };
 
 // 날짜 문자열을 한국시간 기준 YYYY-MM-DD로 변환
 export const toDateKST = (dateString) => {
   if (!dateString) return '';
   const d = new Date(dateString);
-  const utc = d.getTime() + d.getTimezoneOffset() * 60 * 1000;
-  const kst = new Date(utc + 9 * 60 * 60 * 1000);
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
   return kst.toISOString().split('T')[0];
 };
 

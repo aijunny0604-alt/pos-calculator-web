@@ -4,7 +4,7 @@ import {
   Printer, Check, Maximize2, Minimize2
 } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
-import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST } from '@/lib/utils';
+import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
@@ -106,12 +106,8 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
 
   const safeOrders = orders || [];
   const todayKST = getTodayKST();
-  const yesterdayDate = new Date(todayKST + 'T00:00:00+09:00');
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterdayKST = yesterdayDate.toISOString().split('T')[0];
-  const weekAgoDate = new Date(todayKST + 'T00:00:00+09:00');
-  weekAgoDate.setDate(weekAgoDate.getDate() - 7);
-  const weekAgoKST = weekAgoDate.toISOString().split('T')[0];
+  const yesterdayKST = offsetDateKST(todayKST, -1);
+  const weekAgoKST = offsetDateKST(todayKST, -7);
 
   const filteredOrders = safeOrders.filter(order => {
     if (!order.createdAt) return false;

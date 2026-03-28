@@ -7,7 +7,7 @@ import {
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST } from '@/lib/utils';
+import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
@@ -127,9 +127,9 @@ export default function SavedCarts({
   const getDeliveryDateLabel = (deliveryDate) => {
     if (!deliveryDate) return null;
     const todayKST = getTodayKST();
-    const todayMs = new Date(todayKST + 'T00:00:00+09:00').getTime();
+    const todayMs = new Date(todayKST + 'T00:00:00Z').getTime();
     const deliveryKST = toDateKST(deliveryDate);
-    const deliveryMs = new Date(deliveryKST + 'T00:00:00+09:00').getTime();
+    const deliveryMs = new Date(deliveryKST + 'T00:00:00Z').getTime();
     const diffDays = Math.floor((deliveryMs - todayMs) / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) return { label: '오늘 발송', colorStyle: { color: 'var(--destructive)', fontWeight: 'bold' }, urgent: true };
@@ -175,19 +175,13 @@ export default function SavedCarts({
 
     if (dateFilter === 'today') return cartDateKST === todayKST;
     if (dateFilter === 'yesterday') {
-      const yesterday = new Date(todayKST + 'T00:00:00+09:00');
-      yesterday.setDate(yesterday.getDate() - 1);
-      return cartDateKST === yesterday.toISOString().split('T')[0];
+      return cartDateKST === offsetDateKST(todayKST, -1);
     }
     if (dateFilter === 'week') {
-      const weekAgo = new Date(todayKST + 'T00:00:00+09:00');
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      return cartDateKST >= weekAgo.toISOString().split('T')[0];
+      return cartDateKST >= offsetDateKST(todayKST, -7);
     }
     if (dateFilter === 'month') {
-      const monthAgo = new Date(todayKST + 'T00:00:00+09:00');
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      return cartDateKST >= monthAgo.toISOString().split('T')[0];
+      return cartDateKST >= offsetMonthKST(todayKST, -1);
     }
     if (dateFilter === 'custom' && customDate) {
       return cartDateKST === customDate;
