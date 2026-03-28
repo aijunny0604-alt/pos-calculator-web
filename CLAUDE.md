@@ -1,6 +1,6 @@
 # POS Calculator Web - AI 핸드오프 가이드
 
-> 마지막 업데이트: 2026-03-12
+> 마지막 업데이트: 2026-03-28
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 ---
@@ -297,10 +297,10 @@ useEffect(() => {
 - **컴포넌트**: `AIStockTab` (AdminPage.jsx 내부 함수형 컴포넌트)
 
 #### 백업/복구 방법
-- **현재 배포 버전**: 주문 저장 성능 최적화 (2026-03-21)
+- **현재 배포 버전**: 날짜 필터 버그 수정 (2026-03-28, e16eb0f)
+- **이전 배포 버전**: 주문 저장 성능 최적화 (2026-03-21)
 - **백업 브랜치**: `backup/before-order-optimization-20260321` (4f02594)
-- **이전 배포 버전**: AI 재고 관리 추가 (2026-03-19)
-- **그 이전 배포 버전**: 최적화 미적용 (2026-03-11, gh-pages 브랜치에 기록)
+- **그 이전 배포 버전**: AI 재고 관리 추가 (2026-03-19)
 
 ### 2026-03-21 작업 내역
 
@@ -338,6 +338,26 @@ useEffect(() => {
 - **[High]** OrderDetail.jsx, ShippingLabel.jsx - `document.write()` XSS 취약점
 - **[Medium]** supabase.js:206 - 미사용 `ADMIN_PASSWORD = '1234'` 잔존
 - **[Info]** shippingCount와 todayOrderCount가 동일 로직 중복
+
+### 2026-03-28 작업 내역
+
+#### 날짜 필터 하루 밀림 버그 수정 (OrderHistory, SavedCarts, ShippingLabel, utils.js)
+- **문제**: 어제/이번주/이번달 필터에서 날짜가 하루 뒤로 밀림 (어제 → 그저께 주문 표시)
+- **근본 원인**: `new Date(todayKST + 'T00:00:00+09:00')`로 Date 생성 후 `toISOString()`(UTC 출력)으로 날짜 추출
+  - `+09:00` 오프셋은 JS가 UTC로 9시간 빼서 저장 → 자정 KST가 전날 15:00 UTC가 됨
+  - `toISOString().split('T')[0]`이 전날 날짜를 반환 → 하루 밀림
+- **수정**:
+  - `utils.js`: `getTodayKST()`, `toDateKST()` 단순화 (`getTimezoneOffset` 제거, `getTime() + 9h` 방식)
+  - `utils.js`: `offsetDateKST(dateStr, days)`, `offsetMonthKST(dateStr, months)` 유틸 함수 추가 (UTC 기반 `T00:00:00Z`)
+  - `OrderHistory.jsx`: `+09:00` 인라인 계산 → `offsetDateKST()` / `offsetMonthKST()` 사용
+  - `SavedCarts.jsx`: 동일 수정 + `getDeliveryDateLabel`의 `+09:00` → `Z` 변경
+  - `ShippingLabel.jsx`: 동일 수정
+- **KST 자정 리셋**: `getTodayKST()`는 정확히 KST 00:00:00에 날짜 전환됨 (UTC 15:00 기준)
+- **검증**: Playwright로 배포 사이트에서 어제 필터(2건, 3/27) 및 이번주 필터(19건, 3/21~) 정상 확인
+- **배포 완료**: 2026-03-28
+
+> **주의**: 날짜 계산 시 `+09:00` 오프셋과 `toISOString()`(UTC) 조합 금지.
+> 반드시 `offsetDateKST()` 또는 `T00:00:00Z` + `setUTCDate()` 패턴 사용.
 
 ---
 
