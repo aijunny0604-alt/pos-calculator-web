@@ -308,11 +308,33 @@ useEffect(() => {
 - 세션 리플레이: 에러 발생 시 100% 녹화 (`replaysOnErrorSampleRate: 1.0`)
 - Sentry 대시보드: https://error01.sentry.io (org: error01, project: pos-calculator-web)
 
+#### 모바일 제품명 잘림(truncation) 전면 제거 (10개 파일, 25곳)
+- **문제**: 모바일에서 긴 제품명(허브스페이스, TVB 등)이 "..."으로 잘려 식별 불가
+- **수정 패턴**: `truncate` → `break-words leading-snug` (줄바꿈 허용 + 행간 조밀)
+  - `items-center` → `items-start` (멀티라인 상단 정렬)
+  - `max-w-[140px]` 등 하드코딩 제거
+  - `min-w-0` 추가 (flex 자식 축소 허용)
+- **수정 파일**:
+  | 파일 | 수정 개소 | 대상 |
+  |------|-----------|------|
+  | MainPOS.jsx | 3곳 | 제품 그리드, 장바구니, 주문확인 모달 |
+  | AdminPage.jsx | 4곳 | 제품/거래처 테이블, 번웨이 재고 리스트 |
+  | TextAnalyze.jsx | 4곳 | AI 인식 결과, 검색, 제품 추가 |
+  | OrderDetail.jsx | 2곳 | 반품 목록, 반품 처리 |
+  | SavedCarts.jsx | 2곳 | 장바구니 아이템, 아이템 요약 |
+  | CustomerList.jsx | 2곳 | 주문/반품 아이템 |
+  | BurnwayStock.jsx | 1곳 | 상세 모달 제품 리스트 |
+  | Dashboard.jsx | 2곳 | 최근 주문, 재고 부족 알림 |
+- **검증**: Playwright 모바일(390x844)에서 "허브스페이스", "가변", "TVB" 검색 + 장바구니 전체 확인 완료
+
+> **주의**: 제품명 표시 영역에 `truncate`, `line-clamp`, `text-overflow: ellipsis` 사용 금지.
+> 반드시 `break-words leading-snug` 패턴 사용하여 모바일에서 전체 제품명 표시.
+
 #### 백업/복구 방법
-- **현재 배포 버전**: Sentry 에러 모니터링 연동 (2026-03-31, 24c28e3)
-- **이전 배포 버전**: 날짜 필터 버그 수정 (2026-03-28, e16eb0f)
+- **현재 배포 버전**: 모바일 제품명 잘림 전면 제거 (2026-03-31)
+- **이전 배포 버전**: Sentry 에러 모니터링 연동 (2026-03-31, 24c28e3)
 - **백업 브랜치**: `backup/before-order-optimization-20260321` (4f02594)
-- **그 이전 배포 버전**: AI 재고 관리 추가 (2026-03-19)
+- **그 이전 배포 버전**: 날짜 필터 버그 수정 (2026-03-28, e16eb0f)
 
 ### 2026-03-21 작업 내역
 

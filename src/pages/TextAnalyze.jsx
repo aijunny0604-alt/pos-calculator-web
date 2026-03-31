@@ -960,7 +960,7 @@ ${text}
                     className="w-full p-2.5 rounded-xl text-left flex justify-between items-center transition-colors hover:bg-[var(--muted)]"
                     style={{ backgroundColor: 'var(--background)' }}
                   >
-                    <span className="text-sm truncate mr-2" style={{ color: 'var(--foreground)' }}>{product.name}</span>
+                    <span className="text-sm break-words mr-2" style={{ color: 'var(--foreground)' }}>{product.name}</span>
                     <span className="text-sm font-bold flex-shrink-0" style={{ color: 'var(--success)' }}>
                       {formatPrice(priceType === 'wholesale' ? product.wholesale : (product.retail || product.wholesale))}
                     </span>
@@ -1013,7 +1013,7 @@ ${text}
                 >
                   {/* Top row: original text + confidence badge */}
                   <div className="px-3 pt-2.5 pb-1 flex items-center gap-2">
-                    <span className="text-[11px] truncate flex-1" style={{ color: 'var(--muted-foreground)' }}>{item.originalText}</span>
+                    <span className="text-[11px] break-words flex-1" style={{ color: 'var(--muted-foreground)' }}>{item.originalText}</span>
                     {item.confidence && item.matchedProduct && (
                       <span
                         className="flex-shrink-0 w-1.5 h-1.5 rounded-full"
@@ -1044,7 +1044,7 @@ ${text}
 
                         {/* Product info */}
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-[13px] truncate" style={{ color: 'var(--foreground)' }}>
+                          <p className="font-semibold text-[13px] break-words leading-snug" style={{ color: 'var(--foreground)' }}>
                             {item.matchedProduct.name}
                           </p>
                           <p className="text-xs font-bold" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
@@ -1168,7 +1168,7 @@ ${text}
                                 onClick={() => selectProduct(index, product)}
                                 className="w-full p-2.5 text-left rounded-xl transition-all border border-transparent hover:border-[var(--primary)] hover:bg-[var(--background)]"
                               >
-                                <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>{product.name}</p>
+                                <p className="text-sm font-medium break-words leading-snug" style={{ color: 'var(--foreground)' }}>{product.name}</p>
                                 <p className="text-xs mt-0.5 font-bold" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
                                   {formatPrice(priceType === 'wholesale' ? product.wholesale : (product.retail || product.wholesale))}
                                 </p>

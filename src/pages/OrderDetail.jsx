@@ -1059,7 +1059,7 @@ export default function OrderDetail({
                         </div>
                         {group.items.map((r, idx) => (
                           <div key={idx} className="flex items-center justify-between text-sm">
-                            <span className="truncate flex-1" style={{ color: 'var(--foreground)' }}>
+                            <span className="flex-1 min-w-0 break-words" style={{ color: 'var(--foreground)' }}>
                               {r.itemName} x{r.quantity}
                             </span>
                             <span className="font-medium ml-2" style={{ color: 'var(--warning)' }}>
@@ -1100,7 +1100,7 @@ export default function OrderDetail({
                   {returnItems.map((item, index) => (
                     <div key={index} className="flex items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
+                        <p className="text-sm font-medium break-words leading-snug" style={{ color: 'var(--foreground)' }}>
                           {item.name}
                         </p>
                         <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>

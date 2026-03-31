@@ -608,7 +608,7 @@ function DetailModal({ model, products, onClose }) {
                         className="flex items-center justify-between px-4 py-3 rounded-xl"
                         style={{ background: 'var(--background)' }}
                       >
-                        <span className="truncate flex-1 mr-3 text-sm font-medium" style={{ color: 'var(--foreground)' }}>{p.name}</span>
+                        <span className="flex-1 min-w-0 break-words mr-3 text-sm font-medium leading-snug" style={{ color: 'var(--foreground)' }}>{p.name}</span>
                         <span
                           className="font-extrabold flex-shrink-0 text-sm"
                           style={{ color: stock === 0 ? 'var(--destructive)' : stock <= 2 ? 'var(--warning)' : 'var(--success)' }}

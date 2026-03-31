@@ -158,7 +158,7 @@ export default function Dashboard({
                       {(order.customerName || '일반')[0]}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
+                      <p className="text-sm font-medium break-words" style={{ color: 'var(--foreground)' }}>
                         {order.customerName || '일반고객'}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
@@ -228,7 +228,7 @@ export default function Dashboard({
               <div className="space-y-2">
                 {lowStockProducts.map((p, i) => (
                   <div key={p.id || i} className="flex items-center justify-between text-sm">
-                    <span className="truncate" style={{ color: 'var(--foreground)' }}>{p.name}</span>
+                    <span className="break-words" style={{ color: 'var(--foreground)' }}>{p.name}</span>
                     <span className="font-medium ml-2 flex-shrink-0" style={{ color: 'var(--destructive)' }}>
                       {p.stock ?? 0}개
                     </span>

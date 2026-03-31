@@ -450,9 +450,9 @@ export default function MainPOS({
                               }}
                             >
                               {/* Product name & stock badge */}
-                              <div className="flex items-center justify-between mb-1.5 gap-1">
+                              <div className="flex items-start justify-between mb-1.5 gap-1">
                                 <p
-                                  className="text-sm font-medium truncate flex-1"
+                                  className="text-sm font-medium flex-1 min-w-0 break-words leading-snug"
                                   style={{ color: 'var(--foreground)' }}
                                 >
                                   {product.name}
@@ -651,8 +651,8 @@ export default function MainPOS({
                     </button>
 
                     {/* Name + stock/discount badge */}
-                    <div className="flex items-center justify-between pr-5 mb-2">
-                      <p className="text-xs font-medium truncate flex-1" style={{ color: 'var(--foreground)' }}>
+                    <div className="flex items-start justify-between pr-5 mb-2">
+                      <p className="text-xs font-medium flex-1 min-w-0 break-words leading-snug" style={{ color: 'var(--foreground)' }}>
                         {item.name}
                       </p>
                       {hasDiscount ? (
@@ -886,7 +886,7 @@ export default function MainPOS({
                         </button>
 
                         <div className="mb-3">
-                          <p className="text-sm font-medium line-clamp-2 pr-6 min-h-[40px]" style={{ color: 'var(--foreground)' }}>
+                          <p className="text-sm font-medium pr-6 break-words leading-snug" style={{ color: 'var(--foreground)' }}>
                             {item.name}
                           </p>
                           <div className="flex items-center gap-1 mt-1 flex-wrap">

@@ -625,7 +625,7 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
                           className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                         />
                       ) : (
-                        <div className="max-w-[140px] sm:max-w-none truncate sm:whitespace-normal cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(product, 'name')}>
+                        <div className="break-words cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(product, 'name')}>
                           {product.name}
                         </div>
                       )}
@@ -1019,7 +1019,7 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
                           className="w-full px-2 py-1 text-sm border border-[var(--primary)] rounded bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                         />
                       ) : (
-                        <div className="max-w-[120px] sm:max-w-none truncate sm:whitespace-normal cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(customer, 'name')}>
+                        <div className="break-words cursor-pointer hover:text-[var(--primary)]" onDoubleClick={() => startInlineEdit(customer, 'name')}>
                           {customer.name}
                         </div>
                       )}
@@ -1704,7 +1704,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                       const isEditing = editingStock?.id === p.id;
                       return (
                         <div key={p.id} className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
-                          <span className="flex-1 truncate text-[var(--foreground)] text-sm sm:text-base">{p.name}</span>
+                          <span className="flex-1 min-w-0 break-words text-[var(--foreground)] text-sm sm:text-base">{p.name}</span>
                           {isEditing ? (
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <input
@@ -1765,7 +1765,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                 const isEditing = editingStock?.id === p.id;
                 return (
                   <div key={p.id} className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 rounded-lg text-sm" style={{ background: 'var(--background)' }}>
-                    <span className="flex-1 truncate text-[var(--foreground)] text-sm sm:text-base">{p.name}</span>
+                    <span className="flex-1 min-w-0 break-words text-[var(--foreground)] text-sm sm:text-base">{p.name}</span>
                     {isEditing ? (
                       <input type="number" min="0" value={editingStock.value}
                         onChange={(e) => setEditingStock({ ...editingStock, value: e.target.value })}

@@ -536,7 +536,7 @@ export default function CustomerList({
                         <div className="space-y-1">
                           {(order.items || []).slice(0, 3).map((item, idx) => (
                             <div key={idx} className="flex justify-between text-xs">
-                              <span className="text-[var(--foreground)] truncate flex-1 mr-2">{item.name} x{item.quantity}</span>
+                              <span className="text-[var(--foreground)] flex-1 min-w-0 break-words mr-2">{item.name} x{item.quantity}</span>
                               <span className="text-[var(--muted-foreground)] flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
                             </div>
                           ))}
@@ -550,7 +550,7 @@ export default function CustomerList({
                             <p className="text-xs font-medium mb-1" style={{ color: 'var(--warning)' }}>반품:</p>
                             {order.returns.slice(0, 2).map((r, idx) => (
                               <div key={idx} className="flex justify-between text-xs">
-                                <span className="truncate flex-1 mr-2" style={{ color: 'var(--warning)' }}>{r.itemName} x{r.quantity}</span>
+                                <span className="flex-1 min-w-0 break-words mr-2" style={{ color: 'var(--warning)' }}>{r.itemName} x{r.quantity}</span>
                                 <span className="flex-shrink-0" style={{ color: 'var(--warning)' }}>-{formatPrice(r.total)}</span>
                               </div>
                             ))}

@@ -508,7 +508,7 @@ export default function SavedCarts({
                   <div key={idx} className="rounded-lg p-3 sm:p-4 border border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--accent)] transition-all">
                     <div className="flex items-start sm:items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">{item.name}</p>
+                        <p className="font-semibold break-words leading-snug">{item.name}</p>
                         {itemPrice > 0 && (
                           <div className="mt-1">
                             <p className="text-sm" style={{ color: 'var(--primary)' }}>{formatPrice(itemPrice)}</p>
@@ -1153,7 +1153,7 @@ export default function SavedCarts({
 
                         {/* Items summary */}
                         <div className="bg-[var(--secondary)] rounded-lg p-2 mb-3">
-                          <p className="text-[var(--muted-foreground)] text-xs truncate">{cartItemsDisplay}</p>
+                          <p className="text-[var(--muted-foreground)] text-xs break-words">{cartItemsDisplay}</p>
                           <p className="text-[var(--muted-foreground)] text-xs mt-0.5">
                             {cart.items.length}종 / {cart.items.reduce((sum, item) => sum + item.quantity, 0)}개
                           </p>
