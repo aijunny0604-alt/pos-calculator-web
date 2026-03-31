@@ -74,7 +74,7 @@ export default function Dashboard({
   );
 
   return (
-    <div className="flex flex-col gap-6" style={{ minHeight: 'calc(100vh - 140px)' }}>
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex-shrink-0">
         <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>대시보드</h1>
@@ -85,7 +85,7 @@ export default function Dashboard({
       </div>
 
       {/* Stat Cards */}
-      <div className="flex-shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={TrendingUp}
           label="오늘 매출"
@@ -120,9 +120,9 @@ export default function Dashboard({
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Orders */}
-        <div className="lg:col-span-2 rounded-xl border p-5 flex flex-col min-h-0" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+        <div className="lg:col-span-2 rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <h2 className="font-bold" style={{ color: 'var(--foreground)' }}>최근 주문</h2>
             <button
@@ -140,7 +140,7 @@ export default function Dashboard({
               <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>주문 내역이 없습니다</p>
             </div>
           ) : (
-            <div className="space-y-1 flex-1 overflow-y-auto custom-scroll min-h-0">
+            <div className="space-y-1 max-h-[480px] overflow-y-auto custom-scroll">
               {recentOrders.map((order, i) => (
                 <button
                   key={order.id || i}
@@ -183,7 +183,7 @@ export default function Dashboard({
         </div>
 
         {/* Right Column */}
-        <div className="space-y-6 overflow-y-auto custom-scroll min-h-0">
+        <div className="space-y-6">
           {/* Quick Actions */}
           <div className="rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
             <h2 className="font-bold mb-3" style={{ color: 'var(--foreground)' }}>바로가기</h2>
