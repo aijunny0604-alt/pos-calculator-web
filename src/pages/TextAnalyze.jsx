@@ -1030,61 +1030,61 @@ ${text}
                   <div className="px-3 pb-2.5">
                     {item.matchedProduct ? (
                       <>
-                      <div className="flex items-center gap-2.5">
-                        {/* Checkbox - minimal */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleSelect(index); }}
-                          className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all"
-                          style={{
-                            backgroundColor: item.selected ? 'var(--primary)' : 'var(--secondary)',
-                          }}
-                        >
-                          {item.selected && <Check className="w-3 h-3 text-white" />}
-                        </button>
-
-                        {/* Product info */}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-[13px] break-words leading-snug" style={{ color: 'var(--foreground)' }}>
-                            {item.matchedProduct.name}
-                          </p>
-                          <p className="text-xs font-bold" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
+                      <div className="space-y-1.5">
+                        {/* Top: checkbox + product name (full width) */}
+                        <div className="flex items-start gap-2.5">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleSelect(index); }}
+                            className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all mt-0.5"
+                            style={{
+                              backgroundColor: item.selected ? 'var(--primary)' : 'var(--secondary)',
+                            }}
+                          >
+                            {item.selected && <Check className="w-3 h-3 text-white" />}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-[13px] break-words leading-snug" style={{ color: 'var(--foreground)' }}>
+                              {item.matchedProduct.name}
+                            </p>
+                          </div>
+                        </div>
+                        {/* Bottom: price + quantity + actions */}
+                        <div className="flex items-center gap-2 ml-[30px]">
+                          <p className="text-xs font-bold flex-1" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
                             {formatPrice(priceType === 'wholesale' ? item.matchedProduct.wholesale : (item.matchedProduct.retail || item.matchedProduct.wholesale))}
                           </p>
-                        </div>
-
-                        {/* Quantity - borderless */}
-                        <div className="flex items-center gap-0 flex-shrink-0 rounded-lg" style={{ backgroundColor: 'var(--secondary)' }} onClick={e => e.stopPropagation()}>
-                          <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-7 h-7 flex items-center justify-center rounded-l-lg hover:bg-[var(--muted)]">
-                            <Minus className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                          <div className="flex items-center gap-0 flex-shrink-0 rounded-lg" style={{ backgroundColor: 'var(--secondary)' }} onClick={e => e.stopPropagation()}>
+                            <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-7 h-7 flex items-center justify-center rounded-l-lg hover:bg-[var(--muted)]">
+                              <Minus className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                            </button>
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                              className="w-7 h-7 text-center text-xs font-bold bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              style={{ color: 'var(--foreground)' }}
+                            />
+                            <button onClick={() => updateQuantity(index, item.quantity + 1)} className="w-7 h-7 flex items-center justify-center rounded-r-lg hover:bg-[var(--muted)]">
+                              <Plus className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                            </button>
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
+                            className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
+                            style={{ color: 'var(--muted-foreground)' }}
+                            title="제품 변경"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
                           </button>
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                            className="w-7 h-7 text-center text-xs font-bold bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            style={{ color: 'var(--foreground)' }}
-                          />
-                          <button onClick={() => updateQuantity(index, item.quantity + 1)} className="w-7 h-7 flex items-center justify-center rounded-r-lg hover:bg-[var(--muted)]">
-                            <Plus className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                          <button
+                            onClick={(e) => { e.stopPropagation(); removeItem(index); }}
+                            className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
+                            style={{ color: 'var(--muted-foreground)' }}
+                            title="삭제"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                        {/* Edit / Delete - ghost buttons */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
-                          className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
-                          style={{ color: 'var(--muted-foreground)' }}
-                          title="제품 변경"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); removeItem(index); }}
-                          className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
-                          style={{ color: 'var(--muted-foreground)' }}
-                          title="삭제"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
                       </div>
                       {/* Alternatives - minimal chips, no border-t */}
                       {item.alternatives && item.alternatives.length > 0 && item.confidence !== 'high' && (
