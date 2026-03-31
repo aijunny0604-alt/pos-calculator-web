@@ -29,7 +29,7 @@ export default function Dashboard({
   const recentOrders = useMemo(() => {
     return [...orders]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 8);
+      .slice(0, 20);
   }, [orders]);
 
   const lowStockProducts = useMemo(() => {
@@ -37,7 +37,7 @@ export default function Dashboard({
       const stock = p.stock ?? 50;
       const minStock = p.min_stock ?? 5;
       return stock <= minStock;
-    }).slice(0, 5);
+    });
   }, [products]);
 
   const pendingCarts = useMemo(() => {
@@ -74,9 +74,9 @@ export default function Dashboard({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6" style={{ minHeight: 'calc(100vh - 140px)' }}>
       {/* Header */}
-      <div>
+      <div className="flex-shrink-0">
         <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>대시보드</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>
           {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
@@ -85,7 +85,7 @@ export default function Dashboard({
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="flex-shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={TrendingUp}
           label="오늘 매출"
@@ -120,10 +120,10 @@ export default function Dashboard({
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
         {/* Recent Orders */}
-        <div className="lg:col-span-2 rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between mb-4">
+        <div className="lg:col-span-2 rounded-xl border p-5 flex flex-col min-h-0" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <h2 className="font-bold" style={{ color: 'var(--foreground)' }}>최근 주문</h2>
             <button
               onClick={() => setCurrentPage('orders')}
@@ -140,7 +140,7 @@ export default function Dashboard({
               <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>주문 내역이 없습니다</p>
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-1 flex-1 overflow-y-auto custom-scroll min-h-0">
               {recentOrders.map((order, i) => (
                 <button
                   key={order.id || i}
@@ -183,7 +183,7 @@ export default function Dashboard({
         </div>
 
         {/* Right Column */}
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-y-auto custom-scroll min-h-0">
           {/* Quick Actions */}
           <div className="rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
             <h2 className="font-bold mb-3" style={{ color: 'var(--foreground)' }}>바로가기</h2>
@@ -225,7 +225,7 @@ export default function Dashboard({
                 <AlertTriangle className="w-4 h-4" style={{ color: 'var(--warning)' }} />
                 <h2 className="font-bold" style={{ color: 'var(--foreground)' }}>재고 부족 알림</h2>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-48 overflow-y-auto custom-scroll">
                 {lowStockProducts.map((p, i) => (
                   <div key={p.id || i} className="flex items-center justify-between text-sm">
                     <span className="break-words flex-1 min-w-0" style={{ color: 'var(--foreground)' }}>{p.name}</span>
