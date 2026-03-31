@@ -1,6 +1,6 @@
 # POS Calculator Web - AI 핸드오프 가이드
 
-> 마지막 업데이트: 2026-03-28
+> 마지막 업데이트: 2026-03-31
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 ---
@@ -18,6 +18,7 @@
 | UI 아이콘 | lucide-react |
 | 엑셀 | exceljs + file-saver |
 | 배포 | GitHub Pages (gh-pages) |
+| 에러 모니터링 | Sentry (@sentry/react) |
 
 ### 실행/빌드/배포
 ```bash
@@ -52,6 +53,7 @@ npx gh-pages -d dist # GitHub Pages 배포
 | `src/lib/priceData.js` | - | 478개 하드코딩 상품 (오프라인 폴백) |
 | `src/lib/utils.js` | ~104 | formatPrice, formatDateTime, getTodayKST, toDateKST, matchesSearchQuery, normalizeText 유틸리티 |
 | `src/index.css` | ~218 | CSS 변수 테마, 카드 애니메이션, 프린트 스타일 |
+| `src/main.jsx` | ~21 | 앱 진입점. Sentry 초기화 (프로덕션만, 에러 50% 샘플링, 세션 리플레이) |
 
 ### 페이지 (src/pages/)
 | 파일 | 줄 수 | 라우팅 ID | 설명 | 상태 |
@@ -296,9 +298,19 @@ useEffect(() => {
 - **재사용**: TextAnalyze.jsx의 Gemini 호출 패턴, synonyms, calculateMatchScore, findProduct 로직
 - **컴포넌트**: `AIStockTab` (AdminPage.jsx 내부 함수형 컴포넌트)
 
+### 2026-03-31 작업 내역
+
+#### Sentry 에러 모니터링 연동 (main.jsx)
+- **@sentry/react** 패키지 설치
+- `main.jsx`에서 `Sentry.init()` 호출 (앱 최상단 초기화)
+- 프로덕션(`import.meta.env.PROD`)에서만 활성화
+- 에러 50% 샘플링 (`tracesSampleRate: 0.5`)
+- 세션 리플레이: 에러 발생 시 100% 녹화 (`replaysOnErrorSampleRate: 1.0`)
+- Sentry 대시보드: https://error01.sentry.io (org: error01, project: pos-calculator-web)
+
 #### 백업/복구 방법
-- **현재 배포 버전**: 날짜 필터 버그 수정 (2026-03-28, e16eb0f)
-- **이전 배포 버전**: 주문 저장 성능 최적화 (2026-03-21)
+- **현재 배포 버전**: Sentry 에러 모니터링 연동 (2026-03-31, 24c28e3)
+- **이전 배포 버전**: 날짜 필터 버그 수정 (2026-03-28, e16eb0f)
 - **백업 브랜치**: `backup/before-order-optimization-20260321` (4f02594)
 - **그 이전 배포 버전**: AI 재고 관리 추가 (2026-03-19)
 
@@ -338,6 +350,11 @@ useEffect(() => {
 - **[High]** OrderDetail.jsx, ShippingLabel.jsx - `document.write()` XSS 취약점
 - **[Medium]** supabase.js:206 - 미사용 `ADMIN_PASSWORD = '1234'` 잔존
 - **[Info]** shippingCount와 todayOrderCount가 동일 로직 중복
+
+#### 외부 서비스
+- **Sentry 에러 모니터링**: https://error01.sentry.io (org: error01, project: pos-calculator-web)
+  - DSN은 `main.jsx`에 직접 포함 (public DSN이라 보안 무관)
+  - 프로덕션만 활성화, 에러 발생 시 이메일 알림
 
 ### 2026-03-28 작업 내역
 
