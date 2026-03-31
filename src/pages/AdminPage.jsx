@@ -856,9 +856,9 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
 
   const filtered = useMemo(() => {
     if (!customers) return [];
-    return customers.filter(c =>
-      matchesSearchQuery(c.name, search) ||
-      (c.phone && c.phone.includes(search))
+    return customers.filter(c => c &&
+      (matchesSearchQuery(c.name || '', search) ||
+      (c.phone && c.phone.includes(search)))
     );
   }, [customers, search]);
 
@@ -891,8 +891,10 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
         is_blacklist: formData.blacklist,
       };
       const isNew = !editTarget?.id;
+      const { blacklist: _bl, ...dbPayload } = payload;
       if (supabaseConnected && supabase?.saveCustomer) {
-        const saved = await supabase.saveCustomer(isNew ? payload : { ...payload, id: editTarget.id });
+        const saved = await supabase.saveCustomer(isNew ? dbPayload : { ...dbPayload, id: editTarget.id });
+        if (!saved) throw new Error('서버 응답 오류');
         if (isNew) {
           setCustomers(prev => [...prev, saved]);
         } else {
