@@ -577,6 +577,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
 
     html += `<script>window.onload = function() { window.print(); }</script></body></html>`;
     const printWindow = window.open('', '_blank');
+    if (!printWindow) { if (showToast) showToast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error'); return; }
     printWindow.document.write(html);
     printWindow.document.close();
   };

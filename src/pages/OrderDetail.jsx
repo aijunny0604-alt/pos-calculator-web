@@ -368,6 +368,7 @@ export default function OrderDetail({
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
+    if (!printWindow) { if (showToast) showToast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error'); return; }
     printWindow.document.write(`
       <html>
         <head>
@@ -1062,7 +1063,7 @@ export default function OrderDetail({
                             <span className="flex-1 min-w-0 break-words" style={{ color: 'var(--foreground)' }}>
                               {r.itemName} x{r.quantity}
                             </span>
-                            <span className="font-medium ml-2" style={{ color: 'var(--warning)' }}>
+                            <span className="font-medium ml-2 flex-shrink-0" style={{ color: 'var(--warning)' }}>
                               -{formatPrice(r.total)}원
                             </span>
                           </div>

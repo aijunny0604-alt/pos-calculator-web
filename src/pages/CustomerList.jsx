@@ -139,7 +139,11 @@ export default function CustomerList({
     setDetailOrder(updatedOrder);
 
     if (onUpdateOrder) {
-      await onUpdateOrder(updatedOrder);
+      await onUpdateOrder(detailOrder.id || detailOrder.orderNumber, {
+        returns: newReturns,
+        totalReturned: totalReturned,
+        total_returned: totalReturned
+      });
     }
 
     setIsReturning(false);
@@ -911,7 +915,7 @@ export default function CustomerList({
                     {returnItems.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-sm font-medium break-words leading-snug">{item.name}</p>
                           <p className="text-[var(--muted-foreground)] text-xs">{formatPrice(item.price)} × 주문 {item.quantity}개</p>
                         </div>
                         <div className="flex items-center gap-1.5">

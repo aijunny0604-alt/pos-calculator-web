@@ -42,7 +42,7 @@ export const supabase = {
         return await fetchJSON(`${SUPABASE_URL}/rest/v1/orders`, {
           method: 'POST', headers: headersWithReturn, body: JSON.stringify(rest)
         });
-      } catch { console.error('saveOrder:', e); return null; }
+      } catch (e) { console.error('saveOrder:', e); return null; }
     }
   },
   async updateOrder(id, order) {
@@ -159,7 +159,7 @@ export const supabase = {
           method: 'POST', headers: headersWithReturn, body: JSON.stringify(basic)
         });
         return [{ ...result[0], delivery_date: cart.delivery_date, status: cart.status, priority: cart.priority, memo: cart.memo, reminded: cart.reminded, _localOnly: true }];
-      } catch { console.error('addSavedCart:', e); return null; }
+      } catch (e) { console.error('addSavedCart:', e); return null; }
     }
   },
   async updateSavedCart(id, cart) {
@@ -174,14 +174,12 @@ export const supabase = {
           method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(basic)
         });
         return [{ ...result[0], delivery_date: cart.delivery_date, status: cart.status, priority: cart.priority, memo: cart.memo, reminded: cart.reminded, _localOnly: true }];
-      } catch { console.error('updateSavedCart:', e); return null; }
+      } catch (e) { console.error('updateSavedCart:', e); return null; }
     }
   },
   async deleteSavedCart(id) {
     try {
-      console.log('[supabase.deleteSavedCart] id:', id, 'type:', typeof id);
       const r = await fetch(`${SUPABASE_URL}/rest/v1/saved_carts?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
-      console.log('[supabase.deleteSavedCart] status:', r.status, 'ok:', r.ok);
       return r.ok;
     } catch (e) { console.error('deleteSavedCart:', e); return false; }
   },
@@ -202,5 +200,3 @@ export const supabase = {
     return await this.addCustomer(customer);
   },
 };
-
-export const ADMIN_PASSWORD = '1234';

@@ -330,11 +330,39 @@ useEffect(() => {
 > **주의**: 제품명 표시 영역에 `truncate`, `line-clamp`, `text-overflow: ellipsis` 사용 금지.
 > 반드시 `break-words leading-snug` 패턴 사용하여 모바일에서 전체 제품명 표시.
 
+#### 전수 검사 및 버그 수정 (에이전트 5개 투입)
+- **검사 범위**: src/ 전체 30개 파일 (코드 품질, 보안, 설계 일치, UI 레이아웃, 빌드/런타임)
+- **Critical 버그 수정**:
+  - `CustomerList.jsx:141` - **반품 저장 실패** 버그. `onUpdateOrder(객체)` → `onUpdateOrder(id, data)` 시그니처 불일치로 반품이 DB에 저장되지 않던 문제 수정
+  - `supabase.js:45,162,177` - `catch` 파라미터 누락으로 ReferenceError 발생 가능. `catch { e }` → `catch (e) { e }` 수정
+  - `supabase.js:204` - 미사용 `ADMIN_PASSWORD = '1234'` export 제거
+- **레이아웃 수정 (truncate 잔존 + flex 누락)**:
+  - `TextAnalyze.jsx:963,1016` - `flex-1 min-w-0` 누락 수정
+  - `Dashboard.jsx:231` - `flex-1 min-w-0` 누락 수정
+  - `OrderDetail.jsx:1065` - 반품 금액 `flex-shrink-0` 추가
+  - `AdminPage.jsx:2386` - AI 입고 탭 제품명 `truncate` → `break-words` 수정
+  - `CustomerList.jsx:914` - 반품 처리 제품명 `truncate` → `break-words` 수정
+- **안정성 수정**:
+  - `OrderDetail.jsx:370`, `ShippingLabel.jsx:579` - `window.open` 팝업 차단 시 null 에러 방지
+  - `supabase.js`, `SavedCarts.jsx` - 프로덕션 `console.log` 4곳 제거
+- **검사 결과 요약**:
+  | 항목 | 점수 |
+  |------|------|
+  | 코드 품질 | 68/100 (+6) |
+  | 보안 | 22/100 (인증 부재 주요 감점, 내부용이라 실질 리스크 낮음) |
+  | 설계-구현 일치 | 86% |
+  | 빌드 | 통과 (에러 0건) |
+- **미수정 (향후 작업)**:
+  - Gemini API 키 도메인 제한 설정 필요 (Google Cloud Console)
+  - WebSocket 재연결 로직 없음 (네트워크 불안정 시)
+  - 재고 차감 race condition (동시 주문 시)
+  - CLAUDE.md 섹션 7 Props 트리 대폭 갱신 필요 (매칭률 72%)
+
 #### 백업/복구 방법
-- **현재 배포 버전**: 모바일 제품명 잘림 전면 제거 (2026-03-31)
-- **이전 배포 버전**: Sentry 에러 모니터링 연동 (2026-03-31, 24c28e3)
+- **현재 배포 버전**: 전수 검사 + 버그 수정 (2026-03-31)
+- **이전 배포 버전**: 모바일 제품명 잘림 전면 제거 (2026-03-31, da776fd)
 - **백업 브랜치**: `backup/before-order-optimization-20260321` (4f02594)
-- **그 이전 배포 버전**: 날짜 필터 버그 수정 (2026-03-28, e16eb0f)
+- **그 이전 배포 버전**: Sentry 에러 모니터링 연동 (2026-03-31, 24c28e3)
 
 ### 2026-03-21 작업 내역
 
@@ -360,10 +388,10 @@ useEffect(() => {
 - **Supabase 리전**: 도쿄 (ap-northeast-1), 한국에서 왕복 ~30-50ms (서울 대비 체감 차이 거의 없음)
 - **남은 ~1초는 Supabase 서버 응답 시간** (주문 저장 + 재고 차감 API), 코드 최적화 한계
 
-#### 전체 점검 결과 요약 (에이전트 3개 투입)
+#### 전체 점검 결과 요약 (에이전트 3개 투입, 2026-03-21)
 - **빌드**: 정상 (에러 0건)
-- **코드 품질**: 62/100 (code-analyzer)
-- **설계-구현 일치율**: 90% (gap-detector)
+- **코드 품질**: 62/100 (code-analyzer) → 2026-03-31 전수 검사 후 68/100
+- **설계-구현 일치율**: 90% (gap-detector) → 2026-03-31 전수 검사 후 86%
 - **보안**: Critical 3건 (Gemini API 키 노출, RLS 미확인, 인증 부재)
 - **핵심 기능**: 100% 구현 완료
 

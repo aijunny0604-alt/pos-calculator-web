@@ -2383,7 +2383,7 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
                     {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium text-[var(--foreground)] text-sm truncate block sm:inline">{product.name}</span>
+                    <span className="font-medium text-[var(--foreground)] text-sm break-words block sm:inline">{product.name}</span>
                     <span className="ml-0 sm:ml-2 text-xs text-[var(--muted-foreground)] hidden sm:inline">{product.category}</span>
                   </div>
                   {tiers.length > 0 && (

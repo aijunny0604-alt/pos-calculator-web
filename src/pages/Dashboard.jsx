@@ -228,7 +228,7 @@ export default function Dashboard({
               <div className="space-y-2">
                 {lowStockProducts.map((p, i) => (
                   <div key={p.id || i} className="flex items-center justify-between text-sm">
-                    <span className="break-words" style={{ color: 'var(--foreground)' }}>{p.name}</span>
+                    <span className="break-words flex-1 min-w-0" style={{ color: 'var(--foreground)' }}>{p.name}</span>
                     <span className="font-medium ml-2 flex-shrink-0" style={{ color: 'var(--destructive)' }}>
                       {p.stock ?? 0}개
                     </span>

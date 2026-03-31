@@ -235,11 +235,9 @@ export default function SavedCarts({
       showToast?.('삭제 실패: ID가 없습니다', 'error');
       return;
     }
-    console.log('[SavedCarts] handleDeleteCart called with id:', cartId, 'type:', typeof cartId);
     setDeletingId(cartId);
     try {
       await onDelete(cartId);
-      console.log('[SavedCarts] onDelete completed for id:', cartId);
     } catch (err) {
       console.error('[SavedCarts] onDelete error:', err);
     } finally {
