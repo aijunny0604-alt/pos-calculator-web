@@ -4,6 +4,7 @@ import {
   Lock, ChevronDown, ChevronRight, X, Save, AlertTriangle, ShieldAlert, Fingerprint,
   UserPlus, Download, Copy, Car, Maximize2, Minimize2, Zap, Loader2,
   Check, Minus, ArrowRight, RefreshCw, TrendingUp, TrendingDown, DollarSign,
+  Database, HardDrive, FileDown, FileUp, CheckCircle, XCircle,
 } from 'lucide-react';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import EmptyState from '../components/ui/EmptyState';
@@ -25,6 +26,7 @@ const TABS = [
   { id: 'burnway',     label: '번웨이',      Icon: Car     },
   { id: 'categories',  label: '카테고리',    Icon: Tag     },
   { id: 'discounts',   label: '할인설정',    Icon: Percent },
+  { id: 'backup',      label: 'DB백업',     Icon: Database },
 ];
 
 const EMPTY_PRODUCT = {
@@ -2199,6 +2201,257 @@ ${inputText}
 }
 
 // ---------------------------------------------------------------------------
+// DB 백업/복원 탭
+// ---------------------------------------------------------------------------
+function BackupTab({ products, setProducts, customers, setCustomers, supabaseConnected, showToast, supabase }) {
+  const [backing, setBacking] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreFile, setRestoreFile] = useState(null);
+  const [restorePreview, setRestorePreview] = useState(null);
+  const [restoreConfirm, setRestoreConfirm] = useState(false);
+  const [lastBackup, setLastBackup] = useState(() => localStorage.getItem('lastBackupDate') || null);
+  const fileInputRef = useRef(null);
+
+  const TABLES = [
+    { key: 'products', label: '제품', icon: Package, color: 'var(--primary)', fetch: () => supabase.getProducts() },
+    { key: 'customers', label: '거래처', icon: Users, color: 'var(--success)', fetch: () => supabase.getCustomers() },
+    { key: 'orders', label: '주문', icon: Tag, color: 'var(--warning)', fetch: () => supabase.getOrders() },
+    { key: 'saved_carts', label: '장바구니', icon: HardDrive, color: 'var(--info)', fetch: () => supabase.getSavedCarts() },
+    { key: 'customer_returns', label: '반품', icon: RefreshCw, color: 'var(--destructive)', fetch: () => supabase.getCustomerReturns() },
+  ];
+
+  const handleBackup = async () => {
+    if (!supabaseConnected) { showToast('Supabase 연결이 필요합니다', 'error'); return; }
+    setBacking(true);
+    try {
+      const backup = { _meta: { version: 1, createdAt: new Date().toISOString(), app: 'pos-calculator-web' } };
+      for (const t of TABLES) {
+        const data = await t.fetch();
+        backup[t.key] = data || [];
+      }
+
+      const totalRecords = TABLES.reduce((sum, t) => sum + (backup[t.key]?.length || 0), 0);
+      const json = JSON.stringify(backup, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      a.href = url;
+      a.download = `pos-backup-${dateStr}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      const now = new Date().toLocaleString('ko-KR');
+      localStorage.setItem('lastBackupDate', now);
+      setLastBackup(now);
+      showToast(`백업 완료 (${totalRecords}건, ${(json.length / 1024).toFixed(0)}KB)`, 'success');
+    } catch (err) {
+      showToast('백업 실패: ' + err.message, 'error');
+    } finally {
+      setBacking(false);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setRestoreFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data._meta) throw new Error('유효하지 않은 백업 파일입니다');
+        const preview = {};
+        for (const t of TABLES) {
+          preview[t.key] = { count: data[t.key]?.length || 0 };
+        }
+        preview._meta = data._meta;
+        preview._raw = data;
+        setRestorePreview(preview);
+      } catch (err) {
+        showToast('파일 읽기 실패: ' + err.message, 'error');
+        setRestoreFile(null);
+        setRestorePreview(null);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleRestore = async () => {
+    if (!restorePreview?._raw || !supabaseConnected) return;
+    setRestoring(true);
+    try {
+      const data = restorePreview._raw;
+
+      // 제품 복원
+      if (data.products?.length > 0) {
+        for (const p of data.products) {
+          await supabase.addProduct(p).catch(() => supabase.updateProduct(p.id, p));
+        }
+        setProducts(data.products);
+      }
+
+      // 거래처 복원
+      if (data.customers?.length > 0) {
+        for (const c of data.customers) {
+          await supabase.addCustomer(c).catch(() => supabase.updateCustomer(c.id, c));
+        }
+        setCustomers(data.customers);
+      }
+
+      const totalRecords = TABLES.reduce((sum, t) => sum + (data[t.key]?.length || 0), 0);
+      showToast(`복원 완료 (${totalRecords}건)`, 'success');
+      setRestoreFile(null);
+      setRestorePreview(null);
+      setRestoreConfirm(false);
+    } catch (err) {
+      showToast('복원 실패: ' + err.message, 'error');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const SectionCard = ({ children }) => (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">{children}</div>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>DB 백업 · 복원</h2>
+        <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>전체 데이터를 JSON 파일로 내보내거나 복원할 수 있습니다</p>
+      </div>
+
+      {/* 현재 DB 현황 */}
+      <SectionCard>
+        <div className="px-4 py-3 border-b border-[var(--border)]">
+          <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>현재 데이터 현황</h3>
+        </div>
+        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {TABLES.map(t => {
+            const count = t.key === 'products' ? (products?.length || 0)
+              : t.key === 'customers' ? (customers?.length || 0)
+              : '—';
+            return (
+              <div key={t.key} className="rounded-xl p-3 text-center border border-[var(--border)]" style={{ background: `color-mix(in srgb, ${t.color} 6%, var(--background))` }}>
+                <t.icon className="w-5 h-5 mx-auto mb-1.5" style={{ color: t.color }} />
+                <p className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>{count}</p>
+                <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>{t.label}</p>
+              </div>
+            );
+          })}
+        </div>
+        {lastBackup && (
+          <div className="px-4 pb-3">
+            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>마지막 백업: {lastBackup}</p>
+          </div>
+        )}
+      </SectionCard>
+
+      {/* 백업 다운로드 */}
+      <SectionCard>
+        <div className="p-5 flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}>
+            <FileDown className="w-8 h-8" style={{ color: 'var(--primary)' }} />
+          </div>
+          <div className="text-center">
+            <h3 className="font-bold" style={{ color: 'var(--foreground)' }}>전체 데이터 백업</h3>
+            <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>제품, 거래처, 주문, 장바구니, 반품 데이터를 JSON 파일로 저장</p>
+          </div>
+          <button
+            onClick={handleBackup}
+            disabled={backing || !supabaseConnected}
+            className="w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+            style={{ background: 'var(--primary)', color: 'white' }}
+          >
+            {backing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {backing ? '백업 중...' : 'JSON 백업 다운로드'}
+          </button>
+        </div>
+      </SectionCard>
+
+      {/* 복원 */}
+      <SectionCard>
+        <div className="p-5 flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--warning) 10%, transparent)' }}>
+            <FileUp className="w-8 h-8" style={{ color: 'var(--warning)' }} />
+          </div>
+          <div className="text-center">
+            <h3 className="font-bold" style={{ color: 'var(--foreground)' }}>데이터 복원</h3>
+            <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>백업 JSON 파일에서 제품/거래처 데이터를 복원합니다</p>
+          </div>
+          <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileSelect} className="hidden" />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!supabaseConnected}
+            className="w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 border border-[var(--border)] hover:bg-[var(--accent)] disabled:opacity-40"
+            style={{ color: 'var(--foreground)' }}
+          >
+            <Upload className="w-4 h-4" /> 백업 파일 선택
+          </button>
+        </div>
+
+        {/* 복원 미리보기 */}
+        {restorePreview && (
+          <div className="border-t border-[var(--border)] p-4 space-y-4">
+            <div className="rounded-lg p-3" style={{ background: 'color-mix(in srgb, var(--warning) 8%, transparent)' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-4 h-4" style={{ color: 'var(--warning)' }} />
+                <p className="text-sm font-bold" style={{ color: 'var(--warning)' }}>복원 미리보기</p>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                파일: {restoreFile?.name} · 생성: {new Date(restorePreview._meta.createdAt).toLocaleString('ko-KR')}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {TABLES.map(t => {
+                const count = restorePreview[t.key]?.count || 0;
+                return (
+                  <div key={t.key} className="rounded-lg p-3 text-center border border-[var(--border)]">
+                    <p className="text-lg font-bold" style={{ color: count > 0 ? t.color : 'var(--muted-foreground)' }}>{count}</p>
+                    <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>{t.label}</p>
+                    {count > 0 ? <CheckCircle className="w-3 h-3 mx-auto mt-1" style={{ color: 'var(--success)' }} /> : <XCircle className="w-3 h-3 mx-auto mt-1" style={{ color: 'var(--muted-foreground)' }} />}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => { setRestoreFile(null); setRestorePreview(null); setRestoreConfirm(false); }}
+                className="flex-1 py-3 rounded-xl text-sm font-medium border border-[var(--border)] hover:bg-[var(--accent)]"
+                style={{ color: 'var(--foreground)' }}
+              >취소</button>
+              {!restoreConfirm ? (
+                <button
+                  onClick={() => setRestoreConfirm(true)}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
+                  style={{ background: 'var(--warning)', color: 'white' }}
+                >
+                  <AlertTriangle className="w-4 h-4" /> 복원 진행
+                </button>
+              ) : (
+                <button
+                  onClick={handleRestore}
+                  disabled={restoring}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
+                  style={{ background: 'var(--destructive)', color: 'white', opacity: restoring ? 0.6 : 1 }}
+                >
+                  {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+                  {restoring ? '복원 중...' : '정말 복원하시겠습니까?'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </SectionCard>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 단가 일괄 조정 탭
 // ---------------------------------------------------------------------------
 function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, supabase, pushUndo }) {
@@ -3080,6 +3333,7 @@ export default function AdminPage({
         {activeTab === 'burnway' && <BurnwayTab {...tabProps} />}
         {activeTab === 'categories' && <CategoriesTab {...tabProps} onSelectCategory={(cat) => { setSelectedCategory(cat); setActiveTab('products'); }} />}
         {activeTab === 'discounts' && <DiscountTiersTab {...tabProps} />}
+        {activeTab === 'backup' && <BackupTab {...tabProps} />}
       </main>
     </div>
   );
