@@ -2298,13 +2298,13 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
   };
 
   const previewData = useMemo(() => {
-    if (!showPreview) return [];
+    if (!adjustValue || parseFloat(adjustValue) === 0 || affectedProducts.length === 0) return [];
     return affectedProducts.map(p => ({
       ...p,
       newWholesale: (target === 'wholesale' || target === 'both') ? calcNewPrice(p.wholesale) : p.wholesale,
       newRetail: (target === 'retail' || target === 'both') ? calcNewPrice(p.retail) : p.retail,
     }));
-  }, [showPreview, affectedProducts, adjustValue, adjustType, adjustDir, target]);
+  }, [affectedProducts, adjustValue, adjustType, adjustDir, target]);
 
   const handleApply = async () => {
     if (previewData.length === 0) return;
@@ -2346,7 +2346,6 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
       }
 
       showToast(`${previewData.length}개 제품 단가 ${adjustDir === 'up' ? '인상' : '인하'} 완료`, 'success');
-      setShowPreview(false);
       setAdjustValue('');
       setSelectedCats(new Set());
     } catch (err) {
@@ -2541,7 +2540,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
               <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--muted-foreground)' }}>방향</label>
               <div className="flex gap-2">
                 <button
-                  onClick={() => { setAdjustDir('up'); setShowPreview(false); }}
+                  onClick={() => setAdjustDir('up')}
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all"
                   style={{
                     background: adjustDir === 'up' ? 'color-mix(in srgb, var(--destructive) 12%, transparent)' : 'var(--background)',
@@ -2552,7 +2551,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
                   <TrendingUp className="w-4 h-4" /> 인상 ▲
                 </button>
                 <button
-                  onClick={() => { setAdjustDir('down'); setShowPreview(false); }}
+                  onClick={() => setAdjustDir('down')}
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all"
                   style={{
                     background: adjustDir === 'down' ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--background)',
@@ -2572,13 +2571,13 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
                 <input
                   type="number"
                   value={adjustValue}
-                  onChange={e => { setAdjustValue(e.target.value); setShowPreview(false); }}
+                  onChange={e => setAdjustValue(e.target.value)}
                   placeholder={adjustType === 'percent' ? '20' : '5000'}
                   className="flex-1 px-3 py-2.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
                   <button
-                    onClick={() => { setAdjustType('percent'); setShowPreview(false); }}
+                    onClick={() => setAdjustType('percent')}
                     className="px-4 py-2.5 text-sm font-medium transition-all"
                     style={{
                       background: adjustType === 'percent' ? 'var(--primary)' : 'var(--background)',
@@ -2586,7 +2585,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
                     }}
                   >%</button>
                   <button
-                    onClick={() => { setAdjustType('fixed'); setShowPreview(false); }}
+                    onClick={() => setAdjustType('fixed')}
                     className="px-4 py-2.5 text-sm font-medium transition-all"
                     style={{
                       background: adjustType === 'fixed' ? 'var(--primary)' : 'var(--background)',
@@ -2608,7 +2607,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
                 ].map(opt => (
                   <button
                     key={opt.value}
-                    onClick={() => { setTarget(opt.value); setShowPreview(false); }}
+                    onClick={() => setTarget(opt.value)}
                     className="flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all"
                     style={{
                       background: target === opt.value ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--background)',
@@ -2620,21 +2619,13 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
               </div>
             </div>
 
-            {/* 미리보기 버튼 */}
-            <button
-              onClick={() => setShowPreview(true)}
-              disabled={!adjustValue || parseFloat(adjustValue) === 0}
-              className="w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-40"
-              style={{ background: 'var(--primary)', color: 'white' }}
-            >
-              미리보기 ({affectedProducts.length}개 제품)
-            </button>
+            {/* 수치 입력 시 미리보기 자동 표시 */}
           </div>
         </SectionCard>
       )}
 
       {/* Step 3: 미리보기 + 적용 */}
-      {showPreview && previewData.length > 0 && (
+      {previewData.length > 0 && (
         <SectionCard>
           <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
             <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>③ 변경 미리보기</h3>
@@ -2691,7 +2682,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
           </div>
           <div className="p-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => setShowPreview(false)}
+              onClick={() => setAdjustValue('')}
               className="flex-1 py-3 rounded-xl text-sm font-medium border border-[var(--border)] hover:bg-[var(--accent)] transition-all"
               style={{ color: 'var(--foreground)' }}
             >
