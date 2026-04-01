@@ -394,8 +394,10 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
         const maxId = displayProducts.reduce((max, p) => Math.max(max, p.id || 0), 0);
         payload.id = maxId + 1;
       }
-      if (supabaseConnected && supabase?.saveProduct) {
-        const saved = await supabase.saveProduct(isNew ? payload : { ...payload, id: editTarget.id });
+      if (supabaseConnected && supabase) {
+        const saved = isNew
+          ? await supabase.addProduct(payload)
+          : await supabase.updateProduct(editTarget.id, payload);
         if (!saved) throw new Error('서버 응답 오류');
         if (isNew) {
           setProducts(prev => [...prev, saved]);
