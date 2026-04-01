@@ -2290,7 +2290,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
     if (isNaN(val) || val === 0) return price;
     if (adjustType === 'percent') {
       const mult = adjustDir === 'up' ? (1 + val / 100) : (1 - val / 100);
-      return Math.round(price * mult);
+      return price * mult;
     } else {
       const delta = adjustDir === 'up' ? val : -val;
       return Math.max(0, price + delta);
