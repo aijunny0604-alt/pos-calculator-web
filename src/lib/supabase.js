@@ -18,7 +18,7 @@ const headersNoContent = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer
 
 async function fetchJSON(url, options = {}) {
   const response = await fetch(url, options);
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  if (!response.ok) { const body = await response.text(); throw new Error(`API error: ${response.status} - ${body}`); }
   return response.json();
 }
 

@@ -336,12 +336,13 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
   const displayProducts = (products && products.length > 0) ? products : priceData;
 
   const categories = useMemo(() => {
-    const cats = [...new Set(displayProducts.map(p => p.category).filter(Boolean))].sort();
+    const cats = [...new Set(displayProducts.filter(p => p).map(p => p.category).filter(Boolean))].sort();
     return cats;
   }, [displayProducts]);
 
   const filtered = useMemo(() => {
     return displayProducts.filter(p => {
+      if (!p || !p.name) return false;
       const matchSearch = matchesSearchQuery(p.name, search);
       const matchCat = !categoryFilter || p.category === categoryFilter;
       return matchSearch && matchCat;
@@ -384,13 +385,18 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
         name: formData.name.trim(),
         category: formData.category.trim(),
         wholesale: Number(formData.wholesale),
-        retail: formData.retail !== '' ? Number(formData.retail) : null,
-        stock: formData.stock !== '' ? Number(formData.stock) : null,
-        min_stock: formData.min_stock !== '' ? Number(formData.min_stock) : null,
       };
+      if (formData.retail !== '' && formData.retail !== '0') payload.retail = Number(formData.retail);
+      if (formData.stock !== '') payload.stock = Number(formData.stock);
+      if (formData.min_stock !== '') payload.min_stock = Number(formData.min_stock);
       const isNew = !editTarget?.id;
+      if (isNew) {
+        const maxId = displayProducts.reduce((max, p) => Math.max(max, p.id || 0), 0);
+        payload.id = maxId + 1;
+      }
       if (supabaseConnected && supabase?.saveProduct) {
         const saved = await supabase.saveProduct(isNew ? payload : { ...payload, id: editTarget.id });
+        if (!saved) throw new Error('서버 응답 오류');
         if (isNew) {
           setProducts(prev => [...prev, saved]);
         } else {
@@ -407,18 +413,15 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
       showToast(isNew ? '제품이 추가되었습니다' : '제품이 수정되었습니다', 'success');
       if (pushUndo) {
         if (isNew) {
-          // Undo add = delete the newly added product
-          const addedProduct = isNew && supabaseConnected ? (await supabase.getProducts())?.find(p => p.name === payload.name && p.category === payload.category) : null;
-          if (addedProduct) {
-            pushUndo({
-              type: 'product-add',
-              label: `제품 추가 (${payload.name})`,
-              undo: async () => {
-                await supabase.deleteProduct(addedProduct.id);
-                setProducts(prev => prev.filter(p => p.id !== addedProduct.id));
-              },
-            });
-          }
+          const addedId = payload.id;
+          pushUndo({
+            type: 'product-add',
+            label: `제품 추가 (${payload.name})`,
+            undo: async () => {
+              await supabase.deleteProduct(addedId);
+              setProducts(prev => prev.filter(p => p.id !== addedId));
+            },
+          });
         } else {
           // Undo edit = restore previous values
           const prevProduct = products.find(p => p.id === editTarget.id);
@@ -2722,7 +2725,7 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
   const displayProducts = (products && products.length > 0) ? products : priceData;
 
   const filtered = useMemo(() => {
-    return displayProducts.filter(p => matchesSearchQuery(p.name, search));
+    return displayProducts.filter(p => p && p.name && matchesSearchQuery(p.name, search));
   }, [displayProducts, search]);
 
   const saveProductTiers = async (productId, tiers) => {
