@@ -2198,13 +2198,17 @@ ${inputText}
 // ---------------------------------------------------------------------------
 function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, supabase, pushUndo }) {
   const [selectedCats, setSelectedCats] = useState(new Set());
-  const [adjustType, setAdjustType] = useState('percent'); // 'percent' | 'fixed'
-  const [adjustDir, setAdjustDir] = useState('up'); // 'up' | 'down'
+  const [selectedIds, setSelectedIds] = useState(new Set()); // 개별 제품 선택
+  const [excludedIds, setExcludedIds] = useState(new Set()); // 카테고리에서 제외할 제품
+  const [adjustType, setAdjustType] = useState('percent');
+  const [adjustDir, setAdjustDir] = useState('up');
   const [adjustValue, setAdjustValue] = useState('');
-  const [target, setTarget] = useState('wholesale'); // 'wholesale' | 'retail' | 'both'
+  const [target, setTarget] = useState('wholesale');
   const [showPreview, setShowPreview] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [search, setSearch] = useState('');
+  const [catSearch, setCatSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [expandedCat, setExpandedCat] = useState(null);
 
   const displayProducts = (products && products.length > 0) ? products : priceData;
 
@@ -2213,15 +2217,40 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
   }, [displayProducts]);
 
   const filteredCats = useMemo(() => {
-    if (!search) return categories;
-    const s = search.toLowerCase();
+    if (!catSearch) return categories;
+    const s = catSearch.toLowerCase();
     return categories.filter(c => c.toLowerCase().includes(s));
-  }, [categories, search]);
+  }, [categories, catSearch]);
 
   const toggleCat = (cat) => {
     setSelectedCats(prev => {
       const next = new Set(prev);
-      next.has(cat) ? next.delete(cat) : next.add(cat);
+      if (next.has(cat)) {
+        next.delete(cat);
+        // 카테고리 해제 시 해당 제품 개별선택/제외도 정리
+        const catProductIds = displayProducts.filter(p => p.category === cat).map(p => p.id);
+        setExcludedIds(prev2 => { const n = new Set(prev2); catProductIds.forEach(id => n.delete(id)); return n; });
+      } else {
+        next.add(cat);
+      }
+      return next;
+    });
+    setShowPreview(false);
+  };
+
+  const toggleProductInCat = (productId) => {
+    setExcludedIds(prev => {
+      const next = new Set(prev);
+      next.has(productId) ? next.delete(productId) : next.add(productId);
+      return next;
+    });
+    setShowPreview(false);
+  };
+
+  const toggleIndividualProduct = (productId) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(productId) ? next.delete(productId) : next.add(productId);
       return next;
     });
     setShowPreview(false);
@@ -2229,18 +2258,31 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
 
   const selectAll = () => {
     setSelectedCats(new Set(filteredCats));
+    setExcludedIds(new Set());
     setShowPreview(false);
   };
 
   const deselectAll = () => {
     setSelectedCats(new Set());
+    setSelectedIds(new Set());
+    setExcludedIds(new Set());
     setShowPreview(false);
   };
 
+  // 카테고리 선택 제품 (제외 항목 빼고) + 개별 선택 제품 합산
   const affectedProducts = useMemo(() => {
-    if (selectedCats.size === 0) return [];
-    return displayProducts.filter(p => selectedCats.has(p.category));
-  }, [displayProducts, selectedCats]);
+    const fromCats = displayProducts.filter(p => selectedCats.has(p.category) && !excludedIds.has(p.id));
+    const fromIndividual = displayProducts.filter(p => selectedIds.has(p.id) && !selectedCats.has(p.category));
+    return [...fromCats, ...fromIndividual];
+  }, [displayProducts, selectedCats, selectedIds, excludedIds]);
+
+  // 제품 검색 결과 (개별 추가용)
+  const productSearchResults = useMemo(() => {
+    if (!productSearch.trim()) return [];
+    return displayProducts.filter(p =>
+      matchesSearchQuery(p.name, productSearch) && !selectedCats.has(p.category)
+    ).slice(0, 20);
+  }, [displayProducts, productSearch, selectedCats]);
 
   const calcNewPrice = (price) => {
     if (!price || !adjustValue) return price;
@@ -2325,55 +2367,170 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
         <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>카테고리를 선택하고 원하는 만큼 가격을 올리거나 내릴 수 있습니다</p>
       </div>
 
-      {/* Step 1: 카테고리 선택 */}
+      {/* Step 1: 카테고리 + 제품 선택 */}
       <SectionCard>
         <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
-          <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>① 카테고리 선택</h3>
+          <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>① 카테고리 · 제품 선택</h3>
           <div className="flex gap-2">
             <button onClick={selectAll} className="text-xs px-2 py-1 rounded-lg hover:bg-[var(--accent)]" style={{ color: 'var(--primary)' }}>전체선택</button>
-            <button onClick={deselectAll} className="text-xs px-2 py-1 rounded-lg hover:bg-[var(--accent)]" style={{ color: 'var(--muted-foreground)' }}>해제</button>
+            <button onClick={deselectAll} className="text-xs px-2 py-1 rounded-lg hover:bg-[var(--accent)]" style={{ color: 'var(--muted-foreground)' }}>전체해제</button>
           </div>
         </div>
-        <div className="p-4">
-          <div className="relative mb-3">
+        <div className="p-4 space-y-4">
+          {/* 카테고리 검색 */}
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
             <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+              value={catSearch}
+              onChange={e => setCatSearch(e.target.value)}
               placeholder="카테고리 검색..."
               className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             />
           </div>
-          <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scroll">
+
+          {/* 카테고리 칩 + 펼치기 */}
+          <div className="space-y-1 max-h-64 overflow-y-auto custom-scroll">
             {filteredCats.map(cat => {
               const isSelected = selectedCats.has(cat);
-              const count = displayProducts.filter(p => p.category === cat).length;
+              const catProducts = displayProducts.filter(p => p.category === cat);
+              const excludedCount = catProducts.filter(p => excludedIds.has(p.id)).length;
+              const isExpanded = expandedCat === cat;
               return (
-                <button
-                  key={cat}
-                  onClick={() => toggleCat(cat)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border"
-                  style={{
-                    background: isSelected ? 'color-mix(in srgb, var(--primary) 15%, transparent)' : 'var(--background)',
-                    borderColor: isSelected ? 'var(--primary)' : 'var(--border)',
-                    color: isSelected ? 'var(--primary)' : 'var(--foreground)',
-                  }}
-                >
-                  {cat} ({count})
-                </button>
+                <div key={cat}>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleCat(cat)}
+                      className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-all"
+                      style={{
+                        background: isSelected ? 'var(--primary)' : 'transparent',
+                        borderColor: isSelected ? 'var(--primary)' : 'var(--border)',
+                      }}
+                    >
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                    </button>
+                    <button
+                      onClick={() => setExpandedCat(isExpanded ? null : cat)}
+                      className="flex-1 flex items-center justify-between py-1.5 text-left hover:bg-[var(--accent)] rounded-lg px-2 transition-all"
+                    >
+                      <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                        {cat} <span className="text-xs font-normal" style={{ color: 'var(--muted-foreground)' }}>({catProducts.length}개{excludedCount > 0 ? `, ${excludedCount}개 제외` : ''})</span>
+                      </span>
+                      {isExpanded ? <ChevronDown className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} /> : <ChevronRight className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />}
+                    </button>
+                  </div>
+                  {/* 펼친 제품 목록 */}
+                  {isExpanded && (
+                    <div className="ml-7 mt-1 mb-2 space-y-0.5 max-h-48 overflow-y-auto custom-scroll rounded-lg border border-[var(--border)] bg-[var(--background)]">
+                      {catProducts.map(p => {
+                        const isExcluded = excludedIds.has(p.id);
+                        const active = isSelected && !isExcluded;
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => isSelected ? toggleProductInCat(p.id) : null}
+                            className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-all ${isSelected ? 'hover:bg-[var(--accent)] cursor-pointer' : 'opacity-50 cursor-default'}`}
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div
+                                className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border"
+                                style={{
+                                  background: active ? 'var(--primary)' : 'transparent',
+                                  borderColor: active ? 'var(--primary)' : 'var(--border)',
+                                  opacity: isSelected ? 1 : 0.3,
+                                }}
+                              >
+                                {active && <Check className="w-2.5 h-2.5 text-white" />}
+                              </div>
+                              <span className="break-words" style={{ color: isExcluded ? 'var(--muted-foreground)' : 'var(--foreground)', textDecoration: isExcluded ? 'line-through' : 'none' }}>{p.name}</span>
+                            </div>
+                            <span className="flex-shrink-0 ml-2 font-medium" style={{ color: 'var(--primary)' }}>
+                              {formatPrice(p.wholesale)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
-          {selectedCats.size > 0 && (
-            <p className="text-xs mt-3 font-medium" style={{ color: 'var(--primary)' }}>
-              {selectedCats.size}개 카테고리 · {affectedProducts.length}개 제품 선택됨
-            </p>
+
+          {/* 제품 개별 검색 추가 */}
+          <div className="border-t border-[var(--border)] pt-4">
+            <p className="text-xs font-medium mb-2" style={{ color: 'var(--muted-foreground)' }}>제품 개별 추가 (카테고리 외 제품 검색)</p>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+              <input
+                value={productSearch}
+                onChange={e => setProductSearch(e.target.value)}
+                placeholder="제품명 검색..."
+                className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              />
+            </div>
+            {productSearchResults.length > 0 && (
+              <div className="mt-2 max-h-40 overflow-y-auto custom-scroll rounded-lg border border-[var(--border)] bg-[var(--background)]">
+                {productSearchResults.map(p => {
+                  const isAdded = selectedIds.has(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => toggleIndividualProduct(p.id)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-left text-xs hover:bg-[var(--accent)] transition-all"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div
+                          className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border"
+                          style={{
+                            background: isAdded ? 'var(--success)' : 'transparent',
+                            borderColor: isAdded ? 'var(--success)' : 'var(--border)',
+                          }}
+                        >
+                          {isAdded && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <span className="break-words" style={{ color: 'var(--foreground)' }}>{p.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>{p.category}</span>
+                      </div>
+                      <span className="flex-shrink-0 ml-2 font-medium" style={{ color: 'var(--primary)' }}>
+                        {formatPrice(p.wholesale)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {/* 개별 선택된 제품 태그 */}
+            {selectedIds.size > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[...selectedIds].map(id => {
+                  const p = displayProducts.find(pp => pp.id === id);
+                  if (!p) return null;
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs border" style={{ background: 'color-mix(in srgb, var(--success) 10%, transparent)', borderColor: 'var(--success)', color: 'var(--success)' }}>
+                      {p.name}
+                      <button onClick={() => toggleIndividualProduct(id)} className="hover:opacity-70"><X className="w-3 h-3" /></button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 선택 요약 */}
+          {affectedProducts.length > 0 && (
+            <div className="rounded-lg p-3" style={{ background: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}>
+              <p className="text-xs font-bold" style={{ color: 'var(--primary)' }}>
+                총 {affectedProducts.length}개 제품 선택됨
+                {selectedCats.size > 0 && ` (${selectedCats.size}개 카테고리`}{excludedIds.size > 0 ? `, ${excludedIds.size}개 제외` : ''}{selectedCats.size > 0 && ')'}
+                {selectedIds.size > 0 && ` + 개별 ${selectedIds.size}개`}
+              </p>
+            </div>
           )}
         </div>
       </SectionCard>
 
       {/* Step 2: 조정 설정 */}
-      {selectedCats.size > 0 && (
+      {affectedProducts.length > 0 && (
         <SectionCard>
           <div className="px-4 py-3 border-b border-[var(--border)]">
             <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>② 조정 설정</h3>
