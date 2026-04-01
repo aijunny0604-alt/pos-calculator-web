@@ -364,6 +364,28 @@ export default function App() {
     );
   }, [products]);
 
+  // ─── Restore stock (주문 삭제/취소 시 재고 복원) ──────────────
+  const restoreStock = useCallback(async (items) => {
+    if (!items || items.length === 0) return;
+    const updates = items.map(item => {
+      const product = products.find(p => p.id === item.id);
+      if (!product || product.stock === undefined || product.stock === null) return null;
+      const newStock = product.stock + (item.quantity || 1);
+      return { productId: product.id, newStock };
+    }).filter(Boolean);
+
+    if (updates.length === 0) return;
+
+    setProducts(prev => prev.map(p => {
+      const u = updates.find(x => x.productId === p.id);
+      return u ? { ...p, stock: u.newStock } : p;
+    }));
+
+    await Promise.all(
+      updates.map(u => supabase.updateProduct(u.productId, { stock: u.newStock }))
+    );
+  }, [products]);
+
   // ─── Save order (with same-day merge logic) ───────────────────
   const saveOrder = useCallback(
     async (orderData) => {
@@ -495,7 +517,9 @@ export default function App() {
       const ok = await supabase.deleteOrder(id);
       if (ok) {
         setOrders((prev) => prev.filter((o) => o.id !== id));
-        showToast('주문이 삭제되었습니다', 'success');
+        // 재고 복원
+        if (deletedOrder?.items) await restoreStock(deletedOrder.items);
+        showToast('주문이 삭제되었습니다 (재고 복원됨)', 'success');
         if (deletedOrder) {
           pushUndo({
             type: 'order-delete',
@@ -521,7 +545,7 @@ export default function App() {
         showToast('삭제에 실패했습니다', 'error');
       }
     },
-    [orders, showToast, pushUndo, refreshOrders]
+    [orders, showToast, pushUndo, refreshOrders, restoreStock]
   );
 
   const handleDeleteMultipleOrders = useCallback(
@@ -529,7 +553,10 @@ export default function App() {
       const deletedOrders = orders.filter((o) => ids.includes(o.id));
       await Promise.all(ids.map((id) => supabase.deleteOrder(id)));
       setOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
-      showToast(`${ids.length}건 삭제되었습니다`, 'success');
+      // 재고 복원
+      const allItems = deletedOrders.flatMap(o => o.items || []);
+      if (allItems.length > 0) await restoreStock(allItems);
+      showToast(`${ids.length}건 삭제되었습니다 (재고 복원됨)`, 'success');
       if (deletedOrders.length > 0) {
         pushUndo({
           type: 'orders-delete-multiple',
@@ -554,7 +581,7 @@ export default function App() {
         });
       }
     },
-    [orders, showToast, pushUndo, refreshOrders]
+    [orders, showToast, pushUndo, refreshOrders, restoreStock]
   );
 
   const handleUpdateOrder = useCallback(

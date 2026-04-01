@@ -2290,10 +2290,10 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
     if (isNaN(val) || val === 0) return price;
     if (adjustType === 'percent') {
       const mult = adjustDir === 'up' ? (1 + val / 100) : (1 - val / 100);
-      return Math.round(price * mult / 100) * 100; // 100원 단위 반올림
+      return Math.round(price * mult);
     } else {
       const delta = adjustDir === 'up' ? val : -val;
-      return Math.max(0, Math.round((price + delta) / 100) * 100);
+      return Math.max(0, price + delta);
     }
   };
 
