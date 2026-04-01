@@ -3,7 +3,7 @@ import {
   Search, Plus, Trash2, Edit, Upload, Users, Package, Tag, Percent,
   Lock, ChevronDown, ChevronRight, X, Save, AlertTriangle, ShieldAlert, Fingerprint,
   UserPlus, Download, Copy, Car, Maximize2, Minimize2, Zap, Loader2,
-  Check, Minus, ArrowRight, RefreshCw,
+  Check, Minus, ArrowRight, RefreshCw, TrendingUp, TrendingDown, DollarSign,
 } from 'lucide-react';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import EmptyState from '../components/ui/EmptyState';
@@ -20,6 +20,7 @@ const ADMIN_PASSWORD = '4321';
 const TABS = [
   { id: 'products',    label: '제품관리',    Icon: Package },
   { id: 'customers',   label: '거래처관리',  Icon: Users   },
+  { id: 'price-adjust',label: '단가조정',    Icon: DollarSign },
   { id: 'ai-stock',    label: 'AI 입고',     Icon: Zap     },
   { id: 'burnway',     label: '번웨이',      Icon: Car     },
   { id: 'categories',  label: '카테고리',    Icon: Tag     },
@@ -2193,6 +2194,373 @@ ${inputText}
 }
 
 // ---------------------------------------------------------------------------
+// 단가 일괄 조정 탭
+// ---------------------------------------------------------------------------
+function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, supabase, pushUndo }) {
+  const [selectedCats, setSelectedCats] = useState(new Set());
+  const [adjustType, setAdjustType] = useState('percent'); // 'percent' | 'fixed'
+  const [adjustDir, setAdjustDir] = useState('up'); // 'up' | 'down'
+  const [adjustValue, setAdjustValue] = useState('');
+  const [target, setTarget] = useState('wholesale'); // 'wholesale' | 'retail' | 'both'
+  const [showPreview, setShowPreview] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const displayProducts = (products && products.length > 0) ? products : priceData;
+
+  const categories = useMemo(() => {
+    return [...new Set(displayProducts.map(p => p.category).filter(Boolean))].sort();
+  }, [displayProducts]);
+
+  const filteredCats = useMemo(() => {
+    if (!search) return categories;
+    const s = search.toLowerCase();
+    return categories.filter(c => c.toLowerCase().includes(s));
+  }, [categories, search]);
+
+  const toggleCat = (cat) => {
+    setSelectedCats(prev => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+    setShowPreview(false);
+  };
+
+  const selectAll = () => {
+    setSelectedCats(new Set(filteredCats));
+    setShowPreview(false);
+  };
+
+  const deselectAll = () => {
+    setSelectedCats(new Set());
+    setShowPreview(false);
+  };
+
+  const affectedProducts = useMemo(() => {
+    if (selectedCats.size === 0) return [];
+    return displayProducts.filter(p => selectedCats.has(p.category));
+  }, [displayProducts, selectedCats]);
+
+  const calcNewPrice = (price) => {
+    if (!price || !adjustValue) return price;
+    const val = parseFloat(adjustValue);
+    if (isNaN(val) || val === 0) return price;
+    if (adjustType === 'percent') {
+      const mult = adjustDir === 'up' ? (1 + val / 100) : (1 - val / 100);
+      return Math.round(price * mult / 100) * 100; // 100원 단위 반올림
+    } else {
+      const delta = adjustDir === 'up' ? val : -val;
+      return Math.max(0, Math.round((price + delta) / 100) * 100);
+    }
+  };
+
+  const previewData = useMemo(() => {
+    if (!showPreview) return [];
+    return affectedProducts.map(p => ({
+      ...p,
+      newWholesale: (target === 'wholesale' || target === 'both') ? calcNewPrice(p.wholesale) : p.wholesale,
+      newRetail: (target === 'retail' || target === 'both') ? calcNewPrice(p.retail) : p.retail,
+    }));
+  }, [showPreview, affectedProducts, adjustValue, adjustType, adjustDir, target]);
+
+  const handleApply = async () => {
+    if (previewData.length === 0) return;
+    setApplying(true);
+    try {
+      // 되돌리기용 백업
+      const backup = affectedProducts.map(p => ({ id: p.id, wholesale: p.wholesale, retail: p.retail }));
+
+      const updatedAll = displayProducts.map(p => {
+        const preview = previewData.find(pp => pp.id === p.id);
+        if (!preview) return p;
+        return { ...p, wholesale: preview.newWholesale, retail: preview.newRetail };
+      });
+
+      // Supabase 업데이트
+      if (supabaseConnected && supabase?.saveProduct) {
+        const toUpdate = previewData.filter(p => p.wholesale !== p.newWholesale || p.retail !== p.newRetail);
+        for (const p of toUpdate) {
+          await supabase.saveProduct({ id: p.id, wholesale: p.newWholesale, retail: p.newRetail });
+        }
+      }
+
+      setProducts(updatedAll);
+
+      if (pushUndo) {
+        pushUndo({
+          label: `단가 ${adjustDir === 'up' ? '인상' : '인하'} (${selectedCats.size}개 카테고리, ${previewData.length}개 제품)`,
+          undo: async () => {
+            const restored = displayProducts.map(p => {
+              const bk = backup.find(b => b.id === p.id);
+              return bk ? { ...p, wholesale: bk.wholesale, retail: bk.retail } : p;
+            });
+            if (supabaseConnected && supabase?.saveProduct) {
+              for (const b of backup) await supabase.saveProduct(b);
+            }
+            setProducts(restored);
+          },
+        });
+      }
+
+      showToast(`${previewData.length}개 제품 단가 ${adjustDir === 'up' ? '인상' : '인하'} 완료`, 'success');
+      setShowPreview(false);
+      setAdjustValue('');
+      setSelectedCats(new Set());
+    } catch (err) {
+      showToast('단가 조정 실패: ' + err.message, 'error');
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const SectionCard = ({ children }) => (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">{children}</div>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>단가 일괄 조정</h2>
+        <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>카테고리를 선택하고 원하는 만큼 가격을 올리거나 내릴 수 있습니다</p>
+      </div>
+
+      {/* Step 1: 카테고리 선택 */}
+      <SectionCard>
+        <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+          <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>① 카테고리 선택</h3>
+          <div className="flex gap-2">
+            <button onClick={selectAll} className="text-xs px-2 py-1 rounded-lg hover:bg-[var(--accent)]" style={{ color: 'var(--primary)' }}>전체선택</button>
+            <button onClick={deselectAll} className="text-xs px-2 py-1 rounded-lg hover:bg-[var(--accent)]" style={{ color: 'var(--muted-foreground)' }}>해제</button>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="카테고리 검색..."
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scroll">
+            {filteredCats.map(cat => {
+              const isSelected = selectedCats.has(cat);
+              const count = displayProducts.filter(p => p.category === cat).length;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => toggleCat(cat)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all border"
+                  style={{
+                    background: isSelected ? 'color-mix(in srgb, var(--primary) 15%, transparent)' : 'var(--background)',
+                    borderColor: isSelected ? 'var(--primary)' : 'var(--border)',
+                    color: isSelected ? 'var(--primary)' : 'var(--foreground)',
+                  }}
+                >
+                  {cat} ({count})
+                </button>
+              );
+            })}
+          </div>
+          {selectedCats.size > 0 && (
+            <p className="text-xs mt-3 font-medium" style={{ color: 'var(--primary)' }}>
+              {selectedCats.size}개 카테고리 · {affectedProducts.length}개 제품 선택됨
+            </p>
+          )}
+        </div>
+      </SectionCard>
+
+      {/* Step 2: 조정 설정 */}
+      {selectedCats.size > 0 && (
+        <SectionCard>
+          <div className="px-4 py-3 border-b border-[var(--border)]">
+            <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>② 조정 설정</h3>
+          </div>
+          <div className="p-4 space-y-4">
+            {/* 인상/인하 */}
+            <div>
+              <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--muted-foreground)' }}>방향</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setAdjustDir('up'); setShowPreview(false); }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all"
+                  style={{
+                    background: adjustDir === 'up' ? 'color-mix(in srgb, var(--destructive) 12%, transparent)' : 'var(--background)',
+                    borderColor: adjustDir === 'up' ? 'var(--destructive)' : 'var(--border)',
+                    color: adjustDir === 'up' ? 'var(--destructive)' : 'var(--muted-foreground)',
+                  }}
+                >
+                  <TrendingUp className="w-4 h-4" /> 인상 ▲
+                </button>
+                <button
+                  onClick={() => { setAdjustDir('down'); setShowPreview(false); }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all"
+                  style={{
+                    background: adjustDir === 'down' ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--background)',
+                    borderColor: adjustDir === 'down' ? 'var(--primary)' : 'var(--border)',
+                    color: adjustDir === 'down' ? 'var(--primary)' : 'var(--muted-foreground)',
+                  }}
+                >
+                  <TrendingDown className="w-4 h-4" /> 인하 ▼
+                </button>
+              </div>
+            </div>
+
+            {/* 수치 + 단위 */}
+            <div>
+              <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--muted-foreground)' }}>수치</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={adjustValue}
+                  onChange={e => { setAdjustValue(e.target.value); setShowPreview(false); }}
+                  placeholder={adjustType === 'percent' ? '20' : '5000'}
+                  className="flex-1 px-3 py-2.5 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+                  <button
+                    onClick={() => { setAdjustType('percent'); setShowPreview(false); }}
+                    className="px-4 py-2.5 text-sm font-medium transition-all"
+                    style={{
+                      background: adjustType === 'percent' ? 'var(--primary)' : 'var(--background)',
+                      color: adjustType === 'percent' ? 'white' : 'var(--muted-foreground)',
+                    }}
+                  >%</button>
+                  <button
+                    onClick={() => { setAdjustType('fixed'); setShowPreview(false); }}
+                    className="px-4 py-2.5 text-sm font-medium transition-all"
+                    style={{
+                      background: adjustType === 'fixed' ? 'var(--primary)' : 'var(--background)',
+                      color: adjustType === 'fixed' ? 'white' : 'var(--muted-foreground)',
+                    }}
+                  >원</button>
+                </div>
+              </div>
+            </div>
+
+            {/* 적용 대상 */}
+            <div>
+              <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--muted-foreground)' }}>적용 대상</label>
+              <div className="flex gap-2">
+                {[
+                  { value: 'wholesale', label: '도매가' },
+                  { value: 'retail', label: '소매가' },
+                  { value: 'both', label: '둘 다' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { setTarget(opt.value); setShowPreview(false); }}
+                    className="flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all"
+                    style={{
+                      background: target === opt.value ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--background)',
+                      borderColor: target === opt.value ? 'var(--primary)' : 'var(--border)',
+                      color: target === opt.value ? 'var(--primary)' : 'var(--muted-foreground)',
+                    }}
+                  >{opt.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* 미리보기 버튼 */}
+            <button
+              onClick={() => setShowPreview(true)}
+              disabled={!adjustValue || parseFloat(adjustValue) === 0}
+              className="w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-40"
+              style={{ background: 'var(--primary)', color: 'white' }}
+            >
+              미리보기 ({affectedProducts.length}개 제품)
+            </button>
+          </div>
+        </SectionCard>
+      )}
+
+      {/* Step 3: 미리보기 + 적용 */}
+      {showPreview && previewData.length > 0 && (
+        <SectionCard>
+          <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+            <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>③ 변경 미리보기</h3>
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
+              background: adjustDir === 'up' ? 'color-mix(in srgb, var(--destructive) 15%, transparent)' : 'color-mix(in srgb, var(--primary) 15%, transparent)',
+              color: adjustDir === 'up' ? 'var(--destructive)' : 'var(--primary)',
+            }}>
+              {adjustDir === 'up' ? '▲' : '▼'} {adjustValue}{adjustType === 'percent' ? '%' : '원'} {adjustDir === 'up' ? '인상' : '인하'}
+            </span>
+          </div>
+          <div className="max-h-[400px] overflow-y-auto custom-scroll">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-[var(--muted)]">
+                <tr>
+                  <th className="text-left px-3 py-2 text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>제품명</th>
+                  {(target === 'wholesale' || target === 'both') && (
+                    <th className="text-right px-3 py-2 text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>도매가</th>
+                  )}
+                  {(target === 'retail' || target === 'both') && (
+                    <th className="text-right px-3 py-2 text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>소매가</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {previewData.map(p => (
+                  <tr key={p.id} className="hover:bg-[var(--accent)]">
+                    <td className="px-3 py-2 break-words" style={{ color: 'var(--foreground)' }}>{p.name}</td>
+                    {(target === 'wholesale' || target === 'both') && (
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        <span className="text-xs line-through mr-1" style={{ color: 'var(--muted-foreground)' }}>{formatPrice(p.wholesale)}</span>
+                        <span className="font-bold" style={{ color: adjustDir === 'up' ? 'var(--destructive)' : 'var(--primary)' }}>
+                          {formatPrice(p.newWholesale)}
+                        </span>
+                      </td>
+                    )}
+                    {(target === 'retail' || target === 'both') && (
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        {p.retail ? (
+                          <>
+                            <span className="text-xs line-through mr-1" style={{ color: 'var(--muted-foreground)' }}>{formatPrice(p.retail)}</span>
+                            <span className="font-bold" style={{ color: adjustDir === 'up' ? 'var(--destructive)' : 'var(--primary)' }}>
+                              {formatPrice(p.newRetail)}
+                            </span>
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--muted-foreground)' }}>-</span>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => setShowPreview(false)}
+              className="flex-1 py-3 rounded-xl text-sm font-medium border border-[var(--border)] hover:bg-[var(--accent)] transition-all"
+              style={{ color: 'var(--foreground)' }}
+            >
+              취소
+            </button>
+            <button
+              onClick={handleApply}
+              disabled={applying}
+              className="flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+              style={{
+                background: adjustDir === 'up' ? 'var(--destructive)' : 'var(--primary)',
+                color: 'white',
+                opacity: applying ? 0.6 : 1,
+              }}
+            >
+              {applying ? <Loader2 className="w-4 h-4 animate-spin" /> : adjustDir === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+              {applying ? '적용 중...' : `${previewData.length}개 제품 ${adjustDir === 'up' ? '인상' : '인하'} 적용`}
+            </button>
+          </div>
+        </SectionCard>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 const EMPTY_TIER = { minQty: '', maxQty: '', type: 'percent', value: '' };
 
 function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast, supabase }) {
@@ -2554,6 +2922,7 @@ export default function AdminPage({
       <main className="px-4 sm:px-6 py-6">
         {activeTab === 'products' && <ProductsTab {...tabProps} initialCategory={selectedCategory} />}
         {activeTab === 'customers' && <CustomersTab {...tabProps} />}
+        {activeTab === 'price-adjust' && <PriceAdjustTab {...tabProps} />}
         {activeTab === 'ai-stock' && <AIStockTab {...tabProps} />}
         {activeTab === 'burnway' && <BurnwayTab {...tabProps} />}
         {activeTab === 'categories' && <CategoriesTab {...tabProps} onSelectCategory={(cat) => { setSelectedCategory(cat); setActiveTab('products'); }} />}
