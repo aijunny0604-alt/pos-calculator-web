@@ -359,11 +359,61 @@ useEffect(() => {
   - CLAUDE.md 섹션 7 Props 트리 대폭 갱신 필요 (매칭률 72%)
   - **관리자 페이지 JSON 전체 백업 기능** (제품/거래처/주문/장바구니 데이터를 JSON 파일로 내보내기, 복원 기능 포함)
 
+### 2026-04-01 작업 내역
+
+#### 대시보드 PC 반응형 개선 (Dashboard.jsx)
+- 최근 주문 리스트: 8개 → 20개 표시 + `max-h-[480px]` 고정 높이 + 커스텀 스크롤
+- 재고 부족 알림: 5개 제한 해제 → 전체 표시 + `max-h-48` 스크롤
+- 커스텀 스크롤바 CSS 추가 (`index.css` `.custom-scroll` 클래스): 4px 얇은 디자인
+- PC에서 하단 빈 공간 제거
+
+#### AI 주문인식 결과 카드 모바일 제품명 전체 표시 (TextAnalyze.jsx)
+- 1줄 레이아웃(제품명+수량+버튼 경쟁) → 2줄 레이아웃으로 변경
+- 1줄: 체크박스 + 제품명 (전체 너비, break-words 줄바꿈)
+- 2줄: 가격 + 수량조절 + 편집/삭제 버튼
+
+#### 관리자 단가 일괄 조정 기능 추가 (AdminPage.jsx)
+- **위치**: 관리자 페이지 → '단가조정' 탭 (TABS 배열에 `price-adjust` 추가)
+- **기능**: 카테고리/제품 선택 → 인상/인하 설정 → 미리보기 → 일괄 적용
+- **카테고리 선택**: 체크박스 + 펼쳐서 하위 제품 개별 제외 가능
+- **제품 개별 추가**: 카테고리 외 제품 검색으로 추가
+- **조정 방식**: % 또는 원 단위, 인상/인하 선택, 도매가/소매가/둘 다
+- **미리보기**: 수치 입력 시 실시간 자동 표시 (변경 전/후 가격 비교 테이블)
+- **반올림 없음**: 계산값 그대로 표기 (예: 38,500 × 1.2 = 46,200)
+- **되돌리기(undo)** 지원
+- **컴포넌트**: `PriceAdjustTab` (AdminPage.jsx 내부 함수형 컴포넌트)
+
+#### 주문 삭제 시 재고 자동 복원 (App.jsx)
+- **문제**: 주문 삭제/취소 시 재고가 차감된 상태로 유지 (복원 안 됨)
+- **수정**: `restoreStock()` 함수 추가 (deductStock의 역함수)
+  - `handleDeleteOrder`: 삭제 시 `restoreStock(deletedOrder.items)` 호출
+  - `handleDeleteMultipleOrders`: 다건 삭제 시 전체 재고 일괄 복원
+  - 토스트 메시지: "(재고 복원됨)" 표시
+- **검증**: Playwright 테스트 - 벨로스터N 직관 다운파이프 2개→1개(주문)→2개(삭제) 확인
+
+#### 관리자 거래처 등록 흰 화면 크래시 수정 (AdminPage.jsx)
+- **원인**: `blacklist` 필드를 Supabase에 보내면 400 에러 → `saveCustomer` null 반환 → `setCustomers`에 null 추가 → useMemo `.name` 접근 시 크래시
+- **수정**: DB 전송 전 `blacklist` 제거, null 체크 추가, useMemo 필터에 null 방어
+
+#### 관리자 제품 등록 서버 응답 오류 수정 (AdminPage.jsx, supabase.js)
+- **원인 1**: `products` 테이블 `id`가 auto-increment 아님 → id 없이 POST하면 NOT NULL 위반
+- **원인 2**: `saveProduct()`이 `id`가 있으면 `updateProduct(PATCH)` 호출 → 새 제품은 DB에 해당 id 없어서 빈 결과
+- **원인 3**: undo 등록 시 `getProducts()` 전체 조회 호출 → 느려서 모달 안 닫힘
+- **수정**:
+  - 새 제품 시 `maxId + 1`로 id 생성 + `addProduct(POST)` 직접 호출
+  - 기존 제품 수정 시 `updateProduct(PATCH)` 직접 호출
+  - null 필드(retail, stock, min_stock) 값 없으면 payload에서 제거
+  - undo 시 `getProducts()` 호출 제거 → 즉시 모달 닫힘
+  - `fetchJSON` 에러 메시지에 응답 body 포함 (디버깅용)
+- **방어 코드**: 모든 `useMemo` 필터에 null 체크, `saveProduct/addProduct` 실패 시 throw
+
+> **주의**: 새 제품 추가 시 반드시 `supabase.addProduct(POST)`를 사용할 것.
+> `saveProduct`은 id가 있으면 `updateProduct(PATCH)`를 호출하므로 새 제품에 사용 금지.
+
 #### 백업/복구 방법
-- **현재 배포 버전**: 전수 검사 + 버그 수정 (2026-03-31)
-- **이전 배포 버전**: 모바일 제품명 잘림 전면 제거 (2026-03-31, da776fd)
+- **현재 배포 버전**: 단가조정 + 재고복원 + 제품/거래처 등록 수정 (2026-04-01, 940e837)
+- **이전 배포 버전**: 전수 검사 + 버그 수정 (2026-03-31, c3b9224)
 - **백업 브랜치**: `backup/before-order-optimization-20260321` (4f02594)
-- **그 이전 배포 버전**: Sentry 에러 모니터링 연동 (2026-03-31, 24c28e3)
 
 ### 2026-03-21 작업 내역
 
