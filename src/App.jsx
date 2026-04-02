@@ -367,11 +367,16 @@ export default function App() {
   // ─── Restore stock (주문 삭제/취소 시 재고 복원) ──────────────
   const restoreStock = useCallback(async (items) => {
     if (!items || items.length === 0) return;
-    const updates = items.map(item => {
-      const product = products.find(p => p.id === item.id);
-      if (!product || product.stock === undefined || product.stock === null) return null;
-      const newStock = product.stock + (item.quantity || 1);
-      return { productId: product.id, newStock };
+    // 동일 제품 수량 합산 (다건 삭제 시 같은 제품이 여러 주문에 포함될 수 있음)
+    const merged = items.reduce((acc, item) => {
+      const id = item.id;
+      acc[id] = (acc[id] || 0) + (item.quantity || 1);
+      return acc;
+    }, {});
+    const updates = Object.entries(merged).map(([id, qty]) => {
+      const product = products.find(p => p.id === Number(id));
+      if (!product || product.stock == null) return null;
+      return { productId: product.id, newStock: product.stock + qty };
     }).filter(Boolean);
 
     if (updates.length === 0) return;
@@ -588,12 +593,12 @@ export default function App() {
     async (id, data) => {
       const result = await supabase.updateOrder(id, data);
       if (result) {
-        // 주문 로컬 state 업데이트
-        let customerName = null;
+        // customerName을 setOrders 외부에서 미리 추출
+        const existingOrder = orders.find(o => o.id === id);
+        const customerName = existingOrder?.customerName || data.customer_name;
         setOrders((prev) =>
           prev.map((o) => {
             if (o.id !== id) return o;
-            customerName = o.customerName || data.customer_name;
             const merged = { ...o, ...data };
             if (data.total != null) merged.totalAmount = data.total;
             if (data.customer_name != null) merged.customerName = data.customer_name;
@@ -619,7 +624,7 @@ export default function App() {
       }
       return result;
     },
-    [customers]
+    [orders, customers]
   );
 
   // ─── Cart save modal helpers ──────────────────────────────────

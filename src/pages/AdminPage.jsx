@@ -2418,9 +2418,7 @@ function BackupTab({ products, setProducts, customers, setCustomers, supabaseCon
     }
   };
 
-  const SectionCard = ({ children }) => (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">{children}</div>
-  );
+  const bsc = "rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden";
 
   return (
     <div className="space-y-5">
@@ -2430,7 +2428,7 @@ function BackupTab({ products, setProducts, customers, setCustomers, supabaseCon
       </div>
 
       {/* 현재 DB 현황 */}
-      <SectionCard>
+      <div className={bsc}>
         <div className="px-4 py-3 border-b border-[var(--border)]">
           <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>현재 데이터 현황</h3>
         </div>
@@ -2453,10 +2451,10 @@ function BackupTab({ products, setProducts, customers, setCustomers, supabaseCon
             <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>마지막 백업: {lastBackup}</p>
           </div>
         )}
-      </SectionCard>
+      </div>
 
       {/* 백업 다운로드 */}
-      <SectionCard>
+      <div className={bsc}>
         <div className="p-5 flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}>
             <FileDown className="w-8 h-8" style={{ color: 'var(--primary)' }} />
@@ -2475,10 +2473,10 @@ function BackupTab({ products, setProducts, customers, setCustomers, supabaseCon
             {backing ? '백업 중...' : 'JSON 백업 다운로드'}
           </button>
         </div>
-      </SectionCard>
+      </div>
 
       {/* 복원 */}
-      <SectionCard>
+      <div className={bsc}>
         <div className="p-5 flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--warning) 10%, transparent)' }}>
             <FileUp className="w-8 h-8" style={{ color: 'var(--warning)' }} />
@@ -2552,7 +2550,7 @@ function BackupTab({ products, setProducts, customers, setCustomers, supabaseCon
             </div>
           </div>
         )}
-      </SectionCard>
+      </div>
     </div>
   );
 }
@@ -2649,7 +2647,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
   }, [displayProducts, productSearch, selectedCats]);
 
   const calcNewPrice = (price) => {
-    if (!price || !adjustValue) return price;
+    if (price == null || !adjustValue) return price;
     const val = parseFloat(adjustValue);
     if (isNaN(val) || val === 0) return price;
     if (adjustType === 'percent') {
