@@ -357,7 +357,6 @@ useEffect(() => {
   - WebSocket 재연결 로직 없음 (네트워크 불안정 시)
   - 재고 차감 race condition (동시 주문 시)
   - CLAUDE.md 섹션 7 Props 트리 대폭 갱신 필요 (매칭률 72%)
-  - **관리자 페이지 JSON 전체 백업 기능** (제품/거래처/주문/장바구니 데이터를 JSON 파일로 내보내기, 복원 기능 포함)
 
 ### 2026-04-01 작업 내역
 
@@ -410,9 +409,24 @@ useEffect(() => {
 > **주의**: 새 제품 추가 시 반드시 `supabase.addProduct(POST)`를 사용할 것.
 > `saveProduct`은 id가 있으면 `updateProduct(PATCH)`를 호출하므로 새 제품에 사용 금지.
 
+#### DB 백업/복원 시스템 (AdminPage.jsx)
+- **위치**: 관리자 페이지 → 'DB백업' 탭
+- **백업**: 5개 테이블(제품/거래처/주문/장바구니/반품) → `pos-backup-YYYYMMDD.json` 다운로드
+- **복원**: JSON 파일 업로드 → 미리보기(테이블별 건수) → 2단계 확인 후 복원
+- **메타데이터**: `_meta.version`, `_meta.createdAt`, `_meta.app` 포함
+- **마지막 백업 날짜**: localStorage에 저장, UI 표시
+
+#### 제품 일괄 카테고리 변경 - 정리 모드 (AdminPage.jsx)
+- **위치**: 관리자 페이지 → 제품관리 → '정리' 버튼
+- **동작**: 정리 모드 진입 → 제품 행 클릭으로 체크박스 선택 → 카테고리 드롭다운에서 일괄 변경
+- **기능**: 전체선택/전체해제/선택취소, 검색+카테고리 필터 유지
+- **정리 모드 UI**: 백업/CSV/추가 버튼 숨김, 검색+필터+완료만 표시
+- **DB 반영**: Supabase `updateProduct` 순차 호출 + 로컬 state 즉시 반영
+- **검증**: Playwright로 CH 150 54 카테고리 변경/복원 → DB 직접 확인 완료
+
 #### 백업/복구 방법
-- **현재 배포 버전**: 단가조정 + 재고복원 + 제품/거래처 등록 수정 (2026-04-01, 940e837)
-- **이전 배포 버전**: 전수 검사 + 버그 수정 (2026-03-31, c3b9224)
+- **현재 배포 버전**: DB백업 + 정리모드 + 단가조정 + 재고복원 (2026-04-02)
+- **이전 배포 버전**: 단가조정 + 재고복원 + 제품/거래처 등록 수정 (2026-04-01, 940e837)
 - **백업 브랜치**: `backup/before-order-optimization-20260321` (4f02594)
 
 ### 2026-03-21 작업 내역
@@ -449,7 +463,7 @@ useEffect(() => {
 #### 발견된 추가 이슈 (미수정, 향후 작업)
 - **[Critical]** TextAnalyze.jsx:44 - Gemini API 키 Base64 노출 → 즉시 revoke 필요
 - **[High]** OrderDetail.jsx, ShippingLabel.jsx - `document.write()` XSS 취약점
-- **[Medium]** supabase.js:206 - 미사용 `ADMIN_PASSWORD = '1234'` 잔존
+- **[Medium]** ~~supabase.js:206 - 미사용 `ADMIN_PASSWORD = '1234'` 잔존~~ (2026-03-31 제거 완료)
 - **[Info]** shippingCount와 todayOrderCount가 동일 로직 중복
 
 #### 외부 서비스
