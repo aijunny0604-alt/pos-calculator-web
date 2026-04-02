@@ -412,7 +412,7 @@ useEffect(() => {
 #### DB 백업/복원 시스템 (AdminPage.jsx)
 - **위치**: 관리자 페이지 → 'DB백업' 탭
 - **백업**: 5개 테이블(제품/거래처/주문/장바구니/반품) → `pos-backup-YYYYMMDD.json` 다운로드
-- **복원**: JSON 파일 업로드 → 미리보기(테이블별 건수) → 2단계 확인 후 복원
+- **복원**: JSON 파일 업로드 → 미리보기(테이블별 건수) → 2단계 확인 후 **5개 테이블 전체** 복원
 - **메타데이터**: `_meta.version`, `_meta.createdAt`, `_meta.app` 포함
 - **마지막 백업 날짜**: localStorage에 저장, UI 표시
 
@@ -438,11 +438,23 @@ useEffect(() => {
 
 #### 단가조정 검색 포커스 소실 수정 (AdminPage.jsx)
 - **원인**: `SectionCard`를 함수 내부에서 컴포넌트로 정의 → state 변경 시 리마운트 → input 포커스 소실
-- **수정**: `SectionCard` 컴포넌트 → CSS 클래스 문자열(`sc`)로 대체
+- **수정**: PriceAdjustTab/BackupTab 모두 `SectionCard` 컴포넌트 → CSS 클래스 문자열(`sc`/`bsc`)로 대체
+
+#### 장바구니/저장장바구니 견적서 복사 형식 통일
+- **OrderPage.jsx** (주문확인 모달): 기존 간단 형식 → 상세 형식으로 변경
+- **SavedCarts.jsx** (저장된 장바구니 상세): **견적서 복사 버튼 신규 추가**
+- **통일 형식**: 주문번호, 고객명, 연락처, 상품목록(단가×수량), 결제정보(공급가/부가세), 입금 계좌
+- 3곳 모두 동일: OrderDetail, OrderPage, SavedCarts
+
+#### 정밀 검증 버그 수정 (에이전트 4팀 투입)
+- **restoreStock 동일 제품 중복 합산** (App.jsx): 다건 삭제 시 같은 제품이 여러 주문에 포함되면 수량 누락 → `reduce`로 productId별 합산 후 복원
+- **calcNewPrice 0원 상품** (AdminPage.jsx): `!price`가 0을 falsy로 처리 → `price == null` 체크로 변경
+- **handleUpdateOrder customerName** (App.jsx): `setOrders` 콜백 내 side-effect → 외부에서 미리 추출
+- **handleDeleteMultipleOrders 부분 실패** (App.jsx): `Promise.all` → `Promise.allSettled` + 성공 건만 삭제/복원, 실패 건 경고
 
 #### 백업/복구 방법
-- **현재 배포 버전**: 거래처 동기화 + 정리모드 + DB백업 (2026-04-02, e737f8b)
-- **이전 배포 버전**: 단가조정 + 재고복원 + 제품/거래처 등록 수정 (2026-04-01, 940e837)
+- **현재 배포 버전**: 정밀 검증 + 견적서 통일 + DB 복원 완성 (2026-04-02, 91e10f0)
+- **이전 배포 버전**: 거래처 동기화 + 정리모드 + DB백업 (2026-04-02, e737f8b)
 - **백업 브랜치**: `backup/before-order-optimization-20260321` (4f02594)
 
 ### 2026-03-21 작업 내역
