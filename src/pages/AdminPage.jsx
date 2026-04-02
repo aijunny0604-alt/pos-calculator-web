@@ -298,6 +298,50 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
   const [saving, setSaving] = useState(false);
   const fileRef = useRef();
   const [inlineEdit, setInlineEdit] = useState(null); // { id, field, value }
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [batchCategory, setBatchCategory] = useState('');
+  const [batchApplying, setBatchApplying] = useState(false);
+
+  const toggleSelectProduct = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    setSelectedIds(new Set(filtered.map(p => p.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchCategoryChange = async () => {
+    if (!batchCategory || selectedIds.size === 0) return;
+    setBatchApplying(true);
+    try {
+      const idsArr = [...selectedIds];
+      const updated = displayProducts.map(p =>
+        idsArr.includes(p.id) ? { ...p, category: batchCategory } : p
+      );
+      if (supabaseConnected && supabase?.updateProduct) {
+        for (const id of idsArr) {
+          await supabase.updateProduct(id, { category: batchCategory });
+        }
+      }
+      setProducts(updated);
+      showToast(`${idsArr.length}개 제품 → "${batchCategory}" 카테고리로 변경 완료`, 'success');
+      setSelectedIds(new Set());
+      setBatchCategory('');
+    } catch (err) {
+      showToast('카테고리 변경 실패: ' + err.message, 'error');
+    } finally {
+      setBatchApplying(false);
+    }
+  };
 
   const startInlineEdit = (product, field) => {
     const value = product[field] ?? '';
@@ -593,7 +637,41 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
         <ActionBtn variant="primary" Icon={Plus} onClick={openNew}>
           추가
         </ActionBtn>
+        <ActionBtn
+          variant={selectMode ? 'primary' : 'secondary'}
+          Icon={selectMode ? X : Check}
+          onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); setBatchCategory(''); }}
+        >
+          {selectMode ? '완료' : '정리'}
+        </ActionBtn>
       </div>
+
+      {/* 일괄 카테고리 변경 바 */}
+      {selectMode && (
+        <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_5%,var(--background))]">
+          <button onClick={selectedIds.size === filtered.length ? deselectAll : selectAllFiltered} className="text-xs px-2.5 py-1.5 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)]" style={{ color: 'var(--primary)' }}>
+            {selectedIds.size === filtered.length ? '전체해제' : '전체선택'}
+          </button>
+          <span className="text-xs font-medium" style={{ color: 'var(--primary)' }}>{selectedIds.size}개 선택</span>
+          <div className="flex-1" />
+          <select
+            value={batchCategory}
+            onChange={e => setBatchCategory(e.target.value)}
+            className="px-2 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          >
+            <option value="">카테고리 선택...</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button
+            onClick={handleBatchCategoryChange}
+            disabled={!batchCategory || selectedIds.size === 0 || batchApplying}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-30"
+            style={{ background: 'var(--primary)', color: 'white' }}
+          >
+            {batchApplying ? '변경중...' : '변경'}
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <p className="text-xs text-[var(--muted-foreground)]">
@@ -610,6 +688,7 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[var(--muted)] border-b border-[var(--border)]">
+                  {selectMode && <th className="w-8 px-2 py-2.5"></th>}
                   <th className="text-left px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">제품명</th>
                   <th className="text-left px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide hidden sm:table-cell">카테고리</th>
                   <th className="text-right px-2 sm:px-4 py-2.5 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">도매가</th>
@@ -621,7 +700,25 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {filtered.map(product => (
-                  <tr key={product.id} className="hover:bg-[var(--accent)] transition-colors group">
+                  <tr
+                    key={product.id}
+                    className={`hover:bg-[var(--accent)] transition-colors group ${selectMode && selectedIds.has(product.id) ? 'bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]' : ''}`}
+                    onClick={selectMode ? () => toggleSelectProduct(product.id) : undefined}
+                    style={selectMode ? { cursor: 'pointer' } : undefined}
+                  >
+                    {selectMode && (
+                      <td className="px-2 py-2.5">
+                        <div
+                          className="w-5 h-5 rounded flex items-center justify-center border transition-all"
+                          style={{
+                            background: selectedIds.has(product.id) ? 'var(--primary)' : 'transparent',
+                            borderColor: selectedIds.has(product.id) ? 'var(--primary)' : 'var(--border)',
+                          }}
+                        >
+                          {selectedIds.has(product.id) && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                      </td>
+                    )}
                     <td className="px-2 sm:px-4 py-2.5 font-medium text-[var(--foreground)]">
                       {inlineEdit?.id === product.id && inlineEdit?.field === 'name' ? (
                         <input
