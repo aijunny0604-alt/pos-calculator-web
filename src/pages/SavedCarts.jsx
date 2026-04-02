@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   ArrowLeft, Menu, Save, Search, ShoppingCart, Trash2, Check, RefreshCw,
   ChevronDown, Package, Clock, Download, FileText, Edit3, X, Plus,
-  Minus, ShoppingBag, Calculator, AlertTriangle, Receipt, Maximize2, Minimize2
+  Minus, ShoppingBag, Calculator, AlertTriangle, Receipt, Maximize2, Minimize2, Copy
 } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
+import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST, calcExVat, formatDate } from '@/lib/utils';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
@@ -34,6 +34,49 @@ export default function SavedCarts({
   const [showFilterDeleteConfirm, setShowFilterDeleteConfirm] = useState(false);
   const [detailCart, setDetailCart] = useState(null);
   const [detailIndex, setDetailIndex] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  const generateCartOrderText = (cart) => {
+    if (!cart) return '';
+    const priceType = cart.priceType || cart.price_type || 'wholesale';
+    const total = cart.total || cart.items?.reduce((sum, item) => {
+      const price = priceType === 'wholesale' ? (item.wholesale || 0) : (item.retail || item.wholesale || 0);
+      return sum + price * (item.quantity || 1);
+    }, 0) || 0;
+    const exVat = calcExVat(total);
+    const vat = total - exVat;
+    const totalQty = cart.items?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
+
+    let text = `[ 주문서 ]\n\n`;
+    if (cart.name) text += `고객명: ${cart.name}\n`;
+    text += `단가기준: ${priceType === 'wholesale' ? '도매가 (부가세 포함)' : '소비자가 (부가세 포함)'}\n\n`;
+    text += `[ 상품 목록 ]\n\n`;
+    (cart.items || []).forEach((item, index) => {
+      const price = priceType === 'wholesale' ? (item.wholesale || 0) : (item.retail || item.wholesale || 0);
+      text += `${index + 1}. ${item.name}\n`;
+      text += `   ${formatPrice(price)}원 × ${item.quantity || 1}개 = ${formatPrice(price * (item.quantity || 1))}원\n\n`;
+    });
+    text += `[ 결제 정보 ]\n\n`;
+    text += `총 수량: ${totalQty}개\n`;
+    text += `공급가액: ${formatPrice(exVat)}원\n`;
+    text += `부가세: ${formatPrice(vat)}원\n`;
+    text += `총 금액: ${formatPrice(total)}원\n\n`;
+    if (cart.memo) text += `메모: ${cart.memo}\n\n`;
+    text += `입금 계좌: 신한은행 010-5858-6046 무브모터스\n\n`;
+    text += `※ 입금 확인 후 빠른 출고로 보답하겠습니다.\n`;
+    return text;
+  };
+
+  const handleCopyCart = async () => {
+    try {
+      await navigator.clipboard.writeText(generateCartOrderText(currentCart));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      if (showToast) showToast('견적서가 복사되었습니다', 'success');
+    } catch (err) {
+      if (showToast) showToast('복사 실패', 'error');
+    }
+  };
   const [isEditingDetail, setIsEditingDetail] = useState(false);
   const [editedDetailCart, setEditedDetailCart] = useState(null);
   const [showProductSearchDetail, setShowProductSearchDetail] = useState(false);
@@ -704,7 +747,7 @@ export default function SavedCarts({
                 </button>
               </div>
             ) : (
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button
                   onClick={() => { onLoad(currentCart); onBack(); }}
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 hover:opacity-90 text-white rounded-lg font-semibold transition-opacity"
@@ -712,6 +755,17 @@ export default function SavedCarts({
                 >
                   <Download className="w-4 h-4" />
                   불러오기
+                </button>
+                <button
+                  onClick={handleCopyCart}
+                  className="px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-1.5 transition-all"
+                  style={{
+                    background: copied ? 'var(--success)' : 'var(--muted)',
+                    color: copied ? 'white' : 'var(--foreground)',
+                  }}
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? '완료' : '복사'}
                 </button>
                 {onOrder && (
                   <button
