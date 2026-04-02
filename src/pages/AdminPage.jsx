@@ -2406,8 +2406,29 @@ function BackupTab({ products, setProducts, customers, setCustomers, supabaseCon
         setCustomers(data.customers);
       }
 
+      // 주문 복원
+      if (data.orders?.length > 0) {
+        for (const o of data.orders) {
+          await supabase.saveOrder(o).catch(() => supabase.updateOrder(o.id, o));
+        }
+      }
+
+      // 장바구니 복원
+      if (data.saved_carts?.length > 0) {
+        for (const sc of data.saved_carts) {
+          await supabase.addSavedCart(sc).catch(() => supabase.updateSavedCart(sc.id, sc));
+        }
+      }
+
+      // 반품 복원
+      if (data.customer_returns?.length > 0) {
+        for (const r of data.customer_returns) {
+          await supabase.addCustomerReturn(r).catch(() => {});
+        }
+      }
+
       const totalRecords = TABLES.reduce((sum, t) => sum + (data[t.key]?.length || 0), 0);
-      showToast(`복원 완료 (${totalRecords}건)`, 'success');
+      showToast(`복원 완료 (${totalRecords}건, 5개 테이블)`, 'success');
       setRestoreFile(null);
       setRestorePreview(null);
       setRestoreConfirm(false);

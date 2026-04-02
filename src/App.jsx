@@ -556,12 +556,24 @@ export default function App() {
   const handleDeleteMultipleOrders = useCallback(
     async (ids) => {
       const deletedOrders = orders.filter((o) => ids.includes(o.id));
-      await Promise.all(ids.map((id) => supabase.deleteOrder(id)));
-      setOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
-      // 재고 복원
-      const allItems = deletedOrders.flatMap(o => o.items || []);
-      if (allItems.length > 0) await restoreStock(allItems);
-      showToast(`${ids.length}건 삭제되었습니다 (재고 복원됨)`, 'success');
+      try {
+        const results = await Promise.allSettled(ids.map((id) => supabase.deleteOrder(id)));
+        const successIds = ids.filter((_, i) => results[i].status === 'fulfilled' && results[i].value);
+        const failCount = ids.length - successIds.length;
+        setOrders((prev) => prev.filter((o) => !successIds.includes(o.id)));
+        // 성공 건만 재고 복원
+        const successOrders = deletedOrders.filter(o => successIds.includes(o.id));
+        const allItems = successOrders.flatMap(o => o.items || []);
+        if (allItems.length > 0) await restoreStock(allItems);
+        if (failCount > 0) {
+          showToast(`${successIds.length}건 삭제 (${failCount}건 실패, 재고 복원됨)`, 'warning');
+        } else {
+          showToast(`${ids.length}건 삭제되었습니다 (재고 복원됨)`, 'success');
+        }
+      } catch (err) {
+        showToast('삭제 중 오류: ' + err.message, 'error');
+        return;
+      }
       if (deletedOrders.length > 0) {
         pushUndo({
           type: 'orders-delete-multiple',
