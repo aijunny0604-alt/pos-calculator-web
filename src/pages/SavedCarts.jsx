@@ -67,9 +67,10 @@ export default function SavedCarts({
     return text;
   };
 
-  const handleCopyCart = async () => {
+  const handleCopyCart = async (cart) => {
     try {
-      await navigator.clipboard.writeText(generateCartOrderText(currentCart));
+      const target = cart || editedDetailCart || detailCart;
+      await navigator.clipboard.writeText(generateCartOrderText(target));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       if (showToast) showToast('견적서가 복사되었습니다', 'success');
@@ -756,17 +757,6 @@ export default function SavedCarts({
                   <Download className="w-4 h-4" />
                   불러오기
                 </button>
-                <button
-                  onClick={handleCopyCart}
-                  className="px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-1.5 transition-all"
-                  style={{
-                    background: copied ? 'var(--success)' : 'var(--muted)',
-                    color: copied ? 'white' : 'var(--foreground)',
-                  }}
-                >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copied ? '완료' : '복사'}
-                </button>
                 {onOrder && (
                   <button
                     onClick={() => {
@@ -780,6 +770,17 @@ export default function SavedCarts({
                     주문확인
                   </button>
                 )}
+                <button
+                  onClick={() => handleCopyCart(currentCart)}
+                  className="px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center transition-all border"
+                  style={{
+                    background: copied ? 'var(--success)' : 'var(--background)',
+                    color: copied ? 'white' : 'var(--foreground)',
+                    borderColor: copied ? 'var(--success)' : 'var(--border)',
+                  }}
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
                 <button
                   onClick={async () => {
                     if (detailCart?.id) {
