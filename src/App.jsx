@@ -588,11 +588,13 @@ export default function App() {
     async (id, data) => {
       const result = await supabase.updateOrder(id, data);
       if (result) {
+        // 주문 로컬 state 업데이트
+        let customerName = null;
         setOrders((prev) =>
           prev.map((o) => {
             if (o.id !== id) return o;
+            customerName = o.customerName || data.customer_name;
             const merged = { ...o, ...data };
-            // Sync camelCase aliases from snake_case updates
             if (data.total != null) merged.totalAmount = data.total;
             if (data.customer_name != null) merged.customerName = data.customer_name;
             if (data.customer_phone != null) merged.customerPhone = data.customer_phone;
@@ -600,10 +602,24 @@ export default function App() {
             return merged;
           })
         );
+
+        // 거래처 테이블 동기화 (전화번호/주소 변경 시)
+        if (customerName && (data.customer_phone != null || data.customer_address != null)) {
+          const customer = customers.find(c => c.name?.toLowerCase() === customerName?.toLowerCase());
+          if (customer) {
+            const customerUpdate = {};
+            if (data.customer_phone != null) customerUpdate.phone = data.customer_phone;
+            if (data.customer_address != null) customerUpdate.address = data.customer_address;
+            await supabase.updateCustomer(customer.id, customerUpdate);
+            setCustomers(prev => prev.map(c =>
+              c.id === customer.id ? { ...c, ...customerUpdate } : c
+            ));
+          }
+        }
       }
       return result;
     },
-    []
+    [customers]
   );
 
   // ─── Cart save modal helpers ──────────────────────────────────
