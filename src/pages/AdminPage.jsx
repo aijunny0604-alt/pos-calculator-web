@@ -2613,9 +2613,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
     }
   };
 
-  const SectionCard = ({ children }) => (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">{children}</div>
-  );
+  const sc = "rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden";
 
   return (
     <div className="space-y-5">
@@ -2625,7 +2623,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
       </div>
 
       {/* Step 1: 카테고리 + 제품 선택 */}
-      <SectionCard>
+      <div className={sc}>
         <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
           <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>① 카테고리 · 제품 선택</h3>
           <div className="flex gap-2">
@@ -2784,11 +2782,11 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
             </div>
           )}
         </div>
-      </SectionCard>
+      </div>
 
       {/* Step 2: 조정 설정 */}
       {affectedProducts.length > 0 && (
-        <SectionCard>
+        <div className={sc}>
           <div className="px-4 py-3 border-b border-[var(--border)]">
             <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>② 조정 설정</h3>
           </div>
@@ -2879,12 +2877,12 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
 
             {/* 수치 입력 시 미리보기 자동 표시 */}
           </div>
-        </SectionCard>
+        </div>
       )}
 
       {/* Step 3: 미리보기 + 적용 */}
       {previewData.length > 0 && (
-        <SectionCard>
+        <div className={sc}>
           <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
             <h3 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>③ 변경 미리보기</h3>
             <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
@@ -2960,7 +2958,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
               {applying ? '적용 중...' : `${previewData.length}개 제품 ${adjustDir === 'up' ? '인상' : '인하'} 적용`}
             </button>
           </div>
-        </SectionCard>
+        </div>
       )}
     </div>
   );
