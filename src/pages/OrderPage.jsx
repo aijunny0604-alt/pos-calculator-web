@@ -147,13 +147,13 @@ export default function OrderPage({
 
   const generateOrderText = () => {
     let text = `[ 주문서 ]\n\n`;
-    text += `${orderNumber}\n`;
-    text += `${formatDate(today.toISOString())}\n`;
-    if (customerName) text += `${customerName}`;
-    if (customerPhone) text += ` ${customerPhone}`;
-    if (customerName || customerPhone) text += `\n`;
-    text += `${priceType === 'wholesale' ? '도매가' : '소비자가'}\n\n`;
+    text += `주문번호: ${orderNumber}\n`;
+    text += `주문일자: ${formatDate(today.toISOString())}\n`;
+    if (customerName) text += `고객명: ${customerName}\n`;
+    if (customerPhone) text += `연락처: ${customerPhone}\n`;
+    text += `단가기준: ${priceType === 'wholesale' ? '도매가 (부가세 포함)' : '소비자가 (부가세 포함)'}\n\n`;
 
+    text += `[ 상품 목록 ]\n\n`;
     const itemsToShow = cartWithDiscount.length > 0 ? cartWithDiscount : cart.map(item => ({
       ...item,
       unitPrice: priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale),
@@ -162,24 +162,26 @@ export default function OrderPage({
     }));
 
     itemsToShow.forEach((item, index) => {
+      text += `${index + 1}. ${item.name}\n`;
       if (item.appliedTier && item.totalDiscount > 0) {
         const discountDesc = item.appliedTier.type === 'percent'
           ? `${item.appliedTier.value}%`
           : fmt(item.appliedTier.value);
-        text += `${index + 1}. ${item.name} x${item.quantity} = ${fmt(item.finalTotal)} (${discountDesc} 할인)\n`;
+        text += `   ${fmt(item.unitPrice)}원 × ${item.quantity}개 = ${fmt(item.finalTotal)}원 (${discountDesc} 할인)\n\n`;
       } else {
-        text += `${index + 1}. ${item.name} x${item.quantity} = ${fmt(item.finalTotal)}\n`;
+        text += `   ${fmt(item.unitPrice)}원 × ${item.quantity}개 = ${fmt(item.finalTotal)}원\n\n`;
       }
     });
 
-    text += `\n`;
-    if (totalDiscount > 0) {
-      text += `할인: -${fmt(totalDiscount)}\n`;
-    }
-    text += `총 ${totalQuantity}개 | ${fmt(currentTotal)}\n`;
-    text += `(공급가 ${fmt(exVat)} + 부가세 ${fmt(vat)})\n`;
-
-    if (memo) text += `\n메모: ${memo}\n`;
+    text += `[ 결제 정보 ]\n\n`;
+    text += `총 수량: ${totalQuantity}개\n`;
+    text += `공급가액: ${fmt(exVat)}원\n`;
+    text += `부가세: ${fmt(vat)}원\n`;
+    if (totalDiscount > 0) text += `할인: -${fmt(totalDiscount)}원\n`;
+    text += `총 금액: ${fmt(currentTotal)}원\n\n`;
+    if (memo) text += `메모: ${memo}\n\n`;
+    text += `입금 계좌: 신한은행 010-5858-6046 무브모터스\n\n`;
+    text += `※ 입금 확인 후 빠른 출고로 보답하겠습니다.\n`;
 
     return text;
   };
