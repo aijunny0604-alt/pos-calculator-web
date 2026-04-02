@@ -621,22 +621,26 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
           <option value="">전체 카테고리</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <ActionBtn variant="secondary" Icon={Download} onClick={exportProductsCSV} className="hidden sm:inline-flex">
-          엑셀 백업
-        </ActionBtn>
-        <ActionBtn variant="secondary" Icon={Download} onClick={exportProductsCSV} className="sm:hidden">
-          백업
-        </ActionBtn>
-        <ActionBtn variant="secondary" Icon={Upload} onClick={() => fileRef.current?.click()} className="hidden sm:inline-flex">
-          CSV 가져오기
-        </ActionBtn>
-        <ActionBtn variant="secondary" Icon={Upload} onClick={() => fileRef.current?.click()} className="sm:hidden">
-          CSV
-        </ActionBtn>
-        <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSVImport} />
-        <ActionBtn variant="primary" Icon={Plus} onClick={openNew}>
-          추가
-        </ActionBtn>
+        {!selectMode && (
+          <>
+            <ActionBtn variant="secondary" Icon={Download} onClick={exportProductsCSV} className="hidden sm:inline-flex">
+              엑셀 백업
+            </ActionBtn>
+            <ActionBtn variant="secondary" Icon={Download} onClick={exportProductsCSV} className="sm:hidden">
+              백업
+            </ActionBtn>
+            <ActionBtn variant="secondary" Icon={Upload} onClick={() => fileRef.current?.click()} className="hidden sm:inline-flex">
+              CSV 가져오기
+            </ActionBtn>
+            <ActionBtn variant="secondary" Icon={Upload} onClick={() => fileRef.current?.click()} className="sm:hidden">
+              CSV
+            </ActionBtn>
+            <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSVImport} />
+            <ActionBtn variant="primary" Icon={Plus} onClick={openNew}>
+              추가
+            </ActionBtn>
+          </>
+        )}
         <ActionBtn
           variant={selectMode ? 'primary' : 'secondary'}
           Icon={selectMode ? X : Check}
