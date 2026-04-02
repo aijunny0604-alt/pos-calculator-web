@@ -653,6 +653,11 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
             {selectedIds.size === filtered.length ? '전체해제' : '전체선택'}
           </button>
           <span className="text-xs font-medium" style={{ color: 'var(--primary)' }}>{selectedIds.size}개 선택</span>
+          {selectedIds.size > 0 && (
+            <button onClick={deselectAll} className="text-xs px-2 py-1.5 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)]" style={{ color: 'var(--muted-foreground)' }}>
+              선택취소
+            </button>
+          )}
           <div className="flex-1" />
           <select
             value={batchCategory}
