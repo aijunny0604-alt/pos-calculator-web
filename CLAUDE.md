@@ -424,8 +424,24 @@ useEffect(() => {
 - **DB 반영**: Supabase `updateProduct` 순차 호출 + 로컬 state 즉시 반영
 - **검증**: Playwright로 CH 150 54 카테고리 변경/복원 → DB 직접 확인 완료
 
+#### 주문 상세 업체 정보 수정 → 거래처 자동 동기화 (App.jsx)
+- **문제**: 주문 완료 후 OrderDetail에서 전화번호/주소 수정 시 `orders` 테이블만 업데이트, `customers` 테이블 미반영
+- **원인**: `handleUpdateOrder`가 `supabase.updateOrder()`만 호출, `updateCustomer()` 미호출
+- **수정**: `handleUpdateOrder`에서 `customer_phone`/`customer_address` 변경 감지 시:
+  - `customerName`으로 거래처 매칭 → `supabase.updateCustomer()` 자동 호출
+  - 로컬 `customers` state도 동시 업데이트
+- **검증**: 신규업체 주문(업체명만) → 주문상세에서 전화/주소 수정 → DB 직접 확인 완료
+
+#### 거래처 목록 PC 검색바 기본 펼침 (CustomerList.jsx)
+- 모바일(<768px): 기본 접힘 (기존 유지)
+- PC(≥768px): 기본 펼침 (`isHeaderCollapsed` 초기값 `window.innerWidth < 768`)
+
+#### 단가조정 검색 포커스 소실 수정 (AdminPage.jsx)
+- **원인**: `SectionCard`를 함수 내부에서 컴포넌트로 정의 → state 변경 시 리마운트 → input 포커스 소실
+- **수정**: `SectionCard` 컴포넌트 → CSS 클래스 문자열(`sc`)로 대체
+
 #### 백업/복구 방법
-- **현재 배포 버전**: DB백업 + 정리모드 + 단가조정 + 재고복원 (2026-04-02)
+- **현재 배포 버전**: 거래처 동기화 + 정리모드 + DB백업 (2026-04-02, e737f8b)
 - **이전 배포 버전**: 단가조정 + 재고복원 + 제품/거래처 등록 수정 (2026-04-01, 940e837)
 - **백업 브랜치**: `backup/before-order-optimization-20260321` (4f02594)
 
