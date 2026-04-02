@@ -20,7 +20,7 @@ export default function CustomerList({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [detailOrder, setDetailOrder] = useState(null);
   const [blacklistFilter, setBlacklistFilter] = useState('all');
   const [isReturning, setIsReturning] = useState(false);
