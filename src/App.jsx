@@ -422,7 +422,10 @@ export default function App() {
           )
         ) {
           setSavingStep('신규 거래처 등록 중...');
-          const newCustomer = await supabase.addCustomer({ name: customer_name });
+          const customerData = { name: customer_name };
+          if (orderData.customer_phone) customerData.phone = orderData.customer_phone;
+          if (orderData.customer_address) customerData.address = orderData.customer_address;
+          const newCustomer = await supabase.addCustomer(customerData);
           if (newCustomer) {
             setCustomers((prev) => [...prev, newCustomer]);
           }
