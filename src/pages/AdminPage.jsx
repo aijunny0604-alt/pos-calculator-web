@@ -26,6 +26,7 @@ const TABS = [
   { id: 'burnway',     label: '번웨이',      Icon: Car     },
   { id: 'categories',  label: '카테고리',    Icon: Tag     },
   { id: 'discounts',   label: '할인설정',    Icon: Percent },
+  { id: 'ai-learning', label: 'AI학습',     Icon: Fingerprint },
   { id: 'backup',      label: 'DB백업',     Icon: Database },
 ];
 
@@ -2309,9 +2310,220 @@ ${inputText}
 }
 
 // ---------------------------------------------------------------------------
+// AI 학습 관리 탭
+// ---------------------------------------------------------------------------
+function AILearningTab({ products, showToast, supabase, aiLearningData = [], setAiLearningData }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [showDeleteAll, setShowDeleteAll] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return aiLearningData;
+    const q = searchQuery.toLowerCase();
+    return aiLearningData.filter(l =>
+      l.original_text.toLowerCase().includes(q) || l.product_name.toLowerCase().includes(q)
+    );
+  }, [aiLearningData, searchQuery]);
+
+  const handleDelete = async (id) => {
+    const ok = await supabase.deleteAiLearning(id);
+    if (ok) {
+      setAiLearningData(prev => prev.filter(l => l.id !== id));
+      showToast('학습 데이터 삭제됨', 'success');
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    const ok = await supabase.deleteAllAiLearning();
+    if (ok) {
+      setAiLearningData([]);
+      showToast('전체 학습 데이터 초기화됨', 'success');
+    }
+    setShowDeleteAll(false);
+  };
+
+  const handleChangeProduct = async (learningItem, newProduct) => {
+    const result = await supabase.updateAiLearning(learningItem.id, {
+      product_id: newProduct.id,
+      product_name: newProduct.name,
+    });
+    if (result) {
+      setAiLearningData(prev => prev.map(l => l.id === learningItem.id ? { ...l, product_id: newProduct.id, product_name: newProduct.name } : l));
+      showToast('학습 제품 변경됨', 'success');
+    }
+    setEditingId(null);
+  };
+
+  const handleExport = () => {
+    const data = JSON.stringify({ _meta: { type: 'ai_learning_backup', version: '1.0', createdAt: new Date().toISOString(), count: aiLearningData.length }, data: aiLearningData }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ai-learning-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`학습 데이터 ${aiLearningData.length}건 내보내기 완료`, 'success');
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const items = json.data || json;
+      if (!Array.isArray(items)) throw new Error('잘못된 형식');
+      let count = 0;
+      for (const item of items) {
+        if (item.original_text && item.product_id && item.product_name) {
+          await supabase.addAiLearning({
+            original_text: item.original_text,
+            normalized_text: item.normalized_text || normalizeText(item.original_text),
+            product_id: item.product_id,
+            product_name: item.product_name,
+            quantity: item.quantity || 1,
+            hit_count: item.hit_count || 0,
+          });
+          count++;
+        }
+      }
+      const refreshed = await supabase.getAiLearning();
+      if (refreshed) setAiLearningData(refreshed);
+      showToast(`${count}건 학습 데이터 가져오기 완료`, 'success');
+    } catch (err) {
+      showToast(`가져오기 실패: ${err.message}`, 'error');
+    }
+    e.target.value = '';
+  };
+
+  const sc = 'bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-5';
+
+  return (
+    <div className="space-y-4">
+      {/* 헤더 */}
+      <div className={sc}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-[var(--foreground)]">AI 학습 데이터 관리</h3>
+            <p className="text-sm text-[var(--foreground)]/60 mt-1">총 {aiLearningData.length}건 | 인식 수정 시 자동 학습됩니다</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleExport} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1">
+              <FileDown className="w-4 h-4" /> 내보내기
+            </button>
+            <label className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm flex items-center gap-1 cursor-pointer">
+              <FileUp className="w-4 h-4" /> 가져오기
+              <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+            </label>
+            <button onClick={() => setShowDeleteAll(true)} className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm flex items-center gap-1" disabled={aiLearningData.length === 0}>
+              <Trash2 className="w-4 h-4" /> 전체 초기화
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 검색 */}
+      <div className={sc}>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground)]/40" />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="원본 텍스트 또는 제품명 검색..."
+            className="w-full pl-10 pr-4 py-3 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
+          />
+        </div>
+      </div>
+
+      {/* 목록 */}
+      <div className={sc}>
+        {filtered.length === 0 ? (
+          <div className="text-center py-8 text-[var(--foreground)]/50">
+            {aiLearningData.length === 0 ? 'AI 주문인식에서 제품을 수동 선택하면 자동으로 학습됩니다' : '검색 결과가 없습니다'}
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scroll">
+            {filtered.map(item => (
+              <div key={item.id} className="flex items-center gap-3 p-3 bg-[var(--background)] rounded-lg border border-[var(--border)]">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[var(--foreground)] break-words">&quot;{item.original_text}&quot;</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-blue-400">→</span>
+                    {editingId === item.id ? (
+                      <select
+                        className="text-xs bg-[var(--background)] border border-blue-500 rounded px-2 py-1 text-[var(--foreground)]"
+                        defaultValue={item.product_id}
+                        onChange={e => {
+                          const p = products.find(p => p.id === parseInt(e.target.value));
+                          if (p) handleChangeProduct(item, p);
+                        }}
+                        onBlur={() => setEditingId(null)}
+                        autoFocus
+                      >
+                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    ) : (
+                      <span className="text-xs text-green-400 break-words cursor-pointer hover:underline" onClick={() => setEditingId(item.id)}>
+                        {item.product_name}
+                      </span>
+                    )}
+                  </div>
+                  {item.reason && (
+                    <div className="mt-1 text-[10px] text-blue-400">💡 {item.reason}</div>
+                  )}
+                  <div className="flex items-center gap-3 mt-1 text-[10px] text-[var(--foreground)]/40">
+                    <span>활용 {item.hit_count}회</span>
+                    <span>수량 {item.quantity}</span>
+                    <span>{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
+                    {!item.reason && (
+                      <button
+                        onClick={() => {
+                          const reason = prompt('수정 사유를 입력하세요:');
+                          if (reason) {
+                            supabase.updateAiLearning(item.id, { reason }).then(result => {
+                              if (result) {
+                                setAiLearningData(prev => prev.map(l => l.id === item.id ? { ...l, reason } : l));
+                                showToast('사유 추가됨', 'success');
+                              }
+                            });
+                          }
+                        }}
+                        className="text-blue-400 hover:underline"
+                      >
+                        + 사유 추가
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => handleDelete(item.id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg flex-shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 전체 초기화 확인 */}
+      {showDeleteAll && (
+        <ConfirmDialog
+          title="전체 학습 데이터 초기화"
+          message={`${aiLearningData.length}건의 학습 데이터가 모두 삭제됩니다. 복구할 수 없습니다. 먼저 내보내기를 권장합니다.`}
+          confirmLabel="전체 삭제"
+          onConfirm={handleDeleteAll}
+          onCancel={() => setShowDeleteAll(false)}
+          variant="danger"
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // DB 백업/복원 탭
 // ---------------------------------------------------------------------------
-function BackupTab({ products, setProducts, customers, setCustomers, supabaseConnected, showToast, supabase }) {
+function BackupTab({ products, setProducts, customers, setCustomers, supabaseConnected, showToast, supabase, aiLearningData = [], setAiLearningData }) {
   const [backing, setBacking] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restoreFile, setRestoreFile] = useState(null);
@@ -2326,6 +2538,7 @@ function BackupTab({ products, setProducts, customers, setCustomers, supabaseCon
     { key: 'orders', label: '주문', icon: Tag, color: 'var(--warning)', fetch: () => supabase.getOrders() },
     { key: 'saved_carts', label: '장바구니', icon: HardDrive, color: 'var(--info)', fetch: () => supabase.getSavedCarts() },
     { key: 'customer_returns', label: '반품', icon: RefreshCw, color: 'var(--destructive)', fetch: () => supabase.getCustomerReturns() },
+    { key: 'ai_learning', label: 'AI학습', icon: Fingerprint, color: '#8b5cf6', fetch: () => supabase.getAiLearning() },
   ];
 
   const handleBackup = async () => {
@@ -2429,8 +2642,24 @@ function BackupTab({ products, setProducts, customers, setCustomers, supabaseCon
         }
       }
 
+      // AI 학습 데이터 복원
+      if (data.ai_learning?.length > 0) {
+        await supabase.deleteAllAiLearning().catch(() => {});
+        for (const l of data.ai_learning) {
+          await supabase.addAiLearning({
+            original_text: l.original_text,
+            normalized_text: l.normalized_text,
+            product_id: l.product_id,
+            product_name: l.product_name,
+            quantity: l.quantity || 1,
+            hit_count: l.hit_count || 0,
+          }).catch(() => {});
+        }
+        if (setAiLearningData) setAiLearningData(data.ai_learning);
+      }
+
       const totalRecords = TABLES.reduce((sum, t) => sum + (data[t.key]?.length || 0), 0);
-      showToast(`복원 완료 (${totalRecords}건, 5개 테이블)`, 'success');
+      showToast(`복원 완료 (${totalRecords}건, ${TABLES.length}개 테이블)`, 'success');
       setRestoreFile(null);
       setRestorePreview(null);
       setRestoreConfirm(false);
@@ -3390,6 +3619,8 @@ export default function AdminPage({
   showToast,
   supabase,
   pushUndo,
+  aiLearningData = [],
+  setAiLearningData,
 }) {
   const [isAdminAuth, setIsAdminAuth] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
@@ -3458,7 +3689,8 @@ export default function AdminPage({
         {activeTab === 'burnway' && <BurnwayTab {...tabProps} />}
         {activeTab === 'categories' && <CategoriesTab {...tabProps} onSelectCategory={(cat) => { setSelectedCategory(cat); setActiveTab('products'); }} />}
         {activeTab === 'discounts' && <DiscountTiersTab {...tabProps} />}
-        {activeTab === 'backup' && <BackupTab {...tabProps} />}
+        {activeTab === 'ai-learning' && <AILearningTab {...tabProps} aiLearningData={aiLearningData} setAiLearningData={setAiLearningData} />}
+        {activeTab === 'backup' && <BackupTab {...tabProps} aiLearningData={aiLearningData} setAiLearningData={setAiLearningData} />}
       </main>
     </div>
   );

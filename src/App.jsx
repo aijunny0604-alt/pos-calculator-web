@@ -30,6 +30,7 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [savedCarts, setSavedCarts] = useState([]);
+  const [aiLearningData, setAiLearningData] = useState([]);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
 
   // ─── API 호출 쓰로틀링 (egress 최적화) ─────────────────────
@@ -152,12 +153,13 @@ export default function App() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [fetchedOrders, fetchedProducts, fetchedCustomers, fetchedCarts] =
+        const [fetchedOrders, fetchedProducts, fetchedCustomers, fetchedCarts, fetchedLearning] =
           await Promise.all([
             supabase.getOrders(),
             supabase.getProducts(),
             supabase.getCustomers(),
             supabase.getSavedCarts(),
+            supabase.getAiLearning(),
           ]);
 
         setSupabaseConnected(true);
@@ -170,6 +172,7 @@ export default function App() {
         }
         if (fetchedCustomers) setCustomers(fetchedCustomers);
         if (fetchedCarts) setSavedCarts(fetchedCarts);
+        if (fetchedLearning) setAiLearningData(fetchedLearning);
       } catch (err) {
         console.error('Data load failed, using local fallback:', err);
         setSupabaseConnected(false);
@@ -196,7 +199,7 @@ export default function App() {
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      ['orders', 'products', 'customers', 'saved_carts'].forEach((table) => {
+      ['orders', 'products', 'customers', 'saved_carts', 'ai_learning'].forEach((table) => {
         ws.send(
           JSON.stringify({
             topic: `realtime:public:${table}`,
@@ -248,6 +251,14 @@ export default function App() {
             setSavedCarts((prev) => prev.map((c) => c.id === record.id ? record : c));
           } else if (evt === 'DELETE' && oldRecord) {
             setSavedCarts((prev) => prev.filter((c) => c.id !== oldRecord.id));
+          }
+        } else if (table === 'ai_learning') {
+          if (evt === 'INSERT' && record) {
+            setAiLearningData((prev) => [...prev, record]);
+          } else if (evt === 'UPDATE' && record) {
+            setAiLearningData((prev) => prev.map((l) => l.id === record.id ? record : l));
+          } else if (evt === 'DELETE' && oldRecord) {
+            setAiLearningData((prev) => prev.filter((l) => l.id !== oldRecord.id));
           }
         }
       } catch (err) {
@@ -778,6 +789,33 @@ export default function App() {
     [showToast]
   );
 
+  // ─── AI 학습 데이터 저장 ──────────────────────────────────────
+  const handleSaveLearning = useCallback(async (learningItems) => {
+    let successCount = 0;
+    for (const item of learningItems) {
+      const result = await supabase.upsertAiLearning(
+        item.originalText, item.normalizedText, item.productId, item.productName, item.quantity, item.reason || ''
+      );
+      if (result) {
+        successCount++;
+        setAiLearningData(prev => {
+          const idx = prev.findIndex(l => l.normalized_text === item.normalizedText && l.product_id === item.productId);
+          if (idx >= 0) {
+            const updated = [...prev];
+            updated[idx] = result;
+            return updated;
+          }
+          return [...prev, result];
+        });
+      }
+    }
+    if (successCount > 0) {
+      showToast(`${successCount}건 학습 완료`, 'success');
+    } else if (learningItems.length > 0) {
+      showToast('학습 저장 실패', 'error');
+    }
+  }, [showToast]);
+
   // ─── Add items from TextAnalyze to cart ───────────────────────
   const handleAddToCart = useCallback(
     (newItems) => {
@@ -1028,6 +1066,8 @@ export default function App() {
             formatPrice={formatPrice}
             priceType={priceType}
             onBack={() => setCurrentPage('pos')}
+            aiLearningData={aiLearningData}
+            onSaveLearning={handleSaveLearning}
           />
         );
 
@@ -1042,6 +1082,8 @@ export default function App() {
             showToast={showToast}
             supabase={supabase}
             pushUndo={pushUndo}
+            aiLearningData={aiLearningData}
+            setAiLearningData={setAiLearningData}
           />
         );
 

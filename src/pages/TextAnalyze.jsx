@@ -17,6 +17,8 @@ export default function TextAnalyze({
   isFullscreen,
   onToggleFullscreen,
   onClose,
+  aiLearningData = [],
+  onSaveLearning,
 }) {
   const [inputText, setInputText] = useState(() => {
     const saved = localStorage.getItem('aiOrderInputText');
@@ -462,7 +464,19 @@ ${text}
 → [{"originalText":"직관레조 200 54 1개","matchedProduct":"CH 200 54","quantity":1,"confidence":"high","alternatives":[]}]
 
 입력: "일반 레조 100 250 54 1개"
-→ [{"originalText":"일반 레조 100 250 54 1개","matchedProduct":"레조 100 250 54","quantity":1,"confidence":"high","alternatives":[]}]`;
+→ [{"originalText":"일반 레조 100 250 54 1개","matchedProduct":"레조 100 250 54","quantity":1,"confidence":"high","alternatives":[]}]`
+
+    + (aiLearningData.length > 0 ? `
+
+## 학습된 교정 사례 (최우선 적용!)
+아래는 사용자가 직접 교정한 실제 매칭 데이터입니다. 동일하거나 유사한 입력이 들어오면 반드시 이 매핑을 따르세요.
+이 교정 사례는 위의 모든 규칙보다 우선합니다.
+
+${aiLearningData.slice(0, 50).map(l =>
+  `- "${l.original_text}" → "${l.product_name}" (수량: ${l.quantity}${l.reason ? `, 사유: ${l.reason}` : ''})`
+).join('\n')}
+
+**규칙**: 입력 텍스트가 위 교정 사례와 동일하거나 매우 유사하면, 해당 제품으로 매칭하고 confidence를 "high"로 설정하세요.` : '');
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
@@ -533,10 +547,37 @@ ${text}
     if (useAI && geminiApiKey) {
       try {
         const aiResults = await analyzeWithGemini(inputText);
+
+        // 학습 데이터 기반 매칭 함수
+        const findFromLearning = (text) => {
+          if (!aiLearningData || aiLearningData.length === 0) return null;
+          const normalized = normalizeText(text);
+          if (!normalized) return null;
+          // 정확히 일치하는 학습 데이터 찾기
+          const exactMatch = aiLearningData.find(l => l.normalized_text === normalized);
+          if (exactMatch) {
+            const product = products.find(p => p.id === exactMatch.product_id);
+            if (product) return { product, learningId: exactMatch.id, hitCount: exactMatch.hit_count };
+          }
+          // 포함 매칭 (학습 텍스트가 검색 텍스트에 포함되거나 반대)
+          const partialMatch = aiLearningData.find(l => {
+            const ln = l.normalized_text;
+            return (normalized.includes(ln) || ln.includes(normalized)) && Math.abs(ln.length - normalized.length) <= 3;
+          });
+          if (partialMatch) {
+            const product = products.find(p => p.id === partialMatch.product_id);
+            if (product) return { product, learningId: partialMatch.id, hitCount: partialMatch.hit_count };
+          }
+          return null;
+        };
+
         const findProduct = (name) => {
           if (!name) return null;
           // Strip price info if AI included it
           const clean = name.replace(/\s*\([\d,]+원?\)\s*$/, '').trim();
+          // 0. 학습 데이터 우선 매칭
+          const learned = findFromLearning(clean);
+          if (learned) return learned.product;
           // 1. Exact match
           const exact = products.find(p => p.name === clean);
           if (exact) return exact;
@@ -656,6 +697,24 @@ ${text}
       searchText = searchText.replace(/[,.\-_\/\\()[\]{}]/g, ' ').replace(/\s+/g, ' ').trim();
       if (!searchText) return;
 
+      // 학습 데이터 우선 매칭 (패턴 매칭 모드)
+      const learnedFallback = aiLearningData?.length > 0 ? (() => {
+        const normalized = normalizeText(searchText);
+        if (!normalized) return null;
+        const exact = aiLearningData.find(l => l.normalized_text === normalized);
+        if (exact) return products.find(p => p.id === exact.product_id) || null;
+        const partial = aiLearningData.find(l => {
+          const ln = l.normalized_text;
+          return (normalized.includes(ln) || ln.includes(normalized)) && Math.abs(ln.length - normalized.length) <= 3;
+        });
+        return partial ? products.find(p => p.id === partial.product_id) || null : null;
+      })() : null;
+
+      if (learnedFallback) {
+        results.push({ originalText: cleanLine, searchText, quantity, matchedProduct: learnedFallback, score: 200, selected: true, learnedMatch: true });
+        return;
+      }
+
       let bestMatch = null, bestScore = 0;
       products.forEach(product => {
         const score = calculateMatchScore(product.name, searchText);
@@ -682,10 +741,23 @@ ${text}
     if (searchingIndex === index) { setSearchingIndex(null); setSearchQuery(''); }
   };
 
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [showReasonInput, setShowReasonInput] = useState(null); // index
+
   const selectProduct = (index, product) => {
-    setAnalyzedItems(prev => prev.map((item, i) => i === index ? { ...item, matchedProduct: product, selected: true, score: 100 } : item));
+    setAnalyzedItems(prev => prev.map((item, i) => i === index ? { ...item, matchedProduct: product, selected: true, score: 100, userCorrected: true } : item));
     setSearchingIndex(null);
     setSearchQuery('');
+    setCorrectionReason('');
+    setShowReasonInput(index);
+  };
+
+  const saveReason = (index) => {
+    if (correctionReason.trim()) {
+      setAnalyzedItems(prev => prev.map((item, i) => i === index ? { ...item, correctionReason: correctionReason.trim() } : item));
+    }
+    setShowReasonInput(null);
+    setCorrectionReason('');
   };
 
   const getSearchResults = () => {
@@ -705,6 +777,22 @@ ${text}
       }));
     if (selectedItems.length > 0) {
       onAddToCart(selectedItems);
+      // 학습 데이터 저장 — 사용자가 수정한 항목만
+      if (onSaveLearning) {
+        const learningItems = analyzedItems
+          .filter(item => item.selected && item.matchedProduct && item.userCorrected)
+          .map(item => ({
+            originalText: item.originalText || item.searchText,
+            normalizedText: normalizeText(item.originalText || item.searchText),
+            productId: item.matchedProduct.id,
+            productName: item.matchedProduct.name,
+            quantity: item.quantity,
+            reason: item.correctionReason || '',
+          }));
+        if (learningItems.length > 0) {
+          onSaveLearning(learningItems);
+        }
+      }
     }
     onBack();
   };
@@ -1101,6 +1189,24 @@ ${text}
                             </button>
                           ))}
                         </div>
+                      )}
+                      {/* 수정 사유 입력 — 제품 수동 교정 직후 표시 */}
+                      {showReasonInput === index && (
+                        <div className="mt-2 ml-7.5 flex items-center gap-1.5">
+                          <input
+                            value={correctionReason}
+                            onChange={e => setCorrectionReason(e.target.value)}
+                            placeholder="수정 사유 (선택)"
+                            className="flex-1 px-2 py-1 text-[11px] bg-[var(--background)] border border-blue-500/50 rounded text-[var(--foreground)] placeholder:text-[var(--foreground)]/30"
+                            autoFocus
+                            onKeyDown={e => { if (e.key === 'Enter') saveReason(index); if (e.key === 'Escape') setShowReasonInput(null); }}
+                          />
+                          <button onClick={() => saveReason(index)} className="px-2 py-1 text-[10px] bg-blue-600 text-white rounded">저장</button>
+                          <button onClick={() => setShowReasonInput(null)} className="px-2 py-1 text-[10px] bg-[var(--secondary)] text-[var(--foreground)] rounded">건너뛰기</button>
+                        </div>
+                      )}
+                      {item.correctionReason && showReasonInput !== index && (
+                        <div className="mt-1 ml-7.5 text-[10px] text-blue-400">💡 사유: {item.correctionReason}</div>
                       )}
                       </>
                     ) : (

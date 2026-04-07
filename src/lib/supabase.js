@@ -190,6 +190,48 @@ export const supabase = {
     } catch (e) { console.error('deleteAllSavedCarts:', e); return false; }
   },
 
+  // ===== AI 학습 =====
+  async getAiLearning() {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/ai_learning?order=hit_count.desc,updated_at.desc`, { headers });
+    } catch (e) { console.error('getAiLearning:', e); return []; }
+  },
+  async addAiLearning(data) {
+    try {
+      const result = await fetchJSON(`${SUPABASE_URL}/rest/v1/ai_learning`, { method: 'POST', headers: headersWithReturn, body: JSON.stringify(data) });
+      return Array.isArray(result) ? result[0] : result;
+    } catch (e) { console.error('addAiLearning:', e); return null; }
+  },
+  async updateAiLearning(id, data) {
+    try {
+      const result = await fetchJSON(`${SUPABASE_URL}/rest/v1/ai_learning?id=eq.${id}`, { method: 'PATCH', headers: headersWithReturn, body: JSON.stringify({ ...data, updated_at: new Date().toISOString() }) });
+      return Array.isArray(result) ? result[0] : result;
+    } catch (e) { console.error('updateAiLearning:', e); return null; }
+  },
+  async deleteAiLearning(id) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/ai_learning?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      return r.ok;
+    } catch (e) { console.error('deleteAiLearning:', e); return false; }
+  },
+  async deleteAllAiLearning() {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/ai_learning?id=gt.0`, { method: 'DELETE', headers: headersNoContent });
+      return r.ok;
+    } catch (e) { console.error('deleteAllAiLearning:', e); return false; }
+  },
+  async upsertAiLearning(originalText, normalizedText, productId, productName, quantity, reason = '') {
+    try {
+      const existing = await fetchJSON(`${SUPABASE_URL}/rest/v1/ai_learning?normalized_text=eq.${encodeURIComponent(normalizedText)}&product_id=eq.${productId}`, { headers });
+      if (existing && existing.length > 0) {
+        const update = { hit_count: existing[0].hit_count + 1, quantity };
+        if (reason) update.reason = reason;
+        return await this.updateAiLearning(existing[0].id, update);
+      }
+      return await this.addAiLearning({ original_text: originalText, normalized_text: normalizedText, product_id: productId, product_name: productName, quantity, reason });
+    } catch (e) { console.error('upsertAiLearning:', e); return null; }
+  },
+
   // ===== 편의 래퍼 =====
   async saveProduct(product) {
     if (product.id) return await this.updateProduct(product.id, product);
