@@ -1001,7 +1001,19 @@ export default function OrderDetail({
             </div>
 
             {/* Memo */}
-            {order.memo && (
+            {isEditing ? (
+              <div className="mt-4">
+                <label className="text-xs mb-1 block" style={{ color: 'var(--muted-foreground)' }}>메모</label>
+                <textarea
+                  className="w-full p-3 text-sm rounded-lg border resize-none"
+                  style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                  rows={2}
+                  value={editedOrder.memo || ''}
+                  onChange={(e) => setEditedOrder({ ...editedOrder, memo: e.target.value })}
+                  placeholder="메모 입력..."
+                />
+              </div>
+            ) : order.memo ? (
               <div
                 className="mt-4 p-3 rounded-lg border"
                 style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
@@ -1009,7 +1021,7 @@ export default function OrderDetail({
                 <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>메모: </span>
                 <span className="text-sm" style={{ color: 'var(--foreground)' }}>{order.memo}</span>
               </div>
-            )}
+            ) : null}
 
             {/* Return history */}
             {order.returns && order.returns.length > 0 && (() => {

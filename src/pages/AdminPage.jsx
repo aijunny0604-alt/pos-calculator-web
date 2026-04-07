@@ -574,7 +574,9 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
   };
 
   const handleDuplicate = async (product) => {
+    const maxId = products.reduce((max, p) => Math.max(max, p.id || 0), 0);
     const newProduct = {
+      id: maxId + 1,
       name: product.name + ' (복사)',
       category: product.category,
       wholesale: product.wholesale,
