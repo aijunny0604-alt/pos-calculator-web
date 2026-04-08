@@ -9,8 +9,8 @@
 ### 핵심 파일
 | 파일 | 줄 수 | 역할 |
 |------|-------|------|
-| `src/App.jsx` | ~1045 | 메인 앱. 라우팅, 상태관리, Supabase 실시간 구독, saveOrder, deductStock 로직 |
-| `src/lib/supabase.js` | ~206 | Supabase REST API 래퍼 (CRUD). `Array.isArray(data) ? data[0] : data` 정규화 적용 |
+| `src/App.jsx` | ~1266 | 메인 앱. 라우팅, 상태관리, Supabase 실시간 구독, saveOrder, deductStock 로직 |
+| `src/lib/supabase.js` | ~244 | Supabase REST API 래퍼 (CRUD). `Array.isArray(data) ? data[0] : data` 정규화 적용 |
 | `src/lib/priceData.js` | - | 478개 하드코딩 상품 (오프라인 폴백) |
 | `src/lib/utils.js` | ~104 | formatPrice, formatDateTime, getTodayKST, toDateKST, matchesSearchQuery, normalizeText 유틸리티 |
 | `src/index.css` | ~218 | CSS 변수 테마, 카드 애니메이션, 프린트 스타일 |
@@ -20,20 +20,20 @@
 | 파일 | 줄 수 | 라우팅 ID | 설명 | 상태 |
 |------|-------|-----------|------|------|
 | `Dashboard.jsx` | 244 | `dashboard` | 대시보드 (통계카드, 최근주문, 바로가기) | 정상 |
-| `MainPOS.jsx` | 1074 | `pos` | POS 계산기 (상품그리드 + 장바구니 + 주문확인) | **핵심 기능**, 정상 |
-| `OrderHistory.jsx` | 839 | `orders` | 주문 내역 조회/필터/삭제/반품필터 | 정상 |
-| `OrderDetail.jsx` | 1420 | (모달) | 주문 상세 보기/수정/인쇄/제품교체/배송정보복사 | 정상 |
-| `SavedCarts.jsx` | 1314 | `saved-carts` | 저장된 장바구니 관리 | 정상 |
-| `CustomerList.jsx` | 1100 | `customers` | 거래처 목록/상세/주문이력/반품/배송정보복사 | 정상 |
+| `MainPOS.jsx` | 1106 | `pos` | POS 계산기 (상품그리드 + 장바구니 + 주문확인) | **핵심 기능**, 정상 |
+| `OrderHistory.jsx` | 833 | `orders` | 주문 내역 조회/필터/삭제/반품필터 | 정상 |
+| `OrderDetail.jsx` | 1458 | (모달) | 주문 상세 보기/수정/인쇄/제품교체/배송정보복사 | 정상 |
+| `SavedCarts.jsx` | 1361 | `saved-carts` | 저장된 장바구니 관리 | 정상 |
+| `CustomerList.jsx` | 1101 | `customers` | 거래처 목록/상세/주문이력/반품/배송정보복사 | 정상 |
 | `StockOverview.jsx` | 341 | `stock` | 재고 현황 테이블 | 정상 |
-| `BurnwayStock.jsx` | 562 | `burnway-stock` | 번웨이 다운파이프 재고 (대시보드 카드 스타일) | 정상 |
-| `ShippingLabel.jsx` | 1238 | `shipping` | 택배 송장 출력/관리 | 정상 |
-| `TextAnalyze.jsx` | 1216 | `ai-order` | AI 텍스트 주문 인식 | 정상 |
-| `AdminPage.jsx` | 2203 | `admin` | 관리자 패널 (비번: `4321`) | 정상 |
-| `OrderPage.jsx` | 1000 | - | (미사용 레거시) | 미사용 |
-| `SaveCartModal.jsx` | 289 | (모달) | 장바구니 저장 모달 | 정상 |
-| `QuickCalculator.jsx` | 298 | (모달) | 빠른 계산기 | 정상 |
-| `NotificationSettings.jsx` | 287 | (모달) | 알림 설정 | 정상 |
+| `BurnwayStock.jsx` | 766 | `burnway-stock` | 번웨이 다운파이프 재고 (대시보드 카드 스타일) | 정상 |
+| `ShippingLabel.jsx` | 1235 | `shipping` | 택배 송장 출력/관리 | 정상 |
+| `TextAnalyze.jsx` | 1427 | `ai-order` | AI 텍스트 주문 인식 | 정상 |
+| `AdminPage.jsx` | 3697 | `admin` | 관리자 패널 (비번: `4321`) | 정상 |
+| `OrderPage.jsx` | 1002 | - | (미사용 레거시) | 미사용 |
+| `SaveCartModal.jsx` | 327 | (모달) | 장바구니 저장 모달 | 정상 |
+| `QuickCalculator.jsx` | 310 | (모달) | 빠른 계산기 | 정상 |
+| `NotificationSettings.jsx` | 300 | (모달) | 알림 설정 | 정상 |
 
 ### 레이아웃 (src/components/layout/)
 | 파일 | 역할 |

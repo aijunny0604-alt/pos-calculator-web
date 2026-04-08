@@ -8,7 +8,7 @@
 
 - URL: `https://jubzppndcclhnvgbvrxr.supabase.co`
 - 키: `src/lib/supabase.js`에 하드코딩 (publishable key)
-- 테이블: `orders`, `products`, `customers`, `customer_returns`, `saved_carts`
+- 테이블: `orders`, `products`, `customers`, `customer_returns`, `saved_carts`, `ai_learning`
 - 2026-03-19 새 Supabase 프로젝트로 이전 완료 (이전: icqxomltplewrhopafpq → 현재: jubzppndcclhnvgbvrxr)
 
 ### 프로젝트 이전 이력 (2026-03-19)
@@ -118,8 +118,8 @@
 ---
 
 ## DB 백업/복원 (AdminPage.jsx → 'DB백업' 탭)
-- **백업**: 5개 테이블(제품/거래처/주문/장바구니/반품) → `pos-backup-YYYYMMDD.json` 다운로드
-- **복원**: JSON 파일 업로드 → 미리보기(테이블별 건수) → 2단계 확인 후 **5개 테이블 전체** 복원
+- **백업**: 6개 테이블(제품/거래처/주문/장바구니/반품/AI학습) → `pos-backup-YYYYMMDD.json` 다운로드
+- **복원**: JSON 파일 업로드 → 미리보기(테이블별 건수) → 2단계 확인 후 **6개 테이블 전체** 복원
 - **메타데이터**: `_meta.version`, `_meta.createdAt`, `_meta.app` 포함
 - **마지막 백업 날짜**: localStorage에 저장, UI 표시
 
