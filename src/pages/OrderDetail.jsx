@@ -1242,7 +1242,7 @@ export default function OrderDetail({
               </button>
             </div>
           ) : isReturning ? null : (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 onClick={startReturn}
                 className="py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-colors border"

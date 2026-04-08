@@ -247,11 +247,11 @@ export default function MainPOS({
           )}
           <h1 className="ml-2 text-lg font-bold" style={{ color: 'var(--foreground)' }}>제품 주문</h1>
           <div className="flex-1" />
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {onOpenQuickCalculator && (
               <button
                 onClick={onOpenQuickCalculator}
-                className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
+                className="p-2.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
               >
                 <Calculator className="w-4.5 h-4.5" style={{ color: 'var(--muted-foreground)' }} />
               </button>
@@ -259,7 +259,7 @@ export default function MainPOS({
             {cart.length > 0 && (
               <button
                 onClick={() => setIsCartExpanded(true)}
-                className="relative p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
+                className="relative p-2.5 rounded-lg transition-colors hover:bg-[var(--muted)]"
               >
                 <ShoppingCart className="w-4.5 h-4.5" style={{ color: 'var(--primary)' }} />
                 <span
