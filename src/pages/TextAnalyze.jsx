@@ -504,7 +504,7 @@ ${aiLearningData.slice(0, 50).map(l =>
           }
         );
         if (response.ok) break;
-        if (response.status !== 429 && response.status !== 403) break;
+        // 실패하면 다음 모델/키로 폴백
       }
       if (response?.ok) break;
     }

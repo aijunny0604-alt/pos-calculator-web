@@ -2274,11 +2274,7 @@ ${inputText}
               body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
           );
           if (resp.ok) { data = await resp.json(); break; }
-          if (resp.status !== 429 && resp.status !== 403) {
-            let errMsg = `API error: ${resp.status}`;
-            try { const err = await resp.json(); errMsg = err.error?.message || errMsg; } catch {}
-            throw new Error(errMsg);
-          }
+          // 실패하면 다음 모델/키로 폴백
         }
         if (data) break;
       }
