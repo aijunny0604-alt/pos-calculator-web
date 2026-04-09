@@ -2266,7 +2266,11 @@ ${inputText}
         { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
       );
-      if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+      if (!resp.ok) {
+        let errMsg = `API error: ${resp.status}`;
+        try { const err = await resp.json(); errMsg = err.error?.message || errMsg; } catch {}
+        throw new Error(errMsg);
+      }
       const data = await resp.json();
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       let jsonStr = aiText;
