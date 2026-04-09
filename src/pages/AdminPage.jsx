@@ -2150,12 +2150,13 @@ function AIStockTab({ products, setProducts, supabaseConnected, showToast, supab
   const [isApplying, setIsApplying] = useState(false);
 
   const getGeminiKeys = () => {
-    const stored = localStorage.getItem('geminiApiKey');
     const keys = [];
-    if (stored) keys.push(stored);
-    try { keys.push(atob('QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj')); } catch {}
+    // 내장 키를 먼저 (최신 키 우선)
     try { keys.push(atob('QUl6YVN5Q1ZqQ0pDZ3BuU3R4NU1Lc01feHlhNFdCeTY2YzAtM2dF')); } catch {}
-    return [...new Set(keys)];
+    try { keys.push(atob('QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj')); } catch {}
+    const stored = localStorage.getItem('geminiApiKey');
+    if (stored && !keys.includes(stored)) keys.push(stored);
+    return keys;
   };
 
   const synonyms = {
