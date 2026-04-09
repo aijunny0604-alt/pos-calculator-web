@@ -2154,7 +2154,7 @@ function AIStockTab({ products, setProducts, supabaseConnected, showToast, supab
     const keys = [];
     if (stored) keys.push(stored);
     try { keys.push(atob('QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj')); } catch {}
-    try { keys.push(atob('QUl6YVN5Q3NaRzM4OER6RFJBbS1Nem9wUFo4VU11RHBiYW5ETlB3')); } catch {}
+    try { keys.push(atob('QUl6YVN5Q1ZqQ0pDZ3BuU3R4NU1Lc01feHlhNFdCeTY2YzAtM2dF')); } catch {}
     return [...new Set(keys)];
   };
 
