@@ -2266,17 +2266,21 @@ ${inputText}
 → [{"originalText":"직관 레조 200 54 재고 10개로 설정","matchedProduct":"CH 200 54","quantity":10,"action":"set","confidence":"high","alternatives":[]}]`;
 
     try {
-      const models = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
+      const models = ['gemini-2.5-flash'];
       let data = null;
       for (const key of geminiKeys) {
         for (const model of models) {
-          const resp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-            { method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
-          );
-          if (resp.ok) { data = await resp.json(); break; }
-          // 실패하면 다음 모델/키로 폴백
+          for (let retry = 0; retry < 3; retry++) {
+            const resp = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+              { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
+            );
+            if (resp.ok) { data = await resp.json(); break; }
+            if (resp.status === 503) { await new Promise(r => setTimeout(r, 2000)); continue; } // 서버 과부하 → 2초 후 재시도
+            break; // 다른 에러(429/403)면 다음 키로
+          }
+          if (data) break;
         }
         if (data) break;
       }
