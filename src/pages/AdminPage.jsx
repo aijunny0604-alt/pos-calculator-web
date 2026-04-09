@@ -2281,7 +2281,7 @@ ${inputText}
 → [{"originalText":"직관 레조 200 54 재고 10개로 설정","matchedProduct":"CH 200 54","quantity":10,"action":"set","confidence":"high","alternatives":[]}]`;
 
     try {
-      const models = ['gemini-2.5-flash'];
+      const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
       let data = null;
       for (const key of geminiKeys) {
         for (const model of models) {

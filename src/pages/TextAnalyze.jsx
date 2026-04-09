@@ -489,7 +489,7 @@ ${aiLearningData.slice(0, 50).map(l =>
 
 **규칙**: 입력 텍스트가 위 교정 사례와 동일하거나 매우 유사하면, 해당 제품으로 매칭하고 confidence를 "high"로 설정하세요.` : '');
 
-    const models = ['gemini-2.5-flash'];
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
     const keys = getGeminiKeys();
     let response = null;
     for (const key of keys) {
