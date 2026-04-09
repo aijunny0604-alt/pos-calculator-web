@@ -2165,6 +2165,8 @@ function AIStockTab({ products, setProducts, supabaseConnected, showToast, supab
   const [isApplying, setIsApplying] = useState(false);
   const [searchIdx, setSearchIdx] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [reasonIdx, setReasonIdx] = useState(null);
+  const [reasonText, setReasonText] = useState('');
 
   const getGeminiKeys = () => {
     const keys = [];
@@ -2362,7 +2364,6 @@ ${inputText}
   };
 
   const switchProduct = (idx, product, isUserCorrection = false) => {
-    const item = parsedItems[idx];
     setParsedItems(prev => prev.map((it, i) => {
       if (i !== idx) return it;
       const updated = { ...it, matchedProduct: product, selected: true };
@@ -2371,13 +2372,23 @@ ${inputText}
     }));
     setSearchIdx(null);
     setSearchQuery('');
-    // 학습 저장 (수동 교정 시)
-    if (isUserCorrection && item?.originalText && supabase.upsertAiLearning) {
-      supabase.upsertAiLearning(item.originalText, normalizeText(item.originalText), product.id, product.name, item.quantity || 1, '재고 관리에서 교정').then(result => {
-        if (result && setAiLearningData) setAiLearningData(prev => [...prev.filter(l => !(l.normalized_text === normalizeText(item.originalText) && l.product_id === product.id)), result]);
+    if (isUserCorrection) {
+      setReasonIdx(idx);
+      setReasonText('');
+    }
+  };
+
+  const saveReason = (idx) => {
+    const item = parsedItems[idx];
+    const reason = reasonText.trim() || '재고 관리에서 교정';
+    if (item?.originalText && item?.matchedProduct && supabase.upsertAiLearning) {
+      supabase.upsertAiLearning(item.originalText, normalizeText(item.originalText), item.matchedProduct.id, item.matchedProduct.name, item.quantity || 1, reason).then(result => {
+        if (result && setAiLearningData) setAiLearningData(prev => [...prev.filter(l => !(l.normalized_text === normalizeText(item.originalText) && l.product_id === item.matchedProduct.id)), result]);
       });
       showToast('학습 저장됨', 'success');
     }
+    setReasonIdx(null);
+    setReasonText('');
   };
 
   const applyChanges = async () => {
@@ -2543,6 +2554,17 @@ ${inputText}
                       {searchIdx === idx ? '닫기' : '제품 변경'}
                     </button>
                   </div>
+                  {/* 수정 사유 입력 */}
+                  {reasonIdx === idx && (
+                    <div className="ml-6 mt-2 flex items-center gap-1.5">
+                      <input value={reasonText} onChange={e => setReasonText(e.target.value)}
+                        placeholder="수정 사유 (선택)" autoFocus
+                        onKeyDown={e => { if (e.key === 'Enter') saveReason(idx); if (e.key === 'Escape') { setReasonIdx(null); saveReason(idx); } }}
+                        className="flex-1 px-2 py-1 text-xs border border-blue-400 rounded text-gray-700 placeholder:text-gray-400" />
+                      <button onClick={() => saveReason(idx)} className="px-2 py-1 text-[10px] bg-blue-600 text-white rounded">저장</button>
+                      <button onClick={() => { setReasonIdx(null); saveReason(idx); }} className="px-2 py-1 text-[10px] bg-gray-200 text-gray-600 rounded">건너뛰기</button>
+                    </div>
+                  )}
                   {searchIdx === idx && (
                     <div className="ml-6 mt-2">
                       <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="제품명 검색..."
