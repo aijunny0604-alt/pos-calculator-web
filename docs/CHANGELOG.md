@@ -4,6 +4,14 @@
 
 ---
 
+### 2026-04-09 작업 내역 (4차)
+
+#### Gemini API 모델 자동 폴백 (TextAnalyze.jsx, AdminPage.jsx)
+- `gemini-2.5-flash` → `gemini-2.0-flash-lite` → `gemini-2.0-flash` 순서로 자동 시도
+- 429/403(한도 초과) 시 다음 모델로 폴백하여 서비스 중단 방지
+- AI 주문인식 + AI 입고 둘 다 적용
+- 에러 메시지 상세화 (JSON 에러 파싱)
+
 ### 2026-04-09 작업 내역 (3차)
 
 #### 이중 모달 터치 스크롤 근본 수정 (OrderPage.jsx)
