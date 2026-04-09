@@ -102,6 +102,7 @@ export default function SaveCartModal({
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '1rem' }}
+      onTouchMove={(e) => e.stopPropagation()}
     >
       {/* Backdrop */}
       <div className="absolute inset-0" onClick={onBack} />
@@ -138,7 +139,7 @@ export default function SaveCartModal({
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4 modal-scroll-area" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4 modal-scroll-area" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }} onTouchMove={(e) => e.stopPropagation()}>
           {/* Cart name */}
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
