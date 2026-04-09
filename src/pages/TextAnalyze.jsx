@@ -50,9 +50,9 @@ export default function TextAnalyze({
 
   const getGeminiKeys = () => {
     const keys = [];
-    // 내장 키를 먼저 (최신 키 우선)
-    try { keys.push(atob('QUl6YVN5Q1ZqQ0pDZ3BuU3R4NU1Lc01feHlhNFdCeTY2YzAtM2dF')); } catch {}
-    try { keys.push(atob('QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj')); } catch {}
+    // 내장 키 (프로젝트별 분리, 한도 독립)
+    try { keys.push(atob('QUl6YVN5Q3NaRzM4OER6RFJBbS1Nem9wUFo4VU11RHBiYW5ETlB3')); } catch {} // 프로젝트B
+    try { keys.push(atob('QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj')); } catch {} // 프로젝트A
     const stored = localStorage.getItem('geminiApiKey');
     if (stored && !keys.includes(stored)) keys.push(stored);
     return keys;
