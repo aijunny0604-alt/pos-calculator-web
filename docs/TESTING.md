@@ -38,6 +38,11 @@
 
 ## 알려진 이슈 / 개선 가능 항목
 
+### 해결된 이슈 (2026-04-09)
+- **이중 모달 터치 스크롤**: OrderPage touchmove 전역 차단이 SaveCartModal 등 상위 모달 스크롤 막음 → overflow-y-auto 자동 허용으로 근본 수정
+- **신규 고객 주소 누락**: saveOrder에서 auto-register 시 name만 저장 → phone/address 포함
+- **AI 학습 데이터 hit_count 중복**: DB +1 후 로컬에서 또 +1 → DB 응답 그대로 사용
+
 ### 남은 이슈
 - `OrderPage.jsx` (~1000줄) 미사용 레거시 파일 → 삭제 가능
 - 스크린샷 PNG 파일 다수 → `.gitignore`에 추가 권장
@@ -51,7 +56,7 @@
 - Gemini API 키 도메인 제한 설정 필요 (Google Cloud Console)
 - WebSocket 재연결 로직 없음 (네트워크 불안정 시)
 - 재고 차감 race condition (동시 주문 시)
-- CLAUDE.md 섹션 7 Props 트리 대폭 갱신 필요 (매칭률 72%)
+- docs/ARCHITECTURE.md Props 트리 갱신 필요 (매칭률 72% → CLAUDE.md 분할로 이관됨)
 
 ### 향후 개선 아이디어
 - 다크 모드 지원

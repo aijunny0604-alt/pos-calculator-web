@@ -4,6 +4,14 @@
 
 ---
 
+### 2026-04-09 작업 내역 (3차)
+
+#### 이중 모달 터치 스크롤 근본 수정 (OrderPage.jsx)
+- **원인**: OrderPage의 `document.addEventListener('touchmove', preventDefault)` + 백드롭 `onTouchMove` + `touchAction: none` 3중 차단이 상위 모달(SaveCartModal 등) 스크롤을 막음
+- **수정**: touchmove 차단에서 `overflow-y-auto`, `overflow-auto` 클래스가 있는 모든 요소 자동 허용
+- 모든 모달에 `modal-scroll-area` 클래스를 수동 추가할 필요 없어짐
+- SaveCartModal에 `onTouchMove={e.stopPropagation()}` 추가 (이중 모달 방어)
+
 ### 2026-04-09 작업 내역 (2차)
 
 #### 구형 갤럭시(360px) 모바일 최적화 일괄 수정
