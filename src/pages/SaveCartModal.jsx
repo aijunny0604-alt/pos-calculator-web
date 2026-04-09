@@ -138,7 +138,7 @@ export default function SaveCartModal({
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4 modal-scroll-area" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
           {/* Cart name */}
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
