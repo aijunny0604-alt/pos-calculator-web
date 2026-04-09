@@ -98,7 +98,7 @@ function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-5xl' }) {
         className="relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition"
         style={{
           maxWidth: isFullscreen ? '100vw' : ({ 'max-w-md': '28rem', 'max-w-lg': '32rem', 'max-w-xl': '36rem', 'max-w-2xl': '42rem', 'max-w-3xl': '48rem', 'max-w-4xl': '56rem', 'max-w-5xl': '64rem' }[maxWidth] || '64rem'),
-          maxHeight: isFullscreen ? '100vh' : '90vh',
+          maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 1.5rem)',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
         }}

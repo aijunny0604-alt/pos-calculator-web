@@ -728,7 +728,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                               <span className="px-2 py-0.5 text-xs rounded-full" style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}>설정저장됨</span>
                             )}
                           </div>
-                          <p className="text-[var(--muted-foreground)] text-xs truncate">{customer?.address || '주소 미등록'}</p>
+                          <p className="text-[var(--muted-foreground)] text-xs break-words leading-snug">{customer?.address || '주소 미등록'}</p>
                           <p className="text-[var(--muted-foreground)] text-xs mt-0.5">{order.items?.length || 0}종 · {formatPrice(order.totalAmount)}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
@@ -919,7 +919,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                               )}
                               <span className="px-2 py-0.5 text-xs rounded-full" style={{ background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' }}>직접 추가</span>
                             </div>
-                            <p className="text-[var(--muted-foreground)] text-xs truncate">{entry.address || '주소 미입력'}</p>
+                            <p className="text-[var(--muted-foreground)] text-xs break-words leading-snug">{entry.address || '주소 미입력'}</p>
                             <p className="text-[var(--muted-foreground)] text-xs mt-0.5">{entry.product || '상품'} · {entry.packaging} · {entry.shippingCost}원</p>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">

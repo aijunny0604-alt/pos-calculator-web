@@ -1339,7 +1339,7 @@ ${aiLearningData.slice(0, 50).map(l =>
       {/* AI Settings Modal */}
       {showApiSettings && (
         <div className="fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowApiSettings(false)}>
-          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden border shadow-2xl animate-modal-up flex flex-col" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100vh - 2rem)' }} onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)' }}>
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
                 <Settings className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
