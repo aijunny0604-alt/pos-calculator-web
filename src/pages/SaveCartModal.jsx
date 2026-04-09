@@ -110,9 +110,8 @@ export default function SaveCartModal({
         className="relative w-full overflow-hidden flex flex-col shadow-2xl border animate-modal-up modal-fs-transition"
         style={{
           backgroundColor: 'var(--card)', borderColor: 'var(--border)',
-          maxWidth: isFullscreen ? '100vw' : '42rem',
-          height: isFullscreen ? '100vh' : 'auto',
-          maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 2rem)',
+          maxWidth: isFullscreen ? '100vw' : 'min(42rem, calc(100vw - 2rem))',
+          height: isFullscreen ? '100vh' : 'calc(100vh - 2rem)',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
         }}
