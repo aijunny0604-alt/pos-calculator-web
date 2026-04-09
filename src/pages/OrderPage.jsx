@@ -74,9 +74,10 @@ export default function OrderPage({
 
     const preventTouchMove = (e) => {
       const target = e.target;
-      if (target.closest('.modal-scroll-area') || target.closest('[data-lenis-prevent]')) {
-        return;
-      }
+      // 스크롤 가능한 영역에서는 터치 스크롤 허용
+      if (target.closest('.modal-scroll-area') || target.closest('[data-lenis-prevent]')) return;
+      if (target.closest('[class*="overflow-y-auto"]') || target.closest('[class*="overflow-auto"]')) return;
+      if (target.closest('[style*="overflow"]')) return;
       e.preventDefault();
     };
 
@@ -316,7 +317,7 @@ export default function OrderPage({
         }
       }}
       onTouchMove={(e) => {
-        if (!e.target.closest('.modal-scroll-area')) {
+        if (!e.target.closest('.modal-scroll-area') && !e.target.closest('[class*="overflow-y-auto"]') && !e.target.closest('[class*="overflow-auto"]')) {
           e.preventDefault();
         }
       }}
