@@ -1,6 +1,6 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-04-08
+> 마지막 업데이트: 2026-04-09
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry.

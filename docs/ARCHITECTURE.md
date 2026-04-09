@@ -29,7 +29,7 @@
 | `BurnwayStock.jsx` | 766 | `burnway-stock` | 번웨이 다운파이프 재고 (대시보드 카드 스타일) | 정상 |
 | `ShippingLabel.jsx` | 1235 | `shipping` | 택배 송장 출력/관리 | 정상 |
 | `TextAnalyze.jsx` | 1427 | `ai-order` | AI 텍스트 주문 인식 | 정상 |
-| `AdminPage.jsx` | 3697 | `admin` | 관리자 패널 (비번: `4321`) | 정상 |
+| `AdminPage.jsx` | 3853 | `admin` | 관리자 패널 (비번: `4321`) | 정상 |
 | `OrderPage.jsx` | 1002 | - | (미사용 레거시) | 미사용 |
 | `SaveCartModal.jsx` | 327 | (모달) | 장바구니 저장 모달 | 정상 |
 | `QuickCalculator.jsx` | 310 | (모달) | 빠른 계산기 | 정상 |

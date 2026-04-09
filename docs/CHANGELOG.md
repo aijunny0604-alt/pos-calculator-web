@@ -4,6 +4,30 @@
 
 ---
 
+### 2026-04-09 작업 내역
+
+#### 관리자 카테고리 탭 전면 개선 (AdminPage.jsx)
+- **추가**: 새 카테고리 추가 기능 (인라인 입력 + 기본제품 생성)
+- **삭제**: 카테고리 삭제 시 "미분류로 이동" 또는 "다른 카테고리로 병합" 선택
+- **검색**: 카테고리명 검색 기능
+- 편집/삭제 버튼 모바일에서도 항상 표시 (기존: hover에서만)
+
+#### 관리자 제품 복사 id 생성 수정 (AdminPage.jsx)
+- **문제**: handleDuplicate에 id 미생성 → Supabase 400 에러
+- **수정**: products 전체에서 maxId+1 생성 후 addProduct에 전달
+
+#### 주문 상세 수량 직접 입력 (OrderDetail.jsx)
+- 수정 모드에서 수량 +/- 버튼 사이 숫자 직접 입력 가능 (모바일/PC 모두)
+- `parseInt(val) || 1` + `val > 0` 이중 방어
+
+#### 주문 상세 메모 편집 기능 (OrderDetail.jsx)
+- 수정 모드에서 메모 textarea 표시 (기존: 읽기 전용)
+- 메모가 없어도 새로 추가 가능
+
+#### number input 스피너 전역 숨김 (index.css)
+- 브라우저 기본 위/아래 화살표 전역 제거 (커스텀 +/- 버튼 중복 방지)
+- Chrome/Firefox 모두 대응
+
 ### 2026-04-07 작업 내역
 
 #### AI 주문인식 학습 기능 (TextAnalyze.jsx, AdminPage.jsx, App.jsx, supabase.js)
