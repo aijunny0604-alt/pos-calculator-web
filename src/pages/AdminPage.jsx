@@ -1303,6 +1303,11 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
   const [editTarget, setEditTarget] = useState(null);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [addMode, setAddMode] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [mergeTarget, setMergeTarget] = useState('');
 
   const displayProducts = (products && products.length > 0) ? products : priceData;
 
@@ -1315,6 +1320,12 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
     });
     return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
   }, [displayProducts]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return categories;
+    const q = search.trim().toLowerCase();
+    return categories.filter(([name]) => name.toLowerCase().includes(q));
+  }, [categories, search]);
 
   const openEdit = (catName) => {
     setEditTarget(catName);
@@ -1334,7 +1345,7 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
         await Promise.all(affected.map(p => supabase.saveProduct(p)));
       }
       setProducts(updated);
-      showToast(`카테고리 "${editTarget}"이(가) "${newName.trim()}"으로 변경되었습니다`, 'success');
+      showToast(`카테고리 "${editTarget}" → "${newName.trim()}" 변경 완료`, 'success');
       setEditTarget(null);
     } catch (err) {
       showToast('변경에 실패했습니다: ' + err.message, 'error');
@@ -1343,18 +1354,113 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
     }
   };
 
+  const handleAdd = async () => {
+    const name = addName.trim();
+    if (!name) { showToast('카테고리명을 입력하세요', 'error'); return; }
+    if (categories.some(([c]) => c === name)) { showToast('이미 존재하는 카테고리입니다', 'error'); return; }
+    setSaving(true);
+    try {
+      const maxId = displayProducts.reduce((max, p) => Math.max(max, p.id || 0), 0);
+      const placeholder = { id: maxId + 1, name: `${name} (기본제품)`, category: name, wholesale: 0, stock: 0, min_stock: 0 };
+      if (supabaseConnected && supabase?.addProduct) {
+        const saved = await supabase.addProduct(placeholder);
+        if (saved) setProducts(prev => [...prev, saved]);
+      } else {
+        setProducts(prev => [...prev, placeholder]);
+      }
+      showToast(`"${name}" 카테고리 추가 완료 (기본제품 1개 생성)`, 'success');
+      setAddName('');
+      setAddMode(false);
+    } catch (err) {
+      showToast('추가 실패: ' + err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const [catName] = deleteTarget;
+    setSaving(true);
+    try {
+      if (mergeTarget && mergeTarget !== catName) {
+        const updated = displayProducts.map(p =>
+          p.category === catName ? { ...p, category: mergeTarget } : p
+        );
+        if (supabaseConnected && supabase?.saveProduct) {
+          const affected = updated.filter(p => p.category === mergeTarget && displayProducts.find(op => op.id === p.id)?.category === catName);
+          await Promise.all(affected.map(p => supabase.saveProduct(p)));
+        }
+        setProducts(updated);
+        showToast(`"${catName}" → "${mergeTarget}"로 병합 완료`, 'success');
+      } else {
+        const updated = displayProducts.map(p =>
+          p.category === catName ? { ...p, category: '미분류' } : p
+        );
+        if (supabaseConnected && supabase?.saveProduct) {
+          const affected = updated.filter(p => p.category === '미분류' && displayProducts.find(op => op.id === p.id)?.category === catName);
+          await Promise.all(affected.map(p => supabase.saveProduct(p)));
+        }
+        setProducts(updated);
+        showToast(`"${catName}" 삭제 → 제품은 "미분류"로 이동`, 'success');
+      }
+      setDeleteTarget(null);
+      setMergeTarget('');
+    } catch (err) {
+      showToast('삭제 실패: ' + err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[120px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
+          <input
+            type="text"
+            placeholder="카테고리 검색..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          />
+        </div>
+        <ActionBtn variant="primary" Icon={Plus} onClick={() => { setAddMode(true); setAddName(''); }}>
+          추가
+        </ActionBtn>
+      </div>
+
       <p className="text-xs text-[var(--muted-foreground)]">
-        총 {categories.length}개 카테고리 - 카테고리명을 변경하면 해당 카테고리의 모든 제품에 적용됩니다.
+        총 {categories.length}개 카테고리{search.trim() ? ` 중 ${filtered.length}개 표시` : ''}
       </p>
 
-      {categories.length === 0 ? (
-        <EmptyState icon={Tag} title="카테고리가 없습니다" description="제품을 추가하면 카테고리가 자동으로 생성됩니다" />
+      {/* Add inline form */}
+      {addMode && (
+        <div className="flex items-center gap-2 p-3 rounded-lg border border-dashed border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_5%,transparent)]">
+          <input
+            type="text"
+            value={addName}
+            onChange={e => setAddName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            placeholder="새 카테고리명 입력..."
+            autoFocus
+            className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          />
+          <ActionBtn variant="primary" Icon={Save} onClick={handleAdd} disabled={saving}>
+            {saving ? '...' : '저장'}
+          </ActionBtn>
+          <ActionBtn variant="secondary" onClick={() => setAddMode(false)}>취소</ActionBtn>
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <EmptyState icon={Tag} title="카테고리가 없습니다" description={search ? '검색 결과가 없습니다' : '제품을 추가하면 카테고리가 자동으로 생성됩니다'} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {categories.map(([catName, count]) => (
-            <SectionCard key={catName} className="p-4 flex items-center justify-between group">
+          {filtered.map(([catName, count]) => (
+            <SectionCard key={catName} className="p-4 flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-[var(--foreground)]">{catName}</p>
                 <div className="flex items-center gap-3 mt-0.5">
@@ -1369,13 +1475,22 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => openEdit(catName)}
-                className="p-2 rounded-lg hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors opacity-0 group-hover:opacity-100"
-                title="카테고리명 변경"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => openEdit(catName)}
+                  className="p-2 rounded-lg hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                  title="카테고리명 변경"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => { setDeleteTarget([catName, count]); setMergeTarget(''); }}
+                  className="p-2 rounded-lg hover:bg-[color-mix(in_srgb,var(--destructive)_15%,transparent)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
+                  title="카테고리 삭제"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </SectionCard>
           ))}
         </div>
@@ -1401,6 +1516,47 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
             {saving ? '저장 중...' : '변경'}
           </ActionBtn>
         </div>
+      </Modal>
+
+      {/* Delete Confirm Modal */}
+      <Modal isOpen={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="카테고리 삭제" maxWidth="max-w-md">
+        {deleteTarget && (
+          <>
+            <p className="text-sm text-[var(--foreground)]">
+              <strong>"{deleteTarget[0]}"</strong> 카테고리를 삭제합니다.
+            </p>
+            <p className="text-sm text-[var(--foreground)] mt-1">
+              이 카테고리에 <strong>{deleteTarget[1]}개 제품</strong>이 있습니다.
+            </p>
+            <div className="mt-4 space-y-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="deleteAction" checked={!mergeTarget} onChange={() => setMergeTarget('')} className="accent-[var(--primary)]" />
+                <span className="text-sm text-[var(--foreground)]">제품을 "미분류"로 이동</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="deleteAction" checked={!!mergeTarget} onChange={() => setMergeTarget(categories.find(([c]) => c !== deleteTarget[0])?.[0] || '')} className="accent-[var(--primary)]" />
+                <span className="text-sm text-[var(--foreground)]">다른 카테고리로 병합</span>
+              </label>
+              {mergeTarget && (
+                <select
+                  value={mergeTarget}
+                  onChange={e => setMergeTarget(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                >
+                  {categories.filter(([c]) => c !== deleteTarget[0]).map(([c, cnt]) => (
+                    <option key={c} value={c}>{c} ({cnt}개)</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-[var(--border)]">
+              <ActionBtn variant="secondary" onClick={() => setDeleteTarget(null)}>취소</ActionBtn>
+              <ActionBtn variant="destructive" Icon={Trash2} onClick={handleDelete} disabled={saving}>
+                {saving ? '처리 중...' : mergeTarget ? '병합' : '삭제'}
+              </ActionBtn>
+            </div>
+          </>
+        )}
       </Modal>
     </div>
   );

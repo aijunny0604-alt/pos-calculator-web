@@ -902,9 +902,21 @@ export default function OrderDetail({
                             >
                               <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
                             </button>
-                            <span className="w-12 text-center font-bold" style={{ color: 'var(--foreground)' }}>
-                              {item.quantity}
-                            </span>
+                            <input
+                              type="number"
+                              className="w-12 text-center font-bold border rounded-lg"
+                              style={{ color: 'var(--foreground)', background: 'var(--background)', borderColor: 'var(--border)' }}
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 1;
+                                if (val > 0) {
+                                  const newItems = [...editedOrder.items];
+                                  newItems[index] = { ...newItems[index], quantity: val };
+                                  setEditedOrder({ ...editedOrder, items: newItems });
+                                }
+                              }}
+                              min={1}
+                            />
                             <button
                               onClick={() => handleQuantityChange(index, 1)}
                               className="w-8 h-8 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors"
@@ -961,9 +973,21 @@ export default function OrderDetail({
                               >
                                 <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
                               </button>
-                              <span className="w-8 text-center font-bold text-sm" style={{ color: 'var(--foreground)' }}>
-                                {item.quantity}
-                              </span>
+                              <input
+                                type="number"
+                                className="w-10 text-center font-bold text-sm border rounded-lg"
+                                style={{ color: 'var(--foreground)', background: 'var(--background)', borderColor: 'var(--border)' }}
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 1;
+                                  if (val > 0) {
+                                    const newItems = [...editedOrder.items];
+                                    newItems[index] = { ...newItems[index], quantity: val };
+                                    setEditedOrder({ ...editedOrder, items: newItems });
+                                  }
+                                }}
+                                min={1}
+                              />
                               <button
                                 onClick={() => handleQuantityChange(index, 1)}
                                 className="w-7 h-7 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors"
