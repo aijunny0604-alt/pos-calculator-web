@@ -2158,11 +2158,13 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
 // ---------------------------------------------------------------------------
 // AI Stock Tab
 // ---------------------------------------------------------------------------
-function AIStockTab({ products, setProducts, supabaseConnected, showToast, supabase }) {
+function AIStockTab({ products, setProducts, supabaseConnected, showToast, supabase, aiLearningData = [], setAiLearningData }) {
   const [inputText, setInputText] = useState('');
   const [parsedItems, setParsedItems] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [searchIdx, setSearchIdx] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const getGeminiKeys = () => {
     const keys = [];
@@ -2359,13 +2361,23 @@ ${inputText}
     }));
   };
 
-  const switchProduct = (idx, product) => {
-    setParsedItems(prev => prev.map((item, i) => {
-      if (i !== idx) return item;
-      const updated = { ...item, matchedProduct: product, selected: true };
+  const switchProduct = (idx, product, isUserCorrection = false) => {
+    const item = parsedItems[idx];
+    setParsedItems(prev => prev.map((it, i) => {
+      if (i !== idx) return it;
+      const updated = { ...it, matchedProduct: product, selected: true };
       updated.newStock = recalcStock(updated);
       return updated;
     }));
+    setSearchIdx(null);
+    setSearchQuery('');
+    // 학습 저장 (수동 교정 시)
+    if (isUserCorrection && item?.originalText && supabase.upsertAiLearning) {
+      supabase.upsertAiLearning(item.originalText, normalizeText(item.originalText), product.id, product.name, item.quantity || 1, '재고 관리에서 교정').then(result => {
+        if (result && setAiLearningData) setAiLearningData(prev => [...prev.filter(l => !(l.normalized_text === normalizeText(item.originalText) && l.product_id === product.id)), result]);
+      });
+      showToast('학습 저장됨', 'success');
+    }
   };
 
   const applyChanges = async () => {
@@ -2515,19 +2527,63 @@ ${inputText}
                     </div>
                   </div>
 
-                  {/* Alternatives */}
-                  {item.alternatives.length > 0 && (
-                    <div className="ml-6 mt-2 flex gap-1 flex-wrap">
-                      <span className="text-xs text-gray-400">대안:</span>
-                      {item.alternatives.map((alt, ai) => (
-                        <button key={ai} onClick={() => switchProduct(idx, alt)}
-                          className="text-xs px-2 py-0.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600">{alt.name}</button>
-                      ))}
+                  {/* Alternatives + product search */}
+                  <div className="ml-6 mt-2 flex gap-1 flex-wrap items-center">
+                    {item.alternatives.length > 0 && (
+                      <>
+                        <span className="text-xs text-gray-400">대안:</span>
+                        {item.alternatives.map((alt, ai) => (
+                          <button key={ai} onClick={() => switchProduct(idx, alt, true)}
+                            className="text-xs px-2 py-0.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600">{alt.name}</button>
+                        ))}
+                      </>
+                    )}
+                    <button onClick={() => { setSearchIdx(searchIdx === idx ? null : idx); setSearchQuery(''); }}
+                      className="text-xs px-2 py-0.5 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 font-medium">
+                      {searchIdx === idx ? '닫기' : '제품 변경'}
+                    </button>
+                  </div>
+                  {searchIdx === idx && (
+                    <div className="ml-6 mt-2">
+                      <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="제품명 검색..."
+                        className="w-full text-sm border rounded-lg px-3 py-1.5 mb-1" autoFocus />
+                      {searchQuery.trim() && (
+                        <div className="max-h-32 overflow-y-auto space-y-0.5">
+                          {products.filter(p => matchesSearchQuery(p.name, searchQuery)).slice(0, 6).map(p => (
+                            <button key={p.id} onClick={() => switchProduct(idx, p, true)}
+                              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-blue-50 flex justify-between">
+                              <span>{p.name}</span>
+                              <span className="text-gray-400">재고 {p.stock ?? 0}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
               ) : (
-                <div className="ml-6 text-sm text-red-500">매칭 실패 - 제품을 찾을 수 없습니다</div>
+                <div className="ml-6">
+                  <div className="text-sm text-red-500 mb-1">매칭 실패 - 제품을 찾을 수 없습니다</div>
+                  <button onClick={() => { setSearchIdx(searchIdx === idx ? null : idx); setSearchQuery(item.originalText); }}
+                    className="text-xs px-2 py-1 rounded bg-blue-100 hover:bg-blue-200 text-blue-600 font-medium">제품 검색</button>
+                  {searchIdx === idx && (
+                    <div className="mt-1">
+                      <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="제품명 검색..."
+                        className="w-full text-sm border rounded-lg px-3 py-1.5 mb-1" autoFocus />
+                      {searchQuery.trim() && (
+                        <div className="max-h-32 overflow-y-auto space-y-0.5">
+                          {products.filter(p => matchesSearchQuery(p.name, searchQuery)).slice(0, 6).map(p => (
+                            <button key={p.id} onClick={() => switchProduct(idx, p, true)}
+                              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-blue-50 flex justify-between">
+                              <span>{p.name}</span>
+                              <span className="text-gray-400">재고 {p.stock ?? 0}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           ))}
@@ -3913,7 +3969,7 @@ export default function AdminPage({
         {activeTab === 'products' && <ProductsTab {...tabProps} initialCategory={selectedCategory} />}
         {activeTab === 'customers' && <CustomersTab {...tabProps} />}
         {activeTab === 'price-adjust' && <PriceAdjustTab {...tabProps} />}
-        {activeTab === 'ai-stock' && <AIStockTab {...tabProps} />}
+        {activeTab === 'ai-stock' && <AIStockTab {...tabProps} aiLearningData={aiLearningData} setAiLearningData={setAiLearningData} />}
         {activeTab === 'burnway' && <BurnwayTab {...tabProps} />}
         {activeTab === 'categories' && <CategoriesTab {...tabProps} onSelectCategory={(cat) => { setSelectedCategory(cat); setActiveTab('products'); }} />}
         {activeTab === 'discounts' && <DiscountTiersTab {...tabProps} />}
