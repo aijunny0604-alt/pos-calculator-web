@@ -2420,7 +2420,13 @@ ${inputText}
         <div className="space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="font-bold text-base">분석 결과 ({parsedItems.filter(i => i.selected).length}/{parsedItems.length}건 선택)</h3>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => { const allSelected = parsedItems.every(i => i.selected); setParsedItems(prev => prev.map(it => ({ ...it, selected: !allSelected }))); }}
+                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+              >
+                {parsedItems.every(i => i.selected) ? '전체 해제' : '전체 선택'}
+              </button>
               <button
                 onClick={() => setParsedItems(prev => prev.map(it => it.selected && it.matchedProduct ? { ...it, stockStatus: 'incoming' } : it))}
                 className="px-3 py-1.5 text-xs bg-yellow-100 text-yellow-700 rounded-lg font-medium hover:bg-yellow-200"
