@@ -4,6 +4,38 @@
 
 ---
 
+### 2026-04-09 작업 내역 (2차)
+
+#### 구형 갤럭시(360px) 모바일 최적화 일괄 수정
+- 모달 maxWidth: `min(Xrem, calc(100vw - 2rem))` 적용 (OrderDetail, MainPOS, AdminPage)
+- 모달 maxHeight: `calc(100vh - 2rem)` 통일 (SaveCartModal, OrderDetail, MainPOS, AdminPage)
+- TextAnalyze AI 설정 모달 max-height + flex-col 추가
+- ShippingLabel 주소 truncate → break-words (전체 주소 표시)
+- SaveCartModal touch-action: pan-y 추가 (구형 갤럭시 터치 스크롤)
+
+#### 신규 고객 등록 시 전화번호/주소 누락 수정 (App.jsx)
+- saveOrder에서 신규 고객 auto-register 시 name만 저장 → phone/address 포함
+
+### 2026-04-07 작업 내역
+
+#### AI 주문인식 학습 기능 (TextAnalyze, AdminPage, App, supabase)
+- Supabase `ai_learning` 테이블 생성 (교정 데이터 저장)
+- 3중 학습: DB 직접 매칭 → Gemini 프롬프트 주입(few-shot) → 패턴 매칭 폴백
+- 수동 교정 시 자동 학습 + 수정 사유 기록
+- 관리자 AI학습 탭: 목록/검색/삭제/수정/내보내기/가져오기/초기화
+- DB백업에 ai_learning 포함 (6개 테이블)
+- WebSocket 실시간 구독 추가
+- change-verify 4팀 검증: Critical 5건 발견 → 수정 완료
+
+#### CLAUDE.md 전문분야별 분할 (626줄 → 45줄)
+- ARCHITECTURE.md: 파일 구조, 아키텍처, Props
+- DATABASE.md: Supabase 연결, 6개 테이블 스키마
+- CHANGELOG.md: 날짜별 변경 이력
+- STYLE-GUIDE.md: CSS 변수, 반응형, z-index
+- TESTING.md: 검증 체크리스트, 알려진 이슈
+
+---
+
 ### 2026-04-09 작업 내역
 
 #### 관리자 카테고리 탭 전면 개선 (AdminPage.jsx)
