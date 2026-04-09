@@ -2373,9 +2373,13 @@ ${inputText}
     setIsApplying(true);
     let success = 0, fail = 0;
     for (const item of selected) {
-      const updated = await supabase.updateProduct(item.matchedProduct.id, { stock: item.newStock });
+      const updateData = { stock: item.newStock };
+      if (item.stockStatus === 'incoming') updateData.stock_status = 'incoming';
+      else if (item.stockStatus === 'outofstock') updateData.stock_status = '';
+      else if (item.stockStatus === '') updateData.stock_status = '';
+      const updated = await supabase.updateProduct(item.matchedProduct.id, updateData);
       if (updated) {
-        setProducts(prev => prev.map(p => p.id === item.matchedProduct.id ? { ...p, stock: item.newStock } : p));
+        setProducts(prev => prev.map(p => p.id === item.matchedProduct.id ? { ...p, stock: item.newStock, stock_status: updateData.stock_status ?? p.stock_status } : p));
         success++;
       } else { fail++; }
     }
@@ -2413,15 +2417,29 @@ ${inputText}
       {/* Results */}
       {parsedItems.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="font-bold text-base">분석 결과 ({parsedItems.filter(i => i.selected).length}/{parsedItems.length}건 선택)</h3>
-            <button
-              onClick={applyChanges}
-              disabled={isApplying || !parsedItems.some(i => i.selected && i.matchedProduct)}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
-            >
-              {isApplying ? <><Loader2 size={16} className="animate-spin" /> 적용 중...</> : <><Check size={16} /> 일괄 적용</>}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setParsedItems(prev => prev.map(it => it.selected && it.matchedProduct ? { ...it, stockStatus: 'incoming' } : it))}
+                className="px-3 py-1.5 text-xs bg-yellow-100 text-yellow-700 rounded-lg font-medium hover:bg-yellow-200"
+              >
+                선택 입고대기
+              </button>
+              <button
+                onClick={() => setParsedItems(prev => prev.map(it => it.selected && it.matchedProduct ? { ...it, stockStatus: 'outofstock', action: 'set', quantity: 0, newStock: 0 } : it))}
+                className="px-3 py-1.5 text-xs bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200"
+              >
+                선택 품절
+              </button>
+              <button
+                onClick={applyChanges}
+                disabled={isApplying || !parsedItems.some(i => i.selected && i.matchedProduct)}
+                className="px-4 py-1.5 bg-green-600 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
+              >
+                {isApplying ? <><Loader2 size={16} className="animate-spin" /> 적용 중...</> : <><Check size={16} /> 일괄 적용</>}
+              </button>
+            </div>
           </div>
 
           {parsedItems.map((item, idx) => (
@@ -2442,7 +2460,12 @@ ${inputText}
                 <>
                   {/* Product name + stock change */}
                   <div className="ml-6 mb-2">
-                    <div className="font-medium text-sm">{item.matchedProduct.name}</div>
+                    <div className="font-medium text-sm flex items-center gap-2">
+                      {item.matchedProduct.name}
+                      {item.matchedProduct.stock_status === 'incoming' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">현재 입고대기</span>}
+                      {item.stockStatus === 'incoming' && item.matchedProduct.stock_status !== 'incoming' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700">→ 입고대기</span>}
+                      {item.stockStatus === 'outofstock' && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">→ 품절</span>}
+                    </div>
                     <div className="flex items-center gap-2 mt-1 text-sm">
                       <span className="text-gray-500">현재 <strong>{item.matchedProduct.stock ?? 0}</strong>개</span>
                       <ArrowRight size={14} className="text-gray-400" />
@@ -2454,7 +2477,7 @@ ${inputText}
                     </div>
                   </div>
 
-                  {/* Controls: action toggle + quantity */}
+                  {/* Controls: action toggle + quantity + status */}
                   <div className="ml-6 flex items-center gap-3 flex-wrap">
                     <div className="flex gap-1">
                       {[['add', '+입고', 'bg-green-100 text-green-700 ring-green-400'], ['set', '=교체', 'bg-blue-100 text-blue-700 ring-blue-400'], ['subtract', '-출고', 'bg-red-100 text-red-700 ring-red-400']].map(([act, label, colors]) => (
@@ -2463,6 +2486,16 @@ ${inputText}
                           {label}
                         </button>
                       ))}
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => updateItem(idx, { stockStatus: item.stockStatus === 'incoming' ? '' : 'incoming' })}
+                        className={`text-xs px-2 py-1 rounded font-medium transition-all ${item.stockStatus === 'incoming' ? 'bg-yellow-100 text-yellow-700 ring-1 ring-yellow-400' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                        입고대기
+                      </button>
+                      <button onClick={() => updateItem(idx, { stockStatus: item.stockStatus === 'outofstock' ? '' : 'outofstock', action: 'set', quantity: 0 })}
+                        className={`text-xs px-2 py-1 rounded font-medium transition-all ${item.stockStatus === 'outofstock' ? 'bg-red-100 text-red-700 ring-1 ring-red-400' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                        품절
+                      </button>
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => updateItem(idx, { quantity: Math.max(1, item.quantity - 1) })}
