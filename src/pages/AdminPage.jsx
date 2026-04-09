@@ -2261,17 +2261,23 @@ ${inputText}
 → [{"originalText":"직관 레조 200 54 재고 10개로 설정","matchedProduct":"CH 200 54","quantity":10,"action":"set","confidence":"high","alternatives":[]}]`;
 
     try {
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
-      );
-      if (!resp.ok) {
-        let errMsg = `API error: ${resp.status}`;
-        try { const err = await resp.json(); errMsg = err.error?.message || errMsg; } catch {}
-        throw new Error(errMsg);
+      const models = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
+      let data = null;
+      for (const model of models) {
+        const resp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
+        );
+        if (resp.ok) { data = await resp.json(); break; }
+        if (resp.status !== 429 && resp.status !== 403) {
+          let errMsg = `API error: ${resp.status}`;
+          try { const err = await resp.json(); errMsg = err.error?.message || errMsg; } catch {}
+          throw new Error(errMsg);
+        }
+        // 429/403이면 다음 모델로 폴백
       }
-      const data = await resp.json();
+      if (!data) throw new Error('모든 AI 모델이 한도 초과. 잠시 후 다시 시도하세요.');
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       let jsonStr = aiText;
       const jsonMatch = aiText.match(/```json\s*([\s\S]*?)\s*```/) || aiText.match(/\[[\s\S]*?\]/);

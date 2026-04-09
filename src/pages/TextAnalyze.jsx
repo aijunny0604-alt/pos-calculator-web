@@ -478,20 +478,26 @@ ${aiLearningData.slice(0, 50).map(l =>
 
 **규칙**: 입력 텍스트가 위 교정 사례와 동일하거나 매우 유사하면, 해당 제품으로 매칭하고 confidence를 "high"로 설정하세요.` : '');
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
-        }),
-      }
-    );
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
+    let response = null;
+    for (const model of models) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
+          }),
+        }
+      );
+      if (response.ok) break;
+      if (response.status !== 429 && response.status !== 403) break; // 다른 에러면 중단
+    }
 
     if (!response.ok) {
-      let errorMessage = 'API 호출 실패';
+      let errorMessage = 'API 호출 실패 (모든 모델 한도 초과)';
       try { const err = await response.json(); errorMessage = err.error?.message || errorMessage; } catch { errorMessage = `API 호출 실패 (HTTP ${response.status})`; }
       throw new Error(errorMessage);
     }
