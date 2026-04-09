@@ -2149,10 +2149,13 @@ function AIStockTab({ products, setProducts, supabaseConnected, showToast, supab
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
 
-  const getGeminiKey = () => {
+  const getGeminiKeys = () => {
     const stored = localStorage.getItem('geminiApiKey');
-    if (stored) return stored;
-    try { return atob('QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj'); } catch { return ''; }
+    const keys = [];
+    if (stored) keys.push(stored);
+    try { keys.push(atob('QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj')); } catch {}
+    try { keys.push(atob('QUl6YVN5Q3NaRzM4OER6RFJBbS1Nem9wUFo4VU11RHBiYW5ETlB3')); } catch {}
+    return [...new Set(keys)];
   };
 
   const synonyms = {
@@ -2213,8 +2216,8 @@ function AIStockTab({ products, setProducts, supabaseConnected, showToast, supab
     setIsAnalyzing(true);
     setParsedItems([]);
 
-    const geminiKey = getGeminiKey();
-    if (!geminiKey) { showToast('Gemini API 키가 없습니다', 'error'); setIsAnalyzing(false); return; }
+    const geminiKeys = getGeminiKeys();
+    if (geminiKeys.length === 0) { showToast('Gemini API 키가 없습니다', 'error'); setIsAnalyzing(false); return; }
 
     const grouped = {};
     products.forEach(p => {
@@ -2263,21 +2266,23 @@ ${inputText}
     try {
       const models = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
       let data = null;
-      for (const model of models) {
-        const resp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
-        );
-        if (resp.ok) { data = await resp.json(); break; }
-        if (resp.status !== 429 && resp.status !== 403) {
-          let errMsg = `API error: ${resp.status}`;
-          try { const err = await resp.json(); errMsg = err.error?.message || errMsg; } catch {}
-          throw new Error(errMsg);
+      for (const key of geminiKeys) {
+        for (const model of models) {
+          const resp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
+          );
+          if (resp.ok) { data = await resp.json(); break; }
+          if (resp.status !== 429 && resp.status !== 403) {
+            let errMsg = `API error: ${resp.status}`;
+            try { const err = await resp.json(); errMsg = err.error?.message || errMsg; } catch {}
+            throw new Error(errMsg);
+          }
         }
-        // 429/403이면 다음 모델로 폴백
+        if (data) break;
       }
-      if (!data) throw new Error('모든 AI 모델이 한도 초과. 잠시 후 다시 시도하세요.');
+      if (!data) throw new Error('모든 API 키와 모델이 한도 초과. 잠시 후 다시 시도하세요.');
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       let jsonStr = aiText;
       const jsonMatch = aiText.match(/```json\s*([\s\S]*?)\s*```/) || aiText.match(/\[[\s\S]*?\]/);

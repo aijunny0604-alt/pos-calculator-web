@@ -48,6 +48,15 @@ export default function TextAnalyze({
     try { return atob(encoded); } catch { return ''; }
   };
 
+  const getGeminiKeys = () => {
+    const keys = [];
+    const stored = localStorage.getItem('geminiApiKey');
+    if (stored) keys.push(stored);
+    try { keys.push(atob('QUl6YVN5QkZtcDhZYzB4VDBkQzA3ODRNNnc2c01JQm9aSVlIOFBj')); } catch {}
+    try { keys.push(atob('QUl6YVN5Q3NaRzM4OER6RFJBbS1Nem9wUFo4VU11RHBiYW5ETlB3')); } catch {}
+    return [...new Set(keys)];
+  };
+
   const [geminiApiKey, setGeminiApiKey] = useState(
     () => localStorage.getItem('geminiApiKey') || getDefaultApiKey()
   );
@@ -479,25 +488,29 @@ ${aiLearningData.slice(0, 50).map(l =>
 **규칙**: 입력 텍스트가 위 교정 사례와 동일하거나 매우 유사하면, 해당 제품으로 매칭하고 confidence를 "high"로 설정하세요.` : '');
 
     const models = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
+    const keys = getGeminiKeys();
     let response = null;
-    for (const model of models) {
-      response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
-          }),
-        }
-      );
-      if (response.ok) break;
-      if (response.status !== 429 && response.status !== 403) break; // 다른 에러면 중단
+    for (const key of keys) {
+      for (const model of models) {
+        response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
+            }),
+          }
+        );
+        if (response.ok) break;
+        if (response.status !== 429 && response.status !== 403) break;
+      }
+      if (response?.ok) break;
     }
 
-    if (!response.ok) {
-      let errorMessage = 'API 호출 실패 (모든 모델 한도 초과)';
+    if (!response?.ok) {
+      let errorMessage = 'API 호출 실패 (모든 키/모델 한도 초과)';
       try { const err = await response.json(); errorMessage = err.error?.message || errorMessage; } catch { errorMessage = `API 호출 실패 (HTTP ${response.status})`; }
       throw new Error(errorMessage);
     }
