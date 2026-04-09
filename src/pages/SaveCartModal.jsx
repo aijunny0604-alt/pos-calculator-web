@@ -112,7 +112,7 @@ export default function SaveCartModal({
           backgroundColor: 'var(--card)', borderColor: 'var(--border)',
           maxWidth: isFullscreen ? '100vw' : '42rem',
           height: isFullscreen ? '100vh' : 'auto',
-          maxHeight: isFullscreen ? '100vh' : '85vh',
+          maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 2rem)',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
         }}
@@ -139,7 +139,7 @@ export default function SaveCartModal({
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
           {/* Cart name */}
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
