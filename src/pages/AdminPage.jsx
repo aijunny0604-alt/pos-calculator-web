@@ -31,7 +31,7 @@ const TABS = [
 ];
 
 const EMPTY_PRODUCT = {
-  name: '', category: '', wholesale: '', retail: '', stock: '', min_stock: '',
+  name: '', category: '', wholesale: '', retail: '', stock: '', min_stock: '', stock_status: '',
 };
 
 const EMPTY_CUSTOMER = {
@@ -410,6 +410,7 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
       retail: product.retail ?? '',
       stock: product.stock ?? '',
       min_stock: product.min_stock ?? '',
+      stock_status: product.stock_status || '',
     });
     setFormErrors({});
     setEditTarget(product);
@@ -909,6 +910,20 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
             onChange={e => setFormData(p => ({ ...p, min_stock: e.target.value }))}
             placeholder="0 (선택)"
           />
+          <div className="sm:col-span-2 flex items-center gap-3 pt-1">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.stock_status === 'incoming'}
+                onChange={e => setFormData(p => ({ ...p, stock_status: e.target.checked ? 'incoming' : '' }))}
+                className="w-4 h-4 rounded border-[var(--border)] accent-[var(--warning)]"
+              />
+              <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>입고대기</span>
+            </label>
+            {formData.stock_status === 'incoming' && (
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)' }}>입고예정 상품</span>
+            )}
+          </div>
         </div>
         <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-[var(--border)]">
           <ActionBtn variant="secondary" size="md" onClick={() => setEditTarget(null)}>취소</ActionBtn>
