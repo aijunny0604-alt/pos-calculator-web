@@ -2282,7 +2282,7 @@ ${inputText}
         }
         if (data) break;
       }
-      if (!data) throw new Error('모든 API 키와 모델이 한도 초과. 잠시 후 다시 시도하세요.');
+      if (!data) throw new Error('AI 일일 사용량 초과 — 1~2분 후 다시 시도하세요');
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       let jsonStr = aiText;
       const jsonMatch = aiText.match(/```json\s*([\s\S]*?)\s*```/) || aiText.match(/\[[\s\S]*?\]/);

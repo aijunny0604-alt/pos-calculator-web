@@ -510,8 +510,15 @@ ${aiLearningData.slice(0, 50).map(l =>
     }
 
     if (!response?.ok) {
-      let errorMessage = 'API 호출 실패 (모든 키/모델 한도 초과)';
-      try { const err = await response.json(); errorMessage = err.error?.message || errorMessage; } catch { errorMessage = `API 호출 실패 (HTTP ${response.status})`; }
+      let errorMessage = 'AI 일일 사용량 초과 — 잠시 후 다시 시도하세요';
+      try {
+        const err = await response.json();
+        const code = err.error?.code;
+        if (code === 429) errorMessage = 'AI 일일 사용량 초과 — 잠시 후(1~2분) 다시 시도하세요';
+        else if (code === 403) errorMessage = 'AI 접근 권한 없음 — API 키를 확인하세요';
+        else if (code === 500 || code === 503) errorMessage = 'AI 서버 일시 장애 — 잠시 후 다시 시도하세요';
+        else errorMessage = err.error?.message?.split('.')[0] || errorMessage;
+      } catch { errorMessage = `AI 서버 오류 (${response?.status || '연결 실패'})`; }
       throw new Error(errorMessage);
     }
 
