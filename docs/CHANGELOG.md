@@ -1,6 +1,24 @@
 # 변경 이력 (Changelog)
 > 날짜별 구현/수정 사항 기록
-> 관련: [프로젝트 구조](ARCHITECTURE.md) | [DB 스키마](DATABASE.md)
+> 관련: [프로젝트 구조](ARCHITECTURE.md) | [DB 스키마](DATABASE.md) | [보안 설정](SECURITY-SETUP.md)
+
+---
+
+### 2026-04-13 작업 내역
+
+#### SavedCarts 상세 모달 모바일 스크롤 수정 (SavedCarts.jsx)
+- **원인**: `flex-1 overflow-y-auto`만 있고 `min-h-0` 누락 → flex 높이 계산 실패로 모바일에서 본문 스크롤 불가
+- **수정**: SaveCartModal과 동일 패턴 적용
+  - `min-h-0`, `overscroll-contain`, `modal-scroll-area` 클래스 추가
+  - `WebkitOverflowScrolling: touch`, `touchAction: pan-y` 인라인 스타일
+  - `onTouchMove={e.stopPropagation()}` (이중 모달 방어)
+- 위치: `SavedCarts.jsx:474` (renderDetailModal 본문)
+
+#### Gemini API 키 HTTP referrer 제한 적용
+- **목적**: GitHub 공개 레포에 노출된 Gemini API 키가 다른 도메인에서 사용되지 못하도록 차단
+- 4개 프로젝트(A/B/C/D) 각각의 Cloud Console에서 "웹사이트 제한사항" 등록
+- 허용 URL: `aijunny0604-alt.github.io/*`, `localhost:5173/*`, `localhost:4173/*`
+- 신규 문서: `docs/SECURITY-SETUP.md` (referrer 제한 + Vite 포트 가이드)
 
 ---
 
