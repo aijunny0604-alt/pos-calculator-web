@@ -368,7 +368,7 @@ export default function MainPOS({
         </div>
 
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-24 lg:pb-4">
           {Object.keys(groupedProducts).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Package className="w-12 h-12 mb-3" style={{ color: 'var(--muted-foreground)' }} />
@@ -616,7 +616,7 @@ export default function MainPOS({
         </div>
 
         {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-16">
               <ShoppingCart className="w-10 h-10 mb-2" style={{ color: 'var(--muted-foreground)', opacity: 0.4 }} />

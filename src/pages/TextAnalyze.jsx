@@ -1097,7 +1097,7 @@ ${aiLearningData.slice(0, 50).map(l =>
       </div>
 
       {/* Results Section */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
         {analyzedItems.length > 0 && (
           <>
             {/* Results header */}

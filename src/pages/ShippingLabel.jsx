@@ -615,7 +615,7 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
       {/* Main content - two panel layout on large screens */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left panel: Order selection */}
-        <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-4 py-4">
           {/* Date filter */}
           <div className="bg-[var(--card)] rounded-xl p-3 mb-4 border border-[var(--border)]">
             <p className="text-[var(--muted-foreground)] text-xs mb-2">날짜 필터</p>

@@ -338,7 +338,7 @@ export default function CustomerList({
       </header>
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="w-full px-2 sm:px-4 py-4">
           {selectedCustomer ? (
             /* Customer detail view */
