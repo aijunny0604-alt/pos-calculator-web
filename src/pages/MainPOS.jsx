@@ -822,8 +822,8 @@ export default function MainPOS({
           onClick={() => setIsCartExpanded(false)}
         >
           <div
-            className="w-full h-full overflow-hidden flex flex-col border shadow-2xl modal-fs-transition"
-            style={{ background: 'var(--card)', borderColor: 'var(--border)', maxWidth: isCartFullscreen ? '100vw' : 'min(56rem, calc(100vw - 2rem))', maxHeight: isCartFullscreen ? '100vh' : 'calc(100vh - 2rem)', borderRadius: isCartFullscreen ? '0' : '1rem', boxShadow: isCartFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+            className="w-full overflow-hidden flex flex-col border shadow-2xl modal-fs-transition"
+            style={{ background: 'var(--card)', borderColor: 'var(--border)', maxWidth: isCartFullscreen ? '100vw' : 'min(56rem, calc(100vw - 2rem))', height: isCartFullscreen ? '100vh' : 'auto', maxHeight: isCartFullscreen ? '100vh' : 'calc(100vh - 2rem)', borderRadius: isCartFullscreen ? '0' : '1rem', boxShadow: isCartFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}

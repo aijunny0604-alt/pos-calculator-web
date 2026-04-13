@@ -436,8 +436,8 @@ export default function OrderDetail({
 
       {/* Modal */}
       <div
-        className="relative w-full h-full overflow-hidden border shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
-        style={{ background: 'var(--card)', borderColor: 'var(--border)', maxWidth: isFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))', maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 2rem)', borderRadius: isFullscreen ? '0' : '1rem', boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+        className="relative w-full overflow-hidden border shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
+        style={{ background: 'var(--card)', borderColor: 'var(--border)', maxWidth: isFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))', height: isFullscreen ? '100vh' : 'auto', maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 2rem)', borderRadius: isFullscreen ? '0' : '1rem', boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
       >
         {/* Header - sticky for scroll visibility */}
         <div

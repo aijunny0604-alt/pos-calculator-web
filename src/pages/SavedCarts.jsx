@@ -393,8 +393,14 @@ export default function SavedCarts({
         }}
       >
         <div
-          className="relative bg-[var(--card)] w-full h-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
-          style={{ maxWidth: isDetailFullscreen ? '100vw' : '48rem', maxHeight: isDetailFullscreen ? '100vh' : '92vh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+          className="relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
+          style={{
+            maxWidth: isDetailFullscreen ? '100vw' : 'min(48rem, calc(100vw - 2rem))',
+            height: isDetailFullscreen ? '100vh' : 'auto',
+            maxHeight: isDetailFullscreen ? '100vh' : '85vh',
+            borderRadius: isDetailFullscreen ? '0' : '0.75rem',
+            boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+          }}
           onClick={e => e.stopPropagation()}
         >
           {/* Modal header */}
