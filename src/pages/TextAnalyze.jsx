@@ -1063,11 +1063,11 @@ ${aiLearningData.slice(0, 50).map(l =>
                 />
               </div>
               <div className="flex items-center gap-0.5 rounded-xl px-1.5 flex-shrink-0" style={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}>
-                <button onClick={() => setAddQuantity(Math.max(1, addQuantity - 1))} className="p-1.5 rounded-lg hover:bg-[var(--secondary)]">
+                <button onClick={() => setAddQuantity(Math.max(1, addQuantity - 1))} className="p-2.5 rounded-lg hover:bg-[var(--secondary)]">
                   <Minus className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
                 </button>
                 <span className="text-sm w-7 text-center font-bold" style={{ color: 'var(--foreground)' }}>{addQuantity}</span>
-                <button onClick={() => setAddQuantity(addQuantity + 1)} className="p-1.5 rounded-lg hover:bg-[var(--secondary)]">
+                <button onClick={() => setAddQuantity(addQuantity + 1)} className="p-2.5 rounded-lg hover:bg-[var(--secondary)]">
                   <Plus className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
                 </button>
               </div>

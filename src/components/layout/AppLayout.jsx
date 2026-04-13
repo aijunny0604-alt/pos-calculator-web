@@ -51,7 +51,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
         {!isFullScreen && (
           <Header onMenuClick={() => setSidebarOpen(prev => !prev)} currentPage={currentPage} isOnline={isOnline} />
         )}
-        <main className={`flex-1 overflow-y-auto scroll-smooth ${
+        <main className={`flex-1 min-h-0 overflow-y-auto scroll-smooth ${
           isFullScreen
             ? 'pb-16 md:pb-0'
             : 'p-2 sm:p-4 md:p-6 pb-20 md:pb-6'
