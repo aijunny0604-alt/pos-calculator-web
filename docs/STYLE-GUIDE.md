@@ -70,6 +70,53 @@ useEffect(() => {
 }, []);
 ```
 
+### 모달 표준 패턴 (필수)
+
+> **주의**: 새 모달 작성 시 아래 패턴 반드시 적용. 누락 시 모바일에서 스크롤 불가 / 콘텐츠 잘림 발생.
+
+#### 1. 모달 컨테이너 (외곽)
+```jsx
+<div
+  className="relative w-full overflow-hidden flex flex-col shadow-2xl border modal-fs-transition"
+  style={{
+    maxWidth: isFullscreen ? '100vw' : 'min(48rem, calc(100vw - 2rem))',
+    height: isFullscreen ? '100vh' : 'auto',          // ❌ h-full 금지 (콘텐츠 짧아도 풀스크린)
+    maxHeight: isFullscreen ? '100vh' : '85vh',
+    borderRadius: isFullscreen ? '0' : '1rem',
+  }}
+>
+```
+
+#### 2. 스크롤 본문 (내부)
+```jsx
+<div
+  className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 modal-scroll-area"
+  style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+  onTouchMove={(e) => e.stopPropagation()}
+>
+```
+
+#### 핵심 속성 설명
+| 속성 | 역할 |
+|-----|------|
+| `min-h-0` | flex-1 자식의 최소 높이를 0으로 강제 → 스크롤 활성화 (필수) |
+| `overscroll-contain` | 모달 끝에서 배경 스크롤 전파 차단 |
+| `modal-scroll-area` | OrderPage의 touchmove 차단에서 자동 허용되는 마커 |
+| `WebkitOverflowScrolling: touch` | iOS Safari 관성 스크롤 |
+| `touchAction: pan-y` | 구형 갤럭시 세로 스크롤 보장 |
+| `onTouchMove stopPropagation` | 이중 모달일 때 상위 모달 스크롤 차단 방지 |
+| `height: auto` | 콘텐츠 짧으면 모달도 작아짐 (UX 개선) |
+| `min(Xrem, calc(100vw - 2rem))` | 360px 이하 갤럭시에서 가로 잘림 방지 |
+
+#### 페이지 레벨 스크롤 (모달 아닌 경우)
+```jsx
+<div className="flex-1 min-h-0 overflow-y-auto">  {/* min-h-0만 추가 */}
+```
+
+> 자세한 변경 내역은 [CHANGELOG.md](CHANGELOG.md) 2026-04-13 모달 스크롤 일괄 수정 참조
+
+---
+
 ### 날짜 계산 규칙
 
 > **주의**: 날짜 계산 시 `+09:00` 오프셋과 `toISOString()`(UTC) 조합 금지.

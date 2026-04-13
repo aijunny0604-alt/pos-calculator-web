@@ -4,6 +4,29 @@
 
 ---
 
+### 2026-04-13 작업 내역 (4차)
+
+#### AppLayout root 스크롤 + TextAnalyze 수량 버튼 터치 영역
+- `AppLayout.jsx:54` — main wrapper에 `min-h-0` 추가 (모든 페이지의 root 스크롤 보장)
+- `TextAnalyze.jsx:1066,1070` — AI 인식 결과 수량 +/- 버튼 `p-1.5` → `p-2.5` (터치 영역 24→40px)
+
+전수조사 2회차 결과 잔여 Critical 0건. STYLE-GUIDE.md에 모달 표준 패턴 명문화.
+
+---
+
+### 2026-04-13 작업 내역 (3차)
+
+#### 모달 h-full 제거 — 콘텐츠에 맞춰 자동 높이 조정
+4개 모달이 `w-full h-full`로 콘텐츠 짧아도 항상 풀스크린 → 빈 공간 많이 보이는 문제:
+- `SavedCarts.jsx` 상세 모달
+- `OrderDetail.jsx:439` 주문 상세
+- `MainPOS.jsx:825` 모바일 장바구니
+- `OrderPage.jsx:326` 주문서
+
+수정: `h-full` 제거 → `height: auto` + `maxHeight` 캡 유지. 콘텐츠 짧으면 모달도 작아지고 길면 maxHeight까지 늘어나며 스크롤.
+
+---
+
 ### 2026-04-13 작업 내역 (2차)
 
 #### 모달 스크롤 일괄 수정 — 5개 모달 (전수조사)
