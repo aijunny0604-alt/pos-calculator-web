@@ -4,6 +4,20 @@
 
 ---
 
+### 2026-04-13 작업 내역 (2차)
+
+#### 모달 스크롤 일괄 수정 — 5개 모달 (전수조사)
+모달 스크롤 패턴(`min-h-0` + `overscroll-contain` + `touchAction: pan-y` + `modal-scroll-area`)을 누락한 모달 5개 일괄 수정:
+- `OrderDetail.jsx:494` — 주문 상세 모달 (partial fix → full fix)
+- `NotificationSettings.jsx:93` — 알림 설정 모달
+- `TextAnalyze.jsx:1430` — 백업 목록 모달
+- `OrderPage.jsx:372` — 주문서 모달 (modal-scroll-area만 있어 min-h-0 추가)
+- `MainPOS.jsx:859` — 모바일 장바구니 모달
+
+전체 모달에 동일 표준 패턴 적용 완료. 향후 새 모달 추가 시 SECURITY-SETUP.md/STYLE-GUIDE 참조.
+
+---
+
 ### 2026-04-13 작업 내역
 
 #### SavedCarts 상세 모달 모바일 스크롤 수정 (SavedCarts.jsx)

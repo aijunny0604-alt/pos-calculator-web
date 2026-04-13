@@ -369,8 +369,9 @@ export default function OrderPage({
         </header>
 
         <div
-          className="flex-1 overflow-y-auto px-4 py-4 modal-scroll-area"
+          className="flex-1 min-h-0 overflow-y-auto px-4 py-4 modal-scroll-area"
           data-lenis-prevent="true"
+          onTouchMove={(e) => e.stopPropagation()}
           style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}
           onClick={() => { setShowSearchResults(false); setShowCustomerSuggestions(false); }}
         >

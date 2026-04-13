@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@sentry/react": "^10.46.0",
+    "@sentry/react": "^10.47.0",
     "@supabase/supabase-js": "^2.93.3",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",

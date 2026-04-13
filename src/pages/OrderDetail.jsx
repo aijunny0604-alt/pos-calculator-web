@@ -491,7 +491,11 @@ export default function OrderDetail({
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scroll-area"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           {/* Order info section */}
           <div className="p-4 md:p-6 border-b" style={{ borderColor: 'var(--border)' }}>
             {/* Top row: date + price type badge */}
