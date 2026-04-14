@@ -345,21 +345,21 @@ export default function CustomerList({
             <>
               {/* Customer info card */}
               <div className="bg-[var(--card)] rounded-xl p-4 mb-4 border border-[var(--border)]">
-                <div className="flex flex-wrap gap-3 text-sm">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 text-sm">
                   {selectedCustomer.phone && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <Phone className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
-                      <span>{selectedCustomer.phone}</span>
-                      <button onClick={() => { navigator.clipboard.writeText(selectedCustomer.phone); showToast?.('전화번호 복사됨', 'success'); }} className="p-1 rounded hover:bg-[var(--accent)] transition-colors" title="전화번호 복사">
+                      <span className="min-w-0">{selectedCustomer.phone}</span>
+                      <button onClick={() => { navigator.clipboard.writeText(selectedCustomer.phone); showToast?.('전화번호 복사됨', 'success'); }} className="p-1 rounded hover:bg-[var(--accent)] transition-colors flex-shrink-0" title="전화번호 복사">
                         <Copy className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
                       </button>
                     </div>
                   )}
                   {selectedCustomer.address && (
-                    <div className="flex items-center gap-2 flex-1">
-                      <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
-                      <span className="text-[var(--muted-foreground)]">{selectedCustomer.address}</span>
-                      <button onClick={() => { navigator.clipboard.writeText(selectedCustomer.address); showToast?.('주소 복사됨', 'success'); }} className="p-1 rounded hover:bg-[var(--accent)] transition-colors" title="주소 복사">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />
+                      <span className="text-[var(--muted-foreground)] break-keep leading-snug flex-1 min-w-0">{selectedCustomer.address}</span>
+                      <button onClick={() => { navigator.clipboard.writeText(selectedCustomer.address); showToast?.('주소 복사됨', 'success'); }} className="p-1 rounded hover:bg-[var(--accent)] transition-colors flex-shrink-0" title="주소 복사">
                         <Copy className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
                       </button>
                     </div>
@@ -375,7 +375,7 @@ export default function CustomerList({
                         navigator.clipboard.writeText(info);
                         showToast?.('배송 정보 복사됨', 'success');
                       }}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--accent)]"
+                      className="flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--accent)] flex-shrink-0"
                       style={{ color: 'var(--primary)', border: '1px solid var(--border)' }}
                     >
                       <Copy className="w-3.5 h-3.5" />
