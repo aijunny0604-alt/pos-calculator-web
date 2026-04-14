@@ -618,10 +618,11 @@ export default function OrderHistory({
                         style={{ borderColor: isBlacklist ? 'color-mix(in srgb, var(--destructive) 40%, var(--border))' : 'var(--border)' }}
                       >
                         <div
-                          className="flex items-center gap-1.5 text-sm font-semibold"
+                          className="flex items-start gap-1.5 text-sm font-semibold min-w-0 flex-wrap"
                           style={{ color: isBlacklist ? 'var(--destructive)' : 'var(--primary)' }}
                         >
-                          {isBlacklist ? '🚫' : '👤'} {order.customerName}
+                          <span className="flex-shrink-0">{isBlacklist ? '🚫' : '👤'}</span>
+                          <span className="break-words leading-snug min-w-0">{order.customerName}</span>
                           {isBlacklist && (
                             <span
                               className="px-1.5 py-0.5 rounded text-[10px] ml-1"

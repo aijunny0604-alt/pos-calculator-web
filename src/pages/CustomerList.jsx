@@ -564,7 +564,7 @@ export default function CustomerList({
                           </div>
                         )}
                         {order.memo && (
-                          <p className="text-xs mt-2 pt-2 border-t border-[var(--border)] truncate" style={{ color: 'var(--primary)' }}>{order.memo}</p>
+                          <p className="text-xs mt-2 pt-2 border-t border-[var(--border)] break-words leading-snug" style={{ color: 'var(--primary)' }}>{order.memo}</p>
                         )}
                       </div>
 
@@ -660,7 +660,7 @@ export default function CustomerList({
                             </div>
 
                             {isBlacklist && customer.blacklist_reason && (
-                              <p className="text-xs mb-1" style={{ color: 'var(--destructive)' }}>{customer.blacklist_reason}</p>
+                              <p className="text-xs mb-1 break-words leading-snug" style={{ color: 'var(--destructive)' }}>{customer.blacklist_reason}</p>
                             )}
 
                             <div className="flex items-center gap-1.5 mt-1">
@@ -670,9 +670,9 @@ export default function CustomerList({
                               </span>
                             </div>
 
-                            <div className="flex items-start gap-1.5 mt-1">
+                            <div className="flex items-start gap-1.5 mt-1 min-w-0">
                               <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />
-                              <span className={`text-sm truncate ${customer.address ? 'text-[var(--muted-foreground)]' : 'text-[var(--muted-foreground)]'}`}>
+                              <span className="text-sm text-[var(--muted-foreground)] break-keep leading-snug flex-1 min-w-0">
                                 {customer.address || '주소 미등록'}
                               </span>
                             </div>

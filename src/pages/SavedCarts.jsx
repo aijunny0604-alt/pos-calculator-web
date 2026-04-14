@@ -420,7 +420,7 @@ export default function SavedCarts({
                       placeholder="업체명/이름"
                     />
                   ) : (
-                    <h2 className="text-base sm:text-xl font-bold text-white truncate">{currentCart.name}</h2>
+                    <h2 className="text-base sm:text-xl font-bold text-white break-words leading-snug min-w-0 flex-1">{currentCart.name}</h2>
                   )}
                   <span
                     className="px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0"
@@ -1173,7 +1173,7 @@ export default function SavedCarts({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap mb-1">
                               {isBlacklist && <span className="flex-shrink-0" style={{ color: 'var(--destructive)' }}>🚫</span>}
-                              <h3 className="font-semibold truncate" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>
+                              <h3 className="font-semibold break-words leading-snug min-w-0" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>
                                 {cart.name}
                               </h3>
                               {isBlacklist && (
@@ -1221,7 +1221,7 @@ export default function SavedCarts({
                             {cart.items.length}종 / {cart.items.reduce((sum, item) => sum + item.quantity, 0)}개
                           </p>
                           {cart.memo && (
-                            <p className="text-xs mt-1.5 border-t border-[var(--border)] pt-1.5 truncate" style={{ color: 'var(--info)' }}>
+                            <p className="text-xs mt-1.5 border-t border-[var(--border)] pt-1.5 break-words leading-snug" style={{ color: 'var(--info)' }}>
                               {cart.memo}
                             </p>
                           )}
