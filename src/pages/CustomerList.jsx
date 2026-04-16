@@ -141,7 +141,6 @@ export default function CustomerList({
     if (onUpdateOrder) {
       await onUpdateOrder(detailOrder.id || detailOrder.orderNumber, {
         returns: newReturns,
-        totalReturned: totalReturned,
         total_returned: totalReturned
       });
     }

@@ -630,6 +630,8 @@ export default function App() {
             if (data.customer_name != null) merged.customerName = data.customer_name;
             if (data.customer_phone != null) merged.customerPhone = data.customer_phone;
             if (data.customer_address != null) merged.customerAddress = data.customer_address;
+            if (data.total_returned != null) merged.totalReturned = data.total_returned;
+            if (data.returns != null) merged.returns = data.returns;
             return merged;
           })
         );
@@ -1141,6 +1143,8 @@ export default function App() {
                   customerPhone: data.customer_phone ?? prev.customerPhone,
                   customerAddress: data.customer_address ?? prev.customerAddress,
                   totalAmount: data.total ?? prev.totalAmount,
+                  totalReturned: data.total_returned ?? prev.totalReturned,
+                  returns: data.returns ?? prev.returns,
                 } : prev
               );
             }

@@ -135,7 +135,7 @@ export const supabase = {
   },
   async deleteCustomerReturn(id) {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/customer_returns?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/customer_returns?return_id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
       return r.ok;
     } catch (e) { console.error('deleteCustomerReturn:', e); return false; }
   },

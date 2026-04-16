@@ -276,10 +276,9 @@ export default function OrderDetail({
       updatedAt: new Date().toISOString(),
     };
 
-    if (onUpdateOrder) onUpdateOrder(order.id || order.orderNumber, {
+    if (onUpdateOrder) await onUpdateOrder(order.id || order.orderNumber, {
       returns: updatedOrder.returns,
-      totalReturned: updatedOrder.totalReturned,
-      updatedAt: updatedOrder.updatedAt,
+      total_returned: updatedOrder.totalReturned,
     });
 
     if (onSaveCustomerReturn && order.customerName) {
@@ -320,10 +319,9 @@ export default function OrderDetail({
       updatedAt: new Date().toISOString(),
     };
 
-    if (onUpdateOrder) onUpdateOrder(order.id || order.orderNumber, {
+    if (onUpdateOrder) await onUpdateOrder(order.id || order.orderNumber, {
       returns: updatedOrder.returns,
-      totalReturned: updatedOrder.totalReturned,
-      updatedAt: updatedOrder.updatedAt,
+      total_returned: updatedOrder.totalReturned,
     });
     if (onDeleteCustomerReturn) await onDeleteCustomerReturn(returnId);
 
