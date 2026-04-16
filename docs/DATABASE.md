@@ -53,17 +53,23 @@
 ## 테이블 스키마
 
 ### orders
-| 컬럼 | 설명 |
-|------|------|
-| id | 주문 ID |
-| items | 주문 아이템 (JSONB) |
-| customer_name | 고객명 |
-| customer_phone | 전화번호 |
-| customer_address | 주소 |
-| total_amount | 총 금액 |
-| created_at | 생성일시 |
-| updated_at | 수정일시 |
-| status | 상태 (완료/대기/반품 등) |
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | TEXT | 주문 ID (ORD-YYYYMMDD-XXXX) |
+| items | JSONB | 주문 아이템 배열 [{id, name, price, quantity}] |
+| customer_name | TEXT | 고객명 |
+| customer_phone | TEXT | 전화번호 |
+| customer_address | TEXT | 주소 |
+| price_type | TEXT | 단가 기준 (wholesale/retail) |
+| total | NUMERIC | 총 금액 (부가세 포함) |
+| subtotal | NUMERIC | 공급가액 |
+| vat | NUMERIC | 부가세 |
+| memo | TEXT | 메모 |
+| returns | JSONB | 반품 내역 배열 [{returnId, itemId, itemName, price, quantity, total, returnedAt}] |
+| total_returned | NUMERIC | 반품 총액 |
+| created_at | TIMESTAMPTZ | 생성일시 |
+
+> **주의**: `updated_at`, `status` 컬럼은 존재하지 않음. PATCH 시 이 키를 보내면 PGRST204 에러 발생.
 
 ### products
 | 컬럼 | 설명 |
@@ -86,12 +92,18 @@
 | memo | 메모 |
 
 ### customer_returns
-| 컬럼 | 설명 |
-|------|------|
-| id | 반품 ID |
-| items | 반품 아이템 (JSONB) |
-| order_id | 원주문 ID |
-| created_at | 생성일시 |
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | BIGINT | 자동 증가 PK |
+| return_id | TEXT | 반품 ID (RET-timestamp) — 삭제 시 이 필드로 조회 |
+| customer_name | TEXT | 고객명 |
+| customer_id | TEXT | 고객 ID (nullable) |
+| order_number | TEXT | 원주문 ID |
+| items | JSONB | 반품 아이템 배열 [{returnId, itemId, itemName, price, quantity, total, returnedAt}] |
+| total_amount | NUMERIC | 반품 총액 |
+| returned_at | TIMESTAMPTZ | 반품 처리일시 |
+
+> **주의**: `deleteCustomerReturn`은 `return_id`로 조회 (PK `id`가 아님).
 
 ### saved_carts
 | 컬럼 | 설명 |

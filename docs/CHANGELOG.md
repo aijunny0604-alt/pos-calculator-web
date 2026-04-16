@@ -4,6 +4,52 @@
 
 ---
 
+### 2026-04-16 작업 내역
+
+#### 반품 처리 전면 수정 (7건 버그 수정)
+- **문제**: 반품 처리 시 DB에 저장되지 않음 (PATCH 전체 실패)
+- **원인 1**: `updated_at` 컬럼이 orders 테이블에 미존재 → Supabase PGRST204 에러로 PATCH 전체 거부
+- **원인 2**: `totalReturned` camelCase 키 → Supabase가 알 수 없는 컬럼으로 거부
+- **원인 3**: `deleteCustomerReturn`이 `id=eq.RET-xxx` 조회 → `id`는 bigint 자동증가, `return_id`로 조회해야 함
+
+| 위치 | 변경 |
+|------|------|
+| `OrderDetail.jsx:279-283` | `updated_at` 제거, `totalReturned`→`total_returned` snake_case, `await` 추가 |
+| `OrderDetail.jsx:323-327` | 반품 삭제도 동일 수정 |
+| `App.jsx:632-635` | `handleUpdateOrder`에서 `total_returned→totalReturned`, `returns` 매핑 추가 |
+| `App.jsx:1144-1145` | `setSelectedOrder`에서 반품 데이터 매핑 추가 |
+| `supabase.js:138` | `deleteCustomerReturn` 쿼리 `id=eq.`→`return_id=eq.` |
+| `CustomerList.jsx:144` | 중복 camelCase `totalReturned` 키 제거 |
+
+- **검증**: Playwright + Supabase API curl로 The V8 주문 전량 반품 테스트 → DB 저장 확인 + 목록 즉시 반영 확인
+- **배포**: GitHub Pages 배포 완료, 프로덕션 Playwright 검증 통과 (콘솔 에러 0건)
+- DATABASE.md orders/customer_returns 스키마를 실제 DB와 동기화
+
+---
+
+### 2026-04-14 작업 내역
+
+#### 모바일 한국어 텍스트 줄바꿈 깨짐 전수 수정 (7곳)
+- **문제**: 모바일(360px)에서 한국어 주소/고객명이 글자 단위로 깨지거나 `truncate`로 잘리는 현상
+- **원인**: `flex` 컨테이너에 `min-w-0` 누락, 한국어에 영문용 `break-words` 적용
+- **수정**: 한국어는 어절 단위 줄바꿈(`break-keep`), 영문 포함 메모는 `break-words` 구분 적용
+
+| 위치 | 변경 |
+|------|------|
+| `CustomerList.jsx:347-385` | 상세 상단 카드 전화/주소 — `flex-col sm:flex-row` + `break-keep` + `min-w-0` + `flex-shrink-0` |
+| `CustomerList.jsx:567` | 주문 이력 메모 — `break-words` |
+| `CustomerList.jsx:663` | 블랙리스트 사유 — `break-words leading-snug` |
+| `CustomerList.jsx:675` | 리스트 카드 주소 — `break-keep flex-1 min-w-0` |
+| `SavedCarts.jsx:423` | 상세 모달 헤더 — `break-words leading-snug min-w-0 flex-1` |
+| `SavedCarts.jsx:1176` | 카드 이름 — `break-words leading-snug min-w-0` |
+| `SavedCarts.jsx:1224` | 카드 메모 — `break-words leading-snug` |
+| `OrderHistory.jsx:624` | 고객명 — `items-start` + `flex-wrap` + `break-words` |
+
+- **검증**: Playwright 360×640 모바일 뷰포트 전수 검증. 가로 스크롤 0건, 콘솔 에러 0건, 단어 단위 자연 줄바꿈 확인.
+- STYLE-GUIDE.md에 "텍스트 표시 규칙 (제품명/고객정보/메모)" 섹션 확장 — 한국어 `break-keep` vs 영문 `break-words` 구분 명문화.
+
+---
+
 ### 2026-04-13 작업 내역 (4차)
 
 #### AppLayout root 스크롤 + TextAnalyze 수량 버튼 터치 영역

@@ -1,6 +1,6 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-04-13
+> 마지막 업데이트: 2026-04-14
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry.
@@ -17,7 +17,7 @@ npx gh-pages -d dist     # GitHub Pages 배포
 
 ## 핵심 규칙
 
-- **제품명 표시**: `truncate` 금지, `break-words leading-snug` 사용 (모바일 전체 표시)
+- **텍스트 표시**: `truncate` 금지. 제품명/메모는 `break-words leading-snug`, 한국어 주소/이름은 `break-keep leading-snug` 사용. flex 자식에는 `min-w-0`, 아이콘/버튼은 `flex-shrink-0` 필수
 - **날짜 계산**: `+09:00` + `toISOString()` 조합 금지, `offsetDateKST()` 사용
 - **새 제품 추가**: `supabase.addProduct(POST)` 사용. `saveProduct`은 id 있으면 PATCH
 - **주문 저장**: 같은 고객 당일 주문 자동 병합. WebSocket 실시간 반영
@@ -28,6 +28,8 @@ npx gh-pages -d dist     # GitHub Pages 배포
 - URL: `https://jubzppndcclhnvgbvrxr.supabase.co`
 - 테이블: orders, products, customers, customer_returns, saved_carts, ai_learning
 - 관리자 비밀번호: `4321`
+- **orders 주의**: `updated_at`, `status` 컬럼 없음. PATCH 시 미존재 컬럼 포함하면 PGRST204로 전체 실패
+- **customer_returns 주의**: PK는 `id`(bigint auto), 삭제 시 `return_id`(text) 사용
 
 ## 상세 문서
 
