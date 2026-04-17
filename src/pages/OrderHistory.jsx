@@ -417,7 +417,11 @@ export default function OrderHistory({
               </button>
 
               <button
-                onClick={() => setMemoFilter(prev => prev === 'off' ? 'unchecked' : prev === 'unchecked' ? 'all' : 'off')}
+                onClick={() => setMemoFilter(prev => {
+                  const next = prev === 'off' ? 'unchecked' : prev === 'unchecked' ? 'all' : 'off';
+                  if (next === 'unchecked') setDateFilter('all');
+                  return next;
+                })}
                 className="rounded-xl p-3 border text-left transition-all"
                 style={{
                   background: memoFilter === 'unchecked'
