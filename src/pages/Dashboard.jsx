@@ -278,6 +278,26 @@ export default function Dashboard({
             </div>
           )}
 
+          {/* Low Stock Alert */}
+          {lowStockProducts.length > 0 && (
+            <div className="rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-4 h-4" style={{ color: 'var(--warning)' }} />
+                <h2 className="font-bold" style={{ color: 'var(--foreground)' }}>재고 부족 알림</h2>
+              </div>
+              <div className="space-y-2 max-h-48 overflow-y-auto custom-scroll">
+                {lowStockProducts.map((p, i) => (
+                  <div key={p.id || i} className="flex items-center justify-between text-sm">
+                    <span className="break-words flex-1 min-w-0" style={{ color: 'var(--foreground)' }}>{p.name}</span>
+                    <span className="font-medium ml-2 flex-shrink-0" style={{ color: 'var(--destructive)' }}>
+                      {p.stock ?? 0}개
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Quick Actions */}
           <div className="rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
             <h2 className="font-bold mb-3" style={{ color: 'var(--foreground)' }}>바로가기</h2>
@@ -311,26 +331,6 @@ export default function Dashboard({
               </a>
             </div>
           </div>
-
-          {/* Low Stock Alert */}
-          {lowStockProducts.length > 0 && (
-            <div className="rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="w-4 h-4" style={{ color: 'var(--warning)' }} />
-                <h2 className="font-bold" style={{ color: 'var(--foreground)' }}>재고 부족 알림</h2>
-              </div>
-              <div className="space-y-2 max-h-48 overflow-y-auto custom-scroll">
-                {lowStockProducts.map((p, i) => (
-                  <div key={p.id || i} className="flex items-center justify-between text-sm">
-                    <span className="break-words flex-1 min-w-0" style={{ color: 'var(--foreground)' }}>{p.name}</span>
-                    <span className="font-medium ml-2 flex-shrink-0" style={{ color: 'var(--destructive)' }}>
-                      {p.stock ?? 0}개
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
