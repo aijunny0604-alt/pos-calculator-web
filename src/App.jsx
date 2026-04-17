@@ -24,6 +24,7 @@ import { formatPrice, getTodayKST, toDateKST } from '@/lib/utils';
 export default function App() {
   // ─── Navigation ───────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [aiOrderText, setAiOrderText] = useState('');
 
   // ─── Core data ────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
@@ -863,6 +864,7 @@ export default function App() {
             setCurrentPage={setCurrentPage}
             onViewOrder={(order) => setSelectedOrder(order)}
             onUpdateOrder={handleUpdateOrder}
+            onAiOrder={(text) => { setAiOrderText(text); setCurrentPage('ai-order'); }}
           />
         );
 
@@ -1077,6 +1079,7 @@ export default function App() {
             onBack={() => setCurrentPage('pos')}
             aiLearningData={aiLearningData}
             onSaveLearning={handleSaveLearning}
+            initialText={aiOrderText}
           />
         );
 
