@@ -65,6 +65,7 @@
 | subtotal | NUMERIC | 공급가액 |
 | vat | NUMERIC | 부가세 |
 | memo | TEXT | 메모 |
+| memo_checked | BOOLEAN | 메모 확인 완료 여부 (default: false) |
 | returns | JSONB | 반품 내역 배열 [{returnId, itemId, itemName, price, quantity, total, returnedAt}] |
 | total_returned | NUMERIC | 반품 총액 |
 | created_at | TIMESTAMPTZ | 생성일시 |
