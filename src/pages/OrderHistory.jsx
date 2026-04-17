@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronLeft, Menu, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
@@ -31,19 +31,16 @@ export default function OrderHistory({
   // 메모 필터: 'off' | 'unchecked' | 'all'
   const [memoFilter, setMemoFilter] = useState('off');
   const [memoAlert, setMemoAlert] = useState(false);
-  const memoAlertShown = useRef(false);
 
-  // 진입 시 미확인 메모 알림 (orders 로드 후 1회만)
+  // 진입 시 미확인 메모 알림 (페이지 진입할 때마다)
   useEffect(() => {
-    if (memoAlertShown.current || orders.length === 0) return;
     const unchecked = orders.filter(o => !!o.memo && !o.memoChecked).length;
     if (unchecked > 0) {
-      memoAlertShown.current = true;
       setMemoAlert(unchecked);
       const timer = setTimeout(() => setMemoAlert(false), 4000);
       return () => clearTimeout(timer);
     }
-  }, [orders]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Get blacklist info for customer
   const getBlacklistInfo = (customerName) => {

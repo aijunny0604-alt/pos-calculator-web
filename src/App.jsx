@@ -862,6 +862,7 @@ export default function App() {
             supabaseConnected={supabaseConnected}
             setCurrentPage={setCurrentPage}
             onViewOrder={(order) => setSelectedOrder(order)}
+            onUpdateOrder={handleUpdateOrder}
           />
         );
 

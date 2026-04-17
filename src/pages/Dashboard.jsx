@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import {
   TrendingUp, ShoppingCart, Package, AlertTriangle, Users,
-  ArrowRight, Calculator, ClipboardList, Brain, Truck, Eye, FileText, ExternalLink
+  ArrowRight, Calculator, ClipboardList, Brain, Truck, Eye, FileText, ExternalLink, CheckCircle2
 } from 'lucide-react';
 import { formatPrice, formatDateTime, getTodayKST, toDateKST } from '@/lib/utils';
 
@@ -13,6 +13,7 @@ export default function Dashboard({
   supabaseConnected,
   setCurrentPage,
   onViewOrder,
+  onUpdateOrder,
 }) {
   const today = getTodayKST();
 
@@ -43,6 +44,12 @@ export default function Dashboard({
   const pendingCarts = useMemo(() => {
     return savedCarts.filter(c => c.status !== 'completed').length;
   }, [savedCarts]);
+
+  const uncheckedMemos = useMemo(() => {
+    return orders
+      .filter(o => !!o.memo && !o.memoChecked)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [orders]);
 
   const StatCard = ({ icon: Icon, label, value, sub, color, onClick }) => (
     <button
@@ -217,6 +224,54 @@ export default function Dashboard({
               </a>
             </div>
           </div>
+
+          {/* Unchecked Memos */}
+          {uncheckedMemos.length > 0 && (
+            <div className="rounded-xl border p-5" style={{ background: 'color-mix(in srgb, var(--destructive) 3%, var(--card))', borderColor: 'color-mix(in srgb, var(--destructive) 20%, var(--border))' }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" style={{ color: 'var(--destructive)' }} />
+                  <h2 className="font-bold" style={{ color: 'var(--foreground)' }}>미확인 메모</h2>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'var(--destructive)', color: 'white' }}>{uncheckedMemos.length}</span>
+                </div>
+                <button
+                  onClick={() => setCurrentPage('orders')}
+                  className="text-xs flex items-center gap-1 hover:underline"
+                  style={{ color: 'var(--primary)' }}
+                >
+                  전체보기 <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto custom-scroll">
+                {uncheckedMemos.slice(0, 10).map((order) => (
+                  <div
+                    key={order.id || order.orderNumber}
+                    className="flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer hover:shadow-sm transition-all group"
+                    style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+                    onClick={() => onViewOrder(order)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium" style={{ color: 'var(--primary)' }}>{order.customerName || '미등록'}</span>
+                        <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{formatDateTime(order.createdAt)}</span>
+                      </div>
+                      <p className="text-sm break-words leading-snug line-clamp-2" style={{ color: 'var(--foreground)' }}>{order.memo}</p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onUpdateOrder) onUpdateOrder(order.id || order.orderNumber, { memo_checked: true });
+                      }}
+                      className="flex-shrink-0 p-2 -m-1 rounded-lg hover:bg-black/10 active:bg-black/20 transition-colors opacity-50 group-hover:opacity-100"
+                      title="확인 완료"
+                    >
+                      <CheckCircle2 className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Low Stock Alert */}
           {lowStockProducts.length > 0 && (
