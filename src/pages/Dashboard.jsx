@@ -230,41 +230,7 @@ export default function Dashboard({
 
         {/* Right Column */}
         <div className="space-y-6">
-          {/* Quick Actions */}
-          <div className="rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-            <h2 className="font-bold mb-3" style={{ color: 'var(--foreground)' }}>바로가기</h2>
-            <div className="space-y-2">
-              <QuickAction icon={Calculator} label="제품 주문하기" onClick={() => setCurrentPage('pos')} />
-              <QuickAction icon={Brain} label="AI 주문 인식" onClick={() => setCurrentPage('ai-order')} />
-              <QuickAction icon={Truck} label="택배 송장" onClick={() => setCurrentPage('shipping')} />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 mt-3">
-              <a
-                href="https://docs.google.com/document/d/e/2PACX-1vTfbJ0wRV2bW5D-lJ1na9vFLjpjQzofyxh0MF5kcsrhz6KYydBqJRz7IFCvwrAuYhZeUrAHU0DBeCNj/pub"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors border"
-                style={{ background: 'color-mix(in srgb, var(--destructive) 10%, var(--card))', borderColor: 'color-mix(in srgb, var(--destructive) 30%, var(--border))', color: 'var(--destructive)' }}
-              >
-                <FileText className="w-4 h-4" />
-                JSR 단가표
-                <ExternalLink className="w-3 h-3 opacity-50" />
-              </a>
-              <a
-                href="https://docs.google.com/document/d/e/2PACX-1vQbwis0GO8q03dNHA6p-G-xD1OOoENk9EP6s0PgjGBXY89ziSnP2yVPFmd4JThokUFLgYSepmL3zyPt/pub"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors border"
-                style={{ background: 'color-mix(in srgb, var(--info) 10%, var(--card))', borderColor: 'color-mix(in srgb, var(--info) 30%, var(--border))', color: 'var(--info)' }}
-              >
-                <FileText className="w-4 h-4" />
-                번웨이 단가표
-                <ExternalLink className="w-3 h-3 opacity-50" />
-              </a>
-            </div>
-          </div>
-
-          {/* Unchecked Memos */}
+          {/* Unchecked Memos - Top Priority */}
           {uncheckedMemos.length > 0 && (
             <div className="rounded-xl border p-5" style={{ background: 'color-mix(in srgb, var(--destructive) 3%, var(--card))', borderColor: 'color-mix(in srgb, var(--destructive) 20%, var(--border))' }}>
               <div className="flex items-center justify-between mb-3">
@@ -311,6 +277,40 @@ export default function Dashboard({
               </div>
             </div>
           )}
+
+          {/* Quick Actions */}
+          <div className="rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+            <h2 className="font-bold mb-3" style={{ color: 'var(--foreground)' }}>바로가기</h2>
+            <div className="space-y-2">
+              <QuickAction icon={Calculator} label="제품 주문하기" onClick={() => setCurrentPage('pos')} />
+              <QuickAction icon={Brain} label="AI 주문 인식" onClick={() => setCurrentPage('ai-order')} />
+              <QuickAction icon={Truck} label="택배 송장" onClick={() => setCurrentPage('shipping')} />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 mt-3">
+              <a
+                href="https://docs.google.com/document/d/e/2PACX-1vTfbJ0wRV2bW5D-lJ1na9vFLjpjQzofyxh0MF5kcsrhz6KYydBqJRz7IFCvwrAuYhZeUrAHU0DBeCNj/pub"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors border"
+                style={{ background: 'color-mix(in srgb, var(--destructive) 10%, var(--card))', borderColor: 'color-mix(in srgb, var(--destructive) 30%, var(--border))', color: 'var(--destructive)' }}
+              >
+                <FileText className="w-4 h-4" />
+                JSR 단가표
+                <ExternalLink className="w-3 h-3 opacity-50" />
+              </a>
+              <a
+                href="https://docs.google.com/document/d/e/2PACX-1vQbwis0GO8q03dNHA6p-G-xD1OOoENk9EP6s0PgjGBXY89ziSnP2yVPFmd4JThokUFLgYSepmL3zyPt/pub"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors border"
+                style={{ background: 'color-mix(in srgb, var(--info) 10%, var(--card))', borderColor: 'color-mix(in srgb, var(--info) 30%, var(--border))', color: 'var(--info)' }}
+              >
+                <FileText className="w-4 h-4" />
+                번웨이 단가표
+                <ExternalLink className="w-3 h-3 opacity-50" />
+              </a>
+            </div>
+          </div>
 
           {/* Low Stock Alert */}
           {lowStockProducts.length > 0 && (
