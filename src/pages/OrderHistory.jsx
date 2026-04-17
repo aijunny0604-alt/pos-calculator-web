@@ -193,17 +193,17 @@ export default function OrderHistory({
       {/* 미확인 메모 알림 토스트 */}
       {memoAlert && (
         <div
-          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 cursor-pointer"
-          style={{ background: 'var(--destructive)', color: 'white', minWidth: '200px', animation: 'modal-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both' }}
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 cursor-pointer whitespace-nowrap"
+          style={{ background: 'var(--destructive)', color: 'white', animation: 'modal-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both' }}
           onClick={() => {
             setMemoAlert(false);
             setMemoFilter('unchecked');
             setDateFilter('all');
           }}
         >
-          <FileText className="w-5 h-5 flex-shrink-0" />
+          <FileText className="w-4 h-4 flex-shrink-0" />
           <span className="font-medium text-sm">미확인 메모 {memoAlert}건</span>
-          <span className="text-xs opacity-80 ml-1">터치하여 보기</span>
+          <span className="text-xs opacity-70">| 터치하여 보기</span>
         </div>
       )}
       {/* Header */}
