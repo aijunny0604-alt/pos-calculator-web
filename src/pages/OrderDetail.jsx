@@ -273,7 +273,6 @@ export default function OrderDetail({
       ...order,
       returns: [...(order.returns || []), ...newReturns],
       totalReturned: (order.totalReturned || 0) + returnTotal,
-      updatedAt: new Date().toISOString(),
     };
 
     if (onUpdateOrder) await onUpdateOrder(order.id || order.orderNumber, {
@@ -316,7 +315,6 @@ export default function OrderDetail({
       ...order,
       returns: (order.returns || []).filter(r => r.returnId !== returnId),
       totalReturned: Math.max(0, (order.totalReturned || 0) - deleteTotal),
-      updatedAt: new Date().toISOString(),
     };
 
     if (onUpdateOrder) await onUpdateOrder(order.id || order.orderNumber, {
