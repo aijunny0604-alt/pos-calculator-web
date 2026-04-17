@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   ChevronLeft, Menu, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
-  ChevronDown
+  ChevronDown, CheckCircle2
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
 
@@ -17,6 +17,7 @@ export default function OrderHistory({
   onSaveToCart,
   isDetailModalOpen = false,
   customers = [],
+  onUpdateOrder,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('today');
@@ -27,7 +28,8 @@ export default function OrderHistory({
   const [showFilterDeleteConfirm, setShowFilterDeleteConfirm] = useState(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [showReturnsOnly, setShowReturnsOnly] = useState(false);
-  const [showMemoOnly, setShowMemoOnly] = useState(false);
+  // 메모 필터: 'off' | 'unchecked' | 'all'
+  const [memoFilter, setMemoFilter] = useState('off');
 
   // Get blacklist info for customer
   const getBlacklistInfo = (customerName) => {
@@ -99,14 +101,21 @@ export default function OrderHistory({
       return orderNum.includes(search) || customerName.includes(search) || customerPhone.includes(search) || memo.includes(search);
     })
     .filter(order => !showReturnsOnly || (order.totalReturned || 0) > 0)
-    .filter(order => !showMemoOnly || !!order.memo);
+    .filter(order => {
+      if (memoFilter === 'off') return true;
+      if (memoFilter === 'unchecked') return !!order.memo && !order.memoChecked;
+      if (memoFilter === 'all') return !!order.memo;
+      return true;
+    });
 
   // Stats
   const filteredTotalSales = filteredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const filteredTotalReturned = filteredOrders.reduce((sum, o) => sum + (o.totalReturned || 0), 0);
   const filteredReturnCount = filteredOrders.filter(o => (o.totalReturned || 0) > 0).length;
   const filteredMemoCount = filteredOrders.filter(o => !!o.memo).length;
+  const filteredMemoUnchecked = filteredOrders.filter(o => !!o.memo && !o.memoChecked).length;
   const totalMemoCount = orders.filter(o => !!o.memo).length;
+  const totalMemoUnchecked = orders.filter(o => !!o.memo && !o.memoChecked).length;
   const totalSales = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const totalReturned = orders.reduce((sum, o) => sum + (o.totalReturned || 0), 0);
   const totalReturnCount = orders.filter(o => (o.totalReturned || 0) > 0).length;
@@ -408,39 +417,43 @@ export default function OrderHistory({
               </button>
 
               <button
-                onClick={() => setShowMemoOnly(prev => !prev)}
+                onClick={() => setMemoFilter(prev => prev === 'off' ? 'unchecked' : prev === 'unchecked' ? 'all' : 'off')}
                 className="rounded-xl p-3 border text-left transition-all"
                 style={{
-                  background: showMemoOnly
-                    ? 'color-mix(in srgb, var(--primary) 15%, var(--card))'
-                    : filteredMemoCount > 0
-                      ? 'color-mix(in srgb, var(--primary) 5%, var(--card))'
-                      : 'var(--card)',
-                  borderColor: showMemoOnly
-                    ? 'var(--primary)'
-                    : filteredMemoCount > 0
-                      ? 'color-mix(in srgb, var(--primary) 30%, var(--border))'
-                      : 'var(--border)',
-                  boxShadow: showMemoOnly ? '0 0 0 1px var(--primary)' : 'none',
+                  background: memoFilter === 'unchecked'
+                    ? 'color-mix(in srgb, var(--destructive) 15%, var(--card))'
+                    : memoFilter === 'all'
+                      ? 'color-mix(in srgb, var(--primary) 15%, var(--card))'
+                      : filteredMemoUnchecked > 0
+                        ? 'color-mix(in srgb, var(--destructive) 5%, var(--card))'
+                        : 'var(--card)',
+                  borderColor: memoFilter === 'unchecked'
+                    ? 'var(--destructive)'
+                    : memoFilter === 'all'
+                      ? 'var(--primary)'
+                      : filteredMemoUnchecked > 0
+                        ? 'color-mix(in srgb, var(--destructive) 30%, var(--border))'
+                        : 'var(--border)',
+                  boxShadow: memoFilter !== 'off' ? `0 0 0 1px ${memoFilter === 'unchecked' ? 'var(--destructive)' : 'var(--primary)'}` : 'none',
                 }}
               >
                 <p
                   className="text-xs flex items-center gap-1 mb-1"
-                  style={{ color: filteredMemoCount > 0 || showMemoOnly ? 'var(--primary)' : 'var(--muted-foreground)' }}
+                  style={{ color: memoFilter === 'unchecked' ? 'var(--destructive)' : filteredMemoCount > 0 || memoFilter === 'all' ? 'var(--primary)' : 'var(--muted-foreground)' }}
                 >
                   <FileText className="w-3 h-3" />
-                  메모 ({filteredMemoCount}건)
-                  {showMemoOnly && <span className="ml-1 text-[10px] font-bold">필터 ON</span>}
+                  {memoFilter === 'unchecked' ? `미확인 (${filteredMemoUnchecked}건)` : `메모 (${filteredMemoCount}건)`}
+                  {memoFilter !== 'off' && <span className="ml-1 text-[10px] font-bold">{memoFilter === 'unchecked' ? '미확인' : '전체'}</span>}
                 </p>
                 <p
                   className="font-bold text-base sm:text-lg"
-                  style={{ color: filteredMemoCount > 0 || showMemoOnly ? 'var(--primary)' : 'var(--muted-foreground)' }}
+                  style={{ color: memoFilter === 'unchecked' ? 'var(--destructive)' : filteredMemoCount > 0 || memoFilter === 'all' ? 'var(--primary)' : 'var(--muted-foreground)' }}
                 >
-                  {filteredMemoCount > 0 ? `${filteredMemoCount}건` : '0건'}
+                  {memoFilter === 'unchecked' ? `${filteredMemoUnchecked}건` : filteredMemoCount > 0 ? `${filteredMemoCount}건` : '0건'}
                 </p>
-                {dateFilter !== 'all' && totalMemoCount > filteredMemoCount && (
+                {dateFilter !== 'all' && (
                   <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-                    전체 {totalMemoCount}건
+                    전체 미확인 {totalMemoUnchecked}건 / {totalMemoCount}건
                   </p>
                 )}
               </button>
@@ -698,14 +711,30 @@ export default function OrderHistory({
                     </div>
                   )}
 
-                  {/* Memo preview */}
+                  {/* Memo preview with check toggle */}
                   {order.memo && (
                     <div
                       className="text-xs px-2 py-1 rounded mb-2 flex items-center gap-1"
-                      style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)' }}
+                      style={{
+                        background: order.memoChecked
+                          ? 'color-mix(in srgb, var(--success, #22c55e) 10%, transparent)'
+                          : 'color-mix(in srgb, var(--destructive) 8%, transparent)',
+                        color: order.memoChecked ? 'var(--success, #22c55e)' : 'var(--destructive)',
+                        opacity: order.memoChecked ? 0.7 : 1,
+                      }}
                     >
                       <FileText className="w-3 h-3 flex-shrink-0" />
-                      <span className="break-words leading-snug line-clamp-2">{order.memo}</span>
+                      <span className={`break-words leading-snug line-clamp-2 flex-1 ${order.memoChecked ? 'line-through' : ''}`}>{order.memo}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onUpdateOrder) onUpdateOrder(order.id || order.orderNumber, { memo_checked: !order.memoChecked });
+                        }}
+                        className="flex-shrink-0 p-0.5 rounded hover:bg-black/5 transition-colors"
+                        title={order.memoChecked ? '미확인으로 변경' : '확인 완료'}
+                      >
+                        <CheckCircle2 className="w-4 h-4" style={{ color: order.memoChecked ? 'var(--success, #22c55e)' : 'var(--muted-foreground)' }} />
+                      </button>
                     </div>
                   )}
 

@@ -146,6 +146,7 @@ export default function App() {
     totalAmount: o.total || o.total_amount || 0,
     totalReturned: o.total_returned || 0,
     returns: o.returns || [],
+    memoChecked: o.memo_checked || false,
     items: o.items || [],
   }), []);
 
@@ -632,6 +633,7 @@ export default function App() {
             if (data.customer_address != null) merged.customerAddress = data.customer_address;
             if (data.total_returned != null) merged.totalReturned = data.total_returned;
             if (data.returns != null) merged.returns = data.returns;
+            if (data.memo_checked != null) merged.memoChecked = data.memo_checked;
             return merged;
           })
         );
@@ -979,6 +981,7 @@ export default function App() {
               setCurrentPage('saved-carts');
             }}
             customers={customers}
+            onUpdateOrder={handleUpdateOrder}
           />
         );
 
