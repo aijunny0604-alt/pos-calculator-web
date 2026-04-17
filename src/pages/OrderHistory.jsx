@@ -27,6 +27,7 @@ export default function OrderHistory({
   const [showFilterDeleteConfirm, setShowFilterDeleteConfirm] = useState(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [showReturnsOnly, setShowReturnsOnly] = useState(false);
+  const [showMemoOnly, setShowMemoOnly] = useState(false);
 
   // Get blacklist info for customer
   const getBlacklistInfo = (customerName) => {
@@ -94,14 +95,18 @@ export default function OrderHistory({
       const orderNum = String(order.orderNumber || '').toLowerCase().replace(/\s/g, '');
       const customerName = (order.customerName || '').toLowerCase().replace(/\s/g, '');
       const customerPhone = (order.customerPhone || '').replace(/\s/g, '');
-      return orderNum.includes(search) || customerName.includes(search) || customerPhone.includes(search);
+      const memo = (order.memo || '').toLowerCase().replace(/\s/g, '');
+      return orderNum.includes(search) || customerName.includes(search) || customerPhone.includes(search) || memo.includes(search);
     })
-    .filter(order => !showReturnsOnly || (order.totalReturned || 0) > 0);
+    .filter(order => !showReturnsOnly || (order.totalReturned || 0) > 0)
+    .filter(order => !showMemoOnly || !!order.memo);
 
   // Stats
   const filteredTotalSales = filteredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const filteredTotalReturned = filteredOrders.reduce((sum, o) => sum + (o.totalReturned || 0), 0);
   const filteredReturnCount = filteredOrders.filter(o => (o.totalReturned || 0) > 0).length;
+  const filteredMemoCount = filteredOrders.filter(o => !!o.memo).length;
+  const totalMemoCount = orders.filter(o => !!o.memo).length;
   const totalSales = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const totalReturned = orders.reduce((sum, o) => sum + (o.totalReturned || 0), 0);
   const totalReturnCount = orders.filter(o => (o.totalReturned || 0) > 0).length;
@@ -401,6 +406,44 @@ export default function OrderHistory({
                   </p>
                 )}
               </button>
+
+              <button
+                onClick={() => setShowMemoOnly(prev => !prev)}
+                className="rounded-xl p-3 border text-left transition-all"
+                style={{
+                  background: showMemoOnly
+                    ? 'color-mix(in srgb, var(--primary) 15%, var(--card))'
+                    : filteredMemoCount > 0
+                      ? 'color-mix(in srgb, var(--primary) 5%, var(--card))'
+                      : 'var(--card)',
+                  borderColor: showMemoOnly
+                    ? 'var(--primary)'
+                    : filteredMemoCount > 0
+                      ? 'color-mix(in srgb, var(--primary) 30%, var(--border))'
+                      : 'var(--border)',
+                  boxShadow: showMemoOnly ? '0 0 0 1px var(--primary)' : 'none',
+                }}
+              >
+                <p
+                  className="text-xs flex items-center gap-1 mb-1"
+                  style={{ color: filteredMemoCount > 0 || showMemoOnly ? 'var(--primary)' : 'var(--muted-foreground)' }}
+                >
+                  <FileText className="w-3 h-3" />
+                  메모 ({filteredMemoCount}건)
+                  {showMemoOnly && <span className="ml-1 text-[10px] font-bold">필터 ON</span>}
+                </p>
+                <p
+                  className="font-bold text-base sm:text-lg"
+                  style={{ color: filteredMemoCount > 0 || showMemoOnly ? 'var(--primary)' : 'var(--muted-foreground)' }}
+                >
+                  {filteredMemoCount > 0 ? `${filteredMemoCount}건` : '0건'}
+                </p>
+                {dateFilter !== 'all' && totalMemoCount > filteredMemoCount && (
+                  <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                    전체 {totalMemoCount}건
+                  </p>
+                )}
+              </button>
             </div>
 
             {/* Date filter buttons */}
@@ -456,7 +499,7 @@ export default function OrderHistory({
               />
               <input
                 type="text"
-                placeholder="주문번호, 고객명, 연락처 검색..."
+                placeholder="주문번호, 고객명, 연락처, 메모 검색..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2"
@@ -652,6 +695,17 @@ export default function OrderHistory({
                     >
                       <RotateCcw className="w-3 h-3" />
                       반품 -{formatPrice((order.totalReturned || 0))}원
+                    </div>
+                  )}
+
+                  {/* Memo preview */}
+                  {order.memo && (
+                    <div
+                      className="text-xs px-2 py-1 rounded mb-2 flex items-center gap-1"
+                      style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)' }}
+                    >
+                      <FileText className="w-3 h-3 flex-shrink-0" />
+                      <span className="break-words leading-snug line-clamp-2">{order.memo}</span>
                     </div>
                   )}
 
