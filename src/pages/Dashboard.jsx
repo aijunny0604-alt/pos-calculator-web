@@ -130,8 +130,43 @@ export default function Dashboard({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Orders */}
-        <div className="lg:col-span-2 rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+        {/* Left Column: AI Quick Order + Recent Orders */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* AI Quick Order Input */}
+          <div className="rounded-xl border p-4" style={{ background: 'color-mix(in srgb, var(--primary) 3%, var(--card))', borderColor: 'color-mix(in srgb, var(--primary) 20%, var(--border))' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <Brain className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+              <h3 className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>AI 빠른 주문</h3>
+            </div>
+            <div className="flex gap-2">
+              <textarea
+                value={aiText}
+                onChange={(e) => setAiText(e.target.value)}
+                placeholder="주문 내용을 붙여넣기 하세요...&#10;예: 플랜지 54 10개, y관 4개"
+                className="flex-1 text-sm rounded-lg border p-2.5 resize-none focus:outline-none focus:ring-2"
+                style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)', minHeight: '52px' }}
+                rows={2}
+              />
+              <button
+                onClick={() => {
+                  if (aiText.trim()) {
+                    onAiOrder?.(aiText.trim());
+                    setAiText('');
+                  } else {
+                    setCurrentPage('ai-order');
+                  }
+                }}
+                className="self-end px-4 py-2.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors flex-shrink-0"
+                style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+              >
+                <Brain className="w-4 h-4" />
+                인식
+              </button>
+            </div>
+          </div>
+
+          {/* Recent Orders */}
+          <div className="rounded-xl border p-5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <h2 className="font-bold" style={{ color: 'var(--foreground)' }}>최근 주문</h2>
             <button
@@ -190,38 +225,7 @@ export default function Dashboard({
             </div>
           )}
 
-          {/* AI Quick Order Input */}
-          <div className="mt-4 rounded-xl border p-4" style={{ background: 'color-mix(in srgb, var(--primary) 3%, var(--card))', borderColor: 'color-mix(in srgb, var(--primary) 20%, var(--border))' }}>
-            <div className="flex items-center gap-2 mb-2">
-              <Brain className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-              <h3 className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>AI 빠른 주문</h3>
-            </div>
-            <div className="flex gap-2">
-              <textarea
-                value={aiText}
-                onChange={(e) => setAiText(e.target.value)}
-                placeholder="주문 내용을 붙여넣기 하세요...&#10;예: 플랜지 54 10개, y관 4개"
-                className="flex-1 text-sm rounded-lg border p-2.5 resize-none focus:outline-none focus:ring-2"
-                style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)', minHeight: '60px', focusRingColor: 'var(--primary)' }}
-                rows={2}
-              />
-              <button
-                onClick={() => {
-                  if (aiText.trim()) {
-                    onAiOrder?.(aiText.trim());
-                    setAiText('');
-                  } else {
-                    setCurrentPage('ai-order');
-                  }
-                }}
-                className="self-end px-4 py-2.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors flex-shrink-0"
-                style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
-              >
-                <Brain className="w-4 h-4" />
-                인식
-              </button>
-            </div>
-          </div>
+        </div>
         </div>
 
         {/* Right Column */}
