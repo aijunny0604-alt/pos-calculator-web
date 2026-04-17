@@ -730,10 +730,10 @@ export default function OrderHistory({
                           e.stopPropagation();
                           if (onUpdateOrder) onUpdateOrder(order.id || order.orderNumber, { memo_checked: !order.memoChecked });
                         }}
-                        className="flex-shrink-0 p-0.5 rounded hover:bg-black/5 transition-colors"
+                        className="flex-shrink-0 p-2 -m-1 rounded-lg hover:bg-black/10 active:bg-black/20 transition-colors"
                         title={order.memoChecked ? '미확인으로 변경' : '확인 완료'}
                       >
-                        <CheckCircle2 className="w-4 h-4" style={{ color: order.memoChecked ? 'var(--success, #22c55e)' : 'var(--muted-foreground)' }} />
+                        <CheckCircle2 className="w-5 h-5" style={{ color: order.memoChecked ? 'var(--success, #22c55e)' : 'var(--muted-foreground)' }} />
                       </button>
                     </div>
                   )}
