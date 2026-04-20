@@ -187,6 +187,37 @@ html, body {
   animation: admin-stripe-move 2s linear infinite;
 }
 
+/* ──────────────────────────────────────────────────
+   접근성 (Accessibility) — P0 design-sense 2026-04-20
+   ────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 키보드 포커스 인디케이터 통일 — 마우스 클릭 시엔 링 안 보임 */
+*:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 /* Button hover animations */
 button, [role="button"] {
   transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
