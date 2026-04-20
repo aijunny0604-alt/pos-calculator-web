@@ -658,17 +658,6 @@ export default function OrderHistory({
                     />
                   ) : null}
 
-                  {/* 완불 리본 */}
-                  {isPaid && (
-                    <div
-                      className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-md pointer-events-none"
-                      style={{ background: '#10b981', color: 'white' }}
-                    >
-                      <CheckCircle2 className="w-3 h-3" />
-                      완불 {paidMethod?.emoji}
-                    </div>
-                  )}
-
                   {/* Top row: checkbox + customer name (big) + order number + price type + amount */}
                   <div className="flex items-start gap-3 mb-3">
                     <input
@@ -728,6 +717,19 @@ export default function OrderHistory({
                             }}
                           >
                             {order.priceType === 'wholesale' ? '도매' : '소비자'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 완불 인라인 칩 (간섭 없음, 자동 줄바꿈) */}
+                      {isPaid && (
+                        <div className="flex items-center gap-1 flex-wrap mb-1">
+                          <span
+                            className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                            style={{ background: '#10b981', color: 'white' }}
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            완불 {paidMethod?.emoji} {paidMethod?.label}
                           </span>
                         </div>
                       )}

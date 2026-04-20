@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 // pos-payments와 공유: aijunny0604-alt.github.io 오리진 localStorage 공유
 export const MANUAL_PAID_KEY = 'pos-payments.manual-paid-orders.v1';
+const SYNC_EVENT = 'pos.manualPaidChanged';
 
 export const PAYMENT_METHODS = [
   { key: 'card', label: '카드', emoji: '💳', color: '#3b82f6' },
@@ -24,36 +25,49 @@ function saveMap(obj) {
   try { localStorage.setItem(MANUAL_PAID_KEY, JSON.stringify(obj)); } catch {}
 }
 
+function broadcast() {
+  try { window.dispatchEvent(new CustomEvent(SYNC_EVENT)); } catch {}
+}
+
 export default function useManualPaid() {
   const [map, setMap] = useState(() => loadMap());
 
-  // 다른 탭/앱에서 변경 시 동기화
+  // 타 탭/윈도우(storage) + 같은 윈도우 내 다른 훅(custom event) 동기화
   useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === MANUAL_PAID_KEY) setMap(loadMap());
-    };
+    const sync = () => setMap(loadMap());
+    const onStorage = (e) => { if (e.key === MANUAL_PAID_KEY) sync(); };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(SYNC_EVENT, sync);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(SYNC_EVENT, sync);
+    };
   }, []);
-
-  // 저장
-  useEffect(() => { saveMap(map); }, [map]);
 
   const setPaid = useCallback((orderId, method) => {
     if (!orderId || !method) return;
-    setMap((prev) => ({ ...prev, [orderId]: { method, paidAt: new Date().toISOString() } }));
+    setMap((prev) => {
+      const next = { ...prev, [String(orderId)]: { method, paidAt: new Date().toISOString() } };
+      saveMap(next);
+      broadcast();
+      return next;
+    });
   }, []);
 
   const clearPaid = useCallback((orderId) => {
     if (!orderId) return;
     setMap((prev) => {
+      const key = String(orderId);
+      if (!(key in prev)) return prev;
       const next = { ...prev };
-      delete next[orderId];
+      delete next[key];
+      saveMap(next);
+      broadcast();
       return next;
     });
   }, []);
 
-  const getInfo = useCallback((orderId) => map[orderId] || null, [map]);
+  const getInfo = useCallback((orderId) => map[String(orderId)] || null, [map]);
 
   return { map, getInfo, setPaid, clearPaid, methods: PAYMENT_METHODS, methodMap: METHOD_MAP };
 }
