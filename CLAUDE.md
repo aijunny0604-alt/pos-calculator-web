@@ -1,9 +1,17 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-04-14
+> 마지막 업데이트: 2026-04-20
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry.
+
+## 🆕 v2026-04-20 주요 변경
+
+- **OrderDetail 모달**: 드래그 이동 + 8방향 리사이즈 + 더블클릭 전체화면 (데스크톱 전용, 모바일은 기존 중앙 유지)
+- **OrderHistory/OrderDetail**: 수동 완불 체크 기능 (카드/현금/계좌이체/기타) — **pos-payments와 localStorage 공유**
+- **4개 모달 드래그/리사이즈 적용**: SaveCartModal, QuickCalculator, NotificationSettings, ShippingLabel 부속 모달
+- **접근성**: `prefers-reduced-motion` 대응 + `focus-visible` 포커스 링 통일
+- 신규 훅: `src/hooks/useDraggableResizable.jsx`, `src/hooks/useManualPaid.js`
 
 ## 빌드/배포
 
