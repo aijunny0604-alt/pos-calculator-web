@@ -154,18 +154,23 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
     setMaximized(false);
   }, [storageKey, defaults]);
 
-  const containerStyle = maximized
-    ? { position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', maxWidth: 'none', maxHeight: 'none', borderRadius: 0 }
-    : { position: 'fixed', left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.w}px`, height: `${rect.h}px`, maxWidth: 'none', maxHeight: 'none' };
+  // 모바일은 기존 동작(중앙 정렬)을 유지 → containerStyle/handles/drag 비활성
+  const containerStyle = !isDesktop
+    ? {}
+    : maximized
+      ? { position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', maxWidth: 'none', maxHeight: 'none', borderRadius: 0 }
+      : { position: 'fixed', left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.w}px`, height: `${rect.h}px`, maxWidth: 'none', maxHeight: 'none' };
 
-  const dragHandleProps = {
-    onMouseDown: startDrag,
-    onTouchStart: startDrag,
-    style: { cursor: maximized ? 'default' : 'move', touchAction: 'none', userSelect: 'none' },
-  };
+  const dragHandleProps = !isDesktop
+    ? {}
+    : {
+        onMouseDown: startDrag,
+        onTouchStart: startDrag,
+        style: { cursor: maximized ? 'default' : 'move', touchAction: 'none', userSelect: 'none' },
+      };
 
   const handleBase = 'absolute select-none';
-  const handles = maximized ? null : (
+  const handles = (!isDesktop || maximized) ? null : (
     <>
       {/* edges */}
       <div data-no-drag className={`${handleBase} top-0 left-3 right-3 h-1.5`} style={{ cursor: 'n-resize', zIndex: 40 }} onMouseDown={startResize('n')} onTouchStart={startResize('n')} />
@@ -192,5 +197,5 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
     </>
   );
 
-  return { rect, maximized, containerStyle, dragHandleProps, handles, toggleMaximized, reset, startResize };
+  return { rect, maximized, isDesktop, containerStyle, dragHandleProps, handles, toggleMaximized, reset, startResize };
 }

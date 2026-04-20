@@ -7,7 +7,7 @@ import {
 import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
-import useModalFullscreen from '@/hooks/useModalFullscreen';
+import useDraggableResizable from '@/hooks/useDraggableResizable';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
 
 // Safe price getter - fallback for items without price field
@@ -39,7 +39,16 @@ export default function OrderDetail({
   const [showCalculator, setShowCalculator] = useState(false);
   // Mobile bottom section collapse state
   const [isBottomExpanded, setIsBottomExpanded] = useState(true);
-  const { isFullscreen, toggleFullscreen } = useModalFullscreen();
+  // 드래그/리사이즈 (데스크톱 전용, 모바일은 기존 중앙 정렬 유지)
+  const {
+    maximized: isFullscreen,
+    toggleMaximized: toggleFullscreen,
+    isDesktop: isDraggable,
+    containerStyle: dragContainerStyle,
+    dragHandleProps,
+    handles: resizeHandles,
+    reset: resetModalPos,
+  } = useDraggableResizable('pos-web.orderDetailModal', { w: 1120, h: 800 });
 
   // 수동 완불 (pos-payments와 localStorage 공유)
   const { getInfo: getPaidInfo, setPaid: setManualPaid, clearPaid: clearManualPaid } = useManualPaid();
@@ -440,12 +449,25 @@ export default function OrderDetail({
       {/* Modal */}
       <div
         className="relative w-full overflow-hidden border shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
-        style={{ background: 'var(--card)', borderColor: 'var(--border)', maxWidth: isFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))', height: isFullscreen ? '100vh' : 'auto', maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 2rem)', borderRadius: isFullscreen ? '0' : '1rem', boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+        style={{
+          background: 'var(--card)', borderColor: 'var(--border)',
+          maxWidth: isFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))',
+          height: isFullscreen ? '100vh' : 'auto',
+          maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 2rem)',
+          borderRadius: isFullscreen ? '0' : '1rem',
+          boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+          ...(isDraggable ? dragContainerStyle : {}),
+        }}
       >
+        {/* 리사이즈 핸들 (데스크톱만) */}
+        {resizeHandles}
         {/* Header - sticky for scroll visibility */}
         <div
+          {...dragHandleProps}
           className="px-6 py-4 flex items-center justify-between flex-shrink-0 sticky top-0 z-10"
-          style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+          style={{ background: 'var(--primary)', color: 'var(--primary-foreground)', ...(dragHandleProps.style || {}) }}
+          onDoubleClick={isDraggable ? toggleFullscreen : undefined}
+          title={isDraggable ? '드래그해서 이동 · 더블클릭 = 전체화면 · 가장자리 드래그 = 크기 변경' : undefined}
         >
           <div className="flex items-center gap-3">
             <FileText className="w-6 h-6" />
@@ -473,6 +495,16 @@ export default function OrderDetail({
               >
                 <Check className="w-4 h-4" />
                 저장
+              </button>
+            )}
+            {isDraggable && (
+              <button
+                onClick={resetModalPos}
+                className="px-2 py-1.5 rounded-lg text-xs transition-colors hidden md:flex items-center"
+                style={{ background: 'rgba(255,255,255,0.15)' }}
+                title="모달 위치/크기 초기화"
+              >
+                초기화
               </button>
             )}
             <button
@@ -1206,73 +1238,6 @@ export default function OrderDetail({
               </div>
             )}
 
-            {/* 수동 완불 체크 */}
-            <div
-              className="mt-4 p-4 rounded-xl border"
-              style={{
-                background: isManualPaid ? 'color-mix(in srgb, #10b981 10%, var(--card))' : 'var(--card)',
-                borderColor: isManualPaid ? '#10b981' : 'var(--border)',
-                boxShadow: isManualPaid ? '0 0 0 1px rgba(16,185,129,0.3)' : 'none',
-              }}
-            >
-              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <CircleDollarSign
-                    className="w-5 h-5"
-                    style={{ color: isManualPaid ? '#059669' : 'var(--muted-foreground)' }}
-                  />
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: isManualPaid ? '#059669' : 'var(--foreground)' }}>
-                      수동 완불 체크
-                    </p>
-                    {isManualPaid ? (
-                      <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
-                        <span className="font-semibold" style={{ color: '#059669' }}>
-                          {paidMethod?.emoji} {paidMethod?.label} 결제
-                        </span>
-                        {' · '}{formatDateTime(paidInfo.paidAt)}
-                      </p>
-                    ) : (
-                      <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
-                        결제수단 선택 시 완불 처리됩니다 (결제 관리 앱과 동기화)
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {isManualPaid && (
-                  <button
-                    onClick={() => clearManualPaid(order.id || order.orderNumber)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium border hover:bg-[var(--accent)]"
-                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
-                  >
-                    완불 해제
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {PAYMENT_METHODS.map((m) => {
-                  const selected = paidInfo?.method === m.key;
-                  return (
-                    <button
-                      key={m.key}
-                      onClick={() => setManualPaid(order.id || order.orderNumber, m.key)}
-                      className="flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-sm font-medium border transition-colors"
-                      style={{
-                        background: selected ? m.color : 'var(--card)',
-                        color: selected ? 'white' : m.color,
-                        borderColor: selected ? m.color : `color-mix(in srgb, ${m.color} 30%, var(--border))`,
-                      }}
-                    >
-                      <span className="text-xl leading-none">{m.emoji}</span>
-                      <span className="flex items-center gap-1">
-                        {m.label}
-                        {selected && <CheckCircle2 className="w-3.5 h-3.5" />}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         </div>
 
@@ -1321,6 +1286,67 @@ export default function OrderDetail({
               )}
             </div>
           </div>
+
+          {/* 수동 완불 체크 - Desktop 컴팩트 */}
+          {!isEditing && !isReturning && (
+            <div
+              className="mb-3 rounded-xl border flex items-center gap-3 px-3 py-2"
+              style={{
+                background: isManualPaid ? 'color-mix(in srgb, #10b981 12%, transparent)' : 'var(--background)',
+                borderColor: isManualPaid ? '#10b981' : 'var(--border)',
+              }}
+            >
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <CircleDollarSign
+                  className="w-4 h-4"
+                  style={{ color: isManualPaid ? '#059669' : 'var(--muted-foreground)' }}
+                />
+                <span
+                  className="text-xs font-semibold whitespace-nowrap"
+                  style={{ color: isManualPaid ? '#059669' : 'var(--foreground)' }}
+                >
+                  {isManualPaid ? '완불' : '완불 체크'}
+                </span>
+                {isManualPaid && (
+                  <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>
+                    · {paidMethod?.emoji} {paidMethod?.label}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 flex-1 flex-wrap justify-end">
+                {PAYMENT_METHODS.map((m) => {
+                  const selected = paidInfo?.method === m.key;
+                  return (
+                    <button
+                      key={m.key}
+                      onClick={() => setManualPaid(order.id || order.orderNumber, m.key)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors"
+                      style={{
+                        background: selected ? m.color : 'var(--card)',
+                        color: selected ? 'white' : m.color,
+                        borderColor: selected ? m.color : `color-mix(in srgb, ${m.color} 30%, var(--border))`,
+                      }}
+                      title={`${m.label} 결제로 완불 처리`}
+                    >
+                      <span>{m.emoji}</span>
+                      <span className="hidden xl:inline">{m.label}</span>
+                      {selected && <CheckCircle2 className="w-3 h-3" />}
+                    </button>
+                  );
+                })}
+                {isManualPaid && (
+                  <button
+                    onClick={() => clearManualPaid(order.id || order.orderNumber)}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-medium border hover:bg-[var(--accent)] ml-1"
+                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                    title="완불 해제"
+                  >
+                    해제
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Action buttons - Desktop */}
           {isEditing ? (
@@ -1460,6 +1486,61 @@ export default function OrderDetail({
                   </div>
                 )}
               </div>
+
+              {/* 수동 완불 체크 - Mobile */}
+              {!isEditing && !isReturning && (
+                <div
+                  className="rounded-xl border p-2.5"
+                  style={{
+                    background: isManualPaid ? 'color-mix(in srgb, #10b981 12%, transparent)' : 'var(--card)',
+                    borderColor: isManualPaid ? '#10b981' : 'var(--border)',
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <CircleDollarSign
+                        className="w-4 h-4"
+                        style={{ color: isManualPaid ? '#059669' : 'var(--muted-foreground)' }}
+                      />
+                      <span className="text-xs font-semibold" style={{ color: isManualPaid ? '#059669' : 'var(--foreground)' }}>
+                        {isManualPaid ? `완불 · ${paidMethod?.emoji} ${paidMethod?.label}` : '완불 체크'}
+                      </span>
+                    </div>
+                    {isManualPaid && (
+                      <button
+                        onClick={() => clearManualPaid(order.id || order.orderNumber)}
+                        className="px-2 py-1 rounded-md text-[11px] border hover:bg-[var(--accent)]"
+                        style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                      >
+                        해제
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {PAYMENT_METHODS.map((m) => {
+                      const selected = paidInfo?.method === m.key;
+                      return (
+                        <button
+                          key={m.key}
+                          onClick={() => setManualPaid(order.id || order.orderNumber, m.key)}
+                          className="flex flex-col items-center gap-0.5 px-1 py-2 rounded-md text-[11px] font-medium border"
+                          style={{
+                            background: selected ? m.color : 'var(--card)',
+                            color: selected ? 'white' : m.color,
+                            borderColor: selected ? m.color : `color-mix(in srgb, ${m.color} 30%, var(--border))`,
+                          }}
+                        >
+                          <span className="text-base leading-none">{m.emoji}</span>
+                          <span className="flex items-center gap-0.5">
+                            {m.label}
+                            {selected && <CheckCircle2 className="w-3 h-3" />}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Action buttons - Mobile */}
               {isEditing ? (
