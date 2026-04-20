@@ -7,7 +7,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
-import useModalFullscreen from '@/hooks/useModalFullscreen';
+import useDraggableResizable from '@/hooks/useDraggableResizable';
 
 export default function ShippingLabel({ orders = [], customers = [], onBack, refreshCustomers, showToast }) {
   const [selectedOrders, setSelectedOrders] = useState([]);
@@ -100,7 +100,14 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
     filteredCustomerSearch.length > 0
   );
 
-  const { isFullscreen: isAddModalFullscreen, toggleFullscreen: toggleAddModalFullscreen } = useModalFullscreen();
+  const {
+    maximized: isAddModalFullscreen,
+    toggleMaximized: toggleAddModalFullscreen,
+    isDesktop: isAddModalDraggable,
+    containerStyle: addModalDragStyle,
+    dragHandleProps: addModalDragHandleProps,
+    handles: addModalResizeHandles,
+  } = useDraggableResizable('pos-web.shippingAddCustomer', { w: 760, h: 720 });
 
   // -- Filtering --
 
@@ -1074,8 +1081,15 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
       {/* Add custom entry modal */}
       {showAddCustomModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isAddModalFullscreen ? '0' : '1rem' }} onClick={() => setShowAddCustomModal(false)}>
-          <div className="bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl animate-modal-up modal-fs-transition overflow-y-auto" style={{ maxWidth: isAddModalFullscreen ? '100vw' : '48rem', maxHeight: isAddModalFullscreen ? '100vh' : '90vh', borderRadius: isAddModalFullscreen ? '0' : '0.75rem', boxShadow: isAddModalFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
-            <div className={`px-4 py-3 flex items-center justify-between ${isAddModalFullscreen ? '' : 'rounded-t-xl'}`} style={{ background: 'var(--success)' }}>
+          <div className="relative bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl animate-modal-up modal-fs-transition overflow-y-auto" style={{ maxWidth: isAddModalFullscreen ? '100vw' : '48rem', maxHeight: isAddModalFullscreen ? '100vh' : '90vh', borderRadius: isAddModalFullscreen ? '0' : '0.75rem', boxShadow: isAddModalFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)', ...(isAddModalDraggable ? addModalDragStyle : {}) }} onClick={e => e.stopPropagation()}>
+            {addModalResizeHandles}
+            <div
+              {...addModalDragHandleProps}
+              onDoubleClick={isAddModalDraggable ? toggleAddModalFullscreen : undefined}
+              title={isAddModalDraggable ? '드래그 이동 · 더블클릭 = 전체화면' : undefined}
+              className={`px-4 py-3 flex items-center justify-between ${isAddModalFullscreen ? '' : 'rounded-t-xl'}`}
+              style={{ background: 'var(--success)', ...(addModalDragHandleProps.style || {}) }}
+            >
               <h3 className="text-white font-bold flex items-center gap-2">
                 <Plus className="w-5 h-5" />
                 임의 항목 추가

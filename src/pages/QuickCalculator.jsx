@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Calculator, X, Maximize2, Minimize2 } from 'lucide-react';
-import useModalFullscreen from '@/hooks/useModalFullscreen';
+import useDraggableResizable from '@/hooks/useDraggableResizable';
 
 export default function QuickCalculator({ onClose, initialValue = null }) {
   const [display, setDisplay] = useState(
@@ -9,7 +9,14 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
   const [previousValue, setPreviousValue] = useState(null);
   const [operation, setOperation] = useState(null);
   const [waitingForOperand, setWaitingForOperand] = useState(false);
-  const { isFullscreen, toggleFullscreen } = useModalFullscreen();
+  const {
+    maximized: isFullscreen,
+    toggleMaximized: toggleFullscreen,
+    isDesktop: isDraggable,
+    containerStyle: dragStyle,
+    dragHandleProps,
+    handles: resizeHandles,
+  } = useDraggableResizable('pos-web.quickCalculator', { w: 440, h: 640 });
   const [history, setHistory] = useState(
     initialValue !== null && initialValue !== undefined
       ? [`초기값: ${initialValue.toLocaleString()}원`]
@@ -177,20 +184,25 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
       onClick={onClose}
     >
       <div
-        className="w-full overflow-hidden border shadow-2xl animate-modal-up modal-fs-transition"
+        className="relative w-full overflow-hidden border shadow-2xl animate-modal-up modal-fs-transition"
         style={{
           backgroundColor: 'var(--card)', borderColor: 'var(--border)',
           maxWidth: isFullscreen ? '100vw' : '28rem',
           maxHeight: isFullscreen ? '100vh' : '90vh',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+          ...(isDraggable ? dragStyle : {}),
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {resizeHandles}
         {/* Header */}
         <div
+          {...dragHandleProps}
+          onDoubleClick={isDraggable ? toggleFullscreen : undefined}
+          title={isDraggable ? '드래그 이동 · 더블클릭 = 전체화면' : undefined}
           className="flex items-center justify-between px-4 py-3"
-          style={{ backgroundColor: 'var(--warning)', color: 'white' }}
+          style={{ backgroundColor: 'var(--warning)', color: 'white', ...(dragHandleProps.style || {}) }}
         >
           <div className="flex items-center gap-2">
             <Calculator className="w-5 h-5" />

@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Bell, X, Clock, Calendar, RefreshCw, Check, Maximize2, Minimize2 } from 'lucide-react';
-import useModalFullscreen from '@/hooks/useModalFullscreen';
+import useDraggableResizable from '@/hooks/useDraggableResizable';
 
 export default function NotificationSettings({ isOpen, onClose, settings, onSave }) {
   const [localSettings, setLocalSettings] = useState(settings);
-  const { isFullscreen, toggleFullscreen } = useModalFullscreen();
+  const {
+    maximized: isFullscreen,
+    toggleMaximized: toggleFullscreen,
+    isDesktop: isDraggable,
+    containerStyle: dragStyle,
+    dragHandleProps,
+    handles: resizeHandles,
+  } = useDraggableResizable('pos-web.notificationSettings', { w: 680, h: 720 });
 
   useEffect(() => {
     if (isOpen) {
@@ -57,12 +64,17 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
           maxHeight: isFullscreen ? '100vh' : '90vh',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+          ...(isDraggable ? dragStyle : {}),
         }}
       >
+        {resizeHandles}
         {/* Header */}
         <div
+          {...dragHandleProps}
+          onDoubleClick={isDraggable ? toggleFullscreen : undefined}
+          title={isDraggable ? '드래그 이동 · 더블클릭 = 전체화면' : undefined}
           className="flex items-center justify-between px-6 py-4 border-b"
-          style={{ borderColor: 'var(--border)', backgroundColor: 'var(--secondary)' }}
+          style={{ borderColor: 'var(--border)', backgroundColor: 'var(--secondary)', ...(dragHandleProps.style || {}) }}
         >
           <div className="flex items-center gap-3">
             <div
