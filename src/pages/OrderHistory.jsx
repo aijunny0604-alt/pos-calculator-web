@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import {
   ChevronLeft, Menu, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
-  ChevronDown, CheckCircle2
+  ChevronDown, CheckCircle2, CircleDollarSign
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
+import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
 
 export default function OrderHistory({
   orders,
@@ -31,6 +32,10 @@ export default function OrderHistory({
   // 메모 필터: 'off' | 'unchecked' | 'all'
   const [memoFilter, setMemoFilter] = useState('off');
   const [memoAlert, setMemoAlert] = useState(false);
+
+  // 수동 완불 (pos-payments와 localStorage 공유)
+  const { getInfo: getPaidInfo, setPaid, clearPaid } = useManualPaid();
+  const [methodPickerId, setMethodPickerId] = useState(null);
 
   // 진입 시 미확인 메모 알림 (페이지 진입할 때마다)
   useEffect(() => {
@@ -610,6 +615,10 @@ export default function OrderHistory({
               const blacklistInfo = getBlacklistInfo(order.customerName);
               const isBlacklist = blacklistInfo?.isBlacklist;
               const isSelected = selectedOrders.includes(order.orderNumber);
+              const paidInfo = getPaidInfo(order.id || order.orderNumber);
+              const isPaid = !!paidInfo;
+              const paidMethod = isPaid ? METHOD_MAP[paidInfo.method] : null;
+              const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
 
               return (
                 <div
@@ -619,63 +628,126 @@ export default function OrderHistory({
                   style={{
                     background: isSelected
                       ? 'color-mix(in srgb, var(--primary) 8%, var(--card))'
-                      : isBlacklist
-                        ? 'color-mix(in srgb, var(--destructive) 6%, var(--card))'
-                        : 'var(--card)',
+                      : isPaid
+                        ? 'color-mix(in srgb, #10b981 10%, var(--card))'
+                        : isBlacklist
+                          ? 'color-mix(in srgb, var(--destructive) 6%, var(--card))'
+                          : 'var(--card)',
                     borderColor: isSelected
                       ? 'var(--primary)'
-                      : isBlacklist
-                        ? 'var(--destructive)'
-                        : 'var(--border)',
-                    outline: isSelected ? '2px solid var(--primary)' : 'none',
+                      : isPaid
+                        ? '#10b981'
+                        : isBlacklist
+                          ? 'var(--destructive)'
+                          : 'var(--border)',
+                    outline: isSelected ? '2px solid var(--primary)' : isPaid ? '1px solid rgba(16,185,129,0.4)' : 'none',
                     outlineOffset: '-1px',
+                    boxShadow: isPaid ? '0 0 0 1px rgba(16, 185, 129, 0.25), 0 4px 14px rgba(16, 185, 129, 0.12)' : undefined,
                   }}
                 >
-                  {/* Blacklist top accent bar */}
-                  {isBlacklist && (
+                  {/* Top accent bar */}
+                  {isPaid ? (
+                    <div
+                      className="absolute top-0 left-0 right-0 h-1.5"
+                      style={{ background: 'linear-gradient(90deg,#10b981,#34d399)' }}
+                    />
+                  ) : isBlacklist ? (
                     <div
                       className="absolute top-0 left-0 right-0 h-1"
                       style={{ background: 'var(--destructive)' }}
                     />
+                  ) : null}
+
+                  {/* 완불 리본 */}
+                  {isPaid && (
+                    <div
+                      className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-md pointer-events-none"
+                      style={{ background: '#10b981', color: 'white' }}
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      완불 {paidMethod?.emoji}
+                    </div>
                   )}
 
-                  {/* Top row: checkbox + order number + price type + amount */}
+                  {/* Top row: checkbox + customer name (big) + order number + price type + amount */}
                   <div className="flex items-start gap-3 mb-3">
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => handleSelect(order.orderNumber)}
                       onClick={(e) => e.stopPropagation()}
-                      className="mt-1 w-5 h-5 rounded cursor-pointer flex-shrink-0"
+                      className="mt-1.5 w-5 h-5 rounded cursor-pointer flex-shrink-0"
                       style={{ accentColor: 'var(--primary)' }}
                     />
                     <div className="flex-1 min-w-0">
+                      {/* 업체명 (크게, 맨 위) + 도매/소비자 배지 + 블랙리스트 */}
+                      {order.customerName ? (
+                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                          <span className="flex-shrink-0 text-base">{isBlacklist ? '🚫' : '👤'}</span>
+                          <span
+                            className="font-bold text-base sm:text-lg break-words leading-snug min-w-0"
+                            style={{ color: isBlacklist ? 'var(--destructive)' : 'var(--foreground)' }}
+                          >
+                            {order.customerName}
+                          </span>
+                          <span
+                            className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
+                            style={{
+                              background: order.priceType === 'wholesale'
+                                ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
+                                : 'color-mix(in srgb, var(--purple) 15%, transparent)',
+                              color: order.priceType === 'wholesale' ? 'var(--primary)' : 'var(--purple)',
+                            }}
+                          >
+                            {order.priceType === 'wholesale' ? '도매' : '소비자'}
+                          </span>
+                          {isBlacklist && (
+                            <span
+                              className="px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 font-semibold"
+                              style={{
+                                background: 'color-mix(in srgb, var(--destructive) 20%, transparent)',
+                                color: 'var(--destructive)',
+                              }}
+                            >
+                              블랙리스트
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                            고객 미지정
+                          </span>
+                          <span
+                            className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
+                            style={{
+                              background: order.priceType === 'wholesale'
+                                ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
+                                : 'color-mix(in srgb, var(--purple) 15%, transparent)',
+                              color: order.priceType === 'wholesale' ? 'var(--primary)' : 'var(--purple)',
+                            }}
+                          >
+                            {order.priceType === 'wholesale' ? '도매' : '소비자'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 주문번호 + 날짜 (작게) */}
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold truncate" style={{ color: 'var(--foreground)' }}>
+                        <span className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
                           {order.orderNumber}
                         </span>
-                        <span
-                          className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
-                          style={{
-                            background: order.priceType === 'wholesale'
-                              ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
-                              : 'color-mix(in srgb, var(--purple) 15%, transparent)',
-                            color: order.priceType === 'wholesale' ? 'var(--primary)' : 'var(--purple)',
-                          }}
-                        >
-                          {order.priceType === 'wholesale' ? '도매' : '소비자'}
+                        <span className="flex items-center gap-0.5 text-xs flex-shrink-0" style={{ color: 'var(--muted-foreground)' }}>
+                          <Calendar className="w-3 h-3" />
+                          {formatDateTime(order.createdAt)}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
-                        <Calendar className="w-3 h-3" />
-                        {formatDateTime(order.createdAt)}
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="font-bold text-sm" style={{ color: 'var(--success)' }}>
+                      <p className="font-bold text-xl sm:text-2xl leading-tight" style={{ color: 'var(--success)' }}>
                         {formatPrice((order.totalAmount || 0))}원
                       </p>
-                      <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                      <p className="text-[11px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
                         공급가 {formatPrice(calcExVat((order.totalAmount || 0)))}원
                       </p>
                     </div>
@@ -699,34 +771,16 @@ export default function OrderHistory({
                     <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                       {order.items.length}종 / {order.items.reduce((sum, item) => sum + item.quantity, 0)}개
                     </div>
-                    {order.customerName && (
+                    {/* 블랙리스트 사유만 표시 (고객명은 상단으로 이동) */}
+                    {isBlacklist && blacklistInfo?.reason && (
                       <div
-                        className="border-t pt-2 mt-2"
-                        style={{ borderColor: isBlacklist ? 'color-mix(in srgb, var(--destructive) 40%, var(--border))' : 'var(--border)' }}
+                        className="border-t pt-2 mt-2 text-[10px] break-words leading-snug"
+                        style={{
+                          borderColor: 'color-mix(in srgb, var(--destructive) 40%, var(--border))',
+                          color: 'color-mix(in srgb, var(--destructive) 70%, transparent)',
+                        }}
                       >
-                        <div
-                          className="flex items-start gap-1.5 text-sm font-semibold min-w-0 flex-wrap"
-                          style={{ color: isBlacklist ? 'var(--destructive)' : 'var(--primary)' }}
-                        >
-                          <span className="flex-shrink-0">{isBlacklist ? '🚫' : '👤'}</span>
-                          <span className="break-words leading-snug min-w-0">{order.customerName}</span>
-                          {isBlacklist && (
-                            <span
-                              className="px-1.5 py-0.5 rounded text-[10px] ml-1"
-                              style={{
-                                background: 'color-mix(in srgb, var(--destructive) 20%, transparent)',
-                                color: 'var(--destructive)',
-                              }}
-                            >
-                              블랙리스트
-                            </span>
-                          )}
-                        </div>
-                        {isBlacklist && blacklistInfo?.reason && (
-                          <div className="text-[10px] mt-1 pl-4" style={{ color: 'color-mix(in srgb, var(--destructive) 70%, transparent)' }}>
-                            {blacklistInfo.reason}
-                          </div>
-                        )}
+                        ⚠️ {blacklistInfo.reason}
                       </div>
                     )}
                   </div>
@@ -769,8 +823,26 @@ export default function OrderHistory({
                     </div>
                   )}
 
+                  {/* 완불 상세 배너 */}
+                  {isPaid && (
+                    <div
+                      className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 mb-2 border text-[11px]"
+                      style={{
+                        background: 'color-mix(in srgb, #10b981 14%, transparent)',
+                        borderColor: 'color-mix(in srgb, #10b981 40%, var(--border))',
+                      }}
+                    >
+                      <span className="font-semibold flex items-center gap-1" style={{ color: '#059669' }}>
+                        {paidMethod?.emoji} {paidMethod?.label} 결제
+                      </span>
+                      <span style={{ color: 'var(--muted-foreground)' }}>
+                        {formatDateTime(paidInfo.paidAt)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Action buttons */}
-                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => onViewOrder(order)}
                       className="flex-1 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--accent)] border"
@@ -779,6 +851,40 @@ export default function OrderHistory({
                       <Eye className="w-3.5 h-3.5" />
                       상세보기
                     </button>
+
+                    {/* 완불 체크 / 해제 */}
+                    {isPaid ? (
+                      <>
+                        <button
+                          onClick={() => setMethodPickerId(isPickerOpen ? null : (order.id || order.orderNumber))}
+                          className="py-2 px-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1 border"
+                          style={{
+                            borderColor: 'color-mix(in srgb, #10b981 40%, var(--border))',
+                            color: '#059669',
+                            background: 'color-mix(in srgb, #10b981 8%, transparent)',
+                          }}
+                        >
+                          수단 변경
+                        </button>
+                        <button
+                          onClick={() => clearPaid(order.id || order.orderNumber)}
+                          className="py-2 px-2 rounded-lg text-xs font-medium border hover:bg-[var(--accent)]"
+                          style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                          title="완불 해제"
+                        >
+                          해제
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setMethodPickerId(isPickerOpen ? null : (order.id || order.orderNumber))}
+                        className="py-2 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 border transition-colors hover:bg-emerald-500/10"
+                        style={{ borderColor: '#10b981', color: '#10b981' }}
+                      >
+                        <CircleDollarSign className="w-3.5 h-3.5" />
+                        완불 체크
+                      </button>
+                    )}
 
                     {onSaveToCart && (
                       <button
@@ -801,6 +907,44 @@ export default function OrderHistory({
                       </button>
                     )}
                   </div>
+
+                  {/* 결제수단 선택 인라인 패널 */}
+                  {isPickerOpen && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-2 p-2 rounded-lg border"
+                      style={{
+                        background: 'color-mix(in srgb, #10b981 6%, var(--card))',
+                        borderColor: 'color-mix(in srgb, #10b981 35%, var(--border))',
+                      }}
+                    >
+                      <p className="text-[10px] mb-1.5" style={{ color: 'var(--muted-foreground)' }}>결제 수단 선택</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {PAYMENT_METHODS.map((m) => {
+                          const selected = paidInfo?.method === m.key;
+                          return (
+                            <button
+                              key={m.key}
+                              onClick={() => {
+                                setPaid(order.id || order.orderNumber, m.key);
+                                setMethodPickerId(null);
+                              }}
+                              className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors"
+                              style={{
+                                background: selected ? m.color : 'var(--card)',
+                                color: selected ? 'white' : m.color,
+                                borderColor: selected ? m.color : `color-mix(in srgb, ${m.color} 30%, var(--border))`,
+                              }}
+                            >
+                              <span>{m.emoji}</span>
+                              {m.label}
+                              {selected && <CheckCircle2 className="w-3 h-3 ml-auto" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Inline delete confirm */}
                   {deleteConfirm === order.orderNumber && (

@@ -32,15 +32,36 @@
 - `.modal-fs-transition` - 모달 풀스크린 토글 애니메이션
 - `overscroll-behavior-y: contain` → `html, body`, `main`에만 적용 (다른 곳 금지)
 
-### 제품명 표시 규칙
+### 텍스트 표시 규칙 (제품명 / 고객정보 / 메모)
 
-> **주의**: 제품명 표시 영역에 `truncate`, `line-clamp`, `text-overflow: ellipsis` 사용 금지.
-> 반드시 `break-words leading-snug` 패턴 사용하여 모바일에서 전체 제품명 표시.
+> **주의**: 사용자 데이터 표시 영역에 `truncate`, `line-clamp`, `text-overflow: ellipsis` 사용 금지.
+> 모바일에서 글자가 단어 중간에서 잘리거나 한 글자씩 깨지지 않도록 데이터 성격별 패턴 구분:
 
-- `truncate` → `break-words leading-snug` (줄바꿈 허용 + 행간 조밀)
+**데이터 성격별 적용 패턴**
+| 데이터 | 클래스 | 이유 |
+|--------|--------|------|
+| 제품명, 일반 메모 | `break-words leading-snug` | 긴 영문/숫자 조합도 줄바꿈 |
+| 한국어 주소, 고객명 | `break-keep leading-snug` | 단어(어절) 단위 줄바꿈 — 글자 낱개 깨짐 방지 |
+| 혼합 텍스트 | `break-words leading-snug` | 안전한 기본값 |
+
+**공통 보조 클래스 (flex 레이아웃 필수)**
 - `items-center` → `items-start` (멀티라인 상단 정렬)
-- `max-w-[140px]` 등 하드코딩 제거
-- `min-w-0` 추가 (flex 자식 축소 허용)
+- flex 자식에 `min-w-0` (flex-shrink 허용, 넘침 방지)
+- 아이콘 · 복사 버튼에 `flex-shrink-0` (줄어들지 않도록)
+- 모바일에서 줄바꿈이 심한 라인은 `flex-col sm:flex-row` 조합으로 세로 전환
+- `max-w-[140px]` 등 고정 width 하드코딩 제거
+
+**안티패턴 (금지)**
+```jsx
+// ❌ 한국어 주소에 truncate — 긴 주소 잘림
+<span className="truncate">{address}</span>
+
+// ❌ min-w-0 누락 — flex 자식이 컨테이너를 벗어남
+<div className="flex"><span>{longText}</span></div>
+
+// ❌ 아이콘에 flex-shrink-0 누락 — 좁은 화면에서 아이콘 깨짐
+<div className="flex"><Icon /><span className="min-w-0">{text}</span></div>
+```
 
 ### 모바일 헤더 패턴
 - 풀스크린 페이지에서 공통 사용:

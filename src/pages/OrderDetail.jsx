@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   X, FileText, Package, Plus, Minus, Trash2, Edit3, RotateCcw,
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
-  ChevronUp, ChevronDown, Maximize2, Minimize2
+  ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
+import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
 
 // Safe price getter - fallback for items without price field
 const getItemPrice = (item) => item.price ?? item.wholesale ?? 0;
@@ -39,6 +40,12 @@ export default function OrderDetail({
   // Mobile bottom section collapse state
   const [isBottomExpanded, setIsBottomExpanded] = useState(true);
   const { isFullscreen, toggleFullscreen } = useModalFullscreen();
+
+  // 수동 완불 (pos-payments와 localStorage 공유)
+  const { getInfo: getPaidInfo, setPaid: setManualPaid, clearPaid: clearManualPaid } = useManualPaid();
+  const paidInfo = order ? getPaidInfo(order.id || order.orderNumber) : null;
+  const isManualPaid = !!paidInfo;
+  const paidMethod = isManualPaid ? METHOD_MAP[paidInfo.method] : null;
 
   // Reset editedOrder whenever order changes
   useEffect(() => {
@@ -517,28 +524,28 @@ export default function OrderDetail({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {/* 업체명 */}
               <div
-                className="flex items-center gap-3 rounded-xl p-3"
+                className="flex items-center gap-3 md:gap-4 rounded-xl p-3 md:p-4"
                 style={{ background: 'var(--secondary)' }}
               >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  className="w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}
                 >
-                  <Building2 className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                  <Building2 className="w-5 h-5 md:w-6 md:h-6" style={{ color: 'var(--primary)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>업체명</div>
+                  <div className="text-xs md:text-sm mb-0.5 md:mb-1 font-semibold" style={{ color: 'var(--muted-foreground)' }}>업체명</div>
                   {isEditing ? (
                     <input
                       type="text"
                       value={editedOrder.customerName || ''}
                       onChange={(e) => setEditedOrder({ ...editedOrder, customerName: e.target.value })}
-                      className="w-full px-2 py-1 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                      className="w-full px-2 py-1 rounded-lg border text-sm md:text-base focus:outline-none focus:ring-2"
                       style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
                       placeholder="업체명 입력"
                     />
                   ) : (
-                    <div className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>
+                    <div className="font-bold text-base md:text-xl break-words leading-snug" style={{ color: 'var(--foreground)' }}>
                       {order.customerName || '-'}
                     </div>
                   )}
@@ -547,25 +554,25 @@ export default function OrderDetail({
 
               {/* 전화번호 */}
               <div
-                className="flex items-center gap-3 rounded-xl p-3"
+                className="flex items-center gap-3 md:gap-4 rounded-xl p-3 md:p-4"
                 style={{ background: 'var(--secondary)' }}
               >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  className="w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{ background: 'color-mix(in srgb, var(--success) 15%, transparent)' }}
                 >
-                  <Phone className="w-4 h-4" style={{ color: 'var(--success)' }} />
+                  <Phone className="w-5 h-5 md:w-6 md:h-6" style={{ color: 'var(--success)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>전화번호</div>
+                  <div className="flex items-center gap-1.5 mb-0.5 md:mb-1">
+                    <div className="text-xs md:text-sm font-semibold" style={{ color: 'var(--muted-foreground)' }}>전화번호</div>
                     {!isEditing && order.customerPhone && (
                       <button
                         onClick={() => { navigator.clipboard.writeText(order.customerPhone); showToast?.('전화번호 복사됨', 'success'); }}
-                        className="p-0.5 rounded hover:bg-[var(--accent)] transition-colors"
+                        className="p-1 rounded hover:bg-[var(--accent)] transition-colors"
                         title="전화번호 복사"
                       >
-                        <Copy className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                        <Copy className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
                       </button>
                     )}
                   </div>
@@ -574,12 +581,12 @@ export default function OrderDetail({
                       type="text"
                       value={editedOrder.customerPhone || ''}
                       onChange={(e) => setEditedOrder({ ...editedOrder, customerPhone: e.target.value })}
-                      className="w-full px-2 py-1 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                      className="w-full px-2 py-1 rounded-lg border text-sm md:text-base focus:outline-none focus:ring-2"
                       style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
                       placeholder="전화번호 입력"
                     />
                   ) : (
-                    <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+                    <div className="font-bold text-base md:text-xl" style={{ color: 'var(--foreground)' }}>
                       {order.customerPhone || '-'}
                     </div>
                   )}
@@ -588,25 +595,25 @@ export default function OrderDetail({
 
               {/* 배송주소 - full width */}
               <div
-                className="flex items-start gap-3 rounded-xl p-3 md:col-span-2"
+                className="flex items-start gap-3 md:gap-4 rounded-xl p-3 md:p-4 md:col-span-2"
                 style={{ background: 'var(--secondary)' }}
               >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  className="w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)' }}
                 >
-                  <MapPin className="w-4 h-4" style={{ color: 'var(--warning)' }} />
+                  <MapPin className="w-5 h-5 md:w-6 md:h-6" style={{ color: 'var(--warning)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>배송주소</div>
+                  <div className="flex items-center gap-1.5 mb-0.5 md:mb-1">
+                    <div className="text-xs md:text-sm font-semibold" style={{ color: 'var(--muted-foreground)' }}>배송주소</div>
                     {!isEditing && order.customerAddress && (
                       <button
                         onClick={() => { navigator.clipboard.writeText(order.customerAddress); showToast?.('주소 복사됨', 'success'); }}
-                        className="p-0.5 rounded hover:bg-[var(--accent)] transition-colors"
+                        className="p-1 rounded hover:bg-[var(--accent)] transition-colors"
                         title="주소 복사"
                       >
-                        <Copy className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                        <Copy className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
                       </button>
                     )}
                   </div>
@@ -614,13 +621,13 @@ export default function OrderDetail({
                     <textarea
                       value={editedOrder.customerAddress || ''}
                       onChange={(e) => setEditedOrder({ ...editedOrder, customerAddress: e.target.value })}
-                      className="w-full px-2 py-1 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                      className="w-full px-2 py-1 rounded-lg border text-sm md:text-base focus:outline-none focus:ring-2"
                       style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
                       placeholder="배송주소 입력"
                       rows={2}
                     />
                   ) : (
-                    <div className="font-medium text-sm break-words" style={{ color: 'var(--foreground)' }}>
+                    <div className="font-semibold text-base md:text-lg break-words leading-snug" style={{ color: 'var(--foreground)' }}>
                       {order.customerAddress || '-'}
                     </div>
                   )}
@@ -803,7 +810,7 @@ export default function OrderDetail({
 
             {/* Desktop table header */}
             <div
-              className="hidden md:grid grid-cols-12 gap-3 px-4 py-2.5 rounded-t-xl text-xs font-semibold"
+              className="hidden md:grid grid-cols-12 gap-3 px-5 py-3.5 rounded-t-xl text-sm font-bold"
               style={{ background: 'var(--secondary)', color: 'var(--muted-foreground)' }}
             >
               <div className="col-span-1 text-center">No.</div>
@@ -933,12 +940,12 @@ export default function OrderDetail({
 
                     {/* Desktop table layout */}
                     <div className="hidden md:block">
-                      <div className="grid grid-cols-12 gap-3 px-4 py-3 items-center">
-                        <div className="col-span-1 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                      <div className="grid grid-cols-12 gap-3 px-5 py-4 items-center">
+                        <div className="col-span-1 text-center text-base font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                           {index + 1}
                         </div>
-                        <div className={`${isEditing ? 'col-span-4' : 'col-span-5'} font-medium flex items-center gap-2 min-w-0`} style={{ color: 'var(--foreground)' }}>
-                          <span className="flex-1 min-w-0 break-words text-sm leading-snug">{item.name}</span>
+                        <div className={`${isEditing ? 'col-span-4' : 'col-span-5'} font-semibold flex items-center gap-2 min-w-0`} style={{ color: 'var(--foreground)' }}>
+                          <span className="flex-1 min-w-0 break-words text-base leading-snug">{item.name}</span>
                           {returnedQty > 0 && (
                             <span
                               className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
@@ -960,7 +967,7 @@ export default function OrderDetail({
                             </button>
                           )}
                         </div>
-                        <div className="col-span-2 text-right text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                        <div className="col-span-2 text-right text-base font-medium" style={{ color: 'var(--muted-foreground)' }}>
                           {formatPrice(getItemPrice(item))}원
                         </div>
                         <div className={`${isEditing ? 'col-span-2' : 'col-span-1'} text-center`}>
@@ -997,10 +1004,10 @@ export default function OrderDetail({
                               </button>
                             </div>
                           ) : (
-                            <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{item.quantity}개</span>
+                            <span className="font-semibold text-base" style={{ color: 'var(--foreground)' }}>{item.quantity}개</span>
                           )}
                         </div>
-                        <div className="col-span-2 text-right font-bold text-sm" style={{ color: 'var(--primary)' }}>
+                        <div className="col-span-2 text-right font-bold text-lg" style={{ color: 'var(--primary)' }}>
                           {formatPrice(getItemPrice(item) * item.quantity)}원
                         </div>
                         {isEditing && (
@@ -1198,6 +1205,74 @@ export default function OrderDetail({
                 </div>
               </div>
             )}
+
+            {/* 수동 완불 체크 */}
+            <div
+              className="mt-4 p-4 rounded-xl border"
+              style={{
+                background: isManualPaid ? 'color-mix(in srgb, #10b981 10%, var(--card))' : 'var(--card)',
+                borderColor: isManualPaid ? '#10b981' : 'var(--border)',
+                boxShadow: isManualPaid ? '0 0 0 1px rgba(16,185,129,0.3)' : 'none',
+              }}
+            >
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <CircleDollarSign
+                    className="w-5 h-5"
+                    style={{ color: isManualPaid ? '#059669' : 'var(--muted-foreground)' }}
+                  />
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: isManualPaid ? '#059669' : 'var(--foreground)' }}>
+                      수동 완불 체크
+                    </p>
+                    {isManualPaid ? (
+                      <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                        <span className="font-semibold" style={{ color: '#059669' }}>
+                          {paidMethod?.emoji} {paidMethod?.label} 결제
+                        </span>
+                        {' · '}{formatDateTime(paidInfo.paidAt)}
+                      </p>
+                    ) : (
+                      <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                        결제수단 선택 시 완불 처리됩니다 (결제 관리 앱과 동기화)
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {isManualPaid && (
+                  <button
+                    onClick={() => clearManualPaid(order.id || order.orderNumber)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border hover:bg-[var(--accent)]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                  >
+                    완불 해제
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {PAYMENT_METHODS.map((m) => {
+                  const selected = paidInfo?.method === m.key;
+                  return (
+                    <button
+                      key={m.key}
+                      onClick={() => setManualPaid(order.id || order.orderNumber, m.key)}
+                      className="flex flex-col items-center gap-1 px-3 py-3 rounded-lg text-sm font-medium border transition-colors"
+                      style={{
+                        background: selected ? m.color : 'var(--card)',
+                        color: selected ? 'white' : m.color,
+                        borderColor: selected ? m.color : `color-mix(in srgb, ${m.color} 30%, var(--border))`,
+                      }}
+                    >
+                      <span className="text-xl leading-none">{m.emoji}</span>
+                      <span className="flex items-center gap-1">
+                        {m.label}
+                        {selected && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1210,37 +1285,37 @@ export default function OrderDetail({
         >
           {/* Totals */}
           <div className="flex items-start justify-between mb-4">
-            <div className="text-sm space-y-1" style={{ color: 'var(--muted-foreground)' }}>
-              <p>총 수량: <span className="font-medium" style={{ color: 'var(--foreground)' }}>{totalQuantity}개</span></p>
+            <div className="text-base space-y-1" style={{ color: 'var(--muted-foreground)' }}>
+              <p>총 수량: <span className="font-bold text-lg" style={{ color: 'var(--foreground)' }}>{totalQuantity}개</span></p>
             </div>
             <div className="text-right">
-              <div className="text-sm space-y-1 mb-2" style={{ color: 'var(--muted-foreground)' }}>
-                <p className="flex justify-between gap-3">
+              <div className="text-base space-y-1.5 mb-3" style={{ color: 'var(--muted-foreground)' }}>
+                <p className="flex justify-between gap-4">
                   <span>공급가액:</span>
-                  <span style={{ color: 'var(--foreground)' }}>{formatPrice(exVat)}원</span>
+                  <span className="font-semibold" style={{ color: 'var(--foreground)' }}>{formatPrice(exVat)}원</span>
                 </p>
-                <p className="flex justify-between gap-3">
+                <p className="flex justify-between gap-4">
                   <span>부가세:</span>
-                  <span style={{ color: 'var(--foreground)' }}>{formatPrice(vat)}원</span>
+                  <span className="font-semibold" style={{ color: 'var(--foreground)' }}>{formatPrice(vat)}원</span>
                 </p>
                 {totalReturned > 0 && (
-                  <p className="flex justify-between gap-3">
+                  <p className="flex justify-between gap-4">
                     <span style={{ color: 'var(--warning)' }}>반품:</span>
-                    <span style={{ color: 'var(--warning)' }}>-{formatPrice(totalReturned)}원</span>
+                    <span className="font-semibold" style={{ color: 'var(--warning)' }}>-{formatPrice(totalReturned)}원</span>
                   </p>
                 )}
               </div>
               {totalReturned > 0 ? (
                 <div>
-                  <p className="text-sm line-through" style={{ color: 'var(--muted-foreground)' }}>
+                  <p className="text-lg line-through" style={{ color: 'var(--muted-foreground)' }}>
                     {formatPrice(order.totalAmount)}원
                   </p>
-                  <p className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
+                  <p className="text-4xl font-bold leading-tight" style={{ color: 'var(--foreground)' }}>
                     {formatPrice(order.totalAmount - totalReturned)}원
                   </p>
                 </div>
               ) : (
-                <p className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
+                <p className="text-4xl font-bold leading-tight" style={{ color: 'var(--foreground)' }}>
                   {formatPrice(isEditing ? currentTotal : order.totalAmount)}원
                 </p>
               )}

@@ -1191,15 +1191,16 @@ ${aiLearningData.slice(0, 50).map(l =>
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
-                            className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
-                            style={{ color: 'var(--muted-foreground)' }}
-                            title="제품 변경"
+                            className="h-7 px-2 flex items-center justify-center gap-1 rounded-md transition-all hover:opacity-80 flex-shrink-0 border"
+                            style={{ color: 'var(--primary)', borderColor: 'var(--primary)', backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}
+                            title="제품 변경 (AI 학습)"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            <Edit3 className="w-3 h-3" />
+                            <span className="text-[10px] font-semibold">변경</span>
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); removeItem(index); }}
-                            className="w-6 h-6 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
+                            className="w-7 h-7 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
                             style={{ color: 'var(--muted-foreground)' }}
                             title="삭제"
                           >
@@ -1223,23 +1224,11 @@ ${aiLearningData.slice(0, 50).map(l =>
                           ))}
                         </div>
                       )}
-                      {/* 수정 사유 입력 — 제품 수동 교정 직후 표시 */}
-                      {showReasonInput === index && (
-                        <div className="mt-2 ml-7.5 flex items-center gap-1.5">
-                          <input
-                            value={correctionReason}
-                            onChange={e => setCorrectionReason(e.target.value)}
-                            placeholder="수정 사유 (선택)"
-                            className="flex-1 px-2 py-1 text-[11px] bg-[var(--background)] border border-blue-500/50 rounded text-[var(--foreground)] placeholder:text-[var(--foreground)]/30"
-                            autoFocus
-                            onKeyDown={e => { if (e.key === 'Enter') saveReason(index); if (e.key === 'Escape') setShowReasonInput(null); }}
-                          />
-                          <button onClick={() => saveReason(index)} className="px-2 py-1 text-[10px] bg-blue-600 text-white rounded">저장</button>
-                          <button onClick={() => setShowReasonInput(null)} className="px-2 py-1 text-[10px] bg-[var(--secondary)] text-[var(--foreground)] rounded">건너뛰기</button>
+                      {/* 저장된 수정 사유 표시 */}
+                      {item.correctionReason && (
+                        <div className="mt-1 ml-7.5 text-[11px] font-medium text-blue-400 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> AI 학습: {item.correctionReason}
                         </div>
-                      )}
-                      {item.correctionReason && showReasonInput !== index && (
-                        <div className="mt-1 ml-7.5 text-[10px] text-blue-400">💡 사유: {item.correctionReason}</div>
                       )}
                       </>
                     ) : (
@@ -1455,6 +1444,96 @@ ${aiLearningData.slice(0, 50).map(l =>
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI 학습 수정사유 모달 — 제품 수동 교정 직후 */}
+      {showReasonInput !== null && analyzedItems[showReasonInput] && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setShowReasonInput(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border shadow-2xl"
+            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--primary)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 헤더 */}
+            <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
+                  <Sparkles className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                </div>
+                <h3 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>AI 학습 — 수정 사유</h3>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                다음엔 AI가 같은 표현을 올바르게 인식하도록 학습합니다.
+              </p>
+            </div>
+
+            {/* 본문 */}
+            <div className="p-4 space-y-3">
+              {/* 교정 내역 요약 */}
+              <div className="p-3 rounded-xl text-xs space-y-1" style={{ backgroundColor: 'var(--secondary)' }}>
+                <div className="flex gap-2">
+                  <span className="font-semibold flex-shrink-0" style={{ color: 'var(--muted-foreground)' }}>원문:</span>
+                  <span className="break-words" style={{ color: 'var(--foreground)' }}>{analyzedItems[showReasonInput].searchText || '-'}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-semibold flex-shrink-0" style={{ color: 'var(--primary)' }}>선택:</span>
+                  <span className="break-words font-medium" style={{ color: 'var(--foreground)' }}>{analyzedItems[showReasonInput].matchedProduct?.name || '-'}</span>
+                </div>
+              </div>
+
+              {/* 수정 사유 입력 */}
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--foreground)' }}>
+                  수정 사유 <span style={{ color: 'var(--muted-foreground)' }}>(선택)</span>
+                </label>
+                <input
+                  value={correctionReason}
+                  onChange={e => setCorrectionReason(e.target.value)}
+                  placeholder="예: 고객이 부르는 별칭 / 오탈자 교정"
+                  className="w-full px-3 py-2.5 rounded-lg border text-sm"
+                  style={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)', fontSize: '16px' }}
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') saveReason(showReasonInput); if (e.key === 'Escape') setShowReasonInput(null); }}
+                />
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {['별칭', '오탈자', '줄임말', '동의어'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setCorrectionReason(tag)}
+                      className="px-2 py-1 text-[10px] rounded-full border"
+                      style={{ color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 푸터 */}
+            <div className="p-4 pt-0 flex gap-2">
+              <button
+                onClick={() => setShowReasonInput(null)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold border"
+                style={{ color: 'var(--muted-foreground)', borderColor: 'var(--border)', backgroundColor: 'var(--secondary)' }}
+              >
+                건너뛰기
+              </button>
+              <button
+                onClick={() => saveReason(showReasonInput)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-bold text-white"
+                style={{ backgroundColor: 'var(--primary)' }}
+              >
+                저장하고 학습
+              </button>
             </div>
           </div>
         </div>
