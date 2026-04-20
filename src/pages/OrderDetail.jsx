@@ -48,7 +48,17 @@ export default function OrderDetail({
     dragHandleProps,
     handles: resizeHandles,
     reset: resetModalPos,
-  } = useDraggableResizable('pos-web.orderDetailModal', { w: 1120, h: 800 });
+    ensureSize,
+  } = useDraggableResizable('pos-web.orderDetailModal', { w: 1200, h: 820 });
+
+  // 품목 수 많으면 모달 자동 확장 (최소 보장 — 사용자가 더 크게 조정한 건 유지)
+  useEffect(() => {
+    if (!isDraggable || !order?.items) return;
+    const n = order.items.length;
+    const minH = Math.min(window.innerHeight - 40, Math.max(820, 440 + n * 52));
+    const minW = Math.min(window.innerWidth - 40, n >= 8 ? 1280 : 1120);
+    ensureSize({ minW, minH });
+  }, [order?.orderNumber, isDraggable, ensureSize]);
 
   // 수동 완불 (pos-payments와 localStorage 공유)
   const { getInfo: getPaidInfo, setPaid: setManualPaid, clearPaid: clearManualPaid } = useManualPaid();

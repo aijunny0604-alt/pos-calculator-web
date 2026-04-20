@@ -197,5 +197,15 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
     </>
   );
 
-  return { rect, maximized, isDesktop, containerStyle, dragHandleProps, handles, toggleMaximized, reset, startResize };
+  // 외부에서 최소 크기 보장 (주문 품목 수에 따라 모달 자동 확장)
+  const ensureSize = useCallback(({ minW, minH } = {}) => {
+    setRect((r) => {
+      let { x, y, w, h } = r;
+      if (minW && w < minW) w = Math.min(minW, window.innerWidth - 16);
+      if (minH && h < minH) h = Math.min(minH, window.innerHeight - 16);
+      return clampRect({ x, y, w, h });
+    });
+  }, []);
+
+  return { rect, maximized, isDesktop, containerStyle, dragHandleProps, handles, toggleMaximized, reset, ensureSize, startResize };
 }
