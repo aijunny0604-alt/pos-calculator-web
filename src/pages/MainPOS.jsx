@@ -410,7 +410,7 @@ export default function MainPOS({
 
                     {/* Category Products */}
                     {isExpanded && (
-                      <div className="p-2 grid grid-cols-2 gap-1.5 max-h-72 overflow-y-auto">
+                      <div className={`p-2 grid gap-1.5 max-h-72 overflow-y-auto ${isImageDemoMode() ? 'grid-cols-1' : 'grid-cols-2'}`}>
                         {categoryProducts.map(product => {
                           const cartItem = cartMap.get(product.id);
                           const cartQty = cartItem ? cartItem.quantity : 0;
