@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import ProductImageModal from '@/components/ProductImageModal';
+import StorageMonitor from '@/components/StorageMonitor';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -3020,9 +3021,12 @@ function BackupTab({ products, setProducts, customers, setCustomers, supabaseCon
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>DB 백업 · 복원</h2>
-        <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>전체 데이터를 JSON 파일로 내보내거나 복원할 수 있습니다</p>
+        <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>DB 백업 · 복원 / Storage 관리</h2>
+        <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>전체 데이터를 JSON 파일로 내보내거나 복원하고, 제품 이미지 Storage를 관리합니다</p>
       </div>
+
+      {/* Storage 모니터 */}
+      <StorageMonitor products={products} showToast={showToast} />
 
       {/* 현재 DB 현황 */}
       <div className={bsc}>

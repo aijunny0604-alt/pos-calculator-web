@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calculateDiscount } from '@/lib/utils';
 import { isImageDemoMode, getSampleImage } from '@/lib/sampleProductImages';
+import ProductGalleryModal from '@/components/ProductGalleryModal';
 import OrderPage from './OrderPage';
 import TextAnalyze from './TextAnalyze';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
@@ -51,6 +52,7 @@ export default function MainPOS({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [galleryProduct, setGalleryProduct] = useState(null); // 갤러리 모달 대상
   const [expandedCategories, setExpandedCategories] = useState({});
   const [isCartExpanded, setIsCartExpanded] = useState(false);
   const [showOrderConfirm, setShowOrderConfirm] = useState(false);
@@ -409,8 +411,12 @@ export default function MainPOS({
                     </button>
 
                     {/* Category Products */}
-                    {isExpanded && (
-                      <div className={`p-2 grid gap-1.5 max-h-72 overflow-y-auto ${isImageDemoMode() ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    {isExpanded && (() => {
+                      const categoryHasImage = categoryProducts.some((p) =>
+                        (Array.isArray(p.image_urls) && p.image_urls.length > 0)
+                      ) || isImageDemoMode();
+                      return (
+                      <div className={`p-2 grid gap-1.5 max-h-72 overflow-y-auto ${categoryHasImage ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-2'}`}>
                         {categoryProducts.map(product => {
                           const cartItem = cartMap.get(product.id);
                           const cartQty = cartItem ? cartItem.quantity : 0;
@@ -433,7 +439,7 @@ export default function MainPOS({
                               key={product.id}
                               onClick={() => !cartItem && addToCart(product)}
                               className={`card-interactive rounded-lg cursor-pointer select-none border overflow-hidden ${
-                                demoImg ? 'flex flex-row items-stretch min-h-[6rem]' : 'px-3 py-4 min-h-[5.5rem] flex flex-col justify-between'
+                                demoImg ? 'flex flex-col md:flex-row md:items-stretch md:min-h-[6rem]' : 'px-3 py-4 min-h-[5.5rem] flex flex-col justify-between'
                               } ${
                                 inCart
                                   ? 'ring-2'
@@ -457,9 +463,19 @@ export default function MainPOS({
                                 '--tw-ring-color': 'var(--primary)',
                               }}
                             >
-                              {/* 🖼️ 좌측 썸네일 (데모 모드, 컴팩트 — 카드 높이 따라 stretch) */}
+                              {/* 🖼️ 썸네일 — 모바일: 상단 정사각 / 데스크톱: 좌측 96px stretch */}
                               {demoImg && (
-                                <div className="relative flex-shrink-0 w-24 self-stretch overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+                                <div
+                                  className="relative flex-shrink-0 w-full aspect-square md:w-24 md:h-auto md:aspect-auto md:self-stretch overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 cursor-zoom-in"
+                                  onClick={(e) => {
+                                    // 실제 업로드된 이미지가 있을 때만 갤러리 오픈 (샘플 데모는 제외)
+                                    if (realImg) {
+                                      e.stopPropagation();
+                                      setGalleryProduct(product);
+                                    }
+                                  }}
+                                  title={realImg ? '클릭하여 크게 보기' : undefined}
+                                >
                                   <img
                                     src={demoImg}
                                     alt={product.name}
@@ -467,6 +483,11 @@ export default function MainPOS({
                                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                   />
+                                  {realImg && Array.isArray(product.image_urls) && product.image_urls.length > 1 && (
+                                    <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-black/60 text-white backdrop-blur-sm">
+                                      +{product.image_urls.length - 1}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                               <div className={demoImg ? 'flex-1 min-w-0 px-3 py-2 flex flex-col justify-between' : ''}>
@@ -581,7 +602,8 @@ export default function MainPOS({
                           );
                         })}
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -1138,6 +1160,15 @@ export default function MainPOS({
             </p>
           </div>
         </div>
+      )}
+
+      {/* 🖼️ 제품 이미지 갤러리 (썸네일 클릭 시) */}
+      {galleryProduct && Array.isArray(galleryProduct.image_urls) && galleryProduct.image_urls.length > 0 && (
+        <ProductGalleryModal
+          images={galleryProduct.image_urls}
+          productName={galleryProduct.name}
+          onClose={() => setGalleryProduct(null)}
+        />
       )}
     </div>
   );
