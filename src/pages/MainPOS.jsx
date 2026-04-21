@@ -542,22 +542,31 @@ export default function MainPOS({
                                   </div>
                                 </div>
                               ) : (
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-2">
                                   <div className="min-w-0">
                                     <p
-                                      className="text-sm font-bold whitespace-nowrap"
-                                      style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}
+                                      className="text-lg sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums"
+                                      style={{
+                                        color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)',
+                                        letterSpacing: '-0.02em',
+                                      }}
                                     >
-                                      {formatPrice(displayPrice)}원
+                                      {formatPrice(displayPrice)}<span className="text-xs font-bold ml-0.5">원</span>
                                     </p>
-                                    <p className="text-[10px] whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>
+                                    <p className="text-[10px] whitespace-nowrap mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
                                       VAT제외 {formatPrice(exVatPrice)}원
                                     </p>
                                   </div>
-                                  <Plus
-                                    className="w-4 h-4 flex-shrink-0"
-                                    style={{ color: 'var(--muted-foreground)' }}
-                                  />
+                                  <div
+                                    className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full border"
+                                    style={{
+                                      background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
+                                      borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--border))',
+                                      color: 'var(--primary)',
+                                    }}
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </div>
                                 </div>
                               )}
                               </div>{/* end demo image inner wrapper */}
