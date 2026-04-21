@@ -529,7 +529,7 @@ export default function MainPOS({
 
                               {/* Price / Cart controls */}
                               {inCart ? (
-                                <div className="flex items-center justify-between gap-1">
+                                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
                                   <p
                                     className="text-lg sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums"
                                     style={{
@@ -540,12 +540,12 @@ export default function MainPOS({
                                     {formatPrice(displayPrice)}<span className="text-xs font-bold ml-0.5">원</span>
                                   </p>
                                   <div
-                                    className="flex items-center gap-0.5 rounded flex-shrink-0 border"
+                                    className="flex items-center gap-0.5 rounded flex-shrink-0 border self-end sm:self-auto"
                                     style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
                                   >
                                     <button
                                       onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity - 1); }}
-                                      className="w-9 h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-l-lg transition-colors"
+                                      className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-l-lg transition-colors"
                                     >
                                       <Minus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                                     </button>
@@ -558,12 +558,12 @@ export default function MainPOS({
                                         if (!isNaN(val) && val >= 0) updateQuantity(product.id, val);
                                       }}
                                       onFocus={(e) => { e.stopPropagation(); e.target.select(); }}
-                                      className="w-10 h-9 text-center text-sm font-bold bg-transparent border-none focus:outline-none"
+                                      className="w-9 h-8 sm:w-10 sm:h-9 text-center text-sm font-bold bg-transparent border-none focus:outline-none"
                                       style={{ color: 'var(--foreground)' }}
                                     />
                                     <button
                                       onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity + 1); }}
-                                      className="w-9 h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-r-lg transition-colors"
+                                      className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-r-lg transition-colors"
                                     >
                                       <Plus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                                     </button>
