@@ -428,8 +428,8 @@ export default function MainPOS({
                             <div
                               key={product.id}
                               onClick={() => !cartItem && addToCart(product)}
-                              className={`card-interactive rounded-lg cursor-pointer select-none border overflow-hidden flex flex-col ${
-                                demoImg ? '' : 'px-3 py-4 min-h-[5.5rem] justify-between'
+                              className={`card-interactive rounded-lg cursor-pointer select-none border overflow-hidden ${
+                                demoImg ? 'flex flex-row items-stretch' : 'px-3 py-4 min-h-[5.5rem] flex flex-col justify-between'
                               } ${
                                 inCart
                                   ? 'ring-2'
@@ -453,36 +453,19 @@ export default function MainPOS({
                                 '--tw-ring-color': 'var(--primary)',
                               }}
                             >
-                              {/* 🖼️ 이미지 영역 (데모 모드) */}
+                              {/* 🖼️ 좌측 썸네일 (데모 모드, 컴팩트) */}
                               {demoImg && (
-                                <div className="relative aspect-square overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+                                <div className="relative flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
                                   <img
                                     src={demoImg}
                                     alt={product.name}
                                     loading="lazy"
-                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                   />
-                                  {/* 좌상단 재고 뱃지 */}
-                                  <span
-                                    className="absolute top-1.5 left-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5 backdrop-blur-sm"
-                                    style={{
-                                      background: isOutOfStock ? 'rgba(239,68,68,0.85)' : isLowStock ? 'rgba(245,158,11,0.85)' : 'rgba(34,197,94,0.85)',
-                                      color: 'white',
-                                    }}
-                                  >
-                                    {isIncoming ? '입고대기' : isOutOfStock ? '품절' : `${availableStock}개`}
-                                  </span>
-                                  {/* 우하단 장바구니 아이콘 */}
-                                  <div
-                                    className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-md backdrop-blur-sm"
-                                    style={{ background: inCart ? 'var(--primary)' : 'rgba(255,255,255,0.9)', color: inCart ? 'white' : 'var(--primary)' }}
-                                  >
-                                    <Plus className="w-4 h-4" />
-                                  </div>
                                 </div>
                               )}
-                              <div className={demoImg ? 'px-3 py-3' : ''}>
+                              <div className={demoImg ? 'flex-1 min-w-0 px-3 py-2 flex flex-col justify-between' : ''}>
                               {/* Product name & stock badge */}
                               <div className="flex items-start justify-between mb-1.5 gap-1">
                                 <p
