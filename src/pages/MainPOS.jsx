@@ -429,7 +429,7 @@ export default function MainPOS({
                               key={product.id}
                               onClick={() => !cartItem && addToCart(product)}
                               className={`card-interactive rounded-lg cursor-pointer select-none border overflow-hidden ${
-                                demoImg ? 'flex flex-row items-stretch' : 'px-3 py-4 min-h-[5.5rem] flex flex-col justify-between'
+                                demoImg ? 'flex flex-row items-stretch min-h-[6rem]' : 'px-3 py-4 min-h-[5.5rem] flex flex-col justify-between'
                               } ${
                                 inCart
                                   ? 'ring-2'
@@ -453,9 +453,9 @@ export default function MainPOS({
                                 '--tw-ring-color': 'var(--primary)',
                               }}
                             >
-                              {/* 🖼️ 좌측 썸네일 (데모 모드, 컴팩트) */}
+                              {/* 🖼️ 좌측 썸네일 (데모 모드, 컴팩트 — 카드 높이 따라 stretch) */}
                               {demoImg && (
-                                <div className="relative flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+                                <div className="relative flex-shrink-0 w-24 self-stretch overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
                                   <img
                                     src={demoImg}
                                     alt={product.name}
@@ -506,10 +506,13 @@ export default function MainPOS({
                               {inCart ? (
                                 <div className="flex items-center justify-between gap-1">
                                   <p
-                                    className="text-sm font-bold whitespace-nowrap"
-                                    style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}
+                                    className="text-lg sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums"
+                                    style={{
+                                      color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)',
+                                      letterSpacing: '-0.02em',
+                                    }}
                                   >
-                                    {formatPrice(displayPrice)}원
+                                    {formatPrice(displayPrice)}<span className="text-xs font-bold ml-0.5">원</span>
                                   </p>
                                   <div
                                     className="flex items-center gap-0.5 rounded flex-shrink-0 border"
