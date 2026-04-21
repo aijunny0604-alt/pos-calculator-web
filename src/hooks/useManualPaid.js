@@ -46,25 +46,24 @@ export default function useManualPaid() {
 
   const setPaid = useCallback((orderId, method) => {
     if (!orderId || !method) return;
-    setMap((prev) => {
-      const next = { ...prev, [String(orderId)]: { method, paidAt: new Date().toISOString() } };
-      saveMap(next);
-      broadcast();
-      return next;
-    });
+    // 최신 localStorage 기준으로 머지 — 다른 탭/훅 변경사항 유지
+    const current = loadMap();
+    const next = { ...current, [String(orderId)]: { method, paidAt: new Date().toISOString() } };
+    saveMap(next);
+    setMap(next);
+    broadcast();
   }, []);
 
   const clearPaid = useCallback((orderId) => {
     if (!orderId) return;
-    setMap((prev) => {
-      const key = String(orderId);
-      if (!(key in prev)) return prev;
-      const next = { ...prev };
-      delete next[key];
-      saveMap(next);
-      broadcast();
-      return next;
-    });
+    const current = loadMap();
+    const key = String(orderId);
+    if (!(key in current)) return;
+    const next = { ...current };
+    delete next[key];
+    saveMap(next);
+    setMap(next);
+    broadcast();
   }, []);
 
   const getInfo = useCallback((orderId) => map[String(orderId)] || null, [map]);
