@@ -39,11 +39,13 @@ const CATEGORY_IMAGES = {
 const FALLBACK = 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=400&fit=crop';
 
 /**
- * 데모 모드 여부 확인 — URL에 ?demo=images 있으면 true
+ * 데모 모드 여부 확인 — URL에 ?demo=images + 데스크톱(≥768px)일 때만 true
+ * 모바일은 기존 레이아웃 유지 (수량 조절기 공간 확보)
  */
 export function isImageDemoMode() {
   try {
     if (typeof window === 'undefined') return false;
+    if (window.innerWidth < 768) return false;
     const qs = new URLSearchParams(window.location.search);
     return qs.get('demo') === 'images';
   } catch { return false; }
