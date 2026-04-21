@@ -4,9 +4,10 @@ import {
   Lock, ChevronDown, ChevronRight, X, Save, AlertTriangle, ShieldAlert, Fingerprint,
   UserPlus, Download, Copy, Car, Maximize2, Minimize2, Zap, Loader2,
   Check, Minus, ArrowRight, RefreshCw, TrendingUp, TrendingDown, DollarSign,
-  Database, HardDrive, FileDown, FileUp, CheckCircle, XCircle,
+  Database, HardDrive, FileDown, FileUp, CheckCircle, XCircle, Image as ImageIcon,
 } from 'lucide-react';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
+import ProductImageModal from '@/components/ProductImageModal';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -296,6 +297,7 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
   const [formData, setFormData] = useState(EMPTY_PRODUCT);
   const [formErrors, setFormErrors] = useState({});
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [imageTarget, setImageTarget] = useState(null); // 이미지 관리 대상 제품
   const [saving, setSaving] = useState(false);
   const fileRef = useRef();
   const [inlineEdit, setInlineEdit] = useState(null); // { id, field, value }
@@ -822,6 +824,28 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
                     <td className="px-1 sm:px-4 py-2.5">
                       <div className="flex items-center gap-0.5 sm:gap-1 justify-end">
                         <button
+                          onClick={() => setImageTarget(product)}
+                          className="relative p-1.5 rounded-lg hover:bg-[var(--muted)] transition-colors"
+                          style={{
+                            color: Array.isArray(product.image_urls) && product.image_urls.length > 0
+                              ? 'var(--primary)'
+                              : 'var(--muted-foreground)',
+                          }}
+                          title={Array.isArray(product.image_urls) && product.image_urls.length > 0
+                            ? `이미지 ${product.image_urls.length}장`
+                            : '이미지 추가'}
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          {Array.isArray(product.image_urls) && product.image_urls.length > 0 && (
+                            <span
+                              className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full text-[9px] font-bold flex items-center justify-center"
+                              style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+                            >
+                              {product.image_urls.length}
+                            </span>
+                          )}
+                        </button>
+                        <button
                           onClick={() => openEdit(product)}
                           className="p-1.5 rounded-lg hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
                           title="수정"
@@ -943,6 +967,21 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
         onCancel={() => setDeleteTarget(null)}
         destructive
       />
+
+      {/* 이미지 관리 모달 */}
+      {imageTarget && (
+        <ProductImageModal
+          product={imageTarget}
+          showToast={showToast}
+          onClose={() => setImageTarget(null)}
+          onSaved={(newImages) => {
+            // 로컬 products 배열 업데이트 (refetch 없이 즉시 반영)
+            setProducts((prev) => prev.map((p) =>
+              p.id === imageTarget.id ? { ...p, image_urls: newImages } : p
+            ));
+          }}
+        />
+      )}
     </div>
   );
 }

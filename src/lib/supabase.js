@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = 'https://jubzppndcclhnvgbvrxr.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_td4p48nPHKjXByMngvyjZQ_AJttp5KU';
+export const SUPABASE_URL = 'https://jubzppndcclhnvgbvrxr.supabase.co';
+export const SUPABASE_ANON_KEY = 'sb_publishable_td4p48nPHKjXByMngvyjZQ_AJttp5KU';
 
 // Supabase 클라이언트 (실시간 구독용)
 export const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

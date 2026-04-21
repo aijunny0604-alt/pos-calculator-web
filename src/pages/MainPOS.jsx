@@ -423,7 +423,11 @@ export default function MainPOS({
                           const isLowStock = availableStock > 0 && availableStock <= (product.min_stock || 5);
                           const inCart = !!cartItem;
 
-                          const demoImg = isImageDemoMode() ? getSampleImage(product) : null;
+                          // 실제 업로드된 이미지 우선, 없으면 데모 이미지 (데스크톱 ?demo=images)
+                          const realImg = Array.isArray(product.image_urls) && product.image_urls.length > 0
+                            ? product.image_urls[0].thumb
+                            : null;
+                          const demoImg = realImg || (isImageDemoMode() ? getSampleImage(product) : null);
                           return (
                             <div
                               key={product.id}
