@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { exportFilteredExcel } from '@/lib/exportExcel';
 import { DEFAULT_CATEGORIES, getCategoryInfo } from '@/lib/vatHelper';
-import { Search, Plus, Edit2, FileSpreadsheet, ChevronRight, FileCheck, FileX } from 'lucide-react';
+import { Search, Plus, Edit2, FileSpreadsheet, ChevronRight, FileCheck, FileX, RefreshCw } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 const dateKST = (iso) => {
@@ -119,6 +119,22 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
             title="필터 결과 Excel"
           >
             <FileSpreadsheet className="w-4 h-4" /> Excel
+          </button>
+          <button
+            onClick={async () => {
+              if (!confirm('운영 주문 데이터를 결제 레코드로 동기화하시겠습니까?\n(이미 있는 주문은 건너뛰고, 매칭되는 업체가 없는 주문은 스킵됩니다)')) return;
+              try {
+                const r = await supabase.syncAllToPaymentRecords();
+                alert(`동기화 완료\n- 주문: ${r.orders.inserted}건 추가 (업체 없음 ${r.orders.skippedNoCustomer} / 이미 있음 ${r.orders.skippedAlreadySynced})\n- 장바구니: ${r.carts.inserted}건 추가`);
+                reload();
+              } catch (e) {
+                alert('동기화 실패: ' + (e?.message || e));
+              }
+            }}
+            className="flex items-center gap-1 h-9 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-bold"
+            title="운영 주문을 결제 레코드로 동기화"
+          >
+            <RefreshCw className="w-4 h-4" /> 동기화
           </button>
           <button
             onClick={onOpenPayment}
