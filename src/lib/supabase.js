@@ -232,6 +232,47 @@ export const supabase = {
     } catch (e) { console.error('upsertAiLearning:', e); return null; }
   },
 
+  // ===== 수동 완불 체크 (멀티 기기 동기화) =====
+  async getManualPaidAll() {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/manual_paid_orders`, { headers });
+    } catch (e) { console.error('getManualPaidAll:', e); return []; }
+  },
+  async upsertManualPaid(orderId, method) {
+    if (!orderId || !method) return null;
+    try {
+      const now = new Date().toISOString();
+      const payload = {
+        order_id: String(orderId),
+        method,
+        paid_at: now,
+        updated_at: now,
+        updated_by_device: (typeof navigator !== 'undefined' && navigator.userAgent ? navigator.userAgent : '').slice(0, 200),
+      };
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/manual_paid_orders`, {
+        method: 'POST',
+        headers: {
+          ...headersWithReturn,
+          'Prefer': 'resolution=merge-duplicates,return=representation',
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) { const body = await r.text(); throw new Error(`upsertManualPaid ${r.status}: ${body}`); }
+      const data = await r.json();
+      return Array.isArray(data) ? (data[0] || null) : data;
+    } catch (e) { console.error('upsertManualPaid:', e); return null; }
+  },
+  async deleteManualPaid(orderId) {
+    if (!orderId) return false;
+    try {
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/manual_paid_orders?order_id=eq.${encodeURIComponent(String(orderId))}`,
+        { method: 'DELETE', headers: headersNoContent }
+      );
+      return r.ok;
+    } catch (e) { console.error('deleteManualPaid:', e); return false; }
+  },
+
   // ===== 편의 래퍼 =====
   async saveProduct(product) {
     if (product.id) return await this.updateProduct(product.id, product);
