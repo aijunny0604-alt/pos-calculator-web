@@ -5,10 +5,12 @@ import {
   UserPlus, Download, Copy, Car, Maximize2, Minimize2, Zap, Loader2,
   Check, Minus, ArrowRight, RefreshCw, TrendingUp, TrendingDown, DollarSign,
   Database, HardDrive, FileDown, FileUp, CheckCircle, XCircle, Image as ImageIcon,
+  CircleDollarSign,
 } from 'lucide-react';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import ProductImageModal from '@/components/ProductImageModal';
 import StorageMonitor from '@/components/StorageMonitor';
+import PaymentSettingsTab from '@/components/admin/PaymentSettingsTab';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -29,6 +31,7 @@ const TABS = [
   { id: 'categories',  label: '카테고리',    Icon: Tag     },
   { id: 'discounts',   label: '할인설정',    Icon: Percent },
   { id: 'ai-learning', label: 'AI학습',     Icon: Fingerprint },
+  { id: 'payment-settings', label: '페이먼트 설정', Icon: CircleDollarSign },
   { id: 'backup',      label: 'DB백업',     Icon: Database },
 ];
 
@@ -4039,6 +4042,7 @@ export default function AdminPage({
         {activeTab === 'categories' && <CategoriesTab {...tabProps} onSelectCategory={(cat) => { setSelectedCategory(cat); setActiveTab('products'); }} />}
         {activeTab === 'discounts' && <DiscountTiersTab {...tabProps} />}
         {activeTab === 'ai-learning' && <AILearningTab {...tabProps} aiLearningData={aiLearningData} setAiLearningData={setAiLearningData} />}
+        {activeTab === 'payment-settings' && <PaymentSettingsTab showToast={showToast} />}
         {activeTab === 'backup' && <BackupTab {...tabProps} aiLearningData={aiLearningData} setAiLearningData={setAiLearningData} />}
       </main>
     </div>

@@ -3,6 +3,7 @@ import PaymentsPage from './PaymentsPage';
 import PaymentRegisterModal from '@/components/PaymentRegisterModal';
 import PaymentEditModal from '@/components/PaymentEditModal';
 import CustomerDetailModal from '@/components/CustomerDetailModal';
+import BulkPaymentModal from '@/components/BulkPaymentModal';
 
 /**
  * PaymentsPage + 관련 모달 3종을 묶은 컨테이너.
@@ -16,6 +17,7 @@ export default function PaymentsContainer({ customers = [] }) {
 
   const [editHistory, setEditHistory] = useState(null);
   const [customerDetail, setCustomerDetail] = useState(null);
+  const [bulkPay, setBulkPay] = useState(null); // { customer, records }
 
   const handleOpenPayment = (customerId = null, recordId = null) => {
     setRegisterPrefill({ customerId, recordId });
@@ -56,6 +58,15 @@ export default function PaymentsContainer({ customers = [] }) {
         onClose={() => setCustomerDetail(null)}
         onAddPayment={(cid, rid) => { setCustomerDetail(null); handleOpenPayment(cid, rid); }}
         onEditHistory={(h) => { setCustomerDetail(null); setEditHistory(h); }}
+        onBulkPay={(cust, records) => { setCustomerDetail(null); setBulkPay({ customer: cust, records }); }}
+      />
+
+      <BulkPaymentModal
+        open={!!bulkPay}
+        customer={bulkPay?.customer}
+        records={bulkPay?.records}
+        onClose={() => setBulkPay(null)}
+        onSaved={() => { setBulkPay(null); reload(); }}
       />
     </>
   );

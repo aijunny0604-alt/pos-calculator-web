@@ -2,20 +2,59 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { exportCustomerReport } from '@/lib/exportExcel';
 import { FileSpreadsheet, Printer, ChevronDown, ChevronUp } from 'lucide-react';
-// TODO Phase 3+: pos-web OrderDetail.jsx 연결 시 실제 모달로 교체
-// 현재 임시 스텁 — 주문 상세 클릭 시 기본 정보만 표시
-const OrderDetailPopup = ({ order, onClose }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-    <div className="bg-[var(--card)] text-[var(--foreground)] rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-      <h3 className="text-lg font-bold mb-2">주문 상세 (임시)</h3>
-      <p className="text-sm opacity-70">Phase 3+에서 실제 OrderDetail 모달과 연결 예정</p>
-      <pre className="text-xs mt-4 overflow-auto max-h-60 bg-[var(--muted)] p-2 rounded">
-        {JSON.stringify({ id: order?.id, customer: order?.customer_name, total: order?.total }, null, 2)}
-      </pre>
-      <button onClick={onClose} className="mt-4 px-4 py-2 bg-[var(--primary)] text-white rounded">닫기</button>
+// 주문 상세 경량 뷰 — 전체 주문 정보 표시 + 주문 내역 페이지로 이동 유도
+const OrderDetailPopup = ({ order, onClose }) => {
+  if (!order) return null;
+  const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+  const items = Array.isArray(order.items) ? order.items : [];
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-[var(--card)] text-[var(--foreground)] rounded-lg p-5 max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
+          <div>
+            <h3 className="text-base font-bold">주문 상세</h3>
+            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+              {order.id || order.order_id || '-'} · {(order.created_at || '').slice(0, 10)}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-xl opacity-60 hover:opacity-100">×</button>
+        </div>
+        <div className="text-sm space-y-1 mb-3">
+          <p><span className="opacity-60">고객:</span> {order.customer_name || order.customerName || '-'}</p>
+          {(order.customer_phone || order.customerPhone) && (
+            <p><span className="opacity-60">전화:</span> {order.customer_phone || order.customerPhone}</p>
+          )}
+          {order.memo && <p><span className="opacity-60">메모:</span> {order.memo}</p>}
+        </div>
+        {items.length > 0 && (
+          <div className="border rounded-md overflow-hidden mb-3" style={{ borderColor: 'var(--border)' }}>
+            <div className="px-3 py-2 text-[11px] font-bold" style={{ background: 'var(--muted)' }}>품목 ({items.length})</div>
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {items.slice(0, 10).map((it, i) => (
+                <div key={i} className="px-3 py-1.5 text-xs flex items-center justify-between gap-2">
+                  <span className="flex-1 min-w-0 break-words leading-snug">{it.name || it.product_name || '품목'}</span>
+                  <span className="whitespace-nowrap opacity-70">×{it.quantity || 1}</span>
+                  <span className="whitespace-nowrap tabular-nums">{fmt((it.price || 0) * (it.quantity || 1))}원</span>
+                </div>
+              ))}
+              {items.length > 10 && (
+                <div className="px-3 py-1.5 text-xs text-center opacity-60">... 외 {items.length - 10}개</div>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="flex items-center justify-between text-sm mb-4 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+          <span className="font-bold">합계</span>
+          <span className="font-black text-base tabular-nums">{fmt(order.total)}원</span>
+        </div>
+        <p className="text-[11px] text-center opacity-60 mb-2">
+          상세 편집/반품은 <b>주문 내역</b> 페이지에서 이용하세요
+        </p>
+        <button onClick={onClose} className="w-full px-4 py-2 bg-[var(--primary)] text-white rounded font-semibold text-sm">닫기</button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 import useManualPaid from '@/hooks/useManualPaid';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');

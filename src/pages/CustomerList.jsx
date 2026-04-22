@@ -8,6 +8,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import CustomerDetailModal from '@/components/CustomerDetailModal';
 import PaymentRegisterModal from '@/components/PaymentRegisterModal';
 import PaymentEditModal from '@/components/PaymentEditModal';
+import BulkPaymentModal from '@/components/BulkPaymentModal';
 import { formatPrice, formatDate, calcExVat, handleSearchFocus } from '@/lib/utils';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import { supabase } from '@/lib/supabase';
@@ -40,6 +41,7 @@ export default function CustomerList({
   const [regModalOpen, setRegModalOpen] = useState(false);
   const [regPrefill, setRegPrefill] = useState({ customerId: null, recordId: null });
   const [editHistory, setEditHistory] = useState(null);
+  const [bulkPay, setBulkPay] = useState(null);
 
   const reloadOutstanding = () => {
     supabase.getPaymentRecords({ hasBalance: true }).then((records) => {
@@ -1166,6 +1168,18 @@ export default function CustomerList({
           setPaymentDetailCustomer(null);
           setEditHistory(h);
         }}
+        onBulkPay={(cust, records) => {
+          setPaymentDetailCustomer(null);
+          setBulkPay({ customer: cust, records });
+        }}
+      />
+
+      <BulkPaymentModal
+        open={!!bulkPay}
+        customer={bulkPay?.customer}
+        records={bulkPay?.records}
+        onClose={() => setBulkPay(null)}
+        onSaved={() => { setBulkPay(null); reloadOutstanding(); }}
       />
 
       <PaymentRegisterModal

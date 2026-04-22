@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-import { exportFilteredExcel } from '@/lib/exportExcel';
+import { supabase, supabaseClient } from '@/lib/supabase';
+import { exportFilteredExcel, exportPaymentsExcel } from '@/lib/exportExcel';
 import { DEFAULT_CATEGORIES, getCategoryInfo } from '@/lib/vatHelper';
 import { Search, Plus, Edit2, FileSpreadsheet, ChevronRight, FileCheck, FileX, RefreshCw } from 'lucide-react';
 
@@ -36,6 +36,16 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
   };
 
   useEffect(() => { reload(); }, []);
+
+  // Realtime 구독 — payment_records/payment_history 변경 시 자동 새로고침
+  useEffect(() => {
+    const ch = supabaseClient
+      .channel('payments-page-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_records' }, () => reload())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_history' }, () => reload())
+      .subscribe();
+    return () => { try { supabaseClient.removeChannel(ch); } catch {} };
+  }, []);
 
   const toggleIssued = async (record, e) => {
     e.stopPropagation();
@@ -118,7 +128,20 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
             className="flex items-center gap-1 h-9 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-bold"
             title="필터 결과 Excel"
           >
-            <FileSpreadsheet className="w-4 h-4" /> Excel
+            <FileSpreadsheet className="w-4 h-4" /> 필터 Excel
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await exportPaymentsExcel({ records, history, customers });
+              } catch (e) {
+                alert('전체 Excel 실패: ' + (e?.message || e));
+              }
+            }}
+            className="flex items-center gap-1 h-9 px-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-bold"
+            title="전체 데이터 3시트 Excel (결제/입금/업체별 미수)"
+          >
+            <FileSpreadsheet className="w-4 h-4" /> 전체 Excel
           </button>
           <button
             onClick={async () => {
