@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import Toast from '@/components/ui/Toast';
 
@@ -16,8 +16,10 @@ import AdminPage from '@/pages/AdminPage';
 import SaveCartModal from '@/pages/SaveCartModal';
 import QuickCalculator from '@/pages/QuickCalculator';
 import NotificationSettings from '@/pages/NotificationSettings';
-import PaymentsContainer from '@/pages/PaymentsContainer';
-import InvoicesPage from '@/pages/InvoicesPage';
+
+// 결제 관련 페이지는 lazy load (exceljs + html-to-image 포함된 무거운 chunk)
+const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
+const InvoicesPage = lazy(() => import('@/pages/InvoicesPage'));
 
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
@@ -1042,10 +1044,18 @@ export default function App() {
         );
 
       case 'payments':
-        return <PaymentsContainer customers={customers} />;
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>페이먼트 로드 중...</div>}>
+            <PaymentsContainer customers={customers} />
+          </Suspense>
+        );
 
       case 'invoices':
-        return <InvoicesPage customers={customers} />;
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>명세서 로드 중...</div>}>
+            <InvoicesPage customers={customers} />
+          </Suspense>
+        );
 
       case 'stock':
         return (
