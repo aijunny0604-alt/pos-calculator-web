@@ -17,6 +17,7 @@ import SaveCartModal from '@/pages/SaveCartModal';
 import QuickCalculator from '@/pages/QuickCalculator';
 import NotificationSettings from '@/pages/NotificationSettings';
 import PaymentsContainer from '@/pages/PaymentsContainer';
+import InvoicesPage from '@/pages/InvoicesPage';
 
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
@@ -1042,6 +1043,9 @@ export default function App() {
 
       case 'payments':
         return <PaymentsContainer customers={customers} />;
+
+      case 'invoices':
+        return <InvoicesPage customers={customers} />;
 
       case 'stock':
         return (
