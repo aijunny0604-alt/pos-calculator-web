@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toPng, toBlob } from 'html-to-image';
 import { Printer, Download, Copy, Search, X as XIcon } from 'lucide-react';
@@ -84,6 +84,17 @@ export default function InvoicesPage({ customers }) {
         (allRecords || []).map((r) => r.order_id).filter(Boolean).map(String)
       );
 
+      // 주문 ID → 주문 맵 (품목/메모 조회용)
+      const orderMap = new Map();
+      for (const o of allOrders || []) orderMap.set(String(o.id), o);
+
+      // payment_records에 주문 items/memo 첨부
+      const enrichedRecords = (allRecords || []).map((r) => {
+        if (!r.order_id) return r;
+        const o = orderMap.get(String(r.order_id));
+        return o ? { ...r, items: o.items || [], order_memo: o.memo || '' } : r;
+      });
+
       // 업체 매칭 맵
       const byName = new Map();
       const byPhone = new Map();
@@ -127,11 +138,13 @@ export default function InvoicesPage({ customers }) {
           category: 'sales',
           is_vat_exempt: false,
           memo: o.memo || '',
+          items: o.items || [],
+          order_memo: o.memo || '',
           _virtual: true,
         });
       }
 
-      const mergedAll = [...(allRecords || []), ...virtualRecords];
+      const mergedAll = [...enrichedRecords, ...virtualRecords];
 
       // 기간 필터
       const inRange = (r) => {
@@ -468,13 +481,40 @@ export default function InvoicesPage({ customers }) {
 
               {/* 전월 이월 */}
               {carryoverTotal > 0 && (
-                <section className="mt-3 p-3 rounded-lg text-xs" style={{ background: 'linear-gradient(135deg, #fef2f2, #fff7ed)', border: '1px solid #fecaca' }}>
-                  <div className="flex justify-between items-center font-semibold">
+                <section className="mt-3 rounded-lg text-xs overflow-hidden" style={{ background: 'linear-gradient(135deg, #fef2f2, #fff7ed)', border: '1px solid #fecaca' }}>
+                  <div className="px-3 py-2 flex justify-between items-center font-semibold border-b border-red-200">
                     <span className="flex items-center gap-1.5">
                       <span className="text-base">📅</span>
                       <span>전월 이월 미수 ({carryover.length}건)</span>
                     </span>
                     <span className="text-red-600 text-sm font-bold tabular-nums">{fmt(carryoverTotal)}원</span>
+                  </div>
+                  <div className="divide-y divide-red-100">
+                    {carryover.map((r) => {
+                      const items = Array.isArray(r.items) ? r.items : [];
+                      return (
+                        <div key={r.id} className="px-3 py-1.5 flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[11px] font-medium text-gray-700">
+                              {r.invoice_date || '-'} · {r._virtual ? '(미등록)' : (r.invoice_number || `#${r.id}`)}
+                              {r.order_id && <span className="text-gray-500 ml-1">주문 #{r.order_id}</span>}
+                            </div>
+                            {items.length > 0 && (
+                              <div className="text-[10px] text-gray-600 mt-0.5 break-words leading-snug">
+                                {items.slice(0, 3).map((it, i) => (
+                                  <span key={i}>
+                                    {it.name || it.product_name || '품목'}×{it.quantity || 1}
+                                    {i < Math.min(items.length, 3) - 1 ? ', ' : ''}
+                                  </span>
+                                ))}
+                                {items.length > 3 && <span> 외 {items.length - 3}개</span>}
+                              </div>
+                            )}
+                          </div>
+                          <span className="font-bold text-red-600 tabular-nums text-[11px] flex-shrink-0">{fmt(r.balance)}원</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
               )}
@@ -583,30 +623,56 @@ function InvoiceTable({ rows, categories = DEFAULT_CATEGORIES }) {
       <tbody>
         {rows.map((r) => {
           const cat = getCategoryInfo(categories, r.category);
+          const items = Array.isArray(r.items) ? r.items : [];
           return (
-            <tr key={r.id} className="border-b border-gray-200">
-              <td className="py-1.5 px-1">
-                <div className="font-semibold">
-                  {r.invoice_number || (r._virtual ? '(미등록)' : `#${r.id}`)}
-                </div>
-                {r.order_id && <div className="text-[9px] text-gray-500">주문 #{r.order_id}</div>}
-                {r.invoice_issued && <div className="text-[9px] text-green-700">✅ 세금계산서 발행</div>}
-              </td>
-              <td className="py-1.5 px-1">
-                <div className="text-[10px]">{cat.icon} {cat.label}</div>
-                {r.is_vat_exempt && <div className="text-[9px] text-blue-600">비과세</div>}
-              </td>
-              <td className="py-1.5 px-1">
-                <StatusBadge status={r.payment_status} />
-              </td>
-              <td className="text-right py-1.5 px-1">{fmt(r.supply_amount || r.total_amount)}</td>
-              <td className="text-right py-1.5 px-1 text-orange-700">
-                {r.is_vat_exempt ? '-' : fmt(r.vat_amount)}
-              </td>
-              <td className="text-right py-1.5 px-1 font-bold">{fmt(r.total_amount)}</td>
-              <td className="text-right py-1.5 px-1 text-green-700">{fmt(r.paid_amount)}</td>
-              <td className="text-right py-1.5 px-1 text-red-600 font-bold">{fmt(r.balance)}</td>
-            </tr>
+            <Fragment key={r.id}>
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 px-1">
+                  <div className="font-semibold">
+                    {r.invoice_number || (r._virtual ? '(미등록)' : `#${r.id}`)}
+                  </div>
+                  {r.order_id && <div className="text-[9px] text-gray-500">주문 #{r.order_id}</div>}
+                  {r.invoice_issued && <div className="text-[9px] text-green-700">✅ 세금계산서 발행</div>}
+                </td>
+                <td className="py-1.5 px-1">
+                  <div className="text-[10px]">{cat.icon} {cat.label}</div>
+                  {r.is_vat_exempt && <div className="text-[9px] text-blue-600">비과세</div>}
+                </td>
+                <td className="py-1.5 px-1">
+                  <StatusBadge status={r.payment_status} />
+                </td>
+                <td className="text-right py-1.5 px-1">{fmt(r.supply_amount || r.total_amount)}</td>
+                <td className="text-right py-1.5 px-1 text-orange-700">
+                  {r.is_vat_exempt ? '-' : fmt(r.vat_amount)}
+                </td>
+                <td className="text-right py-1.5 px-1 font-bold">{fmt(r.total_amount)}</td>
+                <td className="text-right py-1.5 px-1 text-green-700">{fmt(r.paid_amount)}</td>
+                <td className="text-right py-1.5 px-1 text-red-600 font-bold">{fmt(r.balance)}</td>
+              </tr>
+              {items.length > 0 && (
+                <tr className="border-b border-gray-200 bg-gray-50/60">
+                  <td colSpan={8} className="py-1 px-2 pl-3 text-[10px] text-gray-700">
+                    <div className="break-words leading-snug">
+                      <span className="text-gray-500 mr-1">└ 품목:</span>
+                      {items.map((it, i) => {
+                        const line = (it.price || 0) * (it.quantity || 1);
+                        return (
+                          <span key={i} className="inline-block mr-2.5">
+                            {it.name || it.product_name || '품목'}
+                            <span className="text-gray-500"> ×{it.quantity || 1}</span>
+                            <span className="tabular-nums"> ({fmt(line)}원)</span>
+                            {i < items.length - 1 ? ',' : ''}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    {r.order_memo && (
+                      <div className="mt-0.5 text-[10px] italic text-gray-500 break-keep">📝 {r.order_memo}</div>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </Fragment>
           );
         })}
       </tbody>
