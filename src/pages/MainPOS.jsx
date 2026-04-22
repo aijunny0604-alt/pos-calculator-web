@@ -415,6 +415,8 @@ export default function MainPOS({
                       const categoryHasImage = categoryProducts.some((p) =>
                         (Array.isArray(p.image_urls) && p.image_urls.length > 0)
                       ) || isImageDemoMode();
+                      // 이미지 있는 제품이 하나라도 있으면 모든 카드가 이미지 레이아웃 사용
+                      // 이미지 없는 카드는 placeholder로 채움 → 균일한 그리드
                       return (
                       <div className={`p-2 grid gap-1.5 max-h-72 overflow-y-auto ${categoryHasImage ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-2'}`}>
                         {categoryProducts.map(product => {
@@ -529,15 +531,15 @@ export default function MainPOS({
 
                               {/* Price / Cart controls */}
                               {inCart ? (
-                                <div className="flex items-center justify-between gap-1">
+                                <div className="flex flex-col items-start min-[420px]:flex-row min-[420px]:items-center justify-between gap-1 min-w-0">
                                   <p
-                                    className="text-lg sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums"
+                                    className="text-base sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums min-w-0"
                                     style={{
                                       color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)',
                                       letterSpacing: '-0.02em',
                                     }}
                                   >
-                                    {formatPrice(displayPrice)}<span className="text-xs font-bold ml-0.5">원</span>
+                                    {formatPrice(displayPrice)}<span className="text-[10px] sm:text-xs font-bold ml-0.5">원</span>
                                   </p>
                                   <div
                                     className="flex items-center gap-0.5 rounded flex-shrink-0 border"
@@ -545,7 +547,7 @@ export default function MainPOS({
                                   >
                                     <button
                                       onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity - 1); }}
-                                      className="w-9 h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-l-lg transition-colors"
+                                      className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-l-lg transition-colors"
                                     >
                                       <Minus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                                     </button>
@@ -558,12 +560,12 @@ export default function MainPOS({
                                         if (!isNaN(val) && val >= 0) updateQuantity(product.id, val);
                                       }}
                                       onFocus={(e) => { e.stopPropagation(); e.target.select(); }}
-                                      className="w-10 h-9 text-center text-sm font-bold bg-transparent border-none focus:outline-none"
+                                      className="w-8 h-8 sm:w-10 sm:h-9 text-center text-sm font-bold bg-transparent border-none focus:outline-none"
                                       style={{ color: 'var(--foreground)' }}
                                     />
                                     <button
                                       onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity + 1); }}
-                                      className="w-9 h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-r-lg transition-colors"
+                                      className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-r-lg transition-colors"
                                     >
                                       <Plus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                                     </button>
