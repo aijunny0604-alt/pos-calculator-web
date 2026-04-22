@@ -5,9 +5,13 @@ import {
 } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
+import CustomerDetailModal from '@/components/CustomerDetailModal';
+import PaymentRegisterModal from '@/components/PaymentRegisterModal';
+import PaymentEditModal from '@/components/PaymentEditModal';
 import { formatPrice, formatDate, calcExVat, handleSearchFocus } from '@/lib/utils';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import { supabase } from '@/lib/supabase';
+import { CircleDollarSign } from 'lucide-react';
 
 export default function CustomerList({
   customers,
@@ -32,6 +36,22 @@ export default function CustomerList({
 
   // ===== 업체별 미수 (pos-payments 통합) =====
   const [outstandingByCustomer, setOutstandingByCustomer] = useState({});
+  const [paymentDetailCustomer, setPaymentDetailCustomer] = useState(null);
+  const [regModalOpen, setRegModalOpen] = useState(false);
+  const [regPrefill, setRegPrefill] = useState({ customerId: null, recordId: null });
+  const [editHistory, setEditHistory] = useState(null);
+
+  const reloadOutstanding = () => {
+    supabase.getPaymentRecords({ hasBalance: true }).then((records) => {
+      const map = {};
+      for (const r of records || []) {
+        if (!r.customer_id) continue;
+        map[String(r.customer_id)] = (map[String(r.customer_id)] || 0) + Number(r.balance || 0);
+      }
+      setOutstandingByCustomer(map);
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     let cancelled = false;
     supabase.getPaymentRecords({ hasBalance: true }).then((records) => {
@@ -699,9 +719,23 @@ export default function CustomerList({
                               </p>
                             )}
                             {outstandingByCustomer[String(customer.id)] > 0 && (
-                              <p className="text-xs mt-0.5 font-medium" style={{ color: 'var(--warning)' }}>
-                                이월 미수: {formatPrice(outstandingByCustomer[String(customer.id)])}원
-                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-xs font-medium" style={{ color: 'var(--warning)' }}>
+                                  이월 미수: {formatPrice(outstandingByCustomer[String(customer.id)])}원
+                                </p>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setPaymentDetailCustomer(customer); }}
+                                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold border"
+                                  style={{
+                                    background: 'color-mix(in srgb, var(--warning) 10%, var(--card))',
+                                    borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))',
+                                    color: 'var(--warning)',
+                                  }}
+                                  title="결제 상세 보기"
+                                >
+                                  <CircleDollarSign className="w-3 h-3" /> 결제 상세
+                                </button>
+                              </div>
                             )}
                           </div>
                           <ChevronRight className="w-4 h-4 text-[var(--muted-foreground)] flex-shrink-0 mt-1" />
@@ -1117,6 +1151,37 @@ export default function CustomerList({
           </div>
         </div>
       )}
+
+      {/* Phase 4: 결제 상세 모달 (CustomerDetailModal + 결제 등록/수정) */}
+      <CustomerDetailModal
+        open={!!paymentDetailCustomer}
+        customer={paymentDetailCustomer}
+        onClose={() => setPaymentDetailCustomer(null)}
+        onAddPayment={(cid, rid) => {
+          setPaymentDetailCustomer(null);
+          setRegPrefill({ customerId: cid, recordId: rid });
+          setRegModalOpen(true);
+        }}
+        onEditHistory={(h) => {
+          setPaymentDetailCustomer(null);
+          setEditHistory(h);
+        }}
+      />
+
+      <PaymentRegisterModal
+        open={regModalOpen}
+        onClose={() => setRegModalOpen(false)}
+        onSaved={() => { setRegModalOpen(false); reloadOutstanding(); }}
+        initialCustomerId={regPrefill.customerId}
+        initialRecordId={regPrefill.recordId}
+      />
+
+      <PaymentEditModal
+        open={!!editHistory}
+        history={editHistory}
+        onClose={() => setEditHistory(null)}
+        onSaved={() => { setEditHistory(null); reloadOutstanding(); }}
+      />
     </div>
   );
 }
