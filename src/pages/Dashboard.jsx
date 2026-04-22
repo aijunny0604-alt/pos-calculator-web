@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { formatPrice, formatDateTime, getTodayKST, toDateKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import PaymentDashboardSection from '@/components/dashboard/PaymentDashboardSection';
 
 export default function Dashboard({
   orders = [],
@@ -173,6 +174,9 @@ export default function Dashboard({
           onClick={() => setCurrentPage('payments')}
         />
       </div>
+
+      {/* 결제 위젯 3종: 연체 배너 + 업체 미수 TOP + 최근 입금 */}
+      <PaymentDashboardSection customers={customers} setCurrentPage={setCurrentPage} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: AI Quick Order + Recent Orders */}

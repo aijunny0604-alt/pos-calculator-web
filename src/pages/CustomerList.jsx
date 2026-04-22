@@ -29,6 +29,8 @@ export default function CustomerList({
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [detailOrder, setDetailOrder] = useState(null);
   const [blacklistFilter, setBlacklistFilter] = useState('all');
+  const [outstandingFilter, setOutstandingFilter] = useState(false); // 미수 있는 업체만
+  const [sortBy, setSortBy] = useState('name'); // 'name' | 'outstanding'
   const [isReturning, setIsReturning] = useState(false);
   const [returnItems, setReturnItems] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -95,11 +97,19 @@ export default function CustomerList({
   const filteredCustomers = (customers || []).filter(c => {
     if (blacklistFilter === 'blacklist' && !c.is_blacklist) return false;
     if (blacklistFilter === 'normal' && c.is_blacklist) return false;
+    if (outstandingFilter && !(outstandingByCustomer[String(c.id)] > 0)) return false;
     const search = searchTerm.toLowerCase().replace(/\s/g, '');
     const name = c.name.toLowerCase().replace(/\s/g, '');
     const address = (c.address || '').toLowerCase().replace(/\s/g, '');
     const phone = (c.phone || '').replace(/\s/g, '');
     return name.includes(search) || address.includes(search) || phone.includes(search);
+  }).sort((a, b) => {
+    if (sortBy === 'outstanding') {
+      const ba = outstandingByCustomer[String(a.id)] || 0;
+      const bb = outstandingByCustomer[String(b.id)] || 0;
+      if (ba !== bb) return bb - ba; // 미수 많은 순
+    }
+    return (a.name || '').localeCompare(b.name || '', 'ko-KR');
   });
 
   // -- Order helpers --
@@ -342,7 +352,7 @@ export default function CustomerList({
               </div>
 
               {/* Blacklist filter */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {[
                   { key: 'all', label: '전체' },
                   { key: 'normal', label: '정상' },
@@ -369,6 +379,29 @@ export default function CustomerList({
                     {label}
                   </button>
                 ))}
+
+                {/* 미수 필터 */}
+                <button
+                  onClick={() => setOutstandingFilter((v) => !v)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                    outstandingFilter
+                      ? 'text-white'
+                      : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'
+                  }`}
+                  style={outstandingFilter ? { background: 'var(--warning)', color: 'white', borderColor: 'var(--warning)' } : undefined}
+                  title="이월 미수가 있는 업체만"
+                >
+                  💲 미수만
+                </button>
+
+                {/* 정렬 토글 */}
+                <button
+                  onClick={() => setSortBy((v) => v === 'name' ? 'outstanding' : 'name')}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]"
+                  title="정렬 기준 변경"
+                >
+                  정렬: {sortBy === 'outstanding' ? '미수 많은 순' : '이름순'}
+                </button>
               </div>
             </div>
           </div>
