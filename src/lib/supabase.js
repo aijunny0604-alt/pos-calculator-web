@@ -364,6 +364,9 @@ export const supabase = {
       return r[0] || null;
     } catch (e) { console.error('updateAppSettings:', e); return null; }
   },
+  // sandbox 호환 별칭 (pos-payments 파일 이식 시 호환 유지)
+  async getSettings() { return this.getAppSettings(); },
+  async updateSettings(patch) { return this.updateAppSettings(patch); },
   async nextInvoiceNumber() {
     try {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/next_invoice_number`, {

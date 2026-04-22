@@ -6,6 +6,7 @@ const pageTitles = {
   orders: '주문 내역',
   'saved-carts': '저장된 장바구니',
   customers: '거래처 관리',
+  payments: '페이먼트 관리',
   stock: '재고 현황',
   shipping: '택배 송장',
   'burnway-stock': '번웨이 다운파이프',

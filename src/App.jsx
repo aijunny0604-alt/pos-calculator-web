@@ -16,6 +16,7 @@ import AdminPage from '@/pages/AdminPage';
 import SaveCartModal from '@/pages/SaveCartModal';
 import QuickCalculator from '@/pages/QuickCalculator';
 import NotificationSettings from '@/pages/NotificationSettings';
+import PaymentsContainer from '@/pages/PaymentsContainer';
 
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
@@ -1038,6 +1039,9 @@ export default function App() {
             showToast={showToast}
           />
         );
+
+      case 'payments':
+        return <PaymentsContainer customers={customers} />;
 
       case 'stock':
         return (
