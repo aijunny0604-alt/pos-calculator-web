@@ -115,3 +115,11 @@ export const formatDateTime = (dateString) => {
     hour: '2-digit', minute: '2-digit'
   });
 };
+
+// 시간만 (HH:MM)
+export const formatTime = (dateString) => {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleTimeString('ko-KR', {
+    hour: '2-digit', minute: '2-digit',
+  });
+};

@@ -232,6 +232,282 @@ export const supabase = {
     } catch (e) { console.error('upsertAiLearning:', e); return null; }
   },
 
+  // ===== payment_records (pos-payments 통합) =====
+  async getPaymentRecords(filters = {}) {
+    try {
+      const params = new URLSearchParams({ order: 'created_at.desc' });
+      if (filters.customerId) params.append('customer_id', `eq.${filters.customerId}`);
+      if (filters.orderId) params.append('order_id', `eq.${filters.orderId}`);
+      if (filters.status) params.append('payment_status', `eq.${filters.status}`);
+      if (filters.hasBalance) params.append('balance', 'gt.0');
+      if (filters.invoiceIssued === true) params.append('invoice_issued', 'eq.true');
+      if (filters.invoiceIssued === false) params.append('invoice_issued', 'eq.false');
+      if (filters.invoiceDate) params.append('invoice_date', `eq.${filters.invoiceDate}`);
+      if (filters.invoiceDateFrom) params.append('invoice_date', `gte.${filters.invoiceDateFrom}`);
+      if (filters.invoiceDateTo) params.append('invoice_date', `lte.${filters.invoiceDateTo}`);
+      if (filters.limit) params.append('limit', String(filters.limit));
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records?${params.toString()}`, { headers });
+    } catch (e) { console.error('getPaymentRecords:', e); return []; }
+  },
+  async getPaymentRecord(id) {
+    try {
+      const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records?id=eq.${id}`, { headers });
+      return r[0] || null;
+    } catch (e) { console.error('getPaymentRecord:', e); return null; }
+  },
+  async addPaymentRecord(record) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records`, {
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify(record),
+      });
+    } catch (e) { console.error('addPaymentRecord:', e); return null; }
+  },
+  async updatePaymentRecord(id, patch) {
+    try {
+      const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(patch),
+      });
+      return r[0] || null;
+    } catch (e) { console.error('updatePaymentRecord:', e); return null; }
+  },
+  async deletePaymentRecord(id) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/payment_records?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      return true;
+    } catch (e) { console.error('deletePaymentRecord:', e); return false; }
+  },
+
+  // ===== payment_history (pos-payments 통합) =====
+  async getPaymentHistory(filters = {}) {
+    try {
+      const params = new URLSearchParams({ order: 'paid_at.desc' });
+      if (filters.recordId) params.append('payment_record_id', `eq.${filters.recordId}`);
+      if (filters.paidFrom) params.append('paid_at', `gte.${filters.paidFrom}`);
+      if (filters.paidTo) params.append('paid_at', `lte.${filters.paidTo}`);
+      if (filters.limit) params.append('limit', String(filters.limit));
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_history?${params.toString()}`, { headers });
+    } catch (e) { console.error('getPaymentHistory:', e); return []; }
+  },
+  async addPaymentHistory(entry) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_history`, {
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify(entry),
+      });
+    } catch (e) { console.error('addPaymentHistory:', e); return null; }
+  },
+  async updatePaymentHistory(id, patch) {
+    try {
+      const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_history?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(patch),
+      });
+      return r[0] || null;
+    } catch (e) { console.error('updatePaymentHistory:', e); return null; }
+  },
+  async deletePaymentHistory(id) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/payment_history?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      return true;
+    } catch (e) { console.error('deletePaymentHistory:', e); return false; }
+  },
+
+  // ===== 대시보드 집계 (pos-payments 통합) =====
+  async getTodayPaidTotal() {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const rows = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/payment_history?paid_at=gte.${today}T00:00:00&paid_at=lt.${today}T24:00:00&select=amount`,
+        { headers }
+      );
+      return rows.reduce((s, r) => s + Number(r.amount || 0), 0);
+    } catch (e) { console.error('getTodayPaidTotal:', e); return 0; }
+  },
+  async getOutstandingTotal() {
+    try {
+      const rows = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/payment_records?balance=gt.0&select=balance`,
+        { headers }
+      );
+      return rows.reduce((s, r) => s + Number(r.balance || 0), 0);
+    } catch (e) { console.error('getOutstandingTotal:', e); return 0; }
+  },
+  async getOverdueRecords(limit = 10) {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      return await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/payment_records?due_date=lt.${today}&balance=gt.0&order=due_date.asc&limit=${limit}`,
+        { headers }
+      );
+    } catch (e) { console.error('getOverdueRecords:', e); return []; }
+  },
+  async getRecentPayments(limit = 10) {
+    try {
+      return await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/payment_history?order=paid_at.desc&limit=${limit}`,
+        { headers }
+      );
+    } catch (e) { console.error('getRecentPayments:', e); return []; }
+  },
+
+  // ===== 앱 설정 (회사 정보) =====
+  async getAppSettings() {
+    try {
+      const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/app_settings?id=eq.1`, { headers });
+      return r[0] || null;
+    } catch (e) { console.error('getAppSettings:', e); return null; }
+  },
+  async updateAppSettings(patch) {
+    try {
+      const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/app_settings?id=eq.1`, {
+        method: 'PATCH', headers: headersWithReturn,
+        body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
+      });
+      return r[0] || null;
+    } catch (e) { console.error('updateAppSettings:', e); return null; }
+  },
+  async nextInvoiceNumber() {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/next_invoice_number`, {
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify({}),
+      });
+      if (!r.ok) return null;
+      const text = await r.text();
+      return text.replace(/^"|"$/g, '');
+    } catch (e) { console.error('nextInvoiceNumber:', e); return null; }
+  },
+
+  // ===== 주문 → 결제 레코드 동기화 =====
+  async syncOrdersToPaymentRecords() {
+    try {
+      const [orders, customers, existingRecords] = await Promise.all([
+        this.getOrders(),
+        this.getCustomers(),
+        this.getPaymentRecords({}),
+      ]);
+
+      const existingOrderIds = new Set(existingRecords.map((r) => r.order_id).filter(Boolean));
+      const customerByName = new Map();
+      const customerByPhone = new Map();
+      for (const c of customers) {
+        if (c.name) customerByName.set(c.name.trim(), c);
+        if (c.phone) customerByPhone.set(c.phone.trim(), c);
+      }
+
+      const toInsert = [];
+      let skippedNoCustomer = 0;
+      let skippedAlreadySynced = 0;
+
+      for (const o of orders) {
+        if (existingOrderIds.has(o.id)) { skippedAlreadySynced++; continue; }
+
+        const name = (o.customer_name || '').trim();
+        const phone = (o.customer_phone || '').trim();
+        let cust = null;
+        if (name) cust = customerByName.get(name);
+        if (!cust && phone) cust = customerByPhone.get(phone);
+        if (!cust) { skippedNoCustomer++; continue; }
+
+        const total = Number(o.total || 0) - Number(o.total_returned || 0);
+        if (total <= 0) continue;
+
+        toInsert.push({
+          order_id: o.id,
+          customer_id: cust.id,
+          total_amount: total,
+          invoice_date: (o.created_at || '').slice(0, 10) || null,
+          memo: o.memo || null,
+        });
+      }
+
+      // 배치 INSERT (500건씩)
+      let inserted = 0;
+      for (let i = 0; i < toInsert.length; i += 500) {
+        const batch = toInsert.slice(i, i + 500);
+        const result = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records`, {
+          method: 'POST', headers: headersWithReturn, body: JSON.stringify(batch),
+        });
+        inserted += (result?.length || 0);
+      }
+
+      return { total: orders.length, inserted, skippedAlreadySynced, skippedNoCustomer };
+    } catch (e) { console.error('syncOrdersToPaymentRecords:', e); throw e; }
+  },
+
+  // ===== 저장된 장바구니 → 결제 레코드 동기화 =====
+  async syncSavedCartsToPaymentRecords() {
+    try {
+      const [carts, customers, existingRecords] = await Promise.all([
+        this.getSavedCarts().then((r) => r || []),
+        this.getCustomers(),
+        this.getPaymentRecords({}),
+      ]);
+
+      const existingCartKeys = new Set(
+        existingRecords.map((r) => r.order_id).filter((id) => id && String(id).startsWith('CART-'))
+      );
+
+      const byName = new Map();
+      const byPhone = new Map();
+      for (const c of customers) {
+        if (c.name) byName.set(c.name.trim(), c);
+        if (c.phone) byPhone.set(c.phone.trim(), c);
+      }
+
+      const toInsert = [];
+      let skippedNoCustomer = 0;
+      let skippedAlreadySynced = 0;
+
+      for (const cart of carts) {
+        const cartKey = `CART-${cart.id}`;
+        if (existingCartKeys.has(cartKey)) { skippedAlreadySynced++; continue; }
+
+        const name = (cart.name || '').trim();
+        const phone = (cart.phone || '').trim();
+        let cust = null;
+        if (name) cust = byName.get(name);
+        if (!cust && phone) cust = byPhone.get(phone);
+        if (!cust) { skippedNoCustomer++; continue; }
+
+        const total = Number(cart.total || 0);
+        if (total <= 0) continue;
+
+        const supply = Math.round(total / 1.1);
+        toInsert.push({
+          order_id: cartKey,
+          customer_id: cust.id,
+          total_amount: total,
+          supply_amount: supply,
+          vat_amount: total - supply,
+          is_vat_exempt: false,
+          category: 'sales',
+          invoice_date: cart.date || (cart.created_at || '').slice(0, 10) || null,
+          due_date: cart.delivery_date || null,
+          memo: cart.memo ? `[예약] ${cart.memo}` : '[예약 장바구니]',
+        });
+      }
+
+      let inserted = 0;
+      for (let i = 0; i < toInsert.length; i += 500) {
+        const batch = toInsert.slice(i, i + 500);
+        const result = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records`, {
+          method: 'POST', headers: headersWithReturn, body: JSON.stringify(batch),
+        });
+        inserted += (result?.length || 0);
+      }
+
+      return { total: carts.length, inserted, skippedAlreadySynced, skippedNoCustomer };
+    } catch (e) { console.error('syncSavedCartsToPaymentRecords:', e); throw e; }
+  },
+
+  async syncAllToPaymentRecords() {
+    const orderResult = await this.syncOrdersToPaymentRecords();
+    const cartResult = await this.syncSavedCartsToPaymentRecords();
+    return {
+      orders: orderResult,
+      carts: cartResult,
+      totalInserted: orderResult.inserted + cartResult.inserted,
+    };
+  },
+
   // ===== 수동 완불 체크 (멀티 기기 동기화) =====
   async getManualPaidAll() {
     try {
