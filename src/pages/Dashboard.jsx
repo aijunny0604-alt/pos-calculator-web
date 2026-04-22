@@ -175,9 +175,6 @@ export default function Dashboard({
         />
       </div>
 
-      {/* 결제 위젯 3종: 연체 배너 + 업체 미수 TOP + 최근 입금 */}
-      <PaymentDashboardSection customers={customers} setCurrentPage={setCurrentPage} />
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: AI Quick Order + Recent Orders */}
         <div className="lg:col-span-2 space-y-4">
@@ -382,6 +379,9 @@ export default function Dashboard({
           </div>
         </div>
       </div>
+
+      {/* 결제 위젯 — 하단, 작게 */}
+      <PaymentDashboardSection customers={customers} setCurrentPage={setCurrentPage} compact />
     </div>
   );
 }

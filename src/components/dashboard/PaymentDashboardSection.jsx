@@ -17,7 +17,7 @@ const dateKST = (iso) => {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-export default function PaymentDashboardSection({ customers = [], setCurrentPage }) {
+export default function PaymentDashboardSection({ customers = [], setCurrentPage, compact = false }) {
   const [overdue, setOverdue] = useState([]);
   const [recent, setRecent] = useState([]);
   const [ranking, setRanking] = useState([]);
@@ -63,14 +63,14 @@ export default function PaymentDashboardSection({ customers = [], setCurrentPage
   const customerName = (id) => customers.find((c) => String(c.id) === String(id))?.name || `#${id}`;
   const recordById = (id, records) => records.find((r) => r.id === id);
 
-  const Panel = ({ title, emptyMessage, children }) => {
+  const Panel = ({ title, emptyMessage, children, maxHeight }) => {
     const hasContent = Array.isArray(children) ? children.some(Boolean) : !!children;
     return (
-      <section className="rounded-xl border p-4" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-        <h2 className="text-sm font-bold mb-3" style={{ color: 'var(--foreground)' }}>{title}</h2>
-        <div className="space-y-2">
+      <section className={`rounded-xl border ${compact ? 'p-3' : 'p-4'}`} style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+        <h2 className={`${compact ? 'text-xs mb-2' : 'text-sm mb-3'} font-bold`} style={{ color: 'var(--foreground)' }}>{title}</h2>
+        <div className={`space-y-1.5 ${maxHeight ? 'overflow-y-auto' : ''}`} style={maxHeight ? { maxHeight } : undefined}>
           {hasContent ? children : (
-            <p className="text-xs text-center py-6" style={{ color: 'var(--muted-foreground)' }}>{emptyMessage}</p>
+            <p className={`${compact ? 'text-[11px] py-3' : 'text-xs py-6'} text-center`} style={{ color: 'var(--muted-foreground)' }}>{emptyMessage}</p>
           )}
         </div>
       </section>
@@ -109,51 +109,47 @@ export default function PaymentDashboardSection({ customers = [], setCurrentPage
       )}
 
       {/* 2-Column: 업체별 미수 TOP + 최근 입금 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Panel title="🏢 업체별 미수 TOP 8" emptyMessage="미수 있는 업체 없음 👍">
-          {ranking.map((r) => (
+      <div className={`grid grid-cols-1 lg:grid-cols-2 ${compact ? 'gap-3' : 'gap-4'}`}>
+        <Panel title="🏢 업체별 미수 TOP 8" emptyMessage="미수 있는 업체 없음 👍" maxHeight={compact ? '220px' : undefined}>
+          {ranking.slice(0, compact ? 5 : 8).map((r) => (
             <button
               key={r.customer.id}
               onClick={() => setCurrentPage('customers')}
-              className="w-full p-2.5 rounded-lg text-sm flex items-start gap-2 text-left transition-colors hover:bg-[var(--accent)]"
+              className={`w-full ${compact ? 'p-1.5 text-xs' : 'p-2.5 text-sm'} rounded-lg flex items-start gap-2 text-left transition-colors hover:bg-[var(--accent)]`}
               style={{ background: 'var(--muted)' }}
             >
               <div className="flex-1 min-w-0">
-                <div className="font-semibold break-keep leading-snug" style={{ color: 'var(--foreground)' }}>{r.customer.name}</div>
-                <div className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>미수 {r.count}건</div>
+                <div className={`font-semibold break-keep leading-snug ${compact ? 'text-xs' : ''}`} style={{ color: 'var(--foreground)' }}>{r.customer.name}</div>
+                <div className={`${compact ? 'text-[10px]' : 'text-[11px]'}`} style={{ color: 'var(--muted-foreground)' }}>미수 {r.count}건</div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="font-bold text-sm tabular-nums" style={{ color: 'var(--destructive)' }}>{fmt(r.balance)}원</div>
-                <div className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>›</div>
+                <div className={`font-bold tabular-nums ${compact ? 'text-xs' : 'text-sm'}`} style={{ color: 'var(--destructive)' }}>{fmt(r.balance)}원</div>
               </div>
             </button>
           ))}
         </Panel>
 
-        <Panel title="💵 최근 입금" emptyMessage="입금 내역 없음">
-          {recent.map((p) => (
+        <Panel title="💵 최근 입금" emptyMessage="입금 내역 없음" maxHeight={compact ? '220px' : undefined}>
+          {recent.slice(0, compact ? 5 : 10).map((p) => (
             <button
               key={p.id}
               onClick={() => setCurrentPage('payments')}
-              className="w-full p-2.5 rounded-lg text-sm flex items-start gap-2 text-left transition-colors hover:bg-[var(--accent)]"
+              className={`w-full ${compact ? 'p-1.5 text-xs' : 'p-2.5 text-sm'} rounded-lg flex items-start gap-2 text-left transition-colors hover:bg-[var(--accent)]`}
               style={{ background: 'var(--muted)' }}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span
-                    className="font-bold text-base tabular-nums"
+                    className={`font-bold tabular-nums ${compact ? 'text-xs' : 'text-base'}`}
                     style={{ color: p.type === 'expense' ? 'var(--destructive)' : 'var(--success)' }}
                   >
                     {p.type === 'expense' ? '-' : '+'}{fmt(p.amount)}원
                   </span>
-                </div>
-                <div className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--muted-foreground)' }}>
-                  {p.method && <span>{p.method}</span>}
-                  {p.memo && <span className="break-words leading-snug">· {p.memo}</span>}
+                  {p.method && <span className={`${compact ? 'text-[10px]' : 'text-[11px]'}`} style={{ color: 'var(--muted-foreground)' }}>{p.method}</span>}
                 </div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-[10px] whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{dateKST(p.paid_at)}</div>
+                <div className={`${compact ? 'text-[9px]' : 'text-[10px]'} whitespace-nowrap`} style={{ color: 'var(--muted-foreground)' }}>{dateKST(p.paid_at)}</div>
               </div>
             </button>
           ))}

@@ -69,43 +69,91 @@ export default function InvoicesPage({ customers }) {
 
   useEffect(() => {
     setLoading(true);
+    // payment_records + orders 병합 전략:
+    // 1. payment_records(=결제 레코드) 로드
+    // 2. orders 전체 로드
+    // 3. payment_records에 있는 order_id는 skip, 나머지 orders를 "virtual record"로 변환
+    //    → 결제 미등록 상태(no_record)로 표시하되 청구는 포함
+    Promise.all([
+      customerId !== 'all'
+        ? supabase.getPaymentRecords({ customerId })
+        : supabase.getPaymentRecords(/* 전체 */),
+      supabase.getOrders(),
+    ]).then(([allRecords, allOrders]) => {
+      const recordedOrderIds = new Set(
+        (allRecords || []).map((r) => r.order_id).filter(Boolean).map(String)
+      );
 
-    if (customerId !== 'all') {
-      // 업체 모드: 해당 업체의 모든 레코드 로드 → 날짜 기준으로 당월/이월 분리
-      supabase.getPaymentRecords({ customerId })
-        .then((all) => {
-          const inRange = (r) => {
-            if (!dateRange.from) return true; // 전체
-            if (!r.invoice_date) return true; // 발행일 미지정은 당월로
-            return r.invoice_date >= dateRange.from && r.invoice_date <= dateRange.to;
-          };
-          const current = all.filter(inRange);
-          const prev = all.filter((r) =>
-            r.invoice_date && dateRange.from && r.invoice_date < dateRange.from && Number(r.balance) > 0
-          );
-          setRecords(current);
-          setCarryover(prev);
-        })
-        .catch((e) => { console.error('[Invoices] load failed:', e); setRecords([]); setCarryover([]); })
-        .finally(() => setLoading(false));
-    } else {
-      // 전체 모드: 발행일 범위 내 + 이전 이월
-      const rangeFilter = {};
-      if (dateRange.from && dateRange.to) {
-        if (dateRange.from === dateRange.to) rangeFilter.invoiceDate = dateRange.from;
-        else { rangeFilter.invoiceDateFrom = dateRange.from; rangeFilter.invoiceDateTo = dateRange.to; }
+      // 업체 매칭 맵
+      const byName = new Map();
+      const byPhone = new Map();
+      for (const c of customers || []) {
+        if (c.name) byName.set(c.name.trim(), c);
+        if (c.phone) byPhone.set(c.phone.trim(), c);
       }
-      Promise.all([
-        supabase.getPaymentRecords(rangeFilter),
-        dateRange.from
-          ? supabase.getPaymentRecords({ hasBalance: true })
-              .then((all) => all.filter((r) => (r.invoice_date || '') < dateRange.from))
-          : Promise.resolve([]),
-      ]).then(([r, prev]) => { setRecords(r); setCarryover(prev); })
-        .catch((e) => { console.error('[Invoices] load failed:', e); setRecords([]); setCarryover([]); })
-        .finally(() => setLoading(false));
-    }
-  }, [dateRange.from, dateRange.to, customerId]);
+
+      // orders → virtual record
+      const virtualRecords = [];
+      for (const o of allOrders || []) {
+        if (recordedOrderIds.has(String(o.id))) continue;
+
+        const name = (o.customer_name || '').trim();
+        const phone = (o.customer_phone || '').trim();
+        let cust = null;
+        if (name) cust = byName.get(name);
+        if (!cust && phone) cust = byPhone.get(phone);
+
+        // 업체 필터 (특정 업체 선택 시 다른 업체 주문 제외)
+        if (customerId !== 'all' && String(cust?.id || '') !== String(customerId)) continue;
+
+        const total = Number(o.total || 0) - Number(o.total_returned || 0);
+        if (total <= 0) continue;
+
+        const orderDate = (o.created_at || '').slice(0, 10);
+        const supply = Math.round(total / 1.1);
+
+        virtualRecords.push({
+          id: `virt-${o.id}`,
+          order_id: o.id,
+          customer_id: cust?.id || null,
+          total_amount: total,
+          supply_amount: supply,
+          vat_amount: total - supply,
+          paid_amount: 0,
+          balance: total,
+          payment_status: 'no_record', // 결제 레코드 미생성
+          invoice_date: orderDate,
+          invoice_issued: false,
+          category: 'sales',
+          is_vat_exempt: false,
+          memo: o.memo || '',
+          _virtual: true,
+        });
+      }
+
+      const mergedAll = [...(allRecords || []), ...virtualRecords];
+
+      // 기간 필터
+      const inRange = (r) => {
+        if (!dateRange.from) return true;
+        if (!r.invoice_date) return true;
+        return r.invoice_date >= dateRange.from && r.invoice_date <= dateRange.to;
+      };
+      const current = mergedAll.filter(inRange);
+
+      // 이월 (기간 이전 + 미수)
+      const prev = mergedAll.filter((r) =>
+        r.invoice_date && dateRange.from && r.invoice_date < dateRange.from && Number(r.balance) > 0
+      );
+
+      setRecords(current);
+      setCarryover(prev);
+    }).catch((e) => {
+      console.error('[Invoices] load failed:', e);
+      setRecords([]);
+      setCarryover([]);
+    }).finally(() => setLoading(false));
+  }, [dateRange.from, dateRange.to, customerId, customers]);
 
   // 업체 검색 필터 + 외부 클릭 닫기
   const filteredCustomers = useMemo(() => {
@@ -498,6 +546,25 @@ function ActionBtn({ icon: Icon, onClick, children, variant, block }) {
   );
 }
 
+const STATUS_BADGE = {
+  paid:      { label: '완납',    bg: '#dcfce7', fg: '#15803d' }, // green
+  partial:   { label: '부분',    bg: '#ffedd5', fg: '#c2410c' }, // orange
+  unpaid:    { label: '미수',    bg: '#fee2e2', fg: '#b91c1c' }, // red
+  no_record: { label: '미등록',  bg: '#f3f4f6', fg: '#4b5563' }, // gray
+};
+
+function StatusBadge({ status }) {
+  const b = STATUS_BADGE[status] || STATUS_BADGE.unpaid;
+  return (
+    <span
+      className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded"
+      style={{ background: b.bg, color: b.fg }}
+    >
+      {b.label}
+    </span>
+  );
+}
+
 function InvoiceTable({ rows, categories = DEFAULT_CATEGORIES }) {
   return (
     <table className="w-full text-[11px]" style={{ borderCollapse: 'collapse' }}>
@@ -505,6 +572,7 @@ function InvoiceTable({ rows, categories = DEFAULT_CATEGORIES }) {
         <tr className="border-b border-gray-400 bg-gray-50">
           <th className="text-left py-1.5 px-1">세금계산서</th>
           <th className="text-left py-1.5 px-1">구분</th>
+          <th className="text-left py-1.5 px-1">상태</th>
           <th className="text-right py-1.5 px-1">공급가</th>
           <th className="text-right py-1.5 px-1">부가세</th>
           <th className="text-right py-1.5 px-1 font-bold">합계</th>
@@ -518,13 +586,18 @@ function InvoiceTable({ rows, categories = DEFAULT_CATEGORIES }) {
           return (
             <tr key={r.id} className="border-b border-gray-200">
               <td className="py-1.5 px-1">
-                <div className="font-semibold">{r.invoice_number || `#${r.id}`}</div>
+                <div className="font-semibold">
+                  {r.invoice_number || (r._virtual ? '(미등록)' : `#${r.id}`)}
+                </div>
                 {r.order_id && <div className="text-[9px] text-gray-500">주문 #{r.order_id}</div>}
-                {r.invoice_issued && <div className="text-[9px] text-green-700">✅ 발행</div>}
+                {r.invoice_issued && <div className="text-[9px] text-green-700">✅ 세금계산서 발행</div>}
               </td>
               <td className="py-1.5 px-1">
                 <div className="text-[10px]">{cat.icon} {cat.label}</div>
                 {r.is_vat_exempt && <div className="text-[9px] text-blue-600">비과세</div>}
+              </td>
+              <td className="py-1.5 px-1">
+                <StatusBadge status={r.payment_status} />
               </td>
               <td className="text-right py-1.5 px-1">{fmt(r.supply_amount || r.total_amount)}</td>
               <td className="text-right py-1.5 px-1 text-orange-700">
