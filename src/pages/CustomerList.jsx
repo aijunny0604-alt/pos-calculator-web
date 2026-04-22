@@ -7,6 +7,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatPrice, formatDate, calcExVat, handleSearchFocus } from '@/lib/utils';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
+import { supabase } from '@/lib/supabase';
 
 export default function CustomerList({
   customers,
@@ -28,6 +29,22 @@ export default function CustomerList({
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', address: '', memo: '' });
   const { isFullscreen: isDetailFullscreen, toggleFullscreen: toggleDetailFullscreen } = useModalFullscreen();
+
+  // ===== 업체별 미수 (pos-payments 통합) =====
+  const [outstandingByCustomer, setOutstandingByCustomer] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    supabase.getPaymentRecords({ hasBalance: true }).then((records) => {
+      if (cancelled) return;
+      const map = {};
+      for (const r of records || []) {
+        if (!r.customer_id) continue;
+        map[String(r.customer_id)] = (map[String(r.customer_id)] || 0) + Number(r.balance || 0);
+      }
+      setOutstandingByCustomer(map);
+    }).catch(() => {/* 실패 시 미수 표시만 생략 */});
+    return () => { cancelled = true; };
+  }, []);
 
   const blacklistStats = {
     total: (customers || []).length,
@@ -679,6 +696,11 @@ export default function CustomerList({
                             {totalAmount > 0 && (
                               <p className="text-xs mt-2 font-medium" style={{ color: 'var(--primary)' }}>
                                 총 거래: {formatPrice(totalAmount)}
+                              </p>
+                            )}
+                            {outstandingByCustomer[String(customer.id)] > 0 && (
+                              <p className="text-xs mt-0.5 font-medium" style={{ color: 'var(--warning)' }}>
+                                이월 미수: {formatPrice(outstandingByCustomer[String(customer.id)])}원
                               </p>
                             )}
                           </div>
