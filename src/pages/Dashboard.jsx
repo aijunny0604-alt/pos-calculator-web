@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   TrendingUp, ShoppingCart, Package, AlertTriangle, Users,
-  ArrowRight, Calculator, ClipboardList, Brain, Truck, Eye, FileText, ExternalLink, CheckCircle2
+  ArrowRight, Calculator, ClipboardList, Brain, Truck, Eye, FileText, ExternalLink, CheckCircle2,
+  Banknote, CircleDollarSign, Clock
 } from 'lucide-react';
 import { formatPrice, formatDateTime, getTodayKST, toDateKST } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 export default function Dashboard({
   orders = [],
@@ -46,6 +48,21 @@ export default function Dashboard({
   const pendingCarts = useMemo(() => {
     return savedCarts.filter(c => c.status !== 'completed').length;
   }, [savedCarts]);
+
+  // ===== 결제 현황 (pos-payments 통합) =====
+  const [paymentStats, setPaymentStats] = useState({ todayPaid: 0, outstanding: 0, overdueCount: 0 });
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      supabase.getTodayPaidTotal(),
+      supabase.getOutstandingTotal(),
+      supabase.getOverdueRecords(200),
+    ]).then(([tp, ot, od]) => {
+      if (cancelled) return;
+      setPaymentStats({ todayPaid: tp || 0, outstanding: ot || 0, overdueCount: (od || []).length });
+    }).catch(() => {/* 네트워크 실패 시 0 유지 */});
+    return () => { cancelled = true; };
+  }, []);
 
   const uncheckedMemos = useMemo(() => {
     return orders
@@ -126,6 +143,34 @@ export default function Dashboard({
           sub={lowStockProducts.length > 0 ? '확인 필요' : '정상'}
           color={lowStockProducts.length > 0 ? 'var(--destructive)' : 'var(--success)'}
           onClick={() => setCurrentPage('stock')}
+        />
+      </div>
+
+      {/* 결제 현황 (pos-payments 통합) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          icon={Banknote}
+          label="오늘 입금"
+          value={`${formatPrice(paymentStats.todayPaid)}원`}
+          sub="페이먼트 관리 열기"
+          color="var(--success)"
+          onClick={() => setCurrentPage('payments')}
+        />
+        <StatCard
+          icon={CircleDollarSign}
+          label="이월 미수"
+          value={`${formatPrice(paymentStats.outstanding)}원`}
+          sub="전체 잔금 합계"
+          color="var(--warning)"
+          onClick={() => setCurrentPage('payments')}
+        />
+        <StatCard
+          icon={Clock}
+          label="연체"
+          value={`${paymentStats.overdueCount}건`}
+          sub={paymentStats.overdueCount > 0 ? '즉시 확인' : '정상'}
+          color={paymentStats.overdueCount > 0 ? 'var(--destructive)' : 'var(--muted-foreground)'}
+          onClick={() => setCurrentPage('payments')}
         />
       </div>
 
