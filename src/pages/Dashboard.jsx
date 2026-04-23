@@ -155,7 +155,7 @@ export default function Dashboard({
           value={`${formatPrice(paymentStats.todayPaid)}원`}
           sub="페이먼트 관리 열기"
           color="var(--success)"
-          onClick={() => setCurrentPage('payments')}
+          onClick={() => setCurrentPage('customers')}
         />
         <StatCard
           icon={CircleDollarSign}
@@ -163,7 +163,7 @@ export default function Dashboard({
           value={`${formatPrice(paymentStats.outstanding)}원`}
           sub="전체 잔금 합계"
           color="var(--warning)"
-          onClick={() => setCurrentPage('payments')}
+          onClick={() => setCurrentPage('customers')}
         />
         <StatCard
           icon={Clock}
@@ -171,7 +171,7 @@ export default function Dashboard({
           value={`${paymentStats.overdueCount}건`}
           sub={paymentStats.overdueCount > 0 ? '즉시 확인' : '정상'}
           color={paymentStats.overdueCount > 0 ? 'var(--destructive)' : 'var(--muted-foreground)'}
-          onClick={() => setCurrentPage('payments')}
+          onClick={() => setCurrentPage('customers')}
         />
       </div>
 

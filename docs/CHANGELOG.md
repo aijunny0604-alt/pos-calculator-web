@@ -4,6 +4,47 @@
 
 ---
 
+### 2026-04-23 작업 내역
+
+#### 명세서·결제 UX 대개편
+거래명세서·페이먼트 시스템을 실사용에 맞게 전면 재구성. GitHub Pages 배포는 **의도적으로 보류** (저장소 동기화만).
+
+**1. 거래명세서 (InvoicesPage.jsx 전면 재작성)**
+- **양식 교체**: 기존 전통 격자 명세서 → 모던 미니멀 양식 (공급자/공급받는자 2단 카드 + 대형 합계금액 배너 + 줄무늬 품목 테이블 + 하단 집계)
+- **품목 단위 나열**: 주문 단위 → 품목별 한 줄씩 (일자 / 품목 / 수량 / 단가 / 공급가 / 세액) — `spec/규격` 컬럼 제거 (실데이터에 항상 빈 값)
+- **미수 업체 리스트 패널**: 좌측 사이드바에 미수액 내림차순 76개 업체 원클릭 전환 (업체명 · 건수 · 최근일 · 잔금). 업체 선택 시 상단 칩으로 "{업체명} ✕" 해제 가능
+- **이월 날짜 드로어**: 기본 접힘, 클릭 시 펼침. 날짜별 체크박스 (3/69일 선택 등). 선택된 날짜만 명세서 본문/PNG/인쇄에 포함
+- **상단 헤더 재배치**: 제목 + 날짜 칩 (오늘/어제/이번주/이번달/전체/날짜선택) + [PNG][인쇄][카톡] 버튼을 한 줄에
+- **사이드바 정리**: 4개 카드(필터+업체검색+이월+액션+요약) → 2개 카드(미수업체+이월드로어)로 축소. 스크롤 길이 대폭 감소
+- **계산**: `전잔금` = 체크 안 된 이월 잔금, `당기 합계` = 선택 이월 + 당일 품목, `총잔액` = 총합계 − 입금
+
+**2. 페이먼트 시스템 → 거래처 관리 통합**
+- **사이드바**: `페이먼트` 메뉴 제거 (12개 → 11개)
+- **거래처 관리 페이지 상단 탭**: [🏢 업체 목록] / [💰 페이먼트] (PaymentsContainer 그대로 lazy import로 임베드)
+- **대시보드 링크**: `setCurrentPage('payments')` → `setCurrentPage('customers')` 일괄 치환 (Dashboard.jsx, PaymentDashboardSection.jsx)
+- **기존 PaymentsPage 기능 100% 보존**: 결제 레코드 232건, 입금 이력 18건, 필터(미수/부분/완납), 발행 필터, 분류 필터, Excel, 동기화, 입금 등록 모두 정상 작동
+
+**3. 업체 상세 주문 카드에 결제 정보 임베드**
+- **OrderPaymentInline 컴포넌트**: 각 주문 카드 내부에 결제 상태 배지 + 잔금 + 최근 입금 요약 + [💵 입금 등록] 버튼
+- **자동 매칭**: `paymentsByOrder` useEffect로 선택 업체의 payment_records + payment_history 로드 후 `order.id` 기준 매핑
+- **결제 레코드 없는 주문**: "결제 레코드 미생성" 점선 박스 + 작은 [💵 입금 등록] 버튼
+- **잔금 0 주문**: "💵 추가 입금"으로 버튼 라벨 변경
+- **자동 재로드**: `PaymentRegisterModal` / `PaymentEditModal` 저장 완료 시 `reloadCustomerPayments()` 호출
+
+**변경 파일**
+| 파일 | 변경 |
+|------|------|
+| `src/pages/InvoicesPage.jsx` | 전면 재작성 — 모던 양식 + 미수 업체 리스트 + 이월 드로어 |
+| `src/pages/CustomerList.jsx` | 상단 탭 시스템 + OrderPaymentInline + 주문별 결제 로드 |
+| `src/components/layout/Sidebar.jsx` | 페이먼트 메뉴 제거 |
+| `src/App.jsx` | `case 'payments'` 제거 |
+| `src/pages/Dashboard.jsx` | payments 링크 → customers |
+| `src/components/dashboard/PaymentDashboardSection.jsx` | payments 링크 → customers |
+
+**검증**: Playwright로 탭 전환 / 업체 원클릭 / 결제 섹션 렌더 / 콘솔 에러 0건 확인. `npx vite build` 9.36s 통과.
+
+---
+
 ### 2026-04-17 작업 내역
 
 #### 메모 모니터링 시스템 구현

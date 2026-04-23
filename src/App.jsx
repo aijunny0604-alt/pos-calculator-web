@@ -1043,13 +1043,6 @@ export default function App() {
           />
         );
 
-      case 'payments':
-        return (
-          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>페이먼트 로드 중...</div>}>
-            <PaymentsContainer customers={customers} />
-          </Suspense>
-        );
-
       case 'invoices':
         return (
           <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>명세서 로드 중...</div>}>

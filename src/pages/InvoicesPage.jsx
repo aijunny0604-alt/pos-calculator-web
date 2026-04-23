@@ -1,10 +1,10 @@
-import { Fragment, useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toPng, toBlob } from 'html-to-image';
 import { Printer, Download, Copy, Search, X as XIcon } from 'lucide-react';
-import { DEFAULT_CATEGORIES, getCategoryInfo } from '@/lib/vatHelper';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+const fmtMMDD = (iso) => (iso || '').slice(5).replace('-', '.');
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const offsetDays = (iso, days) => {
   const d = new Date(iso + 'T00:00:00Z');
@@ -13,7 +13,7 @@ const offsetDays = (iso, days) => {
 };
 const startOfWeekISO = () => {
   const d = new Date();
-  const day = d.getDay(); // 0=Sun..6=Sat
+  const day = d.getDay();
   const monOffset = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + monOffset);
   return d.toISOString().slice(0, 10);
@@ -34,7 +34,7 @@ const DATE_PRESETS = [
 
 export default function InvoicesPage({ customers }) {
   const [datePreset, setDatePreset] = useState('today');
-  const [date, setDate] = useState(todayISO()); // custom 모드에서 사용
+  const [date, setDate] = useState(todayISO());
   const [customerId, setCustomerId] = useState('all');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
@@ -44,14 +44,13 @@ export default function InvoicesPage({ customers }) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState(null);
+  const [selectedCarryoverDates, setSelectedCarryoverDates] = useState(() => new Set());
   const invoiceRef = useRef(null);
-  const categories = settings?.expense_categories || DEFAULT_CATEGORIES;
 
   useEffect(() => {
     supabase.getSettings().then(setSettings);
   }, []);
 
-  // datePreset → 기간 계산
   const dateRange = useMemo(() => {
     const today = todayISO();
     switch (datePreset) {
@@ -64,38 +63,37 @@ export default function InvoicesPage({ customers }) {
       default:          return { from: today, to: today, label: today };
     }
   }, [datePreset, date]);
-  // 이월 기준일 (범위 from 이전을 이월로)
-  const carryoverCutoff = dateRange.from || todayISO();
 
   useEffect(() => {
     setLoading(true);
-    // payment_records + orders 병합 전략:
-    // 1. payment_records(=결제 레코드) 로드
-    // 2. orders 전체 로드
-    // 3. payment_records에 있는 order_id는 skip, 나머지 orders를 "virtual record"로 변환
-    //    → 결제 미등록 상태(no_record)로 표시하되 청구는 포함
     Promise.all([
       customerId !== 'all'
         ? supabase.getPaymentRecords({ customerId })
-        : supabase.getPaymentRecords(/* 전체 */),
+        : supabase.getPaymentRecords(),
       supabase.getOrders(),
-    ]).then(([allRecords, allOrders]) => {
+      supabase.getPaymentHistory({}),
+    ]).then(([allRecords, allOrders, allHistory]) => {
       const recordedOrderIds = new Set(
         (allRecords || []).map((r) => r.order_id).filter(Boolean).map(String)
       );
 
-      // 주문 ID → 주문 맵 (품목/메모 조회용)
       const orderMap = new Map();
       for (const o of allOrders || []) orderMap.set(String(o.id), o);
 
-      // payment_records에 주문 items/memo 첨부
+      const historyByRecord = new Map();
+      for (const h of allHistory || []) {
+        const key = String(h.payment_record_id);
+        if (!historyByRecord.has(key)) historyByRecord.set(key, []);
+        historyByRecord.get(key).push(h);
+      }
+
       const enrichedRecords = (allRecords || []).map((r) => {
-        if (!r.order_id) return r;
+        const base = { ...r, history: historyByRecord.get(String(r.id)) || [] };
+        if (!r.order_id) return base;
         const o = orderMap.get(String(r.order_id));
-        return o ? { ...r, items: o.items || [], order_memo: o.memo || '' } : r;
+        return o ? { ...base, items: o.items || [], order_memo: o.memo || '' } : base;
       });
 
-      // 업체 매칭 맵
       const byName = new Map();
       const byPhone = new Map();
       for (const c of customers || []) {
@@ -103,7 +101,6 @@ export default function InvoicesPage({ customers }) {
         if (c.phone) byPhone.set(c.phone.trim(), c);
       }
 
-      // orders → virtual record
       const virtualRecords = [];
       for (const o of allOrders || []) {
         if (recordedOrderIds.has(String(o.id))) continue;
@@ -114,7 +111,6 @@ export default function InvoicesPage({ customers }) {
         if (name) cust = byName.get(name);
         if (!cust && phone) cust = byPhone.get(phone);
 
-        // 업체 필터 (특정 업체 선택 시 다른 업체 주문 제외)
         if (customerId !== 'all' && String(cust?.id || '') !== String(customerId)) continue;
 
         const total = Number(o.total || 0) - Number(o.total_returned || 0);
@@ -132,7 +128,7 @@ export default function InvoicesPage({ customers }) {
           vat_amount: total - supply,
           paid_amount: 0,
           balance: total,
-          payment_status: 'no_record', // 결제 레코드 미생성
+          payment_status: 'no_record',
           invoice_date: orderDate,
           invoice_issued: false,
           category: 'sales',
@@ -140,13 +136,13 @@ export default function InvoicesPage({ customers }) {
           memo: o.memo || '',
           items: o.items || [],
           order_memo: o.memo || '',
+          history: [],
           _virtual: true,
         });
       }
 
       const mergedAll = [...enrichedRecords, ...virtualRecords];
 
-      // 기간 필터
       const inRange = (r) => {
         if (!dateRange.from) return true;
         if (!r.invoice_date) return true;
@@ -154,7 +150,6 @@ export default function InvoicesPage({ customers }) {
       };
       const current = mergedAll.filter(inRange);
 
-      // 이월 (기간 이전 + 미수)
       const prev = mergedAll.filter((r) =>
         r.invoice_date && dateRange.from && r.invoice_date < dateRange.from && Number(r.balance) > 0
       );
@@ -168,7 +163,6 @@ export default function InvoicesPage({ customers }) {
     }).finally(() => setLoading(false));
   }, [dateRange.from, dateRange.to, customerId, customers]);
 
-  // 업체 검색 필터 + 외부 클릭 닫기
   const filteredCustomers = useMemo(() => {
     const q = customerSearch.trim().toLowerCase().replace(/\s/g, '');
     if (!q) return customers || [];
@@ -192,41 +186,157 @@ export default function InvoicesPage({ customers }) {
 
   const customerName = (id) => customers.find((c) => c.id === id)?.name || `#${id}`;
 
-  const summary = useMemo(() => {
-    const total = records.reduce((s, r) => s + Number(r.total_amount || 0), 0);
-    const supply = records.reduce((s, r) => s + Number(r.supply_amount || r.total_amount || 0), 0);
-    const vat = records.reduce((s, r) => s + Number(r.vat_amount || 0), 0);
-    const paid = records.reduce((s, r) => s + Number(r.paid_amount || 0), 0);
-    const balance = records.reduce((s, r) => s + Number(r.balance || 0), 0);
-    return { total, supply, vat, paid, balance, count: records.length };
-  }, [records]);
+  // 미수 업체 집계 (customerId='all' 상태에서만 의미있음)
+  const outstandingCustomers = useMemo(() => {
+    const byCust = new Map();
+    const upsert = (r) => {
+      const cid = r.customer_id;
+      const key = cid ? String(cid) : `unknown-${r.customer_name || ''}`;
+      const cust = cid ? customers.find((c) => c.id === cid) : null;
+      if (!byCust.has(key)) {
+        byCust.set(key, {
+          id: cid,
+          name: cust?.name || r.customer_name || '(미지정 거래처)',
+          phone: cust?.phone || '',
+          balance: 0,
+          count: 0,
+          lastDate: '',
+          unregistered: !cust,
+        });
+      }
+      const e = byCust.get(key);
+      e.balance += Number(r.balance || 0);
+      e.count += 1;
+      if (r.invoice_date && r.invoice_date > e.lastDate) e.lastDate = r.invoice_date;
+    };
+    for (const r of records) if (Number(r.balance) > 0) upsert(r);
+    for (const r of carryover) if (Number(r.balance) > 0) upsert(r);
+    return [...byCust.values()]
+      .filter((c) => c.balance > 0)
+      .sort((a, b) => b.balance - a.balance);
+  }, [records, carryover, customers]);
 
-  const carryoverTotal = useMemo(
-    () => carryover.reduce((s, r) => s + Number(r.balance || 0), 0),
-    [carryover]
+  const outstandingTotal = useMemo(
+    () => outstandingCustomers.reduce((s, c) => s + c.balance, 0),
+    [outstandingCustomers]
   );
 
-  const grandTotal = carryoverTotal + summary.balance;
+  const [outstandingSearch, setOutstandingSearch] = useState('');
+  const filteredOutstanding = useMemo(() => {
+    const q = outstandingSearch.trim().toLowerCase().replace(/\s/g, '');
+    if (!q) return outstandingCustomers;
+    return outstandingCustomers.filter((c) => {
+      const n = (c.name || '').toLowerCase().replace(/\s/g, '');
+      const p = (c.phone || '').replace(/[\s-]/g, '');
+      return n.includes(q) || p.includes(q);
+    });
+  }, [outstandingCustomers, outstandingSearch]);
 
-  const grouped = useMemo(() => {
-    if (customerId !== 'all') return null;
+  // 이월 날짜별 그룹
+  const carryoverByDate = useMemo(() => {
     const g = new Map();
-    for (const r of records) {
-      const key = r.customer_id || 0;
+    for (const r of carryover) {
+      const key = r.invoice_date || '(날짜 없음)';
       if (!g.has(key)) g.set(key, []);
       g.get(key).push(r);
     }
-    return [...g.entries()].map(([id, rows]) => ({
-      id, name: customerName(id), rows,
-      total: rows.reduce((s, r) => s + Number(r.total_amount || 0), 0),
-      balance: rows.reduce((s, r) => s + Number(r.balance || 0), 0),
-    }));
-  }, [records, customerId, customers]);
+    return [...g.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, rows]) => ({
+        date,
+        rows,
+        count: rows.length,
+        total: rows.reduce((s, r) => s + Number(r.balance || 0), 0),
+      }));
+  }, [carryover]);
+
+  useEffect(() => { setSelectedCarryoverDates(new Set()); }, [carryover]);
+
+  const toggleCarryoverDate = (d) =>
+    setSelectedCarryoverDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d); else next.add(d);
+      return next;
+    });
+  const selectAllCarryoverDates = () =>
+    setSelectedCarryoverDates(new Set(carryoverByDate.map((x) => x.date)));
+  const clearCarryoverDates = () => setSelectedCarryoverDates(new Set());
+
+  // 품목 flat list 생성기 (한 레코드 → items × 1라인씩)
+  const recordToLines = (r) => {
+    const items = Array.isArray(r.items) ? r.items : [];
+    const date = r.invoice_date || '';
+    return items.map((it) => {
+      const qty = Number(it.quantity) || 1;
+      const unitWithVat = Number(it.price) || 0;
+      const lineWithVat = unitWithVat * qty;
+      const supply = Math.round(lineWithVat / 1.1);
+      const vat = lineWithVat - supply;
+      return {
+        date,
+        code: it.code || it.product_id || '',
+        name: it.name || it.product_name || '품목',
+        spec: it.spec || it.option || '',
+        qty,
+        unitPrice: Math.round(unitWithVat / 1.1),
+        supply,
+        vat,
+        memo: '',
+      };
+    });
+  };
+
+  // 당일 품목
+  const currentLineItems = useMemo(() => {
+    const lines = [];
+    for (const r of records) lines.push(...recordToLines(r));
+    return lines;
+  }, [records]);
+
+  // 선택된 이월 품목
+  const selectedCarryoverLineItems = useMemo(() => {
+    const lines = [];
+    for (const r of carryover) {
+      if (!selectedCarryoverDates.has(r.invoice_date)) continue;
+      lines.push(...recordToLines(r));
+    }
+    return lines;
+  }, [carryover, selectedCarryoverDates]);
+
+  // 명세서 라인 (선택 이월 먼저, 당일 나중, 날짜 오름차순)
+  const invoiceLines = useMemo(() => {
+    return [...selectedCarryoverLineItems, ...currentLineItems]
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  }, [currentLineItems, selectedCarryoverLineItems]);
+
+  // 전잔금 (체크 안 된 이월 잔금 합)
+  const unselectedCarryoverBalance = useMemo(
+    () => carryover.reduce((s, r) =>
+      selectedCarryoverDates.has(r.invoice_date) ? s : s + Number(r.balance || 0), 0),
+    [carryover, selectedCarryoverDates]
+  );
+
+  // 입금 합계 (당일 + 선택 이월)
+  const totalPaid = useMemo(() => {
+    const dailyPaid = records.reduce((s, r) => s + Number(r.paid_amount || 0), 0);
+    const selPaid = carryover.reduce((s, r) =>
+      selectedCarryoverDates.has(r.invoice_date) ? s + Number(r.paid_amount || 0) : s, 0);
+    return dailyPaid + selPaid;
+  }, [records, carryover, selectedCarryoverDates]);
+
+  const invoiceTotals = useMemo(() => {
+    const supply = invoiceLines.reduce((s, l) => s + l.supply, 0);
+    const vat = invoiceLines.reduce((s, l) => s + l.vat, 0);
+    const sum = supply + vat;
+    const prevBalance = unselectedCarryoverBalance;
+    const totalBeforePaid = prevBalance + sum;
+    const grandBalance = totalBeforePaid - totalPaid;
+    return { supply, vat, sum, prevBalance, totalBeforePaid, totalPaid, grandBalance, count: invoiceLines.length };
+  }, [invoiceLines, unselectedCarryoverBalance, totalPaid]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
 
   const handlePng = async () => {
-    console.log('[InvoicePNG] start');
     if (!invoiceRef.current) { alert('명세서 요소를 찾을 수 없습니다'); return; }
     try {
       const dataUrl = await toPng(invoiceRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
@@ -235,7 +345,6 @@ export default function InvoicesPage({ customers }) {
       a.download = `명세서_${customerId === 'all' ? '전체' : (customerName(customerId) || '').replace(/[^a-zA-Z0-9가-힣]/g, '_')}_${dateRange.label.replace(/[^a-zA-Z0-9가-힣~-]/g, '_')}.png`;
       a.click();
       showToast('✅ PNG 다운로드됨');
-      console.log('[InvoicePNG] saved');
     } catch (e) {
       console.error('[InvoicePNG] failed:', e);
       showToast('PNG 실패: ' + (e?.message || e));
@@ -243,7 +352,6 @@ export default function InvoicesPage({ customers }) {
   };
 
   const handleCopy = async () => {
-    console.log('[InvoiceCopy] start');
     if (!invoiceRef.current) { alert('명세서 요소를 찾을 수 없습니다'); return; }
     if (!navigator.clipboard || !window.ClipboardItem) {
       showToast('❌ 이 브라우저는 클립보드 이미지 복사를 지원하지 않습니다');
@@ -254,7 +362,6 @@ export default function InvoicesPage({ customers }) {
       if (!blob) throw new Error('blob 생성 실패');
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       showToast('✅ 클립보드 복사됨 — 카톡에 붙여넣기');
-      console.log('[InvoiceCopy] ok');
     } catch (e) {
       console.error('[InvoiceCopy] failed:', e);
       showToast('복사 실패: ' + (e?.message || e));
@@ -262,12 +369,10 @@ export default function InvoicesPage({ customers }) {
   };
 
   const handlePrint = () => {
-    console.log('[InvoicePrint] start');
-    try { window.print(); } catch (e) {
-      console.error('[InvoicePrint] failed:', e);
-      alert('인쇄 실패: ' + e.message);
-    }
+    try { window.print(); } catch (e) { alert('인쇄 실패: ' + e.message); }
   };
+
+  const hasData = invoiceLines.length > 0 || invoiceTotals.prevBalance > 0;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -280,39 +385,20 @@ export default function InvoicesPage({ customers }) {
         }
       `}</style>
 
-      {/* 헤더 */}
-      <div className="flex items-center justify-between gap-2 no-print mb-4">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">📄 명세서 발행</h2>
-          <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">
-            발행일 기준으로 업체별 미수/이월을 합산하여 A4 명세서로 출력합니다
-          </p>
-        </div>
-      </div>
-
-      {/* 2-column: 좌측 필터+액션 (sticky) / 우측 명세서 프리뷰 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5 items-start">
-
-      {/* 좌측 — 필터 + 액션 (sticky) */}
-      <aside className="space-y-4 lg:sticky lg:top-4 no-print">
-      {/* 필터 */}
-      <div className="space-y-3 p-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
-        {/* 날짜 빠른 필터 */}
-        <div>
-          <label className="block text-[10px] font-semibold mb-1 text-[var(--muted-foreground)]">
-            발행일 범위 <span className="text-[var(--primary)] font-normal">· {dateRange.label}</span>
-          </label>
-          <div className="flex flex-wrap gap-1.5">
+      {/* ─── 상단 헤더 바: 제목 + 날짜 칩 + 액션 ─── */}
+      <div className="no-print mb-4 flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="text-xl font-bold flex items-center gap-1.5">📄 거래명세서</h2>
+          <div className="flex flex-wrap gap-1">
             {DATE_PRESETS.map((p) => (
               <button
                 key={p.key}
                 onClick={() => setDatePreset(p.key)}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border"
+                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all border"
                 style={{
                   background: datePreset === p.key ? 'var(--primary)' : 'var(--card)',
                   color: datePreset === p.key ? 'var(--primary-foreground)' : 'var(--foreground)',
                   borderColor: datePreset === p.key ? 'var(--primary)' : 'var(--border)',
-                  boxShadow: datePreset === p.key ? '0 2px 8px color-mix(in srgb, var(--primary) 40%, transparent)' : 'none',
                 }}
               >
                 {p.label}
@@ -323,242 +409,85 @@ export default function InvoicesPage({ customers }) {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs"
+                className="px-2 py-1 rounded-md border border-[var(--border)] bg-[var(--card)] text-[11px]"
                 style={{ fontSize: '14px' }}
               />
             )}
           </div>
-        </div>
-
-        {/* 업체 검색 콤보 */}
-        <div ref={customerBoxRef} className="relative">
-          <label className="block text-[10px] font-semibold mb-1 text-[var(--muted-foreground)]">업체 검색</label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
-            <input
-              type="text"
-              value={customerId === 'all' ? customerSearch : (customers.find((c) => c.id === customerId)?.name || '')}
-              onChange={(e) => { setCustomerSearch(e.target.value); setCustomerId('all'); setCustomerDropdownOpen(true); }}
-              onFocus={() => setCustomerDropdownOpen(true)}
-              placeholder="업체명/전화 검색 (비우면 전체)"
-              className="w-full pl-10 pr-9 py-2 rounded-lg border border-[var(--border)] bg-[var(--card)] text-sm"
-              style={{ fontSize: '16px' }}
-            />
-            {customerId !== 'all' && (
-              <button
-                onClick={() => { setCustomerId('all'); setCustomerSearch(''); setCustomerDropdownOpen(false); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-[var(--secondary)]"
-                title="선택 해제"
-              >
-                <XIcon className="w-4 h-4 text-[var(--muted-foreground)]" />
-              </button>
-            )}
-          </div>
-          {customerDropdownOpen && (
-            <div
-              className="absolute z-30 left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-xl"
-              style={{ boxShadow: '0 10px 30px -5px rgba(0,0,0,0.25)' }}
+          {customerId !== 'all' && (
+            <button
+              onClick={() => { setCustomerId('all'); setCustomerSearch(''); }}
+              className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1"
             >
-              <button
-                onClick={() => { setCustomerId('all'); setCustomerSearch(''); setCustomerDropdownOpen(false); }}
-                className="w-full px-3 py-2 text-left text-sm font-semibold border-b border-[var(--border)] hover:bg-[var(--secondary)]"
-                style={{ color: customerId === 'all' ? 'var(--primary)' : 'var(--foreground)' }}
-              >
-                🌐 전체 업체 (그룹별)
-              </button>
-              {filteredCustomers.length === 0 ? (
-                <p className="px-3 py-4 text-xs text-center text-[var(--muted-foreground)]">일치하는 업체 없음</p>
-              ) : (
-                filteredCustomers.slice(0, 50).map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => { setCustomerId(c.id); setCustomerSearch(c.name || ''); setCustomerDropdownOpen(false); }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--secondary)] border-b border-[var(--border)] last:border-0 flex items-center justify-between gap-2"
-                  >
-                    <span className="font-medium break-keep">{c.name || `#${c.id}`}</span>
-                    {c.phone && <span className="text-[11px] text-[var(--muted-foreground)] flex-shrink-0">{c.phone}</span>}
-                  </button>
-                ))
-              )}
-              {filteredCustomers.length > 50 && (
-                <p className="px-3 py-1.5 text-[10px] text-center text-[var(--muted-foreground)]">검색어를 좁혀 {filteredCustomers.length - 50}건 더 보기</p>
-              )}
-            </div>
+              <span>{customerName(customerId)}</span>
+              <XIcon className="w-3 h-3" />
+            </button>
           )}
+        </div>
+        <div className="flex gap-1.5">
+          <button onClick={handlePng} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold bg-[var(--primary)] text-white hover:brightness-110 shadow-sm">
+            <Download className="w-3.5 h-3.5" />PNG
+          </button>
+          <button onClick={handlePrint} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--secondary)]">
+            <Printer className="w-3.5 h-3.5" />인쇄
+          </button>
+          <button onClick={handleCopy} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold bg-green-600 text-white hover:bg-green-500 shadow-sm">
+            <Copy className="w-3.5 h-3.5" />카톡
+          </button>
         </div>
       </div>
 
-      {/* 액션 */}
-      <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">발행 / 출력</p>
-        <ActionBtn icon={Download} onClick={handlePng} variant="primary" block>PNG 다운로드</ActionBtn>
-        <div className="grid grid-cols-2 gap-2">
-          <ActionBtn icon={Printer} onClick={handlePrint} variant="default">인쇄</ActionBtn>
-          <ActionBtn icon={Copy} onClick={handleCopy} variant="success">카톡 복사</ActionBtn>
-        </div>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5 items-start">
 
-      {/* 빠른 요약 카드 (선택된 조건의 집계) */}
-      <div className="p-4 rounded-2xl border border-[var(--border)] bg-gradient-to-br from-[var(--secondary)] to-[var(--card)]">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-2">요약</p>
-        <div className="space-y-1.5 text-xs">
-          <div className="flex justify-between">
-            <span className="text-[var(--muted-foreground)]">발행 건수</span>
-            <span className="font-bold tabular-nums">{summary.count}건</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted-foreground)]">당기 합계</span>
-            <span className="font-bold tabular-nums">{fmt(summary.total)}원</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted-foreground)]">당기 미수</span>
-            <span className="font-bold tabular-nums text-red-500">{fmt(summary.balance)}원</span>
-          </div>
-          {carryoverTotal > 0 && (
-            <div className="flex justify-between pt-1 mt-1 border-t border-[var(--border)]">
-              <span className="text-[var(--muted-foreground)]">이월 미수</span>
-              <span className="font-bold tabular-nums text-orange-400">{fmt(carryoverTotal)}원</span>
-            </div>
-          )}
-          <div className="flex justify-between pt-2 mt-1 border-t-2 border-[var(--primary)]/30">
-            <span className="font-bold">💰 총 미수</span>
-            <span className="font-black text-base tabular-nums text-red-500">{fmt(grandTotal)}원</span>
-          </div>
-        </div>
-      </div>
+      {/* ─── 좌측: 미수 업체 리스트 + 이월 선택(접힘) ─── */}
+      <aside className="space-y-3 lg:sticky lg:top-4 no-print">
+        {/* 미수 업체 리스트 (메인) */}
+        <OutstandingCustomerList
+          items={filteredOutstanding}
+          total={outstandingTotal}
+          allCount={outstandingCustomers.length}
+          search={outstandingSearch}
+          onSearchChange={setOutstandingSearch}
+          selectedId={customerId}
+          onSelect={(id) => { setCustomerId(id === 'all' ? 'all' : id); setCustomerSearch(''); }}
+        />
+
+        {/* 이월 미수 선택 — 접힘 드로어 */}
+        <CarryoverDateDrawer
+          byDate={carryoverByDate}
+          selectedDates={selectedCarryoverDates}
+          onToggle={toggleCarryoverDate}
+          onSelectAll={selectAllCarryoverDates}
+          onClearAll={clearCarryoverDates}
+        />
       </aside>
 
-      {/* 우측 — 명세서 미리보기 */}
+      {/* ─── 우측: 전통 거래명세서 양식 ─── */}
       <section className="border border-[var(--border)] rounded-2xl overflow-hidden shadow-lg">
         <div
           ref={invoiceRef}
-          className="invoice-print bg-white text-black p-5"
-          style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+          className="invoice-print bg-white text-black p-3"
+          style={{ fontFamily: '"맑은 고딕", "Malgun Gothic", system-ui, sans-serif' }}
         >
-          <header className="border-b-2 border-black pb-3 mb-3">
-            <h1 className="text-xl font-bold">{settings?.company_name || 'MOVE MOTORS'}</h1>
-            {settings?.business_number && <p className="text-[10px] text-gray-600">사업자: {settings.business_number}</p>}
-            {settings?.company_phone && <p className="text-[10px] text-gray-600">{settings.company_phone}</p>}
-            {settings?.company_address && <p className="text-[10px] text-gray-600 break-keep">{settings.company_address}</p>}
-            <p className="text-xs text-gray-600 mt-2">
-              {customerId === 'all' ? `${dateRange.label} 발송 내역 — 전체 업체` : `${customerName(customerId)} 귀하`}
-            </p>
-            <p className="text-xs text-gray-600">발행일: {dateRange.label}</p>
-          </header>
-
           {loading ? (
-            <p className="text-sm text-center py-6">로딩 중...</p>
-          ) : records.length === 0 && carryover.length === 0 ? (
-            <div className="text-center py-6 text-gray-600 space-y-1">
-              <p className="text-sm">
-                {customerId === 'all'
-                  ? '해당 기간에 세금계산서 발행된 레코드가 없습니다.'
-                  : '해당 업체는 아직 결제 레코드가 없습니다.'}
-              </p>
-              <p className="text-xs">
-                {customerId === 'all'
-                  ? '일자를 변경하거나 업체를 선택해 전체 미수를 확인하세요.'
-                  : '운영 POS에서 주문을 등록하거나 설정 → 동기화를 실행하세요.'}
-              </p>
+            <p className="text-sm text-center py-10">로딩 중...</p>
+          ) : !hasData ? (
+            <div className="text-center py-10 text-gray-600 space-y-1">
+              <p className="text-sm">표시할 명세서 데이터가 없습니다.</p>
+              <p className="text-xs">발행일 범위를 바꾸거나 좌측에서 이월 날짜를 체크해주세요.</p>
             </div>
           ) : (
-            <>
-              {records.length === 0 ? (
-                <p className="text-sm text-center py-4 text-gray-600 italic">
-                  당월 신규 발행 없음 — 아래 이월 잔금만 표시됩니다.
-                </p>
-              ) : grouped ? grouped.map((g) => (
-                <section key={g.id} className="mb-4">
-                  <h2 className="text-sm font-bold mb-1.5 border-b border-gray-300 pb-1">🏢 {g.name}</h2>
-                  <InvoiceTable rows={g.rows} categories={categories} />
-                  <p className="text-xs text-right mt-1">
-                    소계: 총 {fmt(g.total)}원 / 미수 <strong className="text-red-600">{fmt(g.balance)}원</strong>
-                  </p>
-                </section>
-              )) : (
-                <InvoiceTable rows={records} categories={categories} />
-              )}
-
-              {/* 전월 이월 */}
-              {carryoverTotal > 0 && (
-                <section className="mt-3 rounded-lg text-xs overflow-hidden" style={{ background: 'linear-gradient(135deg, #fef2f2, #fff7ed)', border: '1px solid #fecaca' }}>
-                  <div className="px-3 py-2 flex justify-between items-center font-semibold border-b border-red-200">
-                    <span className="flex items-center gap-1.5">
-                      <span className="text-base">📅</span>
-                      <span>전월 이월 미수 ({carryover.length}건)</span>
-                    </span>
-                    <span className="text-red-600 text-sm font-bold tabular-nums">{fmt(carryoverTotal)}원</span>
-                  </div>
-                  <div className="divide-y divide-red-100">
-                    {carryover.map((r) => {
-                      const items = Array.isArray(r.items) ? r.items : [];
-                      return (
-                        <div key={r.id} className="px-3 py-1.5 flex justify-between items-start gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[11px] font-medium text-gray-700">
-                              {r.invoice_date || '-'} · {r._virtual ? '(미등록)' : (r.invoice_number || `#${r.id}`)}
-                              {r.order_id && <span className="text-gray-500 ml-1">주문 #{r.order_id}</span>}
-                            </div>
-                            {items.length > 0 && (
-                              <div className="text-[10px] text-gray-600 mt-0.5 break-words leading-snug">
-                                {items.slice(0, 3).map((it, i) => (
-                                  <span key={i}>
-                                    {it.name || it.product_name || '품목'}×{it.quantity || 1}
-                                    {i < Math.min(items.length, 3) - 1 ? ', ' : ''}
-                                  </span>
-                                ))}
-                                {items.length > 3 && <span> 외 {items.length - 3}개</span>}
-                              </div>
-                            )}
-                          </div>
-                          <span className="font-bold text-red-600 tabular-nums text-[11px] flex-shrink-0">{fmt(r.balance)}원</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
-              <section className="mt-3 pt-3 border-t-2 border-black space-y-0.5">
-                <div className="flex justify-between text-xs">
-                  <span>발행 건수:</span><span className="font-bold">{summary.count}건</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>공급가액 합계:</span><span className="font-bold">{fmt(summary.supply)}원</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>부가세 합계:</span><span className="font-bold text-orange-700">{fmt(summary.vat)}원</span>
-                </div>
-                <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
-                  <span className="font-semibold">당일 합계 (공급+VAT):</span><span className="font-bold">{fmt(summary.total)}원</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>당일 입금:</span><span className="font-bold text-green-700">{fmt(summary.paid)}원</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>당일 미수:</span><span className="font-bold text-red-600">{fmt(summary.balance)}원</span>
-                </div>
-                {carryoverTotal > 0 && (
-                  <div className="flex justify-between text-xs">
-                    <span>+ 전월 이월:</span><span className="font-bold text-red-600">{fmt(carryoverTotal)}원</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-base mt-2 pt-2 border-t-2 border-black bg-yellow-50 px-2 py-1.5 rounded">
-                  <span className="font-bold">💰 총 미수 (이월 포함):</span>
-                  <span className="font-bold text-red-600 text-lg">{fmt(grandTotal)}원</span>
-                </div>
-              </section>
-
-              <footer className="mt-4 pt-3 border-t border-gray-300 text-xs text-gray-600 space-y-0.5">
-                {settings?.bank_account && <p className="font-semibold">💳 입금 계좌: {settings.bank_account}</p>}
-                {settings?.invoice_footer && <p className="break-keep">{settings.invoice_footer}</p>}
-                <p>문의: {settings?.company_name || 'MOVE MOTORS'} {settings?.company_phone && `· ${settings.company_phone}`}</p>
-              </footer>
-            </>
+            <TraditionalInvoice
+              settings={settings}
+              customerLabel={customerId === 'all' ? '전체 거래처' : `${customerName(customerId)} 귀하`}
+              issueDate={dateRange.label}
+              lines={invoiceLines}
+              totals={invoiceTotals}
+            />
           )}
         </div>
       </section>
-      </div>{/* end 2-column grid */}
+      </div>
 
       {toast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black text-white text-xs font-semibold shadow-2xl z-50 no-print">
@@ -569,6 +498,364 @@ export default function InvoicesPage({ customers }) {
   );
 }
 
+// ─────────────────────────────────────────────
+// 좌측 사이드바: 미수 업체 리스트 (한 번에 보고 클릭)
+// ─────────────────────────────────────────────
+function OutstandingCustomerList({ items, total, allCount, search, onSearchChange, selectedId, onSelect }) {
+  if (allCount === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm overflow-hidden">
+      <div className="px-3 py-2.5 flex items-center justify-between border-b border-[var(--border)] bg-gradient-to-r from-red-50 to-orange-50">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">🏢 미수 업체</span>
+          <span className="text-[9px] text-red-500">{allCount}개</span>
+        </div>
+        <span className="text-[11px] font-black tabular-nums text-red-600">{fmt(total)}원</span>
+      </div>
+
+      <div className="px-2 pt-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="업체 빠른 찾기"
+            className="w-full pl-7 pr-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] text-xs"
+            style={{ fontSize: '14px' }}
+          />
+        </div>
+      </div>
+
+      <div className="p-1 max-h-80 overflow-y-auto space-y-0.5">
+        {/* 전체 보기 옵션 */}
+        <button
+          onClick={() => onSelect('all')}
+          className="w-full px-2 py-1.5 rounded-md text-left flex items-center gap-2 transition-colors hover:bg-[var(--secondary)]"
+          style={{
+            background: selectedId === 'all' ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
+            borderLeft: selectedId === 'all' ? '3px solid var(--primary)' : '3px solid transparent',
+          }}
+        >
+          <span className="text-base">🌐</span>
+          <span className="flex-1 text-[11px] font-bold">전체 업체 보기</span>
+          {selectedId === 'all' && <span className="text-[9px] text-[var(--primary)] font-bold">현재</span>}
+        </button>
+
+        {items.length === 0 ? (
+          <p className="px-3 py-4 text-[10px] text-center text-[var(--muted-foreground)]">일치하는 업체 없음</p>
+        ) : (
+          items.map((c) => {
+            const selected = String(selectedId) === String(c.id);
+            return (
+              <button
+                key={c.id || c.name}
+                onClick={() => c.id && onSelect(c.id)}
+                disabled={!c.id}
+                className="w-full px-2 py-1.5 rounded-md text-left transition-colors hover:bg-[var(--secondary)] disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{
+                  background: selected ? 'color-mix(in srgb, #dc2626 12%, transparent)' : 'transparent',
+                  borderLeft: selected ? '3px solid #dc2626' : '3px solid transparent',
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-semibold break-keep flex items-center gap-1">
+                      {c.name}
+                      {c.unregistered && (
+                        <span className="text-[8px] px-1 rounded bg-gray-200 text-gray-600 font-normal">미등록</span>
+                      )}
+                    </div>
+                    <div className="text-[9px] text-[var(--muted-foreground)] flex gap-2 mt-0.5">
+                      <span>{c.count}건</span>
+                      {c.lastDate && <span>최근 {c.lastDate.slice(5)}</span>}
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold tabular-nums text-red-600 flex-shrink-0 whitespace-nowrap">
+                    {fmt(c.balance)}
+                  </span>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 이월 미수 날짜 선택 — 접힘 드로어 (기본 접혀있음)
+// ─────────────────────────────────────────────
+function CarryoverDateDrawer({ byDate, selectedDates, onToggle, onSelectAll, onClearAll }) {
+  const [open, setOpen] = useState(false);
+  if (!byDate.length) return null;
+  const allSelected = selectedDates.size === byDate.length;
+  const totalBalance = byDate.reduce((s, d) => s + d.total, 0);
+  const selectedBalance = byDate
+    .filter((d) => selectedDates.has(d.date))
+    .reduce((s, d) => s + d.total, 0);
+  const highlighted = selectedDates.size > 0;
+
+  return (
+    <div className="rounded-2xl border shadow-sm overflow-hidden" style={{ borderColor: highlighted ? '#fca5a5' : 'var(--border)' }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full px-3 py-2.5 flex items-center justify-between bg-gradient-to-r from-red-50 to-orange-50 hover:brightness-95"
+      >
+        <span className="flex items-center gap-1.5">
+          <span className="text-sm">📅</span>
+          <span className="text-[11px] font-bold text-red-700">이월 날짜 포함</span>
+          <span className="text-[9px] text-red-500 font-medium">
+            {selectedDates.size > 0 ? `${selectedDates.size}일 선택` : `${byDate.length}일 있음`}
+          </span>
+        </span>
+        <span className="flex items-center gap-2">
+          {selectedDates.size > 0 && (
+            <span className="text-[10px] font-bold text-red-600 tabular-nums">+{fmt(selectedBalance)}원</span>
+          )}
+          <span className="text-[11px] text-red-700">{open ? '▲' : '▼'}</span>
+        </span>
+      </button>
+
+      {open && (
+        <div className="p-2.5 bg-white border-t border-red-100">
+          <div className="flex items-center justify-between text-[10px] text-gray-600 mb-2">
+            <span>전체 이월 {fmt(totalBalance)}원</span>
+            <button
+              onClick={allSelected ? onClearAll : onSelectAll}
+              className="text-red-700 font-bold hover:underline"
+            >
+              {allSelected ? '해제' : '전체 선택'}
+            </button>
+          </div>
+          <div className="max-h-64 overflow-y-auto space-y-0.5 bg-red-50/40 rounded-lg p-1 border border-red-100">
+            {byDate.map(({ date, count, total }) => {
+              const checked = selectedDates.has(date);
+              return (
+                <label
+                  key={date}
+                  className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors hover:bg-red-50"
+                  style={{ background: checked ? 'rgba(254, 226, 226, 0.6)' : 'transparent' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onToggle(date)}
+                    className="w-3.5 h-3.5 accent-red-600 cursor-pointer flex-shrink-0"
+                  />
+                  <span className="text-[11px] font-semibold tabular-nums">{date}</span>
+                  <span className="text-[9px] text-gray-500">· {count}건</span>
+                  <span className="ml-auto text-[10px] font-bold text-red-600 tabular-nums">{fmt(total)}원</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 거래명세서 양식 — 모던/미니멀 (A4 + 카톡 친화)
+// ─────────────────────────────────────────────
+function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals }) {
+  return (
+    <div className="text-[11px] text-gray-800" style={{ fontFamily: '"맑은 고딕","Malgun Gothic",system-ui,sans-serif' }}>
+      {/* ─── 상단 헤더 — 브랜드 + 제목 ─── */}
+      <header className="flex items-end justify-between pb-3 mb-4" style={{ borderBottom: '3px solid #1f2937' }}>
+        <div>
+          <div className="text-2xl font-black tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+            {settings?.company_name || 'MOVE MOTORS'}
+          </div>
+          <div className="text-[10px] text-gray-500 mt-0.5">
+            {settings?.business_item || '자동차용품 및 부속'}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-xl font-bold tracking-widest text-gray-700">거래명세서</div>
+          <div className="text-[9px] text-gray-500 mt-0.5">Transaction Statement</div>
+        </div>
+      </header>
+
+      {/* ─── 공급자 / 공급받는자 카드 2단 ─── */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <InfoCard title="공급자" accent="#1f2937">
+          <InfoRow label="상호" value={settings?.company_name || 'MOVE MOTORS'} />
+          <InfoRow label="등록번호" value={settings?.business_number || '-'} mono />
+          {settings?.representative_name && <InfoRow label="대표자" value={settings.representative_name} />}
+          {settings?.company_phone && <InfoRow label="전화" value={settings.company_phone} mono />}
+          {settings?.company_address && <InfoRow label="주소" value={settings.company_address} />}
+          <InfoRow label="업태 / 종목" value={`${settings?.business_type || '도소매'} / ${settings?.business_item || '자동차용품 및 부속'}`} />
+        </InfoCard>
+
+        <InfoCard title="공급받는자" accent="#dc2626">
+          <InfoRow label="거래처" value={customerLabel} bold />
+          <InfoRow label="발행일" value={issueDate} mono />
+          <InfoRow label="품목 수" value={`${totals.count}건`} mono />
+        </InfoCard>
+      </div>
+
+      {/* ─── 합계금액 대형 배너 ─── */}
+      <div
+        className="rounded-lg px-4 py-3 mb-4 flex items-center justify-between"
+        style={{
+          background: 'linear-gradient(135deg,#1f2937 0%,#374151 100%)',
+          color: '#fff',
+        }}
+      >
+        <span className="text-xs tracking-widest font-semibold text-gray-300">합 계 금 액</span>
+        <span className="text-2xl font-black tabular-nums" style={{ letterSpacing: '-0.02em' }}>
+          ₩ {fmt(totals.sum)}
+        </span>
+      </div>
+
+      {/* ─── 품목 테이블 ─── */}
+      <div className="rounded-lg overflow-hidden border border-gray-300 mb-4">
+        <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: '11px' }}>
+          <colgroup>
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '44%' }} />
+            <col style={{ width: '7%' }} />
+            <col style={{ width: '13%' }} />
+            <col style={{ width: '14%' }} />
+            <col style={{ width: '14%' }} />
+          </colgroup>
+          <thead>
+            <tr className="bg-gray-100 text-gray-700">
+              <th className="px-2 py-2 text-center font-semibold">일자</th>
+              <th className="px-2 py-2 text-left font-semibold">품목</th>
+              <th className="px-2 py-2 text-right font-semibold">수량</th>
+              <th className="px-2 py-2 text-right font-semibold">단가</th>
+              <th className="px-2 py-2 text-right font-semibold">공급가</th>
+              <th className="px-2 py-2 text-right font-semibold">세액</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-2 py-8 text-center text-gray-400 italic">
+                  선택된 품목이 없습니다
+                </td>
+              </tr>
+            ) : lines.map((l, i) => (
+              <tr key={i} className={i % 2 ? 'bg-gray-50' : 'bg-white'} style={{ borderTop: '1px solid #e5e7eb' }}>
+                <td className="px-2 py-1.5 text-center tabular-nums text-gray-600 whitespace-nowrap">{fmtMMDD(l.date)}</td>
+                <td className="px-2 py-1.5 break-words leading-snug">
+                  <span className="font-medium">{l.name}</span>
+                  {l.code && <span className="ml-1 text-[9px] text-gray-400">#{l.code}</span>}
+                </td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{l.qty}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums text-gray-700">{fmt(l.unitPrice)}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums font-semibold">{fmt(l.supply)}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums text-orange-700">{fmt(l.vat)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ─── 하단 집계 ─── */}
+      <div className="flex justify-end mb-4">
+        <div className="w-full sm:w-[55%] space-y-1">
+          {totals.prevBalance > 0 && (
+            <SumRow label="전잔금 (미선택 이월)" value={totals.prevBalance} muted />
+          )}
+          <SumRow label="공급가액 합계" value={totals.supply} />
+          <SumRow label="세액 합계" value={totals.vat} accent="text-orange-700" />
+          <div style={{ borderTop: '1px solid #d1d5db' }} />
+          <SumRow label="당기 합계" value={totals.sum} bold />
+          {totals.prevBalance > 0 && (
+            <SumRow label="총합계 (전잔금 포함)" value={totals.totalBeforePaid} bold />
+          )}
+          <SumRow label="입금액" value={-totals.totalPaid} accent="text-green-700" showSign />
+          <div
+            className="rounded-md px-3 py-2 mt-1 flex items-center justify-between"
+            style={{ background: '#fef2f2', border: '1.5px solid #fecaca' }}
+          >
+            <span className="text-xs font-bold text-red-700">총 잔 액</span>
+            <span className="text-xl font-black tabular-nums text-red-700">
+              ₩ {fmt(totals.grandBalance)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── 푸터 — 계좌 + 안내 ─── */}
+      {(settings?.bank_account || settings?.invoice_footer) && (
+        <div
+          className="rounded-lg px-3 py-2.5 text-[10px] text-gray-700 space-y-1"
+          style={{ background: '#f9fafb', border: '1px dashed #d1d5db' }}
+        >
+          {settings?.bank_account && (
+            <div className="flex gap-1.5 items-start">
+              <span className="font-bold text-gray-900 flex-shrink-0">💳 입금계좌</span>
+              <span className="break-keep">{settings.bank_account}</span>
+            </div>
+          )}
+          {settings?.invoice_footer && (
+            <div className="flex gap-1.5 items-start">
+              <span className="font-bold text-gray-900 flex-shrink-0">📝 안내</span>
+              <span className="break-keep">{settings.invoice_footer}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 인수자 사인란 — 작게 */}
+      <div className="mt-3 pt-2 flex justify-end gap-6 text-[10px] text-gray-500" style={{ borderTop: '1px solid #e5e7eb' }}>
+        <span>인수자: ______________________</span>
+      </div>
+    </div>
+  );
+}
+
+function InfoCard({ title, accent, children }) {
+  return (
+    <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${accent}20` }}>
+      <div
+        className="px-3 py-1.5 text-[10px] font-bold tracking-wider"
+        style={{ background: accent, color: '#fff' }}
+      >
+        {title}
+      </div>
+      <div className="p-2.5 space-y-1 bg-white">{children}</div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value, mono, bold }) {
+  return (
+    <div className="flex gap-2 text-[10px] leading-snug">
+      <span className="text-gray-500 flex-shrink-0 w-16">{label}</span>
+      <span
+        className={`flex-1 break-keep ${mono ? 'tabular-nums' : ''} ${bold ? 'font-bold text-gray-900' : 'text-gray-800'}`}
+      >
+        {value || '-'}
+      </span>
+    </div>
+  );
+}
+
+function SumRow({ label, value, bold, muted, accent, showSign }) {
+  const display = showSign && value < 0 ? `- ${fmt(-value)}` : fmt(value);
+  return (
+    <div className="flex justify-between items-center text-[11px]">
+      <span className={muted ? 'text-gray-500' : 'text-gray-700'}>{label}</span>
+      <span
+        className={`tabular-nums ${bold ? 'font-bold text-gray-900 text-sm' : ''} ${accent || ''} ${muted ? 'text-gray-500' : ''}`}
+      >
+        {display}원
+      </span>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 공용 버튼
+// ─────────────────────────────────────────────
 function ActionBtn({ icon: Icon, onClick, children, variant, block }) {
   const map = {
     default: 'border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:bg-[var(--secondary)]',
@@ -583,99 +870,5 @@ function ActionBtn({ icon: Icon, onClick, children, variant, block }) {
       <Icon className={`${block ? 'w-5 h-5' : 'w-4 h-4'}`} />
       {children}
     </button>
-  );
-}
-
-const STATUS_BADGE = {
-  paid:      { label: '완납',    bg: '#dcfce7', fg: '#15803d' }, // green
-  partial:   { label: '부분',    bg: '#ffedd5', fg: '#c2410c' }, // orange
-  unpaid:    { label: '미수',    bg: '#fee2e2', fg: '#b91c1c' }, // red
-  no_record: { label: '미등록',  bg: '#f3f4f6', fg: '#4b5563' }, // gray
-};
-
-function StatusBadge({ status }) {
-  const b = STATUS_BADGE[status] || STATUS_BADGE.unpaid;
-  return (
-    <span
-      className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded"
-      style={{ background: b.bg, color: b.fg }}
-    >
-      {b.label}
-    </span>
-  );
-}
-
-function InvoiceTable({ rows, categories = DEFAULT_CATEGORIES }) {
-  return (
-    <table className="w-full text-[11px]" style={{ borderCollapse: 'collapse' }}>
-      <thead>
-        <tr className="border-b border-gray-400 bg-gray-50">
-          <th className="text-left py-1.5 px-1">세금계산서</th>
-          <th className="text-left py-1.5 px-1">구분</th>
-          <th className="text-left py-1.5 px-1">상태</th>
-          <th className="text-right py-1.5 px-1">공급가</th>
-          <th className="text-right py-1.5 px-1">부가세</th>
-          <th className="text-right py-1.5 px-1 font-bold">합계</th>
-          <th className="text-right py-1.5 px-1">입금</th>
-          <th className="text-right py-1.5 px-1">잔금</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => {
-          const cat = getCategoryInfo(categories, r.category);
-          const items = Array.isArray(r.items) ? r.items : [];
-          return (
-            <Fragment key={r.id}>
-              <tr className="border-b border-gray-100">
-                <td className="py-1.5 px-1">
-                  <div className="font-semibold">
-                    {r.invoice_number || (r._virtual ? '(미등록)' : `#${r.id}`)}
-                  </div>
-                  {r.order_id && <div className="text-[9px] text-gray-500">주문 #{r.order_id}</div>}
-                  {r.invoice_issued && <div className="text-[9px] text-green-700">✅ 세금계산서 발행</div>}
-                </td>
-                <td className="py-1.5 px-1">
-                  <div className="text-[10px]">{cat.icon} {cat.label}</div>
-                  {r.is_vat_exempt && <div className="text-[9px] text-blue-600">비과세</div>}
-                </td>
-                <td className="py-1.5 px-1">
-                  <StatusBadge status={r.payment_status} />
-                </td>
-                <td className="text-right py-1.5 px-1">{fmt(r.supply_amount || r.total_amount)}</td>
-                <td className="text-right py-1.5 px-1 text-orange-700">
-                  {r.is_vat_exempt ? '-' : fmt(r.vat_amount)}
-                </td>
-                <td className="text-right py-1.5 px-1 font-bold">{fmt(r.total_amount)}</td>
-                <td className="text-right py-1.5 px-1 text-green-700">{fmt(r.paid_amount)}</td>
-                <td className="text-right py-1.5 px-1 text-red-600 font-bold">{fmt(r.balance)}</td>
-              </tr>
-              {items.length > 0 && (
-                <tr className="border-b border-gray-200 bg-gray-50/60">
-                  <td colSpan={8} className="py-1 px-2 pl-3 text-[10px] text-gray-700">
-                    <div className="break-words leading-snug">
-                      <span className="text-gray-500 mr-1">└ 품목:</span>
-                      {items.map((it, i) => {
-                        const line = (it.price || 0) * (it.quantity || 1);
-                        return (
-                          <span key={i} className="inline-block mr-2.5">
-                            {it.name || it.product_name || '품목'}
-                            <span className="text-gray-500"> ×{it.quantity || 1}</span>
-                            <span className="tabular-nums"> ({fmt(line)}원)</span>
-                            {i < items.length - 1 ? ',' : ''}
-                          </span>
-                        );
-                      })}
-                    </div>
-                    {r.order_memo && (
-                      <div className="mt-0.5 text-[10px] italic text-gray-500 break-keep">📝 {r.order_memo}</div>
-                    )}
-                  </td>
-                </tr>
-              )}
-            </Fragment>
-          );
-        })}
-      </tbody>
-    </table>
   );
 }

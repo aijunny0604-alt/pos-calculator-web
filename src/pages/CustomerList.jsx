@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Menu, Building, Search, Phone, MapPin, ChevronDown, ChevronRight,
   Receipt, Copy, RotateCcw, X, Minus, Plus, Maximize2, Minimize2
@@ -14,6 +14,8 @@ import useModalFullscreen from '@/hooks/useModalFullscreen';
 import { supabase } from '@/lib/supabase';
 import { CircleDollarSign } from 'lucide-react';
 
+const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
+
 export default function CustomerList({
   customers,
   orders = [],
@@ -24,6 +26,7 @@ export default function CustomerList({
   onUpdateOrder,
   showToast
 }) {
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'payments'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
@@ -44,6 +47,32 @@ export default function CustomerList({
   const [regPrefill, setRegPrefill] = useState({ customerId: null, recordId: null });
   const [editHistory, setEditHistory] = useState(null);
   const [bulkPay, setBulkPay] = useState(null);
+
+  // ===== 선택 업체 주문별 결제 정보 =====
+  const [paymentsByOrder, setPaymentsByOrder] = useState({}); // { orderId: { record, history[] } }
+  const reloadCustomerPayments = (customerId) => {
+    if (!customerId) { setPaymentsByOrder({}); return; }
+    Promise.all([
+      supabase.getPaymentRecords({ customerId }),
+      supabase.getPaymentHistory({}),
+    ]).then(([records, history]) => {
+      const byOrderId = {};
+      const recordIdToOrderId = {};
+      for (const r of records || []) {
+        if (!r.order_id) continue;
+        byOrderId[String(r.order_id)] = { record: r, history: [] };
+        recordIdToOrderId[String(r.id)] = String(r.order_id);
+      }
+      for (const h of history || []) {
+        const orderId = recordIdToOrderId[String(h.payment_record_id)];
+        if (orderId && byOrderId[orderId]) byOrderId[orderId].history.push(h);
+      }
+      setPaymentsByOrder(byOrderId);
+    }).catch(() => setPaymentsByOrder({}));
+  };
+  useEffect(() => {
+    reloadCustomerPayments(selectedCustomer?.id);
+  }, [selectedCustomer?.id]);
 
   const reloadOutstanding = () => {
     supabase.getPaymentRecords({ hasBalance: true }).then((records) => {
@@ -231,6 +260,42 @@ export default function CustomerList({
 
   return (
     <div className="h-full bg-[var(--background)] flex flex-col">
+      {/* ═══ 상단 뷰 전환 탭 ═══ */}
+      <div className="px-2 sm:px-4 pt-2 flex items-center gap-1 bg-[var(--card)] border-b border-[var(--border)]">
+        <button
+          onClick={() => setViewMode('list')}
+          className="px-3 py-2 text-sm font-bold flex items-center gap-1.5 transition-colors"
+          style={{
+            color: viewMode === 'list' ? 'var(--primary)' : 'var(--muted-foreground)',
+            borderBottom: viewMode === 'list' ? '2px solid var(--primary)' : '2px solid transparent',
+          }}
+        >
+          <Building className="w-4 h-4" />업체 목록
+        </button>
+        <button
+          onClick={() => setViewMode('payments')}
+          className="px-3 py-2 text-sm font-bold flex items-center gap-1.5 transition-colors"
+          style={{
+            color: viewMode === 'payments' ? 'var(--primary)' : 'var(--muted-foreground)',
+            borderBottom: viewMode === 'payments' ? '2px solid var(--primary)' : '2px solid transparent',
+          }}
+        >
+          <CircleDollarSign className="w-4 h-4" />페이먼트
+        </button>
+      </div>
+
+      {/* 페이먼트 탭 */}
+      {viewMode === 'payments' && (
+        <div className="flex-1 overflow-auto">
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>페이먼트 로드 중...</div>}>
+            <PaymentsContainer customers={customers} />
+          </Suspense>
+        </div>
+      )}
+
+      {/* 업체 목록 탭 (기존) */}
+      {viewMode === 'list' && (
+      <>
       {/* Header */}
       <header className="bg-[var(--card)] border-b border-[var(--border)] sticky top-0 z-40">
         <div className="w-full px-2 sm:px-4 pt-3 pb-2">
@@ -638,6 +703,20 @@ export default function CustomerList({
                           <p className="text-xs mt-2 pt-2 border-t border-[var(--border)] break-words leading-snug" style={{ color: 'var(--primary)' }}>{order.memo}</p>
                         )}
                       </div>
+
+                      {/* Card: 결제 섹션 */}
+                      <OrderPaymentInline
+                        payment={paymentsByOrder[String(order.id)]}
+                        onRegister={(e) => {
+                          e.stopPropagation();
+                          const pay = paymentsByOrder[String(order.id)];
+                          setRegPrefill({
+                            customerId: selectedCustomer.id,
+                            recordId: pay?.record?.id || null,
+                          });
+                          setRegModalOpen(true);
+                        }}
+                      />
 
                       {/* Card bottom: copy button */}
                       <button
@@ -1186,6 +1265,8 @@ export default function CustomerList({
           </div>
         </div>
       )}
+      </>
+      )}
 
       {/* Phase 4: 결제 상세 모달 (CustomerDetailModal + 결제 등록/수정) */}
       <CustomerDetailModal
@@ -1218,7 +1299,11 @@ export default function CustomerList({
       <PaymentRegisterModal
         open={regModalOpen}
         onClose={() => setRegModalOpen(false)}
-        onSaved={() => { setRegModalOpen(false); reloadOutstanding(); }}
+        onSaved={() => {
+          setRegModalOpen(false);
+          reloadOutstanding();
+          reloadCustomerPayments(selectedCustomer?.id);
+        }}
         initialCustomerId={regPrefill.customerId}
         initialRecordId={regPrefill.recordId}
       />
@@ -1227,8 +1312,87 @@ export default function CustomerList({
         open={!!editHistory}
         history={editHistory}
         onClose={() => setEditHistory(null)}
-        onSaved={() => { setEditHistory(null); reloadOutstanding(); }}
+        onSaved={() => {
+          setEditHistory(null);
+          reloadOutstanding();
+          reloadCustomerPayments(selectedCustomer?.id);
+        }}
       />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 주문 카드 내부 결제 섹션 (상태 + 잔금 + 최근 입금 + 버튼)
+// ─────────────────────────────────────────────
+function OrderPaymentInline({ payment, onRegister }) {
+  const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+  const STATUS = {
+    paid:    { label: '완납', bg: '#dcfce7', fg: '#15803d' },
+    partial: { label: '부분', bg: '#ffedd5', fg: '#c2410c' },
+    unpaid:  { label: '미수', bg: '#fee2e2', fg: '#b91c1c' },
+  };
+
+  if (!payment) {
+    // 결제 레코드 없음 — 입금 등록 유도 (가벼운 미등록 배지)
+    return (
+      <div className="mb-2 p-2 rounded-lg flex items-center justify-between gap-2"
+           style={{ background: 'var(--muted)', border: '1px dashed var(--border)' }}>
+        <span className="text-[10px] text-[var(--muted-foreground)]">결제 레코드 미생성</span>
+        <button
+          onClick={onRegister}
+          className="text-[10px] font-bold px-2 py-1 rounded-md bg-[var(--primary)] text-white hover:brightness-110"
+        >
+          💵 입금 등록
+        </button>
+      </div>
+    );
+  }
+
+  const { record, history } = payment;
+  const s = STATUS[record.payment_status] || STATUS.unpaid;
+  const balance = Number(record.balance || 0);
+  const paidAmount = Number(record.paid_amount || 0);
+  const recent = (history || [])[0];
+
+  return (
+    <div
+      className="mb-2 p-2 rounded-lg"
+      style={{ background: `${s.bg}50`, border: `1px solid ${s.bg}` }}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span
+          className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded"
+          style={{ background: s.bg, color: s.fg }}
+        >
+          {s.label}
+        </span>
+        <span className="text-[11px] font-bold tabular-nums" style={{ color: s.fg }}>
+          잔금 {fmt(balance)}원
+        </span>
+      </div>
+
+      {paidAmount > 0 && (
+        <div className="text-[10px] text-gray-600 flex justify-between">
+          <span>입금 {history.length}건</span>
+          {recent && (
+            <span className="tabular-nums">
+              최근 {(recent.paid_at || '').slice(5, 10)}: {fmt(recent.amount)}원
+            </span>
+          )}
+        </div>
+      )}
+
+      <button
+        onClick={onRegister}
+        className="mt-1.5 w-full py-1 rounded-md text-[10px] font-bold transition-colors"
+        style={{
+          background: balance > 0 ? 'var(--primary)' : 'var(--secondary)',
+          color: balance > 0 ? 'white' : 'var(--foreground)',
+        }}
+      >
+        💵 {balance > 0 ? '입금 등록' : '추가 입금'}
+      </button>
     </div>
   );
 }

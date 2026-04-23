@@ -99,7 +99,7 @@ export default function PaymentDashboardSection({ customers = [], setCurrentPage
             </p>
           </div>
           <button
-            onClick={() => setCurrentPage('payments')}
+            onClick={() => setCurrentPage('customers')}
             className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap"
             style={{ background: 'var(--destructive)', color: 'white' }}
           >
@@ -133,7 +133,7 @@ export default function PaymentDashboardSection({ customers = [], setCurrentPage
           {recent.slice(0, compact ? 5 : 10).map((p) => (
             <button
               key={p.id}
-              onClick={() => setCurrentPage('payments')}
+              onClick={() => setCurrentPage('customers')}
               className={`w-full ${compact ? 'p-1.5 text-xs' : 'p-2.5 text-sm'} rounded-lg flex items-start gap-2 text-left transition-colors hover:bg-[var(--accent)]`}
               style={{ background: 'var(--muted)' }}
             >
