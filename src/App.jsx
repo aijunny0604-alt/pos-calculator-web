@@ -19,7 +19,7 @@ import NotificationSettings from '@/pages/NotificationSettings';
 
 // 결제 관련 페이지는 lazy load (exceljs + html-to-image 포함된 무거운 chunk)
 const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
-const InvoicesPage = lazy(() => import('@/pages/InvoicesPage'));
+const InvoicesContainer = lazy(() => import('@/pages/InvoicesContainer'));
 
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
@@ -29,6 +29,12 @@ export default function App() {
   // ─── Navigation ───────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [aiOrderText, setAiOrderText] = useState('');
+  // 명세서 페이지로 점프 시 자동 선택할 업체 ID (페이먼트/업체관리 → 명세서 cross-navigation)
+  const [invoicesInitialCustomerId, setInvoicesInitialCustomerId] = useState(null);
+  const goToInvoices = useCallback((customerId = null) => {
+    setInvoicesInitialCustomerId(customerId);
+    setCurrentPage('invoices');
+  }, []);
 
   // ─── Core data ────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
@@ -418,6 +424,14 @@ export default function App() {
         const items = orderData.items || [];
         const price_type = orderData.price_type || orderData.priceType || 'wholesale';
         const totalVal = orderData.total_amount || orderData.totalAmount || 0;
+
+        // 🛡️ 가격 검증 — price가 undefined/null/0인 item이 있으면 저장 차단
+        const invalidItems = items.filter((it) => !Number.isFinite(Number(it.price)) || Number(it.price) <= 0);
+        if (invalidItems.length > 0) {
+          const names = invalidItems.map((it) => it.name || `#${it.id}`).join(', ');
+          const ok = confirm(`⚠️ 다음 품목의 가격이 0원 또는 비어있습니다:\n\n${names}\n\n이대로 저장하면 명세서에 0원으로 표시됩니다. 그래도 진행할까요?\n\n[취소] 눌러 가격 먼저 확인하시길 권장합니다.`);
+          if (!ok) { setIsSaving(false); setSavingStep(''); return null; }
+        }
 
         // Auto-register unknown customers (skip 일반고객)
         if (
@@ -829,6 +843,7 @@ export default function App() {
   }, [showToast]);
 
   // ─── Add items from TextAnalyze to cart ───────────────────────
+  // 절차 간소화: AI 인식 → 담기 → 메인 안 거치고 곧바로 주문 저장 모달 오픈
   const handleAddToCart = useCallback(
     (newItems) => {
       setCartWithHistory((prev) => {
@@ -849,7 +864,9 @@ export default function App() {
         return merged;
       });
       setCurrentPage('pos');
-      showToast('상품이 추가되었습니다', 'success');
+      // 다음 렌더에 새 cart가 SaveCartModal로 전달되도록 React 자동 배칭에 맡김
+      setShowSaveCartModal(true);
+      showToast('주문 확인 — 등록창을 띄웠습니다', 'success');
     },
     [showToast]
   );
@@ -1039,6 +1056,7 @@ export default function App() {
             onSaveCustomerReturn={handleSaveCustomerReturn}
             onRefreshOrders={refreshOrders}
             onUpdateOrder={handleUpdateOrder}
+            onGoToInvoices={goToInvoices}
             showToast={showToast}
           />
         );
@@ -1046,7 +1064,7 @@ export default function App() {
       case 'invoices':
         return (
           <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>명세서 로드 중...</div>}>
-            <InvoicesPage customers={customers} />
+            <InvoicesContainer customers={customers} initialCustomerId={invoicesInitialCustomerId} />
           </Suspense>
         );
 
