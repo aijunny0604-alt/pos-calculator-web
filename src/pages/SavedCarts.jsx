@@ -410,22 +410,22 @@ export default function SavedCarts({
                 <ShoppingBag className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 min-w-0">
                   {isEditingDetail ? (
                     <input
                       type="text"
                       value={currentCart.name}
                       onChange={(e) => setEditedDetailCart({ ...editedDetailCart, name: e.target.value })}
-                      className="text-base sm:text-lg font-bold text-white bg-white/20 px-2 py-1 rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
+                      className="text-base sm:text-lg font-bold text-white bg-white/20 px-2 py-1 rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 min-w-0"
                       placeholder="업체명/이름"
                     />
                   ) : (
-                    <h2 className="text-base sm:text-xl font-bold text-white break-words leading-snug min-w-0 flex-1">{currentCart.name}</h2>
+                    <h2 className="text-base sm:text-xl font-bold text-white break-keep leading-snug min-w-0 truncate">{currentCart.name}</h2>
                   )}
                   <span
-                    className="px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0"
+                    className="px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 border border-white/20"
                     style={{
-                      background: (currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale') ? 'var(--primary)' : 'var(--purple)',
+                      background: (currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale') ? 'rgba(255,255,255,0.25)' : 'rgba(168,85,247,0.7)',
                       color: 'white'
                     }}
                   >

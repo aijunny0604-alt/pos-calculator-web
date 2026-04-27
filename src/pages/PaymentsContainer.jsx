@@ -11,7 +11,7 @@ import BulkPaymentModal from '@/components/BulkPaymentModal';
  *
  * Phase 3 기준. Phase 4 이후 CustomerDetailModal은 CustomerList에서도 공유.
  */
-export default function PaymentsContainer({ customers = [] }) {
+export default function PaymentsContainer({ customers = [], onGoToInvoices }) {
   const [registerOpen, setRegisterOpen] = useState(false);
   const [registerPrefill, setRegisterPrefill] = useState({ customerId: null, recordId: null });
 
@@ -59,6 +59,7 @@ export default function PaymentsContainer({ customers = [] }) {
         onAddPayment={(cid, rid) => { setCustomerDetail(null); handleOpenPayment(cid, rid); }}
         onEditHistory={(h) => { setCustomerDetail(null); setEditHistory(h); }}
         onBulkPay={(cust, records) => { setCustomerDetail(null); setBulkPay({ customer: cust, records }); }}
+        onViewInvoice={(cid) => { setCustomerDetail(null); onGoToInvoices?.(cid); }}
       />
 
       <BulkPaymentModal

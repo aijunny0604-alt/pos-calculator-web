@@ -24,6 +24,7 @@ export default function CustomerList({
   onSaveCustomerReturn,
   onRefreshOrders,
   onUpdateOrder,
+  onGoToInvoices,
   showToast
 }) {
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'payments'
@@ -288,7 +289,7 @@ export default function CustomerList({
       {viewMode === 'payments' && (
         <div className="flex-1 overflow-auto">
           <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>페이먼트 로드 중...</div>}>
-            <PaymentsContainer customers={customers} />
+            <PaymentsContainer customers={customers} onGoToInvoices={onGoToInvoices} />
           </Suspense>
         </div>
       )}
@@ -985,13 +986,18 @@ export default function CustomerList({
                               </span>
                             )}
                           </div>
-                          <p className="text-[var(--muted-foreground)] text-xs">수량: {item.quantity}개 × {formatPrice(item.price)}</p>
+                          <p className="text-[var(--muted-foreground)] text-xs">
+                            수량: {item.quantity}개 × {formatPrice(item.price ?? item.wholesale ?? item.retail ?? 0)}원
+                            {(item.price == null || Number(item.price) === 0) && (
+                              <span className="ml-1 text-[10px] text-red-500 font-bold">⚠️ 단가 누락</span>
+                            )}
+                          </p>
                         </div>
                         <p
                           className={`font-semibold ${returnedQty > 0 ? 'line-through' : ''}`}
                           style={{ color: returnedQty > 0 ? 'var(--warning)' : 'var(--success)' }}
                         >
-                          {formatPrice(item.price * item.quantity)}
+                          {formatPrice((Number(item.price) || Number(item.wholesale) || Number(item.retail) || 0) * item.quantity)}
                         </p>
                       </div>
                     );
@@ -1285,6 +1291,10 @@ export default function CustomerList({
         onBulkPay={(cust, records) => {
           setPaymentDetailCustomer(null);
           setBulkPay({ customer: cust, records });
+        }}
+        onViewInvoice={(cid) => {
+          setPaymentDetailCustomer(null);
+          onGoToInvoices?.(cid);
         }}
       />
 

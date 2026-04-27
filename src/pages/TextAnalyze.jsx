@@ -991,7 +991,7 @@ ${aiLearningData.slice(0, 50).map(l =>
                 style={{ backgroundColor: isAiMode ? 'var(--success)' : 'var(--primary)' }}
               >
                 {isAnalyzing
-                  ? <><RefreshCw className="w-4 h-4 animate-spin" />분석 중...</>
+                  ? <><RefreshCw className="w-4 h-4 animate-spin" style={{ animation: 'spin 1s linear infinite' }} />분석 중...</>
                   : <><Sparkles className="w-4 h-4" />{isAiMode ? 'AI 분석' : '텍스트 분석'}</>
                 }
               </button>

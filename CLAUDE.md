@@ -1,11 +1,20 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-04-23
+> 마지막 업데이트: 2026-04-23 (2차)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry.
 
-## 🆕 v2026-04-23 주요 변경 — 명세서·결제 UX 대개편
+## 🆕 v2026-04-23 (2차) — Phase 9 Cross-navigation + 입금 모달 리디자인 + 데이터 품질 가드
+
+- **명세서 Phase 9 Cross-navigation** (`InvoicesContainer.jsx` 신규): 명세서 페이지의 각 업체 섹션에 `💵 입금 받기` / `💰 일괄 입금` / `👁 업체 상세` 액션 바. 거래처 관리의 `CustomerDetailModal`에는 `📄 명세서 발행하기` 버튼 → 해당 업체 자동 선택된 명세서로 점프. 페이지 이동 없이 양방향 통합
+- **명세서 UX**: 업체 선택 시 그 업체 이월 날짜가 **체크박스 옆에 인라인 펼침**, Sticky 헤더 + ▲/▼ 접기 토글, 레이아웃 `max-w-[1600px]` + 폰트/패딩 확대, 테이블 행 **✏️ 수정 / ✕ 제외** 버튼 (localStorage 오버라이드, 원본 DB 무영향), 단가 0원 행 자동 빨간 하이라이트
+- **입금 모달 리디자인** (`PaymentRegisterModal.jsx`): `max-w-md` → `max-w-2xl`, **1/2/3 단계 숫자 뱃지**, 전액/절반/+10만/+50만/+100만 빠른 금액 버튼, 대형 결제 방법 버튼, **과세/비과세 토글 + 택배비/퀵비/수수료 동적 부가 항목 + 💹 실시간 합계 모니터링 카드**. 저장 시 memo에 `[비과세][택배비 5,000원]...` 태그 prepend (DB 스키마 무변경)
+- **CustomerDetailModal**: StatBox 라벨 `받을 돈(미수)/전체 주문/받은 횟수` + 힌트 1줄, 숫자+단위 인라인 한 줄, 일괄 입금은 `▶ 고급: 월말 정산용` details 접힘으로 강등
+- **데이터 품질 가드 (1단계)**: `MainPOS.addToCart`에서 wholesale·retail 둘 다 0원이면 카트 담기 거부. `App.saveOrder`에서 price 누락/0원 item 발견 시 confirm 경고. `formatPrice` NaN-safe. `CustomerList` 주문 상세 모달에 `item.price ?? wholesale ?? retail ?? 0` 폴백 + "⚠️ 단가 누락" 배지
+- **기타 UI**: `OrderDetail` 확대/X 버튼 그룹화(딱 붙음), `SavedCarts` 도매/소비자 배지 타이틀 옆 정렬
+
+## 🆕 v2026-04-23 (1차) — 명세서·결제 UX 대개편
 
 - **거래명세서 모던 양식**: 전통 격자 → 공급자/공급받는자 2단 + 대형 합계 배너 + 줄무늬 품목 테이블. `규격` 컬럼 제거
 - **미수 업체 원클릭 리스트**: 좌측 사이드바에 76개 미수 업체 내림차순 표시, 클릭 한 번으로 해당 업체 명세서 즉시 전환
@@ -37,6 +46,9 @@ npx gh-pages -d dist     # GitHub Pages 배포
 - **날짜 계산**: `+09:00` + `toISOString()` 조합 금지, `offsetDateKST()` 사용
 - **새 제품 추가**: `supabase.addProduct(POST)` 사용. `saveProduct`은 id 있으면 PATCH
 - **주문 저장**: 같은 고객 당일 주문 자동 병합. WebSocket 실시간 반영
+- **가격 0원 방어**: 카트 담기·주문 저장 전 `wholesale/retail/price > 0` 검증 필수. `formatPrice`는 NaN-safe (모든 비유한수 → '0'). 명세서 등 소비자 표시에서는 `price ?? wholesale ?? retail ?? 0` 폴백 체인 사용
+- **명세서 수동 수정**: 원본 `orders.items`는 절대 건드리지 않음. 명세서 한정 조정은 localStorage 키 `pos_invoice_line_overrides_v1`에 `{ [recordId:itemIndex]: {name, qty, unitWithVat, deleted} }` 형태로 저장
+- **입금 확장 필드**: `payment_history`에 컬럼 추가 대신 `memo` 앞에 `[과세/비과세][택배비 N원][퀵비 N원]` 태그 prepend. 집계 필요 시 DB 컬럼(`is_vat_exempt`, `extra_fees JSONB`)으로 승격 예정
 - **AI 학습**: 주문인식 수동 교정 시 자동 학습 → 다음 인식에 반영 (3중: DB → Gemini 프롬프트 → 패턴 매칭)
 
 ## Supabase

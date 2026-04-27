@@ -517,21 +517,23 @@ export default function OrderDetail({
                 초기화
               </button>
             )}
-            <button
-              onClick={toggleFullscreen}
-              className="p-2 rounded-lg transition-colors"
-              style={{ background: 'rgba(255,255,255,0.15)' }}
-              title={isFullscreen ? '원래 크기' : '전체화면'}
-            >
-              {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg transition-colors"
-              style={{ background: 'rgba(255,255,255,0.15)' }}
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {/* 확대/축소 + X 버튼을 한 그룹으로 묶어서 X 바로 옆에 붙임 */}
+            <div className="flex items-center gap-0.5 ml-2 rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.12)' }}>
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 transition-colors hover:bg-white/10"
+                title={isFullscreen ? '원래 크기' : '전체화면'}
+              >
+                {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 transition-colors hover:bg-white/10"
+                title="닫기"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 

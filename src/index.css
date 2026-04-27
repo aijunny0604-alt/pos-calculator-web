@@ -223,6 +223,15 @@ html, body {
   50% { opacity: 0.5; }
 }
 
+/* 로딩 인디케이터는 어떤 환경(reduce-motion / 캐시 / cascade)에서도 무조건 작동
+   media query 밖 + !important로 최우선 적용 */
+.animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+}
+
 /* 키보드 포커스 인디케이터 통일 — 마우스 클릭 시엔 링 안 보임 */
 *:focus:not(:focus-visible) {
   outline: none;

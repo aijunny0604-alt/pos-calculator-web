@@ -64,7 +64,7 @@ const dateKST = (iso) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-export default function CustomerDetailModal({ open, customer, onClose, onBulkPay, onAddPayment, onEditHistory, onQuickPay }) {
+export default function CustomerDetailModal({ open, customer, onClose, onBulkPay, onAddPayment, onEditHistory, onQuickPay, onViewInvoice }) {
   const [tab, setTab] = useState('outstanding');
   const [records, setRecords] = useState([]);
   const [history, setHistory] = useState([]);
@@ -212,7 +212,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
         }
       `}</style>
       <div
-        className="relative w-full sm:max-w-3xl lg:max-w-5xl max-h-[94vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
+        className="relative w-full sm:max-w-3xl lg:max-w-6xl max-h-[94vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 고급 상단 그라데이션 바 */}
@@ -273,28 +273,46 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
         {/* 요약 */}
         <div className="px-5 sm:px-6 pt-4">
           <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
-            <StatBox label="이월 잔금" value={outstandingTotal} unit="원" color="red" />
-            <StatBox label="주문" value={totalOrders} unit="건" color="blue" />
-            <StatBox label="입금 내역" value={history.length} unit="건" color="green" />
+            <StatBox label="받을 돈 (미수)" value={outstandingTotal} unit="원" color="red" hint="아직 못 받은 총액" />
+            <StatBox label="전체 주문" value={totalOrders} unit="건" color="blue" hint="이 업체 총 거래 건수" />
+            <StatBox label="받은 횟수" value={history.length} unit="번" color="green" hint={history.length === 0 ? '아직 입금 없음' : '지금까지 입금한 횟수'} />
           </div>
+          {/* 메인 CTA: 바로 입금 (큼직) + 명세서 보기 */}
           <div className="grid sm:grid-cols-2 gap-2 mt-3">
-            {outstandingTotal > 0 && onBulkPay && (
-              <button
-                onClick={() => onBulkPay(customer, outstandingRecords)}
-                className="py-2.5 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/40 text-red-300 text-xs font-bold hover:from-red-500/30 hover:to-orange-500/30 hover:shadow-lg hover:-translate-y-0.5 transition-all animate-pulse-ring-red"
-              >
-                💳 일괄 입금 ({fmt(outstandingTotal)}원 자동 배분)
-              </button>
-            )}
             {onAddPayment && (
               <button
                 onClick={() => onAddPayment(customer, null)}
-                className="py-2.5 rounded-xl bg-gradient-to-r from-blue-500/15 to-purple-500/15 border border-[var(--primary)]/40 text-[var(--primary)] text-xs font-bold hover:from-blue-500/25 hover:to-purple-500/25 hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                className="py-3 rounded-xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-2 border-[var(--primary)]/50 text-[var(--primary)] text-sm font-black hover:from-blue-500/30 hover:to-purple-500/30 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5"
               >
-                + {customer.name || '업체'}에 바로 입금
+                💵 {customer.name || '업체'}에서 입금 받기
+              </button>
+            )}
+            {onViewInvoice && (
+              <button
+                onClick={() => onViewInvoice(customer.id)}
+                className="py-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-yellow-500/15 border-2 border-amber-500/40 text-amber-600 text-sm font-black hover:from-amber-500/25 hover:to-yellow-500/25 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5"
+                title="이 업체의 거래명세서 페이지로 이동"
+              >
+                📄 명세서 발행
               </button>
             )}
           </div>
+          {/* 고급: 일괄 입금 (접힘) — 월말 정산처럼 한 번에 여러 건 처리할 때만 */}
+          {outstandingTotal > 0 && onBulkPay && (
+            <details className="mt-2 group">
+              <summary className="text-[11px] text-[var(--muted-foreground)] cursor-pointer hover:text-[var(--foreground)] flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-[var(--secondary)] select-none">
+                <span className="group-open:rotate-90 transition-transform">▶</span>
+                <span>고급: 월말 정산용 일괄 입금</span>
+              </summary>
+              <button
+                onClick={() => onBulkPay(customer, outstandingRecords)}
+                className="mt-1.5 w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] font-bold hover:bg-red-500/15 transition-all"
+                title="오래된 미수부터 자동으로 배분해서 입금 처리 (한 업체가 잔금 전액 지불 시 유용)"
+              >
+                💳 일괄 입금 · {fmt(outstandingTotal)}원 자동 배분
+              </button>
+            </details>
+          )}
         </div>
 
         {/* 탭 — Pill 스타일 */}
@@ -597,7 +615,7 @@ function useCountUp(target, duration = 700) {
   return n;
 }
 
-function StatBox({ label, value, unit, color }) {
+function StatBox({ label, value, unit, color, hint }) {
   const n = useCountUp(Number(value) || 0);
   const colorMap = {
     red: {
@@ -625,14 +643,21 @@ function StatBox({ label, value, unit, color }) {
       className="p-3 rounded-xl border transition-all hover:-translate-y-0.5"
       style={{ background: c.bg, borderColor: c.border, boxShadow: c.glow }}
     >
-      <div className="text-[10px] text-[var(--muted-foreground)] break-keep font-medium uppercase tracking-wider">{label}</div>
+      {/* 상단: 라벨 + 힌트 (같은 줄, 작게) */}
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <span className="text-[12px] sm:text-[13px] text-[var(--muted-foreground)] font-bold break-keep">{label}</span>
+        {hint && (
+          <span className="text-[10px] text-[var(--muted-foreground)]/70 italic break-keep">{hint}</span>
+        )}
+      </div>
+      {/* 숫자 + 단위를 한 줄에 붙여서 */}
       <div
-        className="font-black text-lg sm:text-xl lg:text-2xl break-all leading-tight mt-1 tabular-nums"
+        className="font-black text-xl sm:text-2xl lg:text-3xl leading-tight tabular-nums flex items-baseline gap-1"
         style={{ color: c.text, textShadow: `0 0 20px ${c.text}40` }}
       >
-        {Number(n).toLocaleString('ko-KR')}
+        <span>{Number(n).toLocaleString('ko-KR')}</span>
+        <span className="text-sm sm:text-base font-bold opacity-80">{unit}</span>
       </div>
-      <div className="text-[10px] text-[var(--muted-foreground)] mt-0.5">{unit}</div>
     </div>
   );
 }

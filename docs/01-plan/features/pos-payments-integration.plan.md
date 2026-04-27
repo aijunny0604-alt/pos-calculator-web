@@ -122,6 +122,32 @@ sandbox는 이미 배포되어 운영 중(`aijunny0604-alt.github.io/pos-payment
 
 ---
 
+### Phase 9: Cross-navigation UX (2026-04-23 추가)
+
+**배경**: Phase 5까지로 InvoicesPage, PaymentsPage 두 페이지가 pos-web에 공존.
+하지만 "업체 A의 명세서 보다가 입금 등록하려면 거래처 관리로 이동 → 페이먼트 탭" 식의 동선이 번거로움.
+한 화면에서 양쪽 업무 완결.
+
+**목표**:
+1. 명세서 페이지에서 업체별 섹션에 `💵 입금 등록` / `💰 일괄 입금` / `👁 업체 상세` 버튼 직결
+2. 거래처 관리(페이먼트 탭)에서 업체 상세 모달에 `📄 명세서` 버튼 → 명세서 페이지로 점프 + 그 업체 자동 선택
+3. 페이지 이동 시 컨텍스트(선택 업체)를 잃지 않음
+
+**구현 항목**:
+- `InvoicesContainer.jsx` 신규 — InvoicesPage + 3개 모달(PaymentRegister, BulkPayment, CustomerDetail) 묶음
+- `InvoicesPage.jsx` props 확장: `onOpenPayment`, `onOpenBulkPay`, `onOpenCustomerDetail`, `initialCustomerId`
+- 업체별 명세서 섹션 상단에 액션 버튼 3개 추가
+- App.jsx `invoicesInitialCustomerId` state + `goToInvoices(customerId)` 핸들러
+- CustomerDetailModal 헤더에 `📄 명세서` 버튼 추가 (onViewInvoice prop)
+- CustomerList → CustomerDetailModal로 onViewInvoice 전달 → App으로 올려 goToInvoices 호출
+
+**트레이드오프**:
+- (a) 명세서 페이지로 라우트 이동 + 업체 자동 선택 → 채택 (구현 가벼움, 명세서는 큰 화면이 더 잘 쓰임)
+- (b) 현재 페이지 위 모달 미리보기 → 보류 (카톡/PNG/인쇄 로직 중복)
+
+**영향**: 기존 기능 회귀 없음. 버튼/props 추가, 페이지 이동 로직만 확장.
+---
+
 ## 4. 공통 규칙 (모든 Phase)
 
 - **기존 운영 테이블(orders, customers, products 등) ALTER 금지** — 유지

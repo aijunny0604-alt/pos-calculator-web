@@ -63,10 +63,11 @@ export const calculateItemDiscount = (item, products) => {
   return calculateDiscount(product, item.quantity, item.price);
 };
 
-// 가격 포맷
+// 가격 포맷 (NaN-safe: undefined/null/NaN은 모두 '0')
 export const formatPrice = (price) => {
-  if (price === undefined || price === null) return '0';
-  return Number(price).toLocaleString('ko-KR');
+  const n = Number(price);
+  if (!Number.isFinite(n)) return '0';
+  return n.toLocaleString('ko-KR');
 };
 
 // VAT 제외 계산

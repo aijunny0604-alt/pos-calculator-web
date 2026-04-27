@@ -32,19 +32,45 @@ const DATE_PRESETS = [
   { key: 'custom', label: '날짜 선택' },
 ];
 
-export default function InvoicesPage({ customers }) {
+export default function InvoicesPage({
+  customers,
+  initialCustomerId = null,
+  onOpenPayment,
+  onOpenBulkPay,
+  onOpenCustomerDetail,
+}) {
   const [datePreset, setDatePreset] = useState('today');
   const [date, setDate] = useState(todayISO());
-  const [customerId, setCustomerId] = useState('all');
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
-  const customerBoxRef = useRef(null);
+  // 다중 선택: Set<string> (id 문자열). 빈 Set = 전체 업체
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState(() => {
+    if (initialCustomerId) return new Set([String(initialCustomerId)]);
+    return new Set();
+  });
+
+  // initialCustomerId가 바뀌면 자동으로 해당 업체 선택 (페이먼트 → 명세서 점프 시)
+  useEffect(() => {
+    if (initialCustomerId) {
+      setSelectedCustomerIds(new Set([String(initialCustomerId)]));
+    }
+  }, [initialCustomerId]);
+  const isAllCustomers = selectedCustomerIds.size === 0;
   const [records, setRecords] = useState([]);
   const [carryover, setCarryover] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState(null);
   const [selectedCarryoverDates, setSelectedCarryoverDates] = useState(() => new Set());
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  // 명세서 행 수동 수정 오버라이드 (localStorage 영속)
+  // key: `${record.id}:${itemIndex}`, value: { qty?: number, unitWithVat?: number, name?: string, deleted?: boolean }
+  const OVERRIDE_KEY = 'pos_invoice_line_overrides_v1';
+  const [lineOverrides, setLineOverrides] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(OVERRIDE_KEY) || '{}'); } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(OVERRIDE_KEY, JSON.stringify(lineOverrides)); } catch {}
+  }, [lineOverrides]);
+  const [editingLine, setEditingLine] = useState(null); // { key, name, qty, unitWithVat }
   const invoiceRef = useRef(null);
 
   useEffect(() => {
@@ -67,9 +93,7 @@ export default function InvoicesPage({ customers }) {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      customerId !== 'all'
-        ? supabase.getPaymentRecords({ customerId })
-        : supabase.getPaymentRecords(),
+      supabase.getPaymentRecords(),
       supabase.getOrders(),
       supabase.getPaymentHistory({}),
     ]).then(([allRecords, allOrders, allHistory]) => {
@@ -110,8 +134,6 @@ export default function InvoicesPage({ customers }) {
         let cust = null;
         if (name) cust = byName.get(name);
         if (!cust && phone) cust = byPhone.get(phone);
-
-        if (customerId !== 'all' && String(cust?.id || '') !== String(customerId)) continue;
 
         const total = Number(o.total || 0) - Number(o.total_returned || 0);
         if (total <= 0) continue;
@@ -161,30 +183,32 @@ export default function InvoicesPage({ customers }) {
       setRecords([]);
       setCarryover([]);
     }).finally(() => setLoading(false));
-  }, [dateRange.from, dateRange.to, customerId, customers]);
-
-  const filteredCustomers = useMemo(() => {
-    const q = customerSearch.trim().toLowerCase().replace(/\s/g, '');
-    if (!q) return customers || [];
-    return (customers || []).filter((c) => {
-      const name = (c.name || '').toLowerCase().replace(/\s/g, '');
-      const phone = (c.phone || '').replace(/[\s-]/g, '');
-      return name.includes(q) || phone.includes(q);
-    });
-  }, [customers, customerSearch]);
-
-  useEffect(() => {
-    if (!customerDropdownOpen) return;
-    const onDocClick = (e) => {
-      if (customerBoxRef.current && !customerBoxRef.current.contains(e.target)) {
-        setCustomerDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [customerDropdownOpen]);
+  }, [dateRange.from, dateRange.to, customers]);
 
   const customerName = (id) => customers.find((c) => c.id === id)?.name || `#${id}`;
+
+  // 업체 선택 토글
+  const toggleCustomer = (id) => {
+    if (!id) return;
+    setSelectedCustomerIds((prev) => {
+      const next = new Set(prev);
+      const key = String(id);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+  const clearAllCustomers = () => setSelectedCustomerIds(new Set());
+
+  // 업체별 필터 적용
+  const filteredRecords = useMemo(() => {
+    if (isAllCustomers) return records;
+    return records.filter((r) => selectedCustomerIds.has(String(r.customer_id)));
+  }, [records, selectedCustomerIds, isAllCustomers]);
+
+  const filteredCarryover = useMemo(() => {
+    if (isAllCustomers) return carryover;
+    return carryover.filter((r) => selectedCustomerIds.has(String(r.customer_id)));
+  }, [carryover, selectedCustomerIds, isAllCustomers]);
 
   // 미수 업체 집계 (customerId='all' 상태에서만 의미있음)
   const outstandingCustomers = useMemo(() => {
@@ -232,10 +256,12 @@ export default function InvoicesPage({ customers }) {
     });
   }, [outstandingCustomers, outstandingSearch]);
 
-  // 이월 날짜별 그룹
+  // 이월 날짜별 그룹 — 업체 선택 시 해당 업체의 이월만 표시 (전체 모드 드로어용)
   const carryoverByDate = useMemo(() => {
+    const source = isAllCustomers ? carryover : filteredCarryover;
     const g = new Map();
-    for (const r of carryover) {
+    for (const r of source) {
+      if (!(Number(r.balance) > 0)) continue;
       const key = r.invoice_date || '(날짜 없음)';
       if (!g.has(key)) g.set(key, []);
       g.get(key).push(r);
@@ -248,9 +274,31 @@ export default function InvoicesPage({ customers }) {
         count: rows.length,
         total: rows.reduce((s, r) => s + Number(r.balance || 0), 0),
       }));
+  }, [carryover, filteredCarryover, isAllCustomers]);
+
+  // 업체별 이월 날짜 맵 — 선택된 업체 밑에 인라인 표시할 용도
+  const carryoverByCustomer = useMemo(() => {
+    const m = new Map();
+    for (const r of carryover) {
+      if (!(Number(r.balance) > 0)) continue;
+      const cid = String(r.customer_id ?? `unknown-${r.customer_name ?? ''}`);
+      if (!m.has(cid)) m.set(cid, new Map());
+      const dateMap = m.get(cid);
+      const key = r.invoice_date || '(날짜 없음)';
+      if (!dateMap.has(key)) dateMap.set(key, { date: key, count: 0, total: 0 });
+      const e = dateMap.get(key);
+      e.count += 1;
+      e.total += Number(r.balance || 0);
+    }
+    const out = new Map();
+    for (const [cid, dateMap] of m) {
+      out.set(cid, [...dateMap.values()].sort((a, b) => b.date.localeCompare(a.date)));
+    }
+    return out;
   }, [carryover]);
 
-  useEffect(() => { setSelectedCarryoverDates(new Set()); }, [carryover]);
+  // 업체 선택이 바뀌면 선택된 이월 날짜도 리셋 (더이상 해당 업체에 없는 날짜가 남는 문제 방지)
+  useEffect(() => { setSelectedCarryoverDates(new Set()); }, [carryover, selectedCustomerIds]);
 
   const toggleCarryoverDate = (d) =>
     setSelectedCarryoverDates((prev) => {
@@ -263,76 +311,158 @@ export default function InvoicesPage({ customers }) {
   const clearCarryoverDates = () => setSelectedCarryoverDates(new Set());
 
   // 품목 flat list 생성기 (한 레코드 → items × 1라인씩)
+  // 사용자가 명세서에서 수동 수정한 값(lineOverrides)을 최우선 적용
   const recordToLines = (r) => {
     const items = Array.isArray(r.items) ? r.items : [];
     const date = r.invoice_date || '';
-    return items.map((it) => {
-      const qty = Number(it.quantity) || 1;
-      const unitWithVat = Number(it.price) || 0;
+    const out = [];
+    items.forEach((it, idx) => {
+      const key = `${r.id}:${idx}`;
+      const ov = lineOverrides[key] || {};
+      if (ov.deleted) return; // 삭제된 행은 제외
+      const qty = Number(ov.qty ?? it.quantity) || 1;
+      const unitWithVat = Number(ov.unitWithVat ?? it.price) || 0;
       const lineWithVat = unitWithVat * qty;
       const supply = Math.round(lineWithVat / 1.1);
       const vat = lineWithVat - supply;
-      return {
+      out.push({
+        key,
         date,
         code: it.code || it.product_id || '',
-        name: it.name || it.product_name || '품목',
+        name: ov.name ?? (it.name || it.product_name || '품목'),
         spec: it.spec || it.option || '',
         qty,
         unitPrice: Math.round(unitWithVat / 1.1),
+        unitWithVat,
         supply,
         vat,
         memo: '',
-      };
+        edited: !!(ov.qty != null || ov.unitWithVat != null || ov.name != null),
+      });
     });
+    return out;
   };
 
-  // 당일 품목
-  const currentLineItems = useMemo(() => {
-    const lines = [];
-    for (const r of records) lines.push(...recordToLines(r));
-    return lines;
-  }, [records]);
+  // 편집 동작
+  const openLineEditor = (line) => {
+    setEditingLine({
+      key: line.key,
+      name: line.name,
+      qty: line.qty,
+      unitWithVat: line.unitWithVat,
+    });
+  };
+  const saveLineEdit = () => {
+    if (!editingLine) return;
+    const { key, name, qty, unitWithVat } = editingLine;
+    setLineOverrides((prev) => ({
+      ...prev,
+      [key]: { name, qty: Number(qty) || 0, unitWithVat: Number(unitWithVat) || 0 },
+    }));
+    setEditingLine(null);
+  };
+  const resetLineOverride = (key) => {
+    setLineOverrides((prev) => { const n = { ...prev }; delete n[key]; return n; });
+    setEditingLine(null);
+  };
+  const deleteLine = (key) => {
+    if (!confirm('이 품목을 명세서에서 제외할까요? (원본 주문은 그대로)')) return;
+    setLineOverrides((prev) => ({ ...prev, [key]: { ...(prev[key] || {}), deleted: true } }));
+  };
 
-  // 선택된 이월 품목
-  const selectedCarryoverLineItems = useMemo(() => {
-    const lines = [];
-    for (const r of carryover) {
-      if (!selectedCarryoverDates.has(r.invoice_date)) continue;
-      lines.push(...recordToLines(r));
+  // 업체별 명세서 섹션 배열 생성
+  const customerInvoices = useMemo(() => {
+    // 대상 업체 ID 결정
+    let targetIds;
+    if (isAllCustomers) {
+      // 전체 업체 = filteredRecords + filteredCarryover 에 등장하는 모든 customer_id
+      const ids = new Set();
+      for (const r of filteredRecords) ids.add(String(r.customer_id ?? `unknown-${r.customer_name ?? ''}`));
+      for (const r of filteredCarryover) ids.add(String(r.customer_id ?? `unknown-${r.customer_name ?? ''}`));
+      targetIds = [...ids];
+    } else {
+      targetIds = [...selectedCustomerIds];
     }
-    return lines;
-  }, [carryover, selectedCarryoverDates]);
 
-  // 명세서 라인 (선택 이월 먼저, 당일 나중, 날짜 오름차순)
-  const invoiceLines = useMemo(() => {
-    return [...selectedCarryoverLineItems, ...currentLineItems]
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  }, [currentLineItems, selectedCarryoverLineItems]);
+    const invoices = [];
+    for (const cid of targetIds) {
+      const match = (r) => String(r.customer_id ?? `unknown-${r.customer_name ?? ''}`) === cid;
+      const cRecords = filteredRecords.filter(match);
+      const cCarryover = filteredCarryover.filter(match);
 
-  // 전잔금 (체크 안 된 이월 잔금 합)
-  const unselectedCarryoverBalance = useMemo(
-    () => carryover.reduce((s, r) =>
-      selectedCarryoverDates.has(r.invoice_date) ? s : s + Number(r.balance || 0), 0),
-    [carryover, selectedCarryoverDates]
-  );
+      const lines = [];
+      for (const r of cRecords) lines.push(...recordToLines(r));
+      for (const r of cCarryover) {
+        if (selectedCarryoverDates.has(r.invoice_date)) lines.push(...recordToLines(r));
+      }
+      lines.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-  // 입금 합계 (당일 + 선택 이월)
-  const totalPaid = useMemo(() => {
-    const dailyPaid = records.reduce((s, r) => s + Number(r.paid_amount || 0), 0);
-    const selPaid = carryover.reduce((s, r) =>
-      selectedCarryoverDates.has(r.invoice_date) ? s + Number(r.paid_amount || 0) : s, 0);
-    return dailyPaid + selPaid;
-  }, [records, carryover, selectedCarryoverDates]);
+      const unselectedCarryBalance = cCarryover.reduce(
+        (s, r) => selectedCarryoverDates.has(r.invoice_date) ? s : s + Number(r.balance || 0), 0
+      );
+      const cPaid = cRecords.reduce((s, r) => s + Number(r.paid_amount || 0), 0)
+        + cCarryover.reduce((s, r) => selectedCarryoverDates.has(r.invoice_date) ? s + Number(r.paid_amount || 0) : s, 0);
+      const supply = lines.reduce((s, l) => s + l.supply, 0);
+      const vat = lines.reduce((s, l) => s + l.vat, 0);
+      const sum = supply + vat;
+      const totalBeforePaid = unselectedCarryBalance + sum;
+      const grandBalance = totalBeforePaid - cPaid;
 
-  const invoiceTotals = useMemo(() => {
-    const supply = invoiceLines.reduce((s, l) => s + l.supply, 0);
-    const vat = invoiceLines.reduce((s, l) => s + l.vat, 0);
-    const sum = supply + vat;
-    const prevBalance = unselectedCarryoverBalance;
-    const totalBeforePaid = prevBalance + sum;
-    const grandBalance = totalBeforePaid - totalPaid;
-    return { supply, vat, sum, prevBalance, totalBeforePaid, totalPaid, grandBalance, count: invoiceLines.length };
-  }, [invoiceLines, unselectedCarryoverBalance, totalPaid]);
+      // 빈 업체 제외 (단, 선택된 업체면 유지)
+      if (lines.length === 0 && unselectedCarryBalance === 0 && !selectedCustomerIds.has(cid)) continue;
+
+      const cust = customers.find((c) => String(c.id) === cid);
+      const label = cust?.name
+        || cRecords[0]?.customer_name
+        || cCarryover[0]?.customer_name
+        || '(미지정 거래처)';
+
+      invoices.push({
+        id: cid,
+        name: label,
+        lines,
+        totals: {
+          supply, vat, sum,
+          prevBalance: unselectedCarryBalance,
+          totalBeforePaid, totalPaid: cPaid, grandBalance,
+          count: lines.length,
+        },
+      });
+    }
+
+    // 총잔액 큰 순
+    return invoices.sort((a, b) => b.totals.grandBalance - a.totals.grandBalance);
+  }, [filteredRecords, filteredCarryover, selectedCarryoverDates, selectedCustomerIds, isAllCustomers, customers]);
+
+  // 전체 합계 (여러 업체 선택 시 상단 요약)
+  const grandTotals = useMemo(() => {
+    return customerInvoices.reduce((acc, inv) => ({
+      supply: acc.supply + inv.totals.supply,
+      vat: acc.vat + inv.totals.vat,
+      sum: acc.sum + inv.totals.sum,
+      prevBalance: acc.prevBalance + inv.totals.prevBalance,
+      totalPaid: acc.totalPaid + inv.totals.totalPaid,
+      grandBalance: acc.grandBalance + inv.totals.grandBalance,
+      count: acc.count + inv.totals.count,
+      customerCount: acc.customerCount + 1,
+    }), { supply: 0, vat: 0, sum: 0, prevBalance: 0, totalPaid: 0, grandBalance: 0, count: 0, customerCount: 0 });
+  }, [customerInvoices]);
+
+  // 오늘 거래 업체 일괄 추가
+  const addTodayTradedCustomers = () => {
+    const today = todayISO();
+    const ids = new Set();
+    for (const r of records) {
+      const d = (r.invoice_date || '').slice(0, 10);
+      if (d === today && r.customer_id) ids.add(String(r.customer_id));
+    }
+    if (ids.size === 0) {
+      showToast('오늘 거래된 업체가 없습니다');
+      return;
+    }
+    setSelectedCustomerIds((prev) => new Set([...prev, ...ids]));
+    showToast(`오늘 거래 ${ids.size}개 업체 추가됨`);
+  };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
 
@@ -342,7 +472,12 @@ export default function InvoicesPage({ customers }) {
       const dataUrl = await toPng(invoiceRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `명세서_${customerId === 'all' ? '전체' : (customerName(customerId) || '').replace(/[^a-zA-Z0-9가-힣]/g, '_')}_${dateRange.label.replace(/[^a-zA-Z0-9가-힣~-]/g, '_')}.png`;
+      const nameTag = isAllCustomers
+        ? '전체'
+        : customerInvoices.length === 1
+          ? customerInvoices[0].name.replace(/[^a-zA-Z0-9가-힣]/g, '_')
+          : `${customerInvoices.length}개업체`;
+      a.download = `명세서_${nameTag}_${dateRange.label.replace(/[^a-zA-Z0-9가-힣~-]/g, '_')}.png`;
       a.click();
       showToast('✅ PNG 다운로드됨');
     } catch (e) {
@@ -372,10 +507,11 @@ export default function InvoicesPage({ customers }) {
     try { window.print(); } catch (e) { alert('인쇄 실패: ' + e.message); }
   };
 
-  const hasData = invoiceLines.length > 0 || invoiceTotals.prevBalance > 0;
+  const hasData = customerInvoices.length > 0;
+  const showGrandSummary = customerInvoices.length >= 2;
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-[1600px] mx-auto px-2">
       <style>{`
         @media print {
           body * { visibility: hidden; }
@@ -385,105 +521,241 @@ export default function InvoicesPage({ customers }) {
         }
       `}</style>
 
-      {/* ─── 상단 헤더 바: 제목 + 날짜 칩 + 액션 ─── */}
-      <div className="no-print mb-4 flex flex-wrap items-center gap-3 justify-between">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h2 className="text-xl font-bold flex items-center gap-1.5">📄 거래명세서</h2>
-          <div className="flex flex-wrap gap-1">
-            {DATE_PRESETS.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => setDatePreset(p.key)}
-                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all border"
-                style={{
-                  background: datePreset === p.key ? 'var(--primary)' : 'var(--card)',
-                  color: datePreset === p.key ? 'var(--primary-foreground)' : 'var(--foreground)',
-                  borderColor: datePreset === p.key ? 'var(--primary)' : 'var(--border)',
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
-            {datePreset === 'custom' && (
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="px-2 py-1 rounded-md border border-[var(--border)] bg-[var(--card)] text-[11px]"
-                style={{ fontSize: '14px' }}
-              />
+      {/* ─── 상단 헤더 바: 제목 + 날짜 칩 + 액션 (sticky + 접기/펴기) ─── */}
+      <div
+        className="no-print sticky top-0 z-30 -mx-2 px-2 py-3 mb-4 bg-[var(--background)]/95 backdrop-blur border-b border-[var(--border)]"
+      >
+        <div className="flex flex-wrap items-center gap-3 justify-between">
+          <div className="flex items-center gap-3 flex-wrap min-w-0">
+            {/* 접기/펴기 토글 */}
+            <button
+              onClick={() => setHeaderCollapsed((v) => !v)}
+              title={headerCollapsed ? '헤더 펼치기' : '헤더 접기'}
+              aria-label={headerCollapsed ? '헤더 펼치기' : '헤더 접기'}
+              className="flex items-center justify-center w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--secondary)] text-[var(--foreground)] shadow-sm"
+            >
+              <span className="text-xs font-bold">{headerCollapsed ? '▼' : '▲'}</span>
+            </button>
+            <h2 className="text-2xl font-bold flex items-center gap-2">📄 거래명세서</h2>
+
+            {/* 접혔을 때: 현재 상태 요약만 표시 */}
+            {headerCollapsed && (
+              <div className="flex items-center gap-2 text-[13px] text-[var(--muted-foreground)]">
+                <span className="px-2.5 py-1 rounded-md bg-[var(--secondary)] font-semibold text-[var(--foreground)]">
+                  {dateRange.label}
+                </span>
+                {!isAllCustomers && (
+                  <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                    {selectedCustomerIds.size}개 업체
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* 펼쳤을 때: 날짜 프리셋 + 업체 칩 전체 노출 */}
+            {!headerCollapsed && (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {DATE_PRESETS.map((p) => (
+                    <button
+                      key={p.key}
+                      onClick={() => setDatePreset(p.key)}
+                      className="px-3 py-1.5 rounded-md text-[13px] font-semibold transition-all border"
+                      style={{
+                        background: datePreset === p.key ? 'var(--primary)' : 'var(--card)',
+                        color: datePreset === p.key ? 'var(--primary-foreground)' : 'var(--foreground)',
+                        borderColor: datePreset === p.key ? 'var(--primary)' : 'var(--border)',
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  {datePreset === 'custom' && (
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="px-2 py-1 rounded-md border border-[var(--border)] bg-[var(--card)]"
+                      style={{ fontSize: '14px' }}
+                    />
+                  )}
+                </div>
+                {!isAllCustomers && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {[...selectedCustomerIds].slice(0, 3).map((cid) => {
+                      const cust = customers.find((c) => String(c.id) === cid);
+                      const name = cust?.name || `#${cid}`;
+                      return (
+                        <button
+                          key={cid}
+                          onClick={() => toggleCustomer(cid)}
+                          className="px-3 py-1.5 rounded-md text-[13px] font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1.5"
+                        >
+                          <span>{name}</span>
+                          <XIcon className="w-3.5 h-3.5" />
+                        </button>
+                      );
+                    })}
+                    {selectedCustomerIds.size > 3 && (
+                      <span className="px-3 py-1.5 rounded-md text-[13px] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                        외 {selectedCustomerIds.size - 3}개
+                      </span>
+                    )}
+                    <button
+                      onClick={clearAllCustomers}
+                      className="px-2 py-1 rounded-md text-[11px] font-medium text-gray-500 hover:text-red-600 underline"
+                    >
+                      전체 해제
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
-          {customerId !== 'all' && (
-            <button
-              onClick={() => { setCustomerId('all'); setCustomerSearch(''); }}
-              className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1"
-            >
-              <span>{customerName(customerId)}</span>
-              <XIcon className="w-3 h-3" />
+
+          {/* 액션 버튼은 항상 노출 (스크롤 중에도 바로 사용) */}
+          <div className="flex gap-2 flex-shrink-0">
+            <button onClick={handlePng} className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-bold bg-[var(--primary)] text-white hover:brightness-110 shadow-sm">
+              <Download className="w-4 h-4" />PNG
             </button>
-          )}
-        </div>
-        <div className="flex gap-1.5">
-          <button onClick={handlePng} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold bg-[var(--primary)] text-white hover:brightness-110 shadow-sm">
-            <Download className="w-3.5 h-3.5" />PNG
-          </button>
-          <button onClick={handlePrint} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--secondary)]">
-            <Printer className="w-3.5 h-3.5" />인쇄
-          </button>
-          <button onClick={handleCopy} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold bg-green-600 text-white hover:bg-green-500 shadow-sm">
-            <Copy className="w-3.5 h-3.5" />카톡
-          </button>
+            <button onClick={handlePrint} className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-bold border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--secondary)]">
+              <Printer className="w-4 h-4" />인쇄
+            </button>
+            <button onClick={handleCopy} className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-bold bg-green-600 text-white hover:bg-green-500 shadow-sm">
+              <Copy className="w-4 h-4" />카톡
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
 
       {/* ─── 좌측: 미수 업체 리스트 + 이월 선택(접힘) ─── */}
-      <aside className="space-y-3 lg:sticky lg:top-4 no-print">
-        {/* 미수 업체 리스트 (메인) */}
+      <aside className="space-y-3 lg:sticky lg:top-[88px] no-print">
+        {/* 미수 업체 리스트 (메인) — 체크한 업체 밑에 해당 업체 이월 날짜 인라인 표시 */}
         <OutstandingCustomerList
           items={filteredOutstanding}
           total={outstandingTotal}
           allCount={outstandingCustomers.length}
           search={outstandingSearch}
           onSearchChange={setOutstandingSearch}
-          selectedId={customerId}
-          onSelect={(id) => { setCustomerId(id === 'all' ? 'all' : id); setCustomerSearch(''); }}
+          selectedIds={selectedCustomerIds}
+          onToggle={toggleCustomer}
+          onClearAll={clearAllCustomers}
+          onAddToday={addTodayTradedCustomers}
+          carryoverByCustomer={carryoverByCustomer}
+          selectedCarryoverDates={selectedCarryoverDates}
+          onToggleCarryoverDate={toggleCarryoverDate}
         />
 
-        {/* 이월 미수 선택 — 접힘 드로어 */}
-        <CarryoverDateDrawer
-          byDate={carryoverByDate}
-          selectedDates={selectedCarryoverDates}
-          onToggle={toggleCarryoverDate}
-          onSelectAll={selectAllCarryoverDates}
-          onClearAll={clearCarryoverDates}
-        />
+        {/* 이월 미수 선택 — 전체 모드(업체 미선택)에서만 드로어 표시 */}
+        {isAllCustomers && (
+          <CarryoverDateDrawer
+            byDate={carryoverByDate}
+            selectedDates={selectedCarryoverDates}
+            onToggle={toggleCarryoverDate}
+            onSelectAll={selectAllCarryoverDates}
+            onClearAll={clearCarryoverDates}
+            filteredCustomerCount={0}
+          />
+        )}
       </aside>
 
       {/* ─── 우측: 전통 거래명세서 양식 ─── */}
       <section className="border border-[var(--border)] rounded-2xl overflow-hidden shadow-lg">
         <div
           ref={invoiceRef}
-          className="invoice-print bg-white text-black p-3"
+          className="invoice-print bg-white text-black p-5"
           style={{ fontFamily: '"맑은 고딕", "Malgun Gothic", system-ui, sans-serif' }}
         >
           {loading ? (
-            <p className="text-sm text-center py-10">로딩 중...</p>
+            <p className="text-base text-center py-12">로딩 중...</p>
           ) : !hasData ? (
-            <div className="text-center py-10 text-gray-600 space-y-1">
-              <p className="text-sm">표시할 명세서 데이터가 없습니다.</p>
-              <p className="text-xs">발행일 범위를 바꾸거나 좌측에서 이월 날짜를 체크해주세요.</p>
+            <div className="text-center py-12 text-gray-600 space-y-1.5">
+              <p className="text-base">표시할 명세서 데이터가 없습니다.</p>
+              <p className="text-sm">좌측에서 업체를 체크하거나 이월 날짜를 선택해주세요.</p>
             </div>
           ) : (
-            <TraditionalInvoice
-              settings={settings}
-              customerLabel={customerId === 'all' ? '전체 거래처' : `${customerName(customerId)} 귀하`}
-              issueDate={dateRange.label}
-              lines={invoiceLines}
-              totals={invoiceTotals}
-            />
+            <>
+              {/* 여러 업체 선택 시 상단 총합 요약 배너 */}
+              {showGrandSummary && (
+                <div
+                  className="rounded-lg px-5 py-4 mb-5 flex items-center justify-between"
+                  style={{ background: 'linear-gradient(135deg,#dc2626 0%,#b91c1c 100%)', color: '#fff' }}
+                >
+                  <div>
+                    <div className="text-[12px] tracking-widest font-semibold text-red-100">총 거래 요약</div>
+                    <div className="text-sm text-red-100 mt-1">
+                      {grandTotals.customerCount}개 업체 · {grandTotals.count}건 품목
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[12px] text-red-100">총 잔액</div>
+                    <div className="text-3xl font-black tabular-nums">₩ {fmt(grandTotals.grandBalance)}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* 업체별 명세서 섹션 반복 */}
+              {customerInvoices.map((inv, idx) => {
+                const hasOpenBalance = Number(inv.totals.grandBalance) > 0;
+                const hasActions = onOpenPayment || onOpenBulkPay || onOpenCustomerDetail;
+                return (
+                  <div key={inv.id} className={idx > 0 ? 'mt-8 pt-8' : ''} style={idx > 0 ? { borderTop: '2px dashed #e5e7eb' } : {}}>
+                    {/* 업체별 액션 바 — 입금 등록/일괄 입금/업체 상세 (명세서 페이지 위에서 바로 처리) */}
+                    {hasActions && inv.id && !String(inv.id).startsWith('unknown') && (
+                      <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                        <div className="text-[13px] text-gray-600">
+                          <span className="font-semibold text-gray-800">{inv.name}</span>
+                          {hasOpenBalance && (
+                            <span className="ml-2 text-red-600 font-bold tabular-nums">잔액 {fmt(inv.totals.grandBalance)}원</span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {onOpenPayment && hasOpenBalance && (
+                            <button
+                              onClick={() => onOpenPayment(inv.id, null)}
+                              className="px-3 py-1.5 rounded-md text-[12px] font-bold bg-green-600 text-white hover:bg-green-500 shadow-sm flex items-center gap-1"
+                              title="이 업체에 단일 건 입금 등록"
+                            >
+                              💵 입금 등록
+                            </button>
+                          )}
+                          {onOpenBulkPay && hasOpenBalance && (
+                            <button
+                              onClick={() => onOpenBulkPay(inv.id)}
+                              className="px-3 py-1.5 rounded-md text-[12px] font-bold bg-emerald-700 text-white hover:bg-emerald-600 shadow-sm flex items-center gap-1"
+                              title="미수 전체에 일괄 입금 (오래된 순으로 자동 배분)"
+                            >
+                              💰 일괄 입금
+                            </button>
+                          )}
+                          {onOpenCustomerDetail && (
+                            <button
+                              onClick={() => onOpenCustomerDetail(inv.id)}
+                              className="px-3 py-1.5 rounded-md text-[12px] font-bold border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--secondary)] flex items-center gap-1"
+                              title="업체 상세 보기 (주문·결제 이력)"
+                            >
+                              👁 업체 상세
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <TraditionalInvoice
+                      settings={settings}
+                      customerLabel={`${inv.name} 귀하`}
+                      issueDate={dateRange.label}
+                      lines={inv.lines}
+                      totals={inv.totals}
+                      compact={showGrandSummary}
+                      onEditLine={openLineEditor}
+                      onDeleteLine={deleteLine}
+                    />
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
       </section>
@@ -494,89 +766,252 @@ export default function InvoicesPage({ customers }) {
           {toast}
         </div>
       )}
+
+      {/* 명세서 행 편집 모달 — 수량/단가(VAT포함) 수동 조정 */}
+      {editingLine && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 no-print"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setEditingLine(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border-2 border-amber-500 bg-[var(--card)] shadow-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black flex items-center gap-2">✏️ 품목 수정</h3>
+              <button onClick={() => setEditingLine(null)} className="w-8 h-8 rounded-md hover:bg-[var(--secondary)]">✕</button>
+            </div>
+            <p className="text-[12px] text-[var(--muted-foreground)] mb-4 p-2 rounded bg-amber-50 border border-amber-200">
+              💡 원본 주문 데이터는 그대로 두고, 이 명세서에만 적용되는 조정값을 저장합니다.
+              잘못 저장된 주문(환불 반영 등) 또는 일시적 수정에 사용하세요.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-bold mb-1.5">품목명</label>
+                <input
+                  value={editingLine.name}
+                  onChange={(e) => setEditingLine((p) => ({ ...p, name: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-lg border-2 border-[var(--border)] bg-[var(--background)]"
+                  style={{ fontSize: '16px' }}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-bold mb-1.5">수량</label>
+                  <input
+                    inputMode="numeric"
+                    value={editingLine.qty}
+                    onChange={(e) => setEditingLine((p) => ({ ...p, qty: e.target.value.replace(/[^0-9]/g, '') }))}
+                    className="w-full px-3 py-2.5 rounded-lg border-2 border-[var(--border)] bg-[var(--background)] text-right font-bold"
+                    style={{ fontSize: '16px' }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1.5">단가 (VAT포함)</label>
+                  <div className="relative">
+                    <input
+                      inputMode="numeric"
+                      value={editingLine.unitWithVat ? Number(editingLine.unitWithVat).toLocaleString('ko-KR') : ''}
+                      onChange={(e) => setEditingLine((p) => ({ ...p, unitWithVat: e.target.value.replace(/[^0-9]/g, '') }))}
+                      className="w-full px-3 py-2.5 pr-8 rounded-lg border-2 border-[var(--border)] bg-[var(--background)] text-right font-bold"
+                      placeholder="0"
+                      style={{ fontSize: '16px' }}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted-foreground)]">원</span>
+                  </div>
+                </div>
+              </div>
+              {/* 자동 계산 미리보기 */}
+              {Number(editingLine.qty) > 0 && Number(editingLine.unitWithVat) > 0 && (
+                <div className="p-3 rounded-lg bg-[var(--secondary)] text-center">
+                  <div className="text-[11px] text-[var(--muted-foreground)] mb-0.5">합계 (VAT포함)</div>
+                  <div className="text-xl font-black tabular-nums">
+                    {fmt(Number(editingLine.qty) * Number(editingLine.unitWithVat))}<span className="text-sm ml-1">원</span>
+                  </div>
+                  <div className="text-[10px] text-[var(--muted-foreground)] mt-1">
+                    공급가 {fmt(Math.round(Number(editingLine.qty) * Number(editingLine.unitWithVat) / 1.1))}원 · 세액 {fmt(Number(editingLine.qty) * Number(editingLine.unitWithVat) - Math.round(Number(editingLine.qty) * Number(editingLine.unitWithVat) / 1.1))}원
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => resetLineOverride(editingLine.key)}
+                className="px-3 py-2.5 rounded-lg text-sm font-bold border-2 border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)] hover:bg-[var(--background)]"
+                title="원본 주문 값으로 복원"
+              >
+                ↺ 원본
+              </button>
+              <button
+                onClick={() => setEditingLine(null)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-bold border-2 border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)]"
+              >
+                취소
+              </button>
+              <button
+                onClick={saveLineEdit}
+                className="flex-[2] py-2.5 rounded-lg text-sm font-black text-white bg-amber-600 hover:bg-amber-500 shadow-md"
+              >
+                💾 수정 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────
-// 좌측 사이드바: 미수 업체 리스트 (한 번에 보고 클릭)
+// 좌측 사이드바: 미수 업체 리스트 (다중 선택 체크박스)
 // ─────────────────────────────────────────────
-function OutstandingCustomerList({ items, total, allCount, search, onSearchChange, selectedId, onSelect }) {
+function OutstandingCustomerList({
+  items, total, allCount, search, onSearchChange,
+  selectedIds, onToggle, onClearAll, onAddToday,
+  carryoverByCustomer, selectedCarryoverDates, onToggleCarryoverDate,
+}) {
   if (allCount === 0) return null;
+  const isAll = selectedIds.size === 0;
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm overflow-hidden">
-      <div className="px-3 py-2.5 flex items-center justify-between border-b border-[var(--border)] bg-gradient-to-r from-red-50 to-orange-50">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">🏢 미수 업체</span>
-          <span className="text-[9px] text-red-500">{allCount}개</span>
+      <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)] bg-gradient-to-r from-red-50 to-orange-50">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[13px] font-bold uppercase tracking-wider text-red-700">🏢 미수 업체</span>
+          <span className="text-[11px] text-red-500">{allCount}개</span>
         </div>
-        <span className="text-[11px] font-black tabular-nums text-red-600">{fmt(total)}원</span>
+        <span className="text-[14px] font-black tabular-nums text-red-600">{fmt(total)}원</span>
       </div>
 
-      <div className="px-2 pt-2">
+      <div className="px-3 pt-3">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
           <input
             type="text"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="업체 빠른 찾기"
-            className="w-full pl-7 pr-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] text-xs"
-            style={{ fontSize: '14px' }}
+            className="w-full pl-8 pr-2 py-2 rounded-md border border-[var(--border)] bg-[var(--card)]"
+            style={{ fontSize: '15px' }}
           />
         </div>
       </div>
 
-      <div className="p-1 max-h-80 overflow-y-auto space-y-0.5">
-        {/* 전체 보기 옵션 */}
+      {/* 빠른 액션 버튼 */}
+      <div className="px-3 pt-2 pb-1 flex gap-1.5">
         <button
-          onClick={() => onSelect('all')}
-          className="w-full px-2 py-1.5 rounded-md text-left flex items-center gap-2 transition-colors hover:bg-[var(--secondary)]"
-          style={{
-            background: selectedId === 'all' ? 'color-mix(in srgb, var(--primary) 10%, transparent)' : 'transparent',
-            borderLeft: selectedId === 'all' ? '3px solid var(--primary)' : '3px solid transparent',
-          }}
+          onClick={onAddToday}
+          className="flex-1 px-2.5 py-1.5 rounded-md text-[12px] font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
         >
-          <span className="text-base">🌐</span>
-          <span className="flex-1 text-[11px] font-bold">전체 업체 보기</span>
-          {selectedId === 'all' && <span className="text-[9px] text-[var(--primary)] font-bold">현재</span>}
+          📅 오늘 거래 추가
         </button>
+        {!isAll && (
+          <button
+            onClick={onClearAll}
+            className="px-2.5 py-1.5 rounded-md text-[12px] font-bold bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100"
+          >
+            전체 해제
+          </button>
+        )}
+      </div>
 
+      {/* 선택 상태 안내 */}
+      <div className="px-3 pb-1.5 text-[12px] text-[var(--muted-foreground)]">
+        {isAll
+          ? '체크하지 않으면 전체 업체가 합산 표시됩니다'
+          : `${selectedIds.size}개 업체 선택됨 — 체크한 업체만 명세서 발행`}
+      </div>
+
+      <div className="p-1.5 max-h-[640px] overflow-y-auto space-y-1">
         {items.length === 0 ? (
           <p className="px-3 py-4 text-[10px] text-center text-[var(--muted-foreground)]">일치하는 업체 없음</p>
         ) : (
           items.map((c) => {
-            const selected = String(selectedId) === String(c.id);
+            const cidKey = c.id ? String(c.id) : '';
+            const checked = cidKey && selectedIds.has(cidKey);
+            const custCarryDates = checked && carryoverByCustomer ? (carryoverByCustomer.get(cidKey) || []) : [];
             return (
-              <button
-                key={c.id || c.name}
-                onClick={() => c.id && onSelect(c.id)}
-                disabled={!c.id}
-                className="w-full px-2 py-1.5 rounded-md text-left transition-colors hover:bg-[var(--secondary)] disabled:opacity-60 disabled:cursor-not-allowed"
-                style={{
-                  background: selected ? 'color-mix(in srgb, #dc2626 12%, transparent)' : 'transparent',
-                  borderLeft: selected ? '3px solid #dc2626' : '3px solid transparent',
-                }}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-semibold break-keep flex items-center gap-1">
-                      {c.name}
-                      {c.unregistered && (
-                        <span className="text-[8px] px-1 rounded bg-gray-200 text-gray-600 font-normal">미등록</span>
-                      )}
+              <div key={c.id || c.name}>
+                <label
+                  className={`flex items-center gap-2.5 px-2.5 py-2.5 rounded-md transition-colors cursor-pointer ${c.id ? 'hover:bg-[var(--secondary)]' : 'opacity-60 cursor-not-allowed'}`}
+                  style={{
+                    background: checked ? 'color-mix(in srgb, #dc2626 12%, transparent)' : 'transparent',
+                    borderLeft: checked ? '4px solid #dc2626' : '4px solid transparent',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked || false}
+                    onChange={() => c.id && onToggle(c.id)}
+                    disabled={!c.id}
+                    className="w-4 h-4 accent-red-600 cursor-pointer flex-shrink-0"
+                  />
+                  <div className="flex items-center justify-between gap-2 flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[14px] font-semibold break-keep flex items-center gap-1.5">
+                        {c.name}
+                        {c.unregistered && (
+                          <span className="text-[10px] px-1.5 rounded bg-gray-200 text-gray-600 font-normal">미등록</span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-[var(--muted-foreground)] flex gap-2 mt-0.5">
+                        <span>{c.count}건</span>
+                        {c.lastDate && <span>최근 {c.lastDate.slice(5)}</span>}
+                      </div>
                     </div>
-                    <div className="text-[9px] text-[var(--muted-foreground)] flex gap-2 mt-0.5">
-                      <span>{c.count}건</span>
-                      {c.lastDate && <span>최근 {c.lastDate.slice(5)}</span>}
-                    </div>
+                    <span className="text-[14px] font-bold tabular-nums text-red-600 flex-shrink-0 whitespace-nowrap">
+                      {fmt(c.balance)}
+                    </span>
                   </div>
-                  <span className="text-[11px] font-bold tabular-nums text-red-600 flex-shrink-0 whitespace-nowrap">
-                    {fmt(c.balance)}
-                  </span>
-                </div>
-              </button>
+                </label>
+
+                {/* 체크한 업체 바로 밑에 이월 날짜 인라인 리스트 */}
+                {checked && custCarryDates.length > 0 && (
+                  <div className="ml-7 mr-2 mb-2 mt-1 p-2 rounded-md bg-red-50/60 border border-red-100 space-y-0.5">
+                    <div className="flex items-center justify-between px-1.5 py-1 border-b border-red-100">
+                      <span className="text-[12px] font-bold text-red-700">
+                        📅 이월 미수 {custCarryDates.length}일
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const allOn = custCarryDates.every((d) => selectedCarryoverDates?.has(d.date));
+                          custCarryDates.forEach((d) => {
+                            const isOn = selectedCarryoverDates?.has(d.date);
+                            if (allOn && isOn) onToggleCarryoverDate?.(d.date);
+                            else if (!allOn && !isOn) onToggleCarryoverDate?.(d.date);
+                          });
+                        }}
+                        className="text-[12px] font-bold text-red-700 hover:underline"
+                      >
+                        {custCarryDates.every((d) => selectedCarryoverDates?.has(d.date)) ? '전체 해제' : '전체 선택'}
+                      </button>
+                    </div>
+                    {custCarryDates.map(({ date, count, total: dTotal }) => {
+                      const dateChecked = selectedCarryoverDates?.has(date);
+                      return (
+                        <label
+                          key={date}
+                          className="flex items-center gap-2 px-1.5 py-1.5 rounded cursor-pointer hover:bg-red-100/60"
+                          style={{ background: dateChecked ? 'rgba(254, 202, 202, 0.5)' : 'transparent' }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={dateChecked || false}
+                            onChange={() => onToggleCarryoverDate?.(date)}
+                            className="w-4 h-4 accent-red-600 cursor-pointer flex-shrink-0"
+                          />
+                          <span className="text-[13px] font-semibold tabular-nums">{date}</span>
+                          <span className="text-[11px] text-gray-500">· {count}건</span>
+                          <span className="ml-auto text-[13px] font-bold text-red-600 tabular-nums">{fmt(dTotal)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })
         )}
@@ -588,9 +1023,19 @@ function OutstandingCustomerList({ items, total, allCount, search, onSearchChang
 // ─────────────────────────────────────────────
 // 이월 미수 날짜 선택 — 접힘 드로어 (기본 접혀있음)
 // ─────────────────────────────────────────────
-function CarryoverDateDrawer({ byDate, selectedDates, onToggle, onSelectAll, onClearAll }) {
+function CarryoverDateDrawer({ byDate, selectedDates, onToggle, onSelectAll, onClearAll, filteredCustomerCount = 0 }) {
   const [open, setOpen] = useState(false);
-  if (!byDate.length) return null;
+  const isFiltered = filteredCustomerCount > 0;
+  if (!byDate.length) {
+    if (!isFiltered) return null;
+    return (
+      <div className="rounded-2xl border bg-gray-50 px-3 py-2 text-center" style={{ borderColor: 'var(--border)' }}>
+        <span className="text-[10px] text-gray-500">
+          선택한 {filteredCustomerCount}개 업체는 이월 미수가 없습니다
+        </span>
+      </div>
+    );
+  }
   const allSelected = selectedDates.size === byDate.length;
   const totalBalance = byDate.reduce((s, d) => s + d.total, 0);
   const selectedBalance = byDate
@@ -606,7 +1051,9 @@ function CarryoverDateDrawer({ byDate, selectedDates, onToggle, onSelectAll, onC
       >
         <span className="flex items-center gap-1.5">
           <span className="text-sm">📅</span>
-          <span className="text-[11px] font-bold text-red-700">이월 날짜 포함</span>
+          <span className="text-[11px] font-bold text-red-700">
+            이월 날짜 포함{isFiltered ? ` · 선택 업체` : ''}
+          </span>
           <span className="text-[9px] text-red-500 font-medium">
             {selectedDates.size > 0 ? `${selectedDates.size}일 선택` : `${byDate.length}일 있음`}
           </span>
@@ -661,105 +1108,153 @@ function CarryoverDateDrawer({ byDate, selectedDates, onToggle, onSelectAll, onC
 // ─────────────────────────────────────────────
 // 거래명세서 양식 — 모던/미니멀 (A4 + 카톡 친화)
 // ─────────────────────────────────────────────
-function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals }) {
+function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals, compact = false, onEditLine, onDeleteLine }) {
   return (
-    <div className="text-[11px] text-gray-800" style={{ fontFamily: '"맑은 고딕","Malgun Gothic",system-ui,sans-serif' }}>
-      {/* ─── 상단 헤더 — 브랜드 + 제목 ─── */}
-      <header className="flex items-end justify-between pb-3 mb-4" style={{ borderBottom: '3px solid #1f2937' }}>
-        <div>
-          <div className="text-2xl font-black tracking-tight" style={{ letterSpacing: '-0.02em' }}>
-            {settings?.company_name || 'MOVE MOTORS'}
+    <div className="text-[13px] text-gray-800" style={{ fontFamily: '"맑은 고딕","Malgun Gothic",system-ui,sans-serif' }}>
+      {!compact && (
+        <>
+          {/* ─── 상단 헤더 — 브랜드 + 제목 ─── */}
+          <header className="flex items-end justify-between pb-4 mb-5" style={{ borderBottom: '3px solid #1f2937' }}>
+            <div>
+              <div className="text-3xl font-black tracking-tight" style={{ letterSpacing: '-0.02em' }}>
+                {settings?.company_name || 'MOVE MOTORS'}
+              </div>
+              <div className="text-[12px] text-gray-500 mt-1">
+                {settings?.business_item || '자동차용품 및 부속'}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold tracking-widest text-gray-700">거래명세서</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Transaction Statement</div>
+            </div>
+          </header>
+
+          {/* ─── 공급자 / 공급받는자 카드 2단 ─── */}
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <InfoCard title="공급자" accent="#1f2937">
+              <InfoRow label="상호" value={settings?.company_name || 'MOVE MOTORS'} />
+              <InfoRow label="등록번호" value={settings?.business_number || '-'} mono />
+              {settings?.representative_name && <InfoRow label="대표자" value={settings.representative_name} />}
+              {settings?.company_phone && <InfoRow label="전화" value={settings.company_phone} mono />}
+              {settings?.company_address && <InfoRow label="주소" value={settings.company_address} />}
+              <InfoRow label="업태 / 종목" value={`${settings?.business_type || '도소매'} / ${settings?.business_item || '자동차용품 및 부속'}`} />
+            </InfoCard>
+
+            <InfoCard title="공급받는자" accent="#dc2626">
+              <InfoRow label="거래처" value={customerLabel} bold />
+              <InfoRow label="발행일" value={issueDate} mono />
+              <InfoRow label="품목 수" value={`${totals.count}건`} mono />
+            </InfoCard>
           </div>
-          <div className="text-[10px] text-gray-500 mt-0.5">
-            {settings?.business_item || '자동차용품 및 부속'}
+        </>
+      )}
+
+      {/* compact 모드: 간단한 업체명 배너만 */}
+      {compact && (
+        <div className="mb-4 pb-3 flex items-center justify-between" style={{ borderBottom: '2px solid #dc2626' }}>
+          <div>
+            <div className="text-xl font-bold text-red-700">🏢 {customerLabel}</div>
+            <div className="text-[12px] text-gray-500 mt-1">{issueDate} · {totals.count}건</div>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-xl font-bold tracking-widest text-gray-700">거래명세서</div>
-          <div className="text-[9px] text-gray-500 mt-0.5">Transaction Statement</div>
-        </div>
-      </header>
-
-      {/* ─── 공급자 / 공급받는자 카드 2단 ─── */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <InfoCard title="공급자" accent="#1f2937">
-          <InfoRow label="상호" value={settings?.company_name || 'MOVE MOTORS'} />
-          <InfoRow label="등록번호" value={settings?.business_number || '-'} mono />
-          {settings?.representative_name && <InfoRow label="대표자" value={settings.representative_name} />}
-          {settings?.company_phone && <InfoRow label="전화" value={settings.company_phone} mono />}
-          {settings?.company_address && <InfoRow label="주소" value={settings.company_address} />}
-          <InfoRow label="업태 / 종목" value={`${settings?.business_type || '도소매'} / ${settings?.business_item || '자동차용품 및 부속'}`} />
-        </InfoCard>
-
-        <InfoCard title="공급받는자" accent="#dc2626">
-          <InfoRow label="거래처" value={customerLabel} bold />
-          <InfoRow label="발행일" value={issueDate} mono />
-          <InfoRow label="품목 수" value={`${totals.count}건`} mono />
-        </InfoCard>
-      </div>
+      )}
 
       {/* ─── 합계금액 대형 배너 ─── */}
       <div
-        className="rounded-lg px-4 py-3 mb-4 flex items-center justify-between"
+        className="rounded-lg px-5 py-4 mb-5 flex items-center justify-between"
         style={{
           background: 'linear-gradient(135deg,#1f2937 0%,#374151 100%)',
           color: '#fff',
         }}
       >
-        <span className="text-xs tracking-widest font-semibold text-gray-300">합 계 금 액</span>
-        <span className="text-2xl font-black tabular-nums" style={{ letterSpacing: '-0.02em' }}>
+        <span className="text-sm tracking-widest font-semibold text-gray-300">합 계 금 액</span>
+        <span className="text-3xl font-black tabular-nums" style={{ letterSpacing: '-0.02em' }}>
           ₩ {fmt(totals.sum)}
         </span>
       </div>
 
       {/* ─── 품목 테이블 ─── */}
-      <div className="rounded-lg overflow-hidden border border-gray-300 mb-4">
-        <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: '11px' }}>
+      <div className="rounded-lg overflow-hidden border border-gray-300 mb-5">
+        <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: '14px' }}>
           <colgroup>
             <col style={{ width: '8%' }} />
-            <col style={{ width: '44%' }} />
+            <col style={{ width: '40%' }} />
             <col style={{ width: '7%' }} />
             <col style={{ width: '13%' }} />
-            <col style={{ width: '14%' }} />
-            <col style={{ width: '14%' }} />
+            <col style={{ width: '13%' }} />
+            <col style={{ width: '13%' }} />
+            <col style={{ width: '6%' }} className="no-print" />
           </colgroup>
           <thead>
             <tr className="bg-gray-100 text-gray-700">
-              <th className="px-2 py-2 text-center font-semibold">일자</th>
-              <th className="px-2 py-2 text-left font-semibold">품목</th>
-              <th className="px-2 py-2 text-right font-semibold">수량</th>
-              <th className="px-2 py-2 text-right font-semibold">단가</th>
-              <th className="px-2 py-2 text-right font-semibold">공급가</th>
-              <th className="px-2 py-2 text-right font-semibold">세액</th>
+              <th className="px-3 py-3 text-center font-semibold">일자</th>
+              <th className="px-3 py-3 text-left font-semibold">품목</th>
+              <th className="px-3 py-3 text-right font-semibold">수량</th>
+              <th className="px-3 py-3 text-right font-semibold">단가</th>
+              <th className="px-3 py-3 text-right font-semibold">공급가</th>
+              <th className="px-3 py-3 text-right font-semibold">세액</th>
+              <th className="px-2 py-3 text-center font-semibold text-[11px] no-print">수정</th>
             </tr>
           </thead>
           <tbody>
             {lines.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-2 py-8 text-center text-gray-400 italic">
+                <td colSpan={7} className="px-3 py-10 text-center text-gray-400 italic">
                   선택된 품목이 없습니다
                 </td>
               </tr>
-            ) : lines.map((l, i) => (
-              <tr key={i} className={i % 2 ? 'bg-gray-50' : 'bg-white'} style={{ borderTop: '1px solid #e5e7eb' }}>
-                <td className="px-2 py-1.5 text-center tabular-nums text-gray-600 whitespace-nowrap">{fmtMMDD(l.date)}</td>
-                <td className="px-2 py-1.5 break-words leading-snug">
-                  <span className="font-medium">{l.name}</span>
-                  {l.code && <span className="ml-1 text-[9px] text-gray-400">#{l.code}</span>}
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-nums">{l.qty}</td>
-                <td className="px-2 py-1.5 text-right tabular-nums text-gray-700">{fmt(l.unitPrice)}</td>
-                <td className="px-2 py-1.5 text-right tabular-nums font-semibold">{fmt(l.supply)}</td>
-                <td className="px-2 py-1.5 text-right tabular-nums text-orange-700">{fmt(l.vat)}</td>
-              </tr>
-            ))}
+            ) : lines.map((l, i) => {
+              const zeroLine = Number(l.unitPrice) === 0 && Number(l.qty) > 0;
+              const bg = l.edited
+                ? 'bg-amber-50'
+                : zeroLine
+                  ? 'bg-red-50/60'
+                  : (i % 2 ? 'bg-gray-50' : 'bg-white');
+              return (
+                <tr key={l.key || i} className={bg} style={{ borderTop: '1px solid #e5e7eb' }}>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-gray-600 whitespace-nowrap">{fmtMMDD(l.date)}</td>
+                  <td className="px-3 py-2.5 break-words leading-snug">
+                    <span className="font-medium">{l.name}</span>
+                    {l.code && <span className="ml-1.5 text-[11px] text-gray-400">#{l.code}</span>}
+                    {l.edited && <span className="ml-1.5 text-[10px] text-amber-700 font-bold">✏️ 수정됨</span>}
+                    {!l.edited && zeroLine && <span className="ml-1.5 text-[10px] text-red-600 font-bold">⚠️ 단가 0원</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{l.qty}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">{fmt(l.unitPrice)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{fmt(l.supply)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-orange-700">{fmt(l.vat)}</td>
+                  <td className="px-1 py-1 text-center no-print">
+                    {onEditLine && (
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => onEditLine(l)}
+                          className="px-1.5 py-1 rounded text-[11px] font-bold bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                          title="이 행의 수량/단가 수정"
+                        >
+                          ✏️
+                        </button>
+                        {onDeleteLine && (
+                          <button
+                            onClick={() => onDeleteLine(l.key)}
+                            className="px-1.5 py-1 rounded text-[11px] font-bold bg-gray-200 text-gray-600 hover:bg-red-100 hover:text-red-600"
+                            title="이 품목을 명세서에서 제외"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {/* ─── 하단 집계 ─── */}
-      <div className="flex justify-end mb-4">
-        <div className="w-full sm:w-[55%] space-y-1">
+      <div className="flex justify-end mb-5">
+        <div className="w-full sm:w-[55%] space-y-1.5">
           {totals.prevBalance > 0 && (
             <SumRow label="전잔금 (미선택 이월)" value={totals.prevBalance} muted />
           )}
@@ -772,11 +1267,11 @@ function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals 
           )}
           <SumRow label="입금액" value={-totals.totalPaid} accent="text-green-700" showSign />
           <div
-            className="rounded-md px-3 py-2 mt-1 flex items-center justify-between"
+            className="rounded-md px-4 py-3 mt-2 flex items-center justify-between"
             style={{ background: '#fef2f2', border: '1.5px solid #fecaca' }}
           >
-            <span className="text-xs font-bold text-red-700">총 잔 액</span>
-            <span className="text-xl font-black tabular-nums text-red-700">
+            <span className="text-sm font-bold text-red-700">총 잔 액</span>
+            <span className="text-2xl font-black tabular-nums text-red-700">
               ₩ {fmt(totals.grandBalance)}
             </span>
           </div>
@@ -786,17 +1281,17 @@ function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals 
       {/* ─── 푸터 — 계좌 + 안내 ─── */}
       {(settings?.bank_account || settings?.invoice_footer) && (
         <div
-          className="rounded-lg px-3 py-2.5 text-[10px] text-gray-700 space-y-1"
+          className="rounded-lg px-4 py-3 text-[12px] text-gray-700 space-y-1.5"
           style={{ background: '#f9fafb', border: '1px dashed #d1d5db' }}
         >
           {settings?.bank_account && (
-            <div className="flex gap-1.5 items-start">
+            <div className="flex gap-2 items-start">
               <span className="font-bold text-gray-900 flex-shrink-0">💳 입금계좌</span>
               <span className="break-keep">{settings.bank_account}</span>
             </div>
           )}
           {settings?.invoice_footer && (
-            <div className="flex gap-1.5 items-start">
+            <div className="flex gap-2 items-start">
               <span className="font-bold text-gray-900 flex-shrink-0">📝 안내</span>
               <span className="break-keep">{settings.invoice_footer}</span>
             </div>
@@ -804,8 +1299,8 @@ function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals 
         </div>
       )}
 
-      {/* 인수자 사인란 — 작게 */}
-      <div className="mt-3 pt-2 flex justify-end gap-6 text-[10px] text-gray-500" style={{ borderTop: '1px solid #e5e7eb' }}>
+      {/* 인수자 사인란 */}
+      <div className="mt-4 pt-3 flex justify-end gap-6 text-[12px] text-gray-500" style={{ borderTop: '1px solid #e5e7eb' }}>
         <span>인수자: ______________________</span>
       </div>
     </div>
@@ -816,20 +1311,20 @@ function InfoCard({ title, accent, children }) {
   return (
     <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${accent}20` }}>
       <div
-        className="px-3 py-1.5 text-[10px] font-bold tracking-wider"
+        className="px-3.5 py-2 text-[12px] font-bold tracking-wider"
         style={{ background: accent, color: '#fff' }}
       >
         {title}
       </div>
-      <div className="p-2.5 space-y-1 bg-white">{children}</div>
+      <div className="p-3 space-y-1.5 bg-white">{children}</div>
     </div>
   );
 }
 
 function InfoRow({ label, value, mono, bold }) {
   return (
-    <div className="flex gap-2 text-[10px] leading-snug">
-      <span className="text-gray-500 flex-shrink-0 w-16">{label}</span>
+    <div className="flex gap-2.5 text-[13px] leading-snug">
+      <span className="text-gray-500 flex-shrink-0 w-20">{label}</span>
       <span
         className={`flex-1 break-keep ${mono ? 'tabular-nums' : ''} ${bold ? 'font-bold text-gray-900' : 'text-gray-800'}`}
       >
@@ -842,10 +1337,10 @@ function InfoRow({ label, value, mono, bold }) {
 function SumRow({ label, value, bold, muted, accent, showSign }) {
   const display = showSign && value < 0 ? `- ${fmt(-value)}` : fmt(value);
   return (
-    <div className="flex justify-between items-center text-[11px]">
+    <div className="flex justify-between items-center text-[13px]">
       <span className={muted ? 'text-gray-500' : 'text-gray-700'}>{label}</span>
       <span
-        className={`tabular-nums ${bold ? 'font-bold text-gray-900 text-sm' : ''} ${accent || ''} ${muted ? 'text-gray-500' : ''}`}
+        className={`tabular-nums ${bold ? 'font-bold text-gray-900 text-base' : ''} ${accent || ''} ${muted ? 'text-gray-500' : ''}`}
       >
         {display}원
       </span>

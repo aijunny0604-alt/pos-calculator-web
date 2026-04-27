@@ -45,6 +45,79 @@
 
 ---
 
+### 2026-04-23 작업 내역 (2차 라운드)
+
+#### Phase 9: Cross-navigation + 입금 모달 리디자인 + 데이터 품질 가드
+
+**1. 명세서 UX 강화 (InvoicesPage.jsx)**
+- **업체별 이월 날짜 인라인**: 좌측 업체 체크 시 그 업체 바로 아래에 해당 업체의 이월 미수 날짜가 펼쳐짐. 기존 하단 통합 드로어는 업체 미선택(전체 모드)에서만 표시. 업체 선택 변경 시 선택된 이월 날짜 자동 리셋
+- **레이아웃 확대**: `max-w-7xl(1280px)` → `max-w-[1600px]`, 사이드바 `300px` → `360px`. 테이블 폰트 11px → 14px, 셀 padding 확대. 합계 배너 2xl → 3xl
+- **Sticky 헤더 + 접기/펴기**: 상단 헤더바가 스크롤 중에도 고정. ▲/▼ 토글로 접으면 제목 + 현재 날짜 + 선택 업체 수만 보임. PNG/인쇄/카톡 버튼은 접혀도 항상 노출
+- **업체별 명세서 섹션 액션 바**: 각 업체 섹션 상단에 `💵 입금 받기` / `💰 일괄 입금` / `👁 업체 상세` 3버튼 (잔액 0이면 입금 버튼 숨김)
+- **행 수동 수정 기능 (`lineOverrides` + localStorage)**: 명세서 각 품목 행 오른쪽에 `✏️ 수정` / `✕ 제외` 버튼. 편집 모달에서 품목명/수량/단가(VAT포함) 수정 → 공급가/세액 자동 재계산. 수정된 행은 노란 배경 + "✏️ 수정됨" 배지. 원본 주문 DB는 건드리지 않음 (`pos_invoice_line_overrides_v1` localStorage key)
+- **0원 행 자동 하이라이트**: 수량>0인데 단가 0원인 행은 빨간 배경 + "⚠️ 단가 0원" 배지로 즉시 식별
+
+**2. 신규 `InvoicesContainer.jsx` (Phase 9 Cross-navigation)**
+- InvoicesPage + PaymentRegisterModal + BulkPaymentModal + CustomerDetailModal 4개를 묶어 페이지 이동 없이 입금/업체상세 처리
+- 명세서 페이지에서 업체 섹션 액션 바 클릭 → 같은 자리에서 모달 팝업
+- App.jsx에 `invoicesInitialCustomerId` state + `goToInvoices(customerId)` 콜백 추가
+- `CustomerDetailModal`에 `📄 명세서 발행하기` 버튼 → `onViewInvoice` → App → `currentPage='invoices'` + 해당 업체 자동 선택
+- CustomerList → PaymentsContainer → CustomerDetailModal 체인에 `onGoToInvoices`/`onViewInvoice` prop 연결
+- Phase 9로 `docs/01-plan/features/pos-payments-integration.plan.md` 업데이트
+
+**3. 입금 등록 모달 전면 리디자인 (PaymentRegisterModal.jsx)**
+- **크기**: `max-w-md` → `max-w-2xl`, 폼 요소 대형화 (입금액 입력창 22px, 저장 버튼 대형)
+- **1/2/3 단계 숫자 뱃지**: "1) 어느 업체 → 2) 어느 건에서 정산 → 3) 얼마 받으셨나요" 흐름 명시
+- **모드 라벨 일상어**: "기존 결제에 입금" → **💰 이미 있는 미수에서** / "신규 결제 생성" → **🆕 새 건으로 등록**
+- **빠른 금액 버튼**: 잔금 전액/절반 + 프리셋 `+10만/+50만/+100만` + 초기화
+- **결제 방법**: 4-column 대형 버튼 (🏦 계좌이체 / 💵 현금 / 💳 카드 / 📋 기타) + 아이콘
+- **과세/비과세 토글 + 부가 항목**: `📊 과세 / 🏷️ 비과세` 2버튼 + `[+ 택배비] [+ 퀵비] [+ 수수료] [+ 기타]` 프리셋으로 동적 행 추가 (이름/금액 수정·삭제)
+- **💹 실시간 합계 모니터링 카드**: 받은 금액 + 부가 항목 내역 + 총 합계(저장값) 실시간. 세금 구분 표시
+- **저장 시 memo 태그 prepend**: `[비과세][택배비 5,000원][퀵비 3,000원] 원본메모` 형태로 기존 DB 스키마 건드리지 않고 기록
+- **드롭다운 라벨 개선**: 기존 `#76 · 잔 815,500원` 혼란 → `세금 T-12345 (04-15)` / `주문 #76 (04-15)` / `결제 #76` 으로 종류 + 발행일 표시
+
+**4. CustomerDetailModal 개선**
+- **StatBox 라벨 재정의**: `이월 잔금` → `받을 돈 (미수)`, `주문` → `전체 주문`, `입금 내역` → `받은 횟수` + 각 카드 하단에 "아직 못 받은 총액" 같은 힌트 1줄
+- **숫자/단위 인라인**: 세로 3단으로 쌓이던 `4,593,000 / 원 / 힌트` → `4,593,000원` 한 줄 baseline 정렬
+- **모달 확대**: `max-w-5xl` → `max-w-6xl`
+- **일괄 입금 강등**: 메인 CTA는 `💵 {업체}에서 입금 받기` / `📄 명세서 발행` 2개 (대형). 일괄 입금은 `▶ 고급: 월말 정산용 일괄 입금` `<details>` 접힘 섹션으로 이동 (사용 빈도 낮아서)
+
+**5. 데이터 품질 가드 (3단계 방어, 1단계 완료)**
+- **근본 원인 분석**: 특정 주문의 `items[].price`가 `undefined`로 저장된 사례 발견. 환불 로직은 무죄 (items 건드리지 않고 별도 `returns` 배열 사용). 실제 원인은 `MainPOS.cartWithDiscount`에서 도매 모드일 때 `item.wholesale`이 0/null이면 폴백 없이 그대로 저장됨
+- **MainPOS.addToCart 가드** (`src/pages/MainPOS.jsx`): `wholesale <= 0 && retail <= 0`이면 카트 담기 거부 + 토스트 `"가격이 0원입니다. 먼저 제품 가격을 등록해주세요"`
+- **App.saveOrder 가드** (`src/App.jsx`): 저장 직전 `items.filter(price<=0 || !Number.isFinite)` 체크 → 발견 시 `confirm()`으로 사용자 경고 후 선택적 진행
+- **formatPrice NaN-safe** (`src/lib/utils.js`): 모든 비유한수(NaN/undefined/null)를 `'0'`으로 폴백
+- **CustomerList 주문 상세 모달**: `item.price ?? item.wholesale ?? item.retail ?? 0` 폴백 체인 + 단가 누락 시 "⚠️ 단가 누락" 배지 표시
+
+**6. 기타 UI 정리**
+- **OrderDetail 헤더**: 확대/축소 + X 버튼을 한 그룹 div로 묶고 간격 `gap-0.5`로 축소 → X 바로 옆에 딱 붙음
+- **SavedCarts 상세 모달**: "도매/소비자" 배지 정렬 — h2의 `flex-1`/`flex-wrap` 제거, 배지 반투명 화이트 배경 + border로 시각적 구분. 타이틀 바로 옆에 딱 붙고 액션 버튼과 충분한 간격
+
+**변경 파일**
+| 파일 | 변경 |
+|------|------|
+| `src/pages/InvoicesPage.jsx` | 업체별 이월 인라인, sticky 헤더, lineOverrides, 업체 액션 바, props 확장 |
+| `src/pages/InvoicesContainer.jsx` | **신규** — Phase 9 Cross-navigation 컨테이너 |
+| `src/App.jsx` | `InvoicesContainer`로 전환, `invoicesInitialCustomerId` state, `goToInvoices`, saveOrder 가드 |
+| `src/pages/CustomerList.jsx` | `onGoToInvoices` prop, PaymentsContainer에 전달, 주문 상세 모달 price 폴백 + 단가 누락 배지 |
+| `src/pages/PaymentsContainer.jsx` | `onGoToInvoices` prop, CustomerDetailModal로 전달 |
+| `src/components/CustomerDetailModal.jsx` | `onViewInvoice`, 명세서 발행 CTA, 일괄 입금 details 접힘, StatBox 인라인 |
+| `src/components/PaymentRegisterModal.jsx` | 1/2/3 스텝, 과세/비과세, 부가 항목, 실시간 합계, memo 태그 prepend |
+| `src/pages/OrderDetail.jsx` | 확대/X 버튼 그룹화 |
+| `src/pages/SavedCarts.jsx` | 도매/소비자 배지 정렬 |
+| `src/pages/MainPOS.jsx` | addToCart 0원 가드 |
+| `src/lib/utils.js` | formatPrice NaN-safe |
+| `docs/01-plan/features/pos-payments-integration.plan.md` | Phase 9 섹션 추가 |
+
+**검증**: `npx vite build` 9.29~9.69s 통과 (InvoicesContainer-\*.js chunk 33kB gz 10kB 생성). Realtime 반영 로직 변경 없음 — 기존 동작 그대로.
+
+**다음 작업 후보**
+- 2단계 가드: 제품 등록/수정 폼(AdminPage 등)에서 wholesale/retail 저장 시 `> 0` 검증
+- 3단계 가드: `products.wholesale <= 0 OR NULL` 레코드 전수조사 + `orders.items[].price` 누락 탐지 스크립트
+- DB 승격: `payment_history.is_vat_exempt` / `extra_fees JSONB` 컬럼 추가 후 memo 태그 마이그레이션 (현재는 태그로 기록)
+
+---
+
 ### 2026-04-17 작업 내역
 
 #### 메모 모니터링 시스템 구현

@@ -144,6 +144,14 @@ export default function MainPOS({
     const isIncoming = product.stock_status === 'incoming';
     const isOutOfStock = baseStock === 0 && !isIncoming;
 
+    // 🛡️ 가격 0원 가드 — 도매·소매 둘 다 없거나 0이면 담기 거부
+    const ws = Number(product.wholesale) || 0;
+    const rt = Number(product.retail) || 0;
+    if (ws <= 0 && rt <= 0) {
+      showToast && showToast(`⚠️ "${product.name}" 가격이 0원입니다. 먼저 제품 가격을 등록해주세요`, 'error');
+      return;
+    }
+
     if (currentQty >= baseStock && baseStock > 0) {
       showToast && showToast(`재고 부족 (재고: ${baseStock}개) - 초과 주문`, 'warning');
     } else if (isIncoming && currentQty === 0) {
