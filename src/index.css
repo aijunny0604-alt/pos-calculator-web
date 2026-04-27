@@ -199,6 +199,18 @@ html, body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* 로딩 인디케이터는 사용자 피드백 필수 → 예외로 애니메이션 유지
+     (animate-spin: Tailwind 스피너, animate-pulse: 펄스, role/aria 표준 진행 표시) */
+  .animate-spin,
+  .animate-pulse,
+  [data-spinner],
+  [role="progressbar"],
+  [aria-busy="true"],
+  [aria-busy="true"] * {
+    animation-duration: revert !important;
+    animation-iteration-count: revert !important;
+    transition-duration: revert !important;
+  }
 }
 
 /* 키보드 포커스 인디케이터 통일 — 마우스 클릭 시엔 링 안 보임 */
