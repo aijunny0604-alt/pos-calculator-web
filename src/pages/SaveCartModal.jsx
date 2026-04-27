@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, X, Maximize2, Minimize2 } from 'lucide-react';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
-import { getTodayKST } from '@/lib/utils';
+import { getTodayKST, offsetDateKST } from '@/lib/utils';
 
 export default function SaveCartModal({
   isOpen,
@@ -217,6 +217,46 @@ export default function SaveCartModal({
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
               배송 예정일
             </label>
+            {/* 빠른 날짜 선택 버튼 */}
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {(() => {
+                const today = getTodayKST();
+                const presets = [
+                  { label: '오늘', value: today },
+                  { label: '내일', value: offsetDateKST(today, 1) },
+                  { label: '모레', value: offsetDateKST(today, 2) },
+                  { label: '+3일', value: offsetDateKST(today, 3) },
+                  { label: '+7일', value: offsetDateKST(today, 7) },
+                ];
+                return presets.map((p) => {
+                  const active = deliveryDate === p.value;
+                  return (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setDeliveryDate(p.value)}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors"
+                      style={{
+                        background: active ? 'var(--primary)' : 'var(--card)',
+                        color: active ? 'var(--primary-foreground)' : 'var(--foreground)',
+                        borderColor: active ? 'var(--primary)' : 'var(--border)',
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                });
+              })()}
+              <button
+                type="button"
+                onClick={() => setDeliveryDate('')}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:bg-[var(--accent)]"
+                style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                title="날짜 비우기"
+              >
+                ✕ 미정
+              </button>
+            </div>
             <input
               type="date"
               value={deliveryDate}
