@@ -81,29 +81,79 @@ export default function OrderHistory({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onBack, deleteConfirm, showBulkDeleteConfirm, showFilterDeleteConfirm, selectedOrders, isDetailModalOpen]);
 
-  // Date filter function
+  // 반품 처리 일자 추출 (orders.returns[i].returnedAt → KST 날짜 배열)
+  const getReturnDatesKST = (order) =>
+    (Array.isArray(order.returns) ? order.returns : [])
+      .map((r) => r?.returnedAt && toDateKST(r.returnedAt))
+      .filter(Boolean);
+
+  // Date filter — 주문일 OR 반품 처리일이 매칭되면 표시
+  // (지난 주문이 오늘 반품 처리되면 오늘 목록에 등장)
   const filterByDate = (order) => {
     if (dateFilter === 'all') return true;
     const orderDateKST = toDateKST(order.createdAt);
     const todayKST = getTodayKST();
+    const returnDatesKST = getReturnDatesKST(order);
 
-    if (dateFilter === 'today') {
-      return orderDateKST === todayKST;
-    }
-    if (dateFilter === 'yesterday') {
-      return orderDateKST === offsetDateKST(todayKST, -1);
-    }
-    if (dateFilter === 'week') {
-      return orderDateKST >= offsetDateKST(todayKST, -7);
-    }
-    if (dateFilter === 'month') {
-      return orderDateKST >= offsetMonthKST(todayKST, -1);
-    }
-    if (dateFilter === 'custom' && customDate) {
-      return orderDateKST === customDate;
-    }
+    const matchDate = (target) =>
+      orderDateKST === target || returnDatesKST.includes(target);
+    const matchRange = (from, to) =>
+      (orderDateKST >= from && orderDateKST <= to) ||
+      returnDatesKST.some((d) => d >= from && d <= to);
+
+    if (dateFilter === 'today') return matchDate(todayKST);
+    if (dateFilter === 'yesterday') return matchDate(offsetDateKST(todayKST, -1));
+    if (dateFilter === 'week') return matchRange(offsetDateKST(todayKST, -7), todayKST);
+    if (dateFilter === 'month') return matchRange(offsetMonthKST(todayKST, -1), todayKST);
+    if (dateFilter === 'custom' && customDate) return matchDate(customDate);
     return true;
   };
+
+  // 현재 필터의 "기준일자(들)" — 반품 표시/집계용
+  const filterTargetDates = (() => {
+    const todayKST = getTodayKST();
+    if (dateFilter === 'today') return [todayKST];
+    if (dateFilter === 'yesterday') return [offsetDateKST(todayKST, -1)];
+    if (dateFilter === 'custom' && customDate) return [customDate];
+    return null; // 범위 또는 all — 단일 일자 비교 무의미
+  })();
+  // 주문이 "기간 내 반품 처리됨"으로 잡혔는지 (시각적 배지용)
+  const isReturnedInFilter = (order) => {
+    const dates = getReturnDatesKST(order);
+    if (filterTargetDates) {
+      return dates.some((d) => filterTargetDates.includes(d));
+    }
+    // 범위/all일 땐 보조 정보 미제공
+    return false;
+  };
+  // 기간 내 반품 처리된 항목들의 합/건수 (returnedAt 기준)
+  const filterReturnStats = (() => {
+    const todayKST = getTodayKST();
+    const inRange = (dKst) => {
+      if (dateFilter === 'today') return dKst === todayKST;
+      if (dateFilter === 'yesterday') return dKst === offsetDateKST(todayKST, -1);
+      if (dateFilter === 'week') return dKst >= offsetDateKST(todayKST, -7) && dKst <= todayKST;
+      if (dateFilter === 'month') return dKst >= offsetMonthKST(todayKST, -1) && dKst <= todayKST;
+      if (dateFilter === 'custom' && customDate) return dKst === customDate;
+      return true; // all
+    };
+    let count = 0;
+    let total = 0;
+    for (const o of orders) {
+      const list = Array.isArray(o.returns) ? o.returns : [];
+      let hadHit = false;
+      for (const r of list) {
+        if (!r?.returnedAt) continue;
+        const dKst = toDateKST(r.returnedAt);
+        if (!inRange(dKst)) continue;
+        const amt = Number(r.total || (r.price || 0) * (r.quantity || 0) || 0);
+        total += amt;
+        hadHit = true;
+      }
+      if (hadHit) count += 1;
+    }
+    return { count, total };
+  })();
 
   const filteredOrders = orders
     .filter(filterByDate)
@@ -429,17 +479,17 @@ export default function OrderHistory({
               >
                 <p
                   className="text-xs flex items-center gap-1 mb-1"
-                  style={{ color: filteredTotalReturned > 0 || showReturnsOnly ? 'var(--warning)' : 'var(--muted-foreground)' }}
+                  style={{ color: filterReturnStats.total > 0 || showReturnsOnly ? 'var(--warning)' : 'var(--muted-foreground)' }}
                 >
                   <RotateCcw className="w-3 h-3" />
-                  반품 ({filteredReturnCount}건)
+                  반품 처리 ({filterReturnStats.count}건)
                   {showReturnsOnly && <span className="ml-1 text-[10px] font-bold">필터 ON</span>}
                 </p>
                 <p
                   className="font-bold text-base sm:text-lg truncate"
-                  style={{ color: filteredTotalReturned > 0 || showReturnsOnly ? 'var(--warning)' : 'var(--muted-foreground)' }}
+                  style={{ color: filterReturnStats.total > 0 || showReturnsOnly ? 'var(--warning)' : 'var(--muted-foreground)' }}
                 >
-                  {filteredTotalReturned > 0 ? `-${formatPrice(filteredTotalReturned)}원` : '0원'}
+                  {filterReturnStats.total > 0 ? `-${formatPrice(filterReturnStats.total)}원` : '0원'}
                 </p>
                 {dateFilter !== 'all' && (
                   <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
@@ -787,16 +837,54 @@ export default function OrderHistory({
                     )}
                   </div>
 
-                  {/* Return badge if applicable */}
-                  {(order.totalReturned || 0) > 0 && (
-                    <div
-                      className="text-xs px-2 py-1 rounded mb-2 flex items-center gap-1"
-                      style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)' }}
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      반품 -{formatPrice((order.totalReturned || 0))}원
-                    </div>
-                  )}
+                  {/* Return badge + 이력 (returnedAt 기준) */}
+                  {(order.totalReturned || 0) > 0 && (() => {
+                    const returnList = Array.isArray(order.returns) ? order.returns : [];
+                    const returnedInFilter = isReturnedInFilter(order);
+                    return (
+                      <div
+                        className="text-xs px-2 py-1 rounded mb-2"
+                        style={{
+                          background: returnedInFilter
+                            ? 'color-mix(in srgb, var(--warning) 25%, transparent)'
+                            : 'color-mix(in srgb, var(--warning) 15%, transparent)',
+                          color: 'var(--warning)',
+                          borderLeft: returnedInFilter ? '3px solid var(--warning)' : 'none',
+                        }}
+                      >
+                        <div className="flex items-center gap-1 font-semibold">
+                          <RotateCcw className="w-3 h-3" />
+                          반품 -{formatPrice((order.totalReturned || 0))}원
+                          {returnedInFilter && (
+                            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'var(--warning)', color: 'white' }}>
+                              ⚡ 기간 내 처리
+                            </span>
+                          )}
+                        </div>
+                        {/* 반품 이력 (각 항목 returnedAt + 상품 + 금액) */}
+                        {returnList.length > 0 && (
+                          <ul className="mt-1 ml-4 space-y-0.5 text-[10px] font-normal opacity-90">
+                            {returnList.map((r, i) => {
+                              const rDate = r?.returnedAt ? toDateKST(r.returnedAt) : '';
+                              const inFilter = filterTargetDates ? filterTargetDates.includes(rDate) : false;
+                              const amt = Number(r?.total || (r?.price || 0) * (r?.quantity || 0) || 0);
+                              return (
+                                <li key={r?.returnId || i} className="flex items-start gap-1.5">
+                                  <span className={inFilter ? 'font-bold' : ''}>
+                                    {rDate || '?'}
+                                  </span>
+                                  <span className="flex-1 break-words leading-snug">
+                                    {r?.itemName || '품목'} ×{r?.quantity || 1}
+                                  </span>
+                                  <span className="whitespace-nowrap tabular-nums">-{formatPrice(amt)}원</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Memo preview with check toggle */}
                   {order.memo && (
