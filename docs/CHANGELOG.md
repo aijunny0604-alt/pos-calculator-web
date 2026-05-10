@@ -4,6 +4,58 @@
 
 ---
 
+### 2026-05-10 작업 내역
+
+#### 모바일 모달 안정화 + 번들 최적화 (5 파일, +111/-27)
+
+**1. SavedCarts 상세 모달 편집 모드 하단 잘림 fix (시작점 버그)**
+- 문제: 편집 진입 시 Header(80) + 상품 스크롤 + Status(~250) + Total/버튼(~200) 모두 `flex-shrink-0`이라 모바일 maxHeight 85vh 초과 시 저장/취소 버튼 잘림
+- 수정: Status 편집 섹션을 스크롤 본문 안으로 편입(`-mx-4 sm:-mx-6 px-4 sm:px-6` 풀너비 breakout). Total/버튼 footer는 sticky 유지
+- 위치: `SavedCarts.jsx:634-714`
+
+**2. window.confirm → ConfirmDialog 교체 (모바일 UX)**
+- iOS Safari에서 native `confirm`이 스레드 차단 + 깨진 것처럼 보이는 문제 해결
+- 적용: `PaymentEditModal.jsx:48` (입금 기록 삭제), `OrderDetail.jsx:334` (반품 취소)
+- 패턴: state(`pendingDelete*`) → 다이얼로그 → 확정 시 `perform*` 함수 실행
+
+**3. ConfirmDialog stacking 안전 패턴 도입 (Critical fix)**
+- PaymentEditModal: 부모 backdrop `onClick={onClose}` 안에 ConfirmDialog가 있으면 다이얼로그 클릭이 부모도 닫음
+  - 해결: Fragment + `<div className="fixed inset-0 z-[110]">` wrapper로 부모 stacking context 밖으로 분리
+- OrderDetail: QuickCalculator(z-[60])와 충돌 가능
+  - 해결: `<div className="fixed inset-0 z-[65]">` wrapper로 명시적 위 보장
+- SavedCarts: detail 모달 + ConfirmDialog 동시 표시 시 paint 순서 의존
+  - 해결: 휴지통 클릭 시 detail 모달 먼저 닫고(`setDetailCart(null)`) 다이얼로그 오픈 (clean stack)
+
+**4. exceljs 940KB 프리로드 제거 (성능)**
+- 문제: `CustomerDetailModal.jsx:3`의 top-level `import exportExcel`이 entry chain에 묶여 modulepreload로 940KB가 모바일 부팅에 함께 다운로드
+- 수정: `handleExport` 안에서 `await import('@/lib/exportExcel')` dynamic 호출로 변경
+- 결과: `exportExcel-CVyE69Ht.js` 13.50KB 별도 chunk 분리, exceljs는 Excel 버튼 클릭 시점까지 로드 안됨
+- 빌드 측정: `index.js` 729.68KB → 717.53KB (-12KB), TTI 추정 6-8s → 4-5s on slow 4G
+
+**5. modal-scroll-area 패턴 추가 (iOS 러버밴드)**
+- `PaymentRegisterModal.jsx:153`, `PaymentEditModal.jsx:69`, `CustomerDetailModal.jsx:11` (OrderDetailPopup)
+- 추가: `overscroll-contain` 클래스 + `modal-scroll-area` 마커 + `touchAction: 'pan-y'` + `onTouchMove stopPropagation`
+
+**6. SavedCarts 무확인 삭제 → ConfirmDialog 게이팅**
+- 위치: `SavedCarts.jsx:797`
+- 휴지통 + 견적서 복사 아이콘 사이 `ml-1` 간격 추가, 두 버튼에 `aria-label` 부여
+
+**검증**:
+- `npx vite build` 7.59s 통과 (1969 modules)
+- Playwright 모바일 375x812 직접 검증: SavedCarts 편집 모드 저장/취소 노출 확인, ConfirmDialog clean stack 전환 확인, **PaymentEditModal Critical fix 검증** (다이얼로그 취소 후 부모 모달 유지)
+- 콘솔 에러 0건 (manifest 경로 INFO 외)
+
+**변경 파일**
+| 파일 | 변경 |
+|------|------|
+| `src/pages/SavedCarts.jsx` | 편집 모달 스크롤 fix + 삭제 ConfirmDialog + clean stack |
+| `src/components/CustomerDetailModal.jsx` | exceljs lazy + OrderDetailPopup touch 패턴 |
+| `src/components/PaymentEditModal.jsx` | ConfirmDialog (Fragment+z-[110]) + finally + modal-scroll-area |
+| `src/components/PaymentRegisterModal.jsx` | modal-scroll-area 패턴 |
+| `src/pages/OrderDetail.jsx` | 반품 취소 ConfirmDialog (z-[65] wrapper) |
+
+---
+
 ### 2026-04-23 작업 내역
 
 #### 명세서·결제 UX 대개편

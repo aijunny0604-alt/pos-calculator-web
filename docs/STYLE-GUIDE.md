@@ -144,3 +144,49 @@ useEffect(() => {
 > 반드시 `offsetDateKST()` 또는 `T00:00:00Z` + `setUTCDate()` 패턴 사용.
 
 - 관련 변경 이력: [CHANGELOG.md](CHANGELOG.md) 2026-03-28 날짜 필터 버그 수정 참조
+
+---
+
+### ConfirmDialog 안전 사용 규칙
+
+> **주의**: ConfirmDialog는 z-50 fixed 모달. 다른 모달 안에서 호출할 때 stacking + 이벤트 버블링이 모두 문제가 될 수 있음.
+
+#### 1. window.confirm / window.alert 사용 금지
+모바일(특히 iOS Safari)에서 native dialog는 스레드 차단 + 깨진 것처럼 보임. 반드시 `<ConfirmDialog>` 사용.
+
+#### 2. 부모 모달의 backdrop이 `onClick={onClose}`일 때
+ConfirmDialog를 부모 wrapper **안**에 렌더하면, 다이얼로그 버튼 클릭이 버블링되어 부모도 닫힘. 두 가지 안전 패턴:
+
+**패턴 A (권장): Fragment로 분리 + 명시적 z-index wrapper**
+```jsx
+return (
+  <>
+    <div className="fixed inset-0 z-[100]" onClick={onClose}>
+      {/* 부모 모달 콘텐츠 */}
+    </div>
+    {confirmDelete && (
+      <div className="fixed inset-0 z-[110]">
+        <ConfirmDialog isOpen onConfirm={...} onCancel={...} />
+      </div>
+    )}
+  </>
+);
+```
+
+**패턴 B: 부모 모달을 먼저 닫고 다이얼로그 오픈 (clean stack)**
+```jsx
+onClick={() => {
+  const target = { id: detailCart.id, name: detailCart.name };
+  setDetailCart(null);   // 1) 부모 닫기
+  setPendingDelete(target); // 2) 다이얼로그 오픈
+}}
+```
+
+#### 3. z-index 가이드 (ConfirmDialog 내장 z-50)
+- 부모 모달이 z-50인 경우: ConfirmDialog가 JSX 후행이면 paint 순서로 위에 그려짐 — **OK이지만 같은 부모 안에 z-[60]+ 자식이 있으면 위험**. 명시적 wrapper 권장
+- 부모 모달이 z-[60]+인 경우: 반드시 wrapper로 부모보다 위 z 지정 (z-[65], z-[110] 등)
+
+#### 4. 파괴적 액션은 항상 ConfirmDialog 게이팅
+삭제, 취소, 일괄 변경 등은 무확인 실행 금지. `destructive` prop 활성화로 시각적 경고 색 강제.
+
+- 관련 변경 이력: [CHANGELOG.md](CHANGELOG.md) 2026-05-10 모바일 모달 안정화 참조
