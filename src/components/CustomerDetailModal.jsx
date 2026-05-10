@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { exportCustomerReport } from '@/lib/exportExcel';
 import { FileSpreadsheet, Printer, ChevronDown, ChevronUp } from 'lucide-react';
 // 주문 상세 경량 뷰 — 전체 주문 정보 표시 + 주문 내역 페이지로 이동 유도
 const OrderDetailPopup = ({ order, onClose }) => {
@@ -9,7 +8,12 @@ const OrderDetailPopup = ({ order, onClose }) => {
   const items = Array.isArray(order.items) ? order.items : [];
   return (
     <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[var(--card)] text-[var(--foreground)] rounded-lg p-5 max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="bg-[var(--card)] text-[var(--foreground)] rounded-lg p-5 max-w-lg w-full max-h-[85vh] overflow-y-auto overscroll-contain modal-scroll-area"
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+        onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-3 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
           <div>
             <h3 className="text-base font-bold">주문 상세</h3>
@@ -139,6 +143,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
         supabase.getSettings(),
       ]);
       console.log('[Excel] data loaded', { records: allRecords?.length, history: allHistory?.length });
+      const { exportCustomerReport } = await import('@/lib/exportExcel');
       await exportCustomerReport({
         customer,
         records: allRecords,

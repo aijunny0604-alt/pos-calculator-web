@@ -151,9 +151,10 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl border shadow-2xl bg-[var(--card)] border-[var(--primary)]"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="w-full sm:max-w-md max-h-[90vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border shadow-2xl bg-[var(--card)] border-[var(--primary)] modal-scroll-area"
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
         onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-[var(--border)] sticky top-0 bg-[var(--card)] z-10">
           <div className="flex items-center justify-between mb-3">

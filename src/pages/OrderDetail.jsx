@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import QuickCalculator from './QuickCalculator';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
@@ -28,6 +29,7 @@ export default function OrderDetail({
   const [editedOrder, setEditedOrder] = useState(null);
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [pendingDeleteReturnId, setPendingDeleteReturnId] = useState(null);
   // Return state
   const [isReturning, setIsReturning] = useState(false);
   const [returnItems, setReturnItems] = useState([]);
@@ -329,9 +331,16 @@ export default function OrderDetail({
     setReturnItems([]);
   };
 
-  // Return: delete
-  const handleDeleteReturn = async (returnId) => {
-    if (!confirm('이 반품을 취소하시겠습니까?')) return;
+  // Return: delete (request — opens ConfirmDialog)
+  const handleDeleteReturn = (returnId) => {
+    setPendingDeleteReturnId(returnId);
+  };
+
+  // Return: actually perform delete after user confirms
+  const performDeleteReturn = async () => {
+    const returnId = pendingDeleteReturnId;
+    setPendingDeleteReturnId(null);
+    if (!returnId) return;
     setDeletingReturnId(returnId);
 
     const returnsToDelete = (order.returns || []).filter(r => r.returnId === returnId);
@@ -1642,6 +1651,22 @@ export default function OrderDetail({
           onClose={() => setShowCalculator(false)}
           initialValue={totalReturned > 0 ? order.totalAmount - totalReturned : (isEditing ? currentTotal : order.totalAmount)}
         />
+      )}
+
+      {/* Return delete confirmation — wrapped in z-[65] to render above QuickCalculator (z-[60]) */}
+      {pendingDeleteReturnId != null && (
+        <div className="fixed inset-0 z-[65]">
+          <ConfirmDialog
+            isOpen={true}
+            title="반품 취소"
+            message="이 반품 처리를 취소하시겠습니까? 반품 내역이 삭제되고 주문 합계가 복원됩니다."
+            confirmText="반품 취소"
+            cancelText="유지"
+            destructive
+            onConfirm={performDeleteReturn}
+            onCancel={() => setPendingDeleteReturnId(null)}
+          />
+        </div>
       )}
     </div>
   );
