@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Trash2 } from 'lucide-react';
+import ConfirmDialog from './ui/ConfirmDialog';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 
@@ -11,6 +12,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
   const [paidAt, setPaidAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (!open || !history) return;
@@ -44,15 +46,22 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm(`이 입금 기록(${fmt(history.amount)}원)을 삭제하시겠습니까?\n\n삭제 시 결제 레코드의 입금액이 자동 재계산됩니다.`)) return;
+  const handleDelete = () => {
+    setConfirmDelete(true);
+  };
+
+  const performDelete = async () => {
+    const id = history?.id;
+    if (!id) return;
+    setConfirmDelete(false);
     setSubmitting(true);
     try {
-      await supabase.deletePaymentHistory(history.id);
+      await supabase.deletePaymentHistory(id);
       onSaved?.();
       onClose?.();
     } catch (e) {
       setError(e.message || '삭제 실패');
+    } finally {
       setSubmitting(false);
     }
   };
@@ -60,15 +69,17 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
   if (!open || !history) return null;
 
   return (
+    <>
     <div
       className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl border shadow-2xl bg-[var(--card)] border-[var(--primary)]"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="w-full sm:max-w-md max-h-[90vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border shadow-2xl bg-[var(--card)] border-[var(--primary)] modal-scroll-area"
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
         onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-[var(--border)] flex items-center justify-between sticky top-0 bg-[var(--card)]">
           <h3 className="text-base font-bold flex items-center gap-2">
@@ -149,6 +160,23 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
         </div>
       </div>
     </div>
+    {/* ConfirmDialog rendered outside parent backdrop to avoid click bubbling closing this modal,
+        and at z-[110] to render above this modal's z-[100]. */}
+    {confirmDelete && (
+      <div className="fixed inset-0 z-[110]">
+        <ConfirmDialog
+          isOpen={confirmDelete}
+          title="입금 기록 삭제"
+          message={`이 입금 기록(${fmt(history.amount)}원)을 삭제하시겠습니까? 결제 레코드의 입금액이 자동 재계산됩니다.`}
+          confirmText="삭제"
+          cancelText="취소"
+          destructive
+          onConfirm={performDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      </div>
+    )}
+    </>
   );
 }
 

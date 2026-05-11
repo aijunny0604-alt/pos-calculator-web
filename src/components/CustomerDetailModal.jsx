@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { exportCustomerReport } from '@/lib/exportExcel';
 import { FileSpreadsheet, Printer, ChevronDown, ChevronUp } from 'lucide-react';
 // 주문 상세 경량 뷰 — 큰 모달 + 정가/할인 표시
 const OrderDetailPopup = ({ order, onClose }) => {
@@ -15,6 +14,7 @@ const OrderDetailPopup = ({ order, onClose }) => {
       <div
         className="bg-[var(--card)] text-[var(--foreground)] rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
         <div className="px-5 py-4 flex items-center justify-between flex-shrink-0" style={{ background: 'var(--success)', color: 'white' }}>
@@ -56,7 +56,7 @@ const OrderDetailPopup = ({ order, onClose }) => {
         </div>
 
         {/* 품목 — 스크롤 영역 */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scroll-area" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
           {items.length > 0 ? (
             <div>
               <div className="sticky top-0 z-10 px-4 sm:px-6 py-2 text-[11px] sm:text-xs font-bold border-b flex items-center justify-between" style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}>
@@ -216,6 +216,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
         supabase.getSettings(),
       ]);
       console.log('[Excel] data loaded', { records: allRecords?.length, history: allHistory?.length });
+      const { exportCustomerReport } = await import('@/lib/exportExcel');
       await exportCustomerReport({
         customer,
         records: allRecords,

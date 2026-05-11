@@ -39,6 +39,7 @@ export default function SavedCarts({
   const [detailCart, setDetailCart] = useState(null);
   const [detailIndex, setDetailIndex] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [pendingDetailDelete, setPendingDetailDelete] = useState(null);
 
   const generateCartOrderText = (cart) => {
     if (!cart) return '';
@@ -897,11 +898,10 @@ export default function SavedCarts({
                 <p className="text-sm" style={{ color: 'var(--foreground)' }}>{currentCart.memo}</p>
               </div>
             )}
-          </div>
 
-          {/* Status edit section */}
+          {/* Status edit section — inside scroll body so it scrolls with items on mobile */}
           {isEditingDetail && (
-            <div className="border-t border-[var(--border)] px-3 sm:px-6 py-3 sm:py-4 flex-shrink-0 bg-[var(--secondary)]">
+            <div className="mt-4 -mx-3 sm:-mx-6 border-t border-[var(--border)] px-3 sm:px-6 py-3 sm:py-4 bg-[var(--secondary)]">
               <div className="space-y-3 sm:space-y-4">
                 <div>
                   <p className="text-[var(--muted-foreground)] text-xs font-medium mb-1.5">주문 상태</p>
@@ -978,9 +978,10 @@ export default function SavedCarts({
                     className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                   />
                 </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Total + action buttons (collapsible) */}
           <div className="border-t border-[var(--border)] px-4 sm:px-6 py-3 sm:py-4 flex-shrink-0 bg-[var(--card)]">
@@ -1083,22 +1084,26 @@ export default function SavedCarts({
                     borderColor: copied ? 'var(--success)' : 'var(--border)',
                   }}
                   title="복사"
+                  aria-label="견적서 복사"
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </button>
                 <button
-                  onClick={async () => {
-                    if (detailCart?.id) {
-                      const cartId = detailCart.id;
-                      setDetailCart(null);
-                      setDetailIndex(null);
-                      await handleDeleteCart(cartId);
-                    }
+                  onClick={() => {
+                    if (!detailCart?.id) return;
+                    // 1) Capture target before clearing detailCart
+                    const target = { id: detailCart.id, name: detailCart.name };
+                    // 2) Close detail modal so ConfirmDialog renders on a clean stack
+                    setDetailCart(null);
+                    setDetailIndex(null);
+                    // 3) Then open the confirmation
+                    setPendingDetailDelete(target);
                   }}
                   disabled={deletingId != null}
-                  className="px-3 sm:px-4 py-2 sm:py-2.5 border rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
+                  className="ml-1 px-3 sm:px-4 py-2 sm:py-2.5 border rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
                   style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
                   title="삭제"
+                  aria-label="장바구니 삭제"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -1614,6 +1619,26 @@ export default function SavedCarts({
         onConfirm={() => { onDeleteAll(); setShowDeleteAllConfirm(false); }}
         onCancel={() => setShowDeleteAllConfirm(false)}
         destructive
+      />
+
+      {/* Detail modal: single-cart delete confirm */}
+      <ConfirmDialog
+        isOpen={pendingDetailDelete != null}
+        title="장바구니 삭제"
+        message={`"${pendingDetailDelete?.name || ''}" 장바구니를 삭제하시겠습니까? 되돌릴 수 없습니다.`}
+        confirmText="삭제"
+        cancelText="취소"
+        destructive
+        onConfirm={async () => {
+          const target = pendingDetailDelete;
+          setPendingDetailDelete(null);
+          if (target?.id) {
+            setDetailCart(null);
+            setDetailIndex(null);
+            await handleDeleteCart(target.id);
+          }
+        }}
+        onCancel={() => setPendingDetailDelete(null)}
       />
 
       {/* Quick Calculator */}

@@ -205,9 +205,10 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl border-2 shadow-2xl bg-[var(--card)]"
-        style={{ WebkitOverflowScrolling: 'touch', borderColor: isIncome ? '#16a34a' : '#dc2626' }}
+        className="w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border-2 shadow-2xl bg-[var(--card)] modal-scroll-area"
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', borderColor: isIncome ? '#16a34a' : '#dc2626' }}
         onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         {/* ─── Header: 제목 + 입/출금 대형 탭 ───────── */}
         <div className="p-5 border-b border-[var(--border)] sticky top-0 bg-[var(--card)] z-10">
