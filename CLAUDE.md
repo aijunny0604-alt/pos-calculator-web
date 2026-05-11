@@ -1,9 +1,48 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-04-30
+> 마지막 업데이트: 2026-05-11 (code-review Critical 3건 fix + 5-10 모바일 모달 안정화/번들 최적화 머지)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry.
+
+## 🆕 v2026-05-11 — code-review Critical 핫픽스 3건
+
+### 🚨 supabase.getOrderById 신규 추가 (Critical #1)
+- 이전엔 `CustomerDetailModal.jsx:161`에서 호출만 있고 정의 없는 미정의 함수 — 거래처 모달 → 미수 카드 클릭 시 캐시 미스(orders 배열에 order_id 없음) → "is not a function" 런타임 크래시 위험
+- 신규: [src/lib/supabase.js](src/lib/supabase.js) `getOrderById(orderId)` — `?id=eq.${encodeURIComponent(id)}&limit=1` REST 패턴, `!orderId` 가드 + 결과 단건 반환, catch 시 null
+
+### 🚨 OrderDetail handleReplaceProduct 할인 메타 보존 (Critical #2)
+- 이전: 할인 적용된 라인을 다른 제품으로 통째 교체할 때 `{id, name, price, quantity}`만 들고 새 라인 생성 → `originalPrice/discountType/discountValue` 조용히 destruction
+- 신규: 기존 라인에 할인 있으면 `confirm` 다이얼로그로 사용자 알림 + 새 라인에 메타 3필드 `null` 명시 clear ([src/pages/OrderDetail.jsx:218~261](src/pages/OrderDetail.jsx#L218))
+- 호출 패턴: `handleAddProduct`는 기존 라인 quantity만 +1이라 메타 보존 (안전)
+
+### 💵 CustomerDetailModal setPaid 4-arg 보강 (WARN)
+- 이전: `setPaid(orderDetail.id, k)` 2-arg → CLAUDE.md 규칙 위반, no_customer fail-safe 미동작 가능
+- 현재: `setPaid(orderDetail.id, k, orderDetail, customer ? [customer] : [])` ([CustomerDetailModal.jsx:667](src/components/CustomerDetailModal.jsx#L667))
+- 효과: N+1 회피 + customers hint 명시 → syncOrderPaidRecord 거래처 매핑 정확
+
+---
+
+## 🆕 v2026-05-10 — 모바일 모달 안정화 + 번들 최적화 (origin 머지)
+
+### 🪟 SavedCarts 편집 모드 하단 잘림 fix (시작점 버그)
+- Status 편집 섹션을 `flex-shrink-0` 형제 → 스크롤 본문 안으로 편입 (`-mx-3 sm:-mx-6` 풀너비 breakout). 모바일 maxHeight 85vh 초과 시 저장/취소 버튼 잘림 해결
+
+### 💬 window.confirm → ConfirmDialog 교체 (모바일 UX)
+- iOS Safari native confirm 스레드 차단 + 깨짐 해결
+- 적용: `PaymentEditModal.jsx` 입금 기록 삭제, `OrderDetail.jsx` 반품 취소
+- stacking 안전 패턴: Fragment + `z-[110]` wrapper (PaymentEditModal), `z-[65]` wrapper (OrderDetail), SavedCarts는 detail 모달 먼저 닫고 ConfirmDialog 오픈 (clean stack)
+
+### 📦 exceljs 940KB 프리로드 제거 (성능)
+- 이전: `CustomerDetailModal.jsx` top-level `import exportExcel` → entry chain에 묶여 940KB 모바일 부팅 시 modulepreload
+- 현재: `handleExport` 안에서 `await import('@/lib/exportExcel')` dynamic 호출 → 별도 13.50KB chunk 분리, exceljs는 Excel 버튼 클릭 시점까지 미로드
+- `index.js` 729.68KB → 717.53KB (-12KB), TTI 추정 6-8s → 4-5s on slow 4G
+
+### 📐 modal-scroll-area 패턴 추가 (iOS 러버밴드)
+- `PaymentRegisterModal.jsx`, `PaymentEditModal.jsx`, `CustomerDetailModal.jsx` (OrderDetailPopup)
+- `overscroll-contain` + `modal-scroll-area` 마커 + `touchAction: 'pan-y'` + `onTouchMove stopPropagation`
+
+---
 
 ## 🆕 v2026-04-30 — 할인 시스템 + 완불체크 DB 동기화 + QuickItemBar + 모바일 정리
 
@@ -181,9 +220,10 @@ npx gh-pages -d dist     # GitHub Pages 배포
 - **입금 확장 필드**: `payment_history`에 컬럼 추가 대신 `memo` 앞에 `[과세/비과세][택배비 N원][퀵비 N원]` 태그 prepend. 집계 필요 시 DB 컬럼(`is_vat_exempt`, `extra_fees JSONB`)으로 승격 예정
 - **저장 카트 → 주문 변환**: `App.jsx onOrder` 핸들러에서 `items.map`으로 `price` 폴백 체인(`price → wholesale → retail → 0`) + `Number()` 강제 필수. 누락 시 명세서 0원 버그 재발
 - **AI 학습**: 주문인식 수동 교정 시 자동 학습 → 다음 인식에 반영 (3중: DB → Gemini 프롬프트 → 패턴 매칭)
-- **할인 메타 보존**: 라인에 `originalPrice/discountType/discountValue` 필드 있으면 절대 삭제하지 말 것. 단가 직접 수정은 할인 메타를 명시적 해제 후만 허용 (현재 단가 input은 할인 적용 중 readOnly). 명세서/주문 변환은 `price` 필드만 사용하므로 메타가 있어도 무영향. 자세한 계산은 [src/lib/discount.js](src/lib/discount.js) `calcFinalPrice` 사용
+- **할인 메타 보존**: 라인에 `originalPrice/discountType/discountValue` 필드 있으면 절대 삭제하지 말 것. 단가 직접 수정은 할인 메타를 명시적 해제 후만 허용 (현재 단가 input은 할인 적용 중 readOnly). 명세서/주문 변환은 `price` 필드만 사용하므로 메타가 있어도 무영향. 자세한 계산은 [src/lib/discount.js](src/lib/discount.js) `calcFinalPrice` 사용. **제품 교체(handleReplaceProduct) 시**: 기존 라인에 할인 있으면 confirm 다이얼로그 필수 + 새 라인에 3필드 `null` 명시 clear (2026-05-11 Critical #2 fix). 새 라인 추가/quantity 증가 패턴은 자동 보존됨
 - **payment_records 갱신**: `balance`, `payment_status`는 **generated columns**. INSERT/UPDATE 페이로드에 절대 포함 금지 (400 code:428C9). `paid_amount`만 갱신하면 DB가 자동 계산
-- **완불체크 동기화**: `useManualPaid.setPaid(orderId, method, order, customers)` — 4번째 인자 customers 필수 (N+1 회피). 동기화 실패 시 호출부에서 `res.syncResult.reason === 'no_customer'` 검사하여 alert. 자동 history 식별자: `memo` prefix `[자동] 완불체크`
+- **완불체크 동기화**: `useManualPaid.setPaid(orderId, method, order, customers)` — 4번째 인자 customers 필수 (N+1 회피). **모든 호출부 4-arg 강제** (2026-05-11 WARN fix). `CustomerDetailModal`은 단일 거래처 컨텍스트라 `[customer]` 배열로 전달. 동기화 실패 시 호출부에서 `res.syncResult.reason === 'no_customer'` 검사하여 alert. 자동 history 식별자: `memo` prefix `[자동] 완불체크`
+- **단건 주문 조회**: `supabase.getOrderById(id)` — payment_record.order_id가 orders 캐시에 없을 때 안전한 단건 조회. 신규 함수 (2026-05-11 Critical #1 fix). encodeURIComponent + null 가드 내장
 - **부가 항목 (QuickItemBar)**: 택배비/퀵비/수수료 등은 `items` 배열에 `{ name, price, quantity:1, isCustom:true, presetId? }`로 저장. 프리셋은 localStorage `pos_quick_items_v1`에 보관. 빌트인 3개는 `builtin:true`로 보호되어 삭제 불가
 
 ## Supabase
