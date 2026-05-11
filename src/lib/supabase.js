@@ -511,6 +511,116 @@ export const supabase = {
     };
   },
 
+  // ===== 단일 주문 → payment_records + payment_history 동기화 =====
+  // 완불 체크 (수동) 시 호출. 거래처 관리/명세서/미수 통계 일관성 확보.
+  // 반환: { success, reason?, record? } — 호출부에서 결과 검사 가능
+  // customersHint: 호출부가 이미 customers 배열을 보유한 경우 전달하면 추가 fetch 회피 (M1)
+  async syncOrderPaidRecord(orderId, methodKey, orderHint = null, customersHint = null) {
+    if (!orderId || !methodKey) return { success: false, reason: 'invalid_args' };
+    try {
+      // 1. 해당 주문 정보 확보 (orderHint가 없으면 fetch)
+      let order = orderHint;
+      if (!order) {
+        const list = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(String(orderId))}`, { headers });
+        order = (list && list[0]) || null;
+      }
+      if (!order) return { success: false, reason: 'no_order' };
+      const total = Number(order.total || 0) - Number(order.total_returned || 0);
+      if (total <= 0) return { success: false, reason: 'zero_total' };
+
+      // 2. 거래처 매핑 (이름/전화번호) — 호출부 캐시 우선 사용
+      const customers = (Array.isArray(customersHint) && customersHint.length > 0)
+        ? customersHint
+        : await this.getCustomers();
+      const name = (order.customer_name || order.customerName || '').trim();
+      const phone = (order.customer_phone || order.customerPhone || '').trim();
+      const cust = (customers || []).find((c) =>
+        (name && c.name && c.name.trim() === name) || (phone && c.phone && c.phone.trim() === phone)
+      );
+      if (!cust) return { success: false, reason: 'no_customer', customerName: name, customerPhone: phone };
+
+      // 3. payment_records 있는지 확인
+      const existing = await this.getPaymentRecords({ orderId });
+      let record = (existing && existing[0]) || null;
+
+      const supply = Math.round(total / 1.1);
+      const recordPayload = {
+        order_id: orderId,
+        customer_id: cust.id,
+        total_amount: total,
+        supply_amount: supply,
+        vat_amount: total - supply,
+        is_vat_exempt: false,
+        category: 'sales',
+        invoice_date: (order.created_at || '').slice(0, 10) || null,
+        memo: order.memo || null,
+        // balance, payment_status는 generated columns (DB 자동 계산). 직접 INSERT/UPDATE 금지
+        paid_amount: 0,
+      };
+      if (!record) {
+        const created = await this.addPaymentRecord(recordPayload);
+        record = Array.isArray(created) ? created[0] : created;
+        if (!record) return { success: false, reason: 'create_failed' };
+      }
+
+      // 4. 자동 입금 history (memo로 식별)
+      const methodLabel = ({ card: '카드', cash: '현금', transfer: '계좌이체', other: '기타' }[methodKey] || methodKey);
+      const remaining = Math.max(0, Number(record.balance ?? total) - 0);
+      if (remaining > 0) {
+        await this.addPaymentHistory({
+          payment_record_id: record.id,
+          amount: remaining,
+          method: methodKey,
+          paid_at: new Date().toISOString(),
+          memo: `[자동] 완불체크 (${methodLabel})`,
+        });
+        // payment_records 갱신 — balance/payment_status는 generated columns이라 paid_amount만 갱신
+        const newPaid = Number(record.paid_amount || 0) + remaining;
+        await this.updatePaymentRecord(record.id, {
+          paid_amount: newPaid,
+        });
+      }
+      return { success: true, record };
+    } catch (e) {
+      console.error('syncOrderPaidRecord:', e);
+      return { success: false, reason: 'exception', error: e?.message || String(e) };
+    }
+  },
+
+  // 자동 완불체크 history만 회수 (다른 입금은 보존)
+  async revokeAutoPaidHistory(orderId) {
+    if (!orderId) return false;
+    try {
+      const records = await this.getPaymentRecords({ orderId });
+      const record = (records && records[0]) || null;
+      if (!record) return false;
+      const histories = await this.getPaymentHistory({ recordId: record.id });
+      const autoEntries = (histories || []).filter((h) => (h.memo || '').startsWith('[자동] 완불체크'));
+      let revokedAmount = 0;
+      for (const h of autoEntries) {
+        await this.deletePaymentHistory(h.id);
+        revokedAmount += Number(h.amount || 0);
+      }
+      if (revokedAmount > 0) {
+        const newPaid = Math.max(0, Number(record.paid_amount || 0) - revokedAmount);
+        await this.updatePaymentRecord(record.id, {
+          paid_amount: newPaid,
+        });
+        // M-NEW: 자동 history 회수 후, payment_record가 빈 껍데기(다른 입금 0건 + paid 0)이면 record 자체 삭제
+        if (newPaid === 0) {
+          const remaining = await this.getPaymentHistory({ recordId: record.id });
+          if ((remaining || []).length === 0) {
+            await this.deletePaymentRecord(record.id);
+          }
+        }
+      }
+      return true;
+    } catch (e) {
+      console.error('revokeAutoPaidHistory:', e);
+      return false;
+    }
+  },
+
   // ===== 수동 완불 체크 (멀티 기기 동기화) =====
   async getManualPaidAll() {
     try {

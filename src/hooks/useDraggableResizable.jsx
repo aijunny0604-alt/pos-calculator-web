@@ -46,6 +46,8 @@ const DESKTOP_BREAKPOINT = 768;
 
 export default function useDraggableResizable(storageKey, defaults = { w: 960, h: 720 }) {
   const [maximized, setMaximized] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const transitionTimer = useRef(null);
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window === 'undefined' ? true : window.innerWidth >= DESKTOP_BREAKPOINT
   );
@@ -147,19 +149,47 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
     };
   }, []);
 
-  const toggleMaximized = useCallback(() => setMaximized((m) => !m), []);
+  // 전체화면 토글 + 전환 애니메이션 일시 적용 (드래그 잔상 방지: 토글 시점에만 ON)
+  const triggerTransition = useCallback((duration = 480) => {
+    setTransitioning(true);
+    if (transitionTimer.current) clearTimeout(transitionTimer.current);
+    transitionTimer.current = setTimeout(() => setTransitioning(false), duration);
+  }, []);
+  const toggleMaximized = useCallback(() => {
+    triggerTransition();
+    setMaximized((m) => !m);
+  }, [triggerTransition]);
   const reset = useCallback(() => {
     try { localStorage.removeItem(storageKey); } catch {}
+    triggerTransition();
     setRect(centerRect(defaults));
     setMaximized(false);
-  }, [storageKey, defaults]);
+  }, [storageKey, defaults, triggerTransition]);
+
+  // 언마운트 시 타이머 정리
+  useEffect(() => () => {
+    if (transitionTimer.current) clearTimeout(transitionTimer.current);
+  }, []);
+
+  // 전체화면 토글 시점에만 transition 적용 (드래그/리사이즈 중엔 즉시 반응)
+  const transitionStyle = transitioning
+    ? {
+        transition:
+          'width 0.45s cubic-bezier(0.16, 1, 0.3, 1), ' +
+          'height 0.45s cubic-bezier(0.16, 1, 0.3, 1), ' +
+          'left 0.45s cubic-bezier(0.16, 1, 0.3, 1), ' +
+          'top 0.45s cubic-bezier(0.16, 1, 0.3, 1), ' +
+          'border-radius 0.35s cubic-bezier(0.16, 1, 0.3, 1), ' +
+          'box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+      }
+    : {};
 
   // 모바일은 기존 동작(중앙 정렬)을 유지 → containerStyle/handles/drag 비활성
   const containerStyle = !isDesktop
     ? {}
     : maximized
-      ? { position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', maxWidth: 'none', maxHeight: 'none', borderRadius: 0 }
-      : { position: 'fixed', left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.w}px`, height: `${rect.h}px`, maxWidth: 'none', maxHeight: 'none' };
+      ? { ...transitionStyle, position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh', maxWidth: 'none', maxHeight: 'none', borderRadius: 0 }
+      : { ...transitionStyle, position: 'fixed', left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.w}px`, height: `${rect.h}px`, maxWidth: 'none', maxHeight: 'none' };
 
   const dragHandleProps = !isDesktop
     ? {}

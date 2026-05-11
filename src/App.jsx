@@ -843,7 +843,8 @@ export default function App() {
   }, [showToast]);
 
   // ─── Add items from TextAnalyze to cart ───────────────────────
-  // 절차 간소화: AI 인식 → 담기 → 메인 안 거치고 곧바로 주문 저장 모달 오픈
+  // 절차 간소화: AI 인식 → 담기 → 메인 안 거치고 곧바로 주문서(OrderPage) 자동 오픈
+  const [autoOpenOrderConfirm, setAutoOpenOrderConfirm] = useState(false);
   const handleAddToCart = useCallback(
     (newItems) => {
       setCartWithHistory((prev) => {
@@ -864,9 +865,9 @@ export default function App() {
         return merged;
       });
       setCurrentPage('pos');
-      // 다음 렌더에 새 cart가 SaveCartModal로 전달되도록 React 자동 배칭에 맡김
-      setShowSaveCartModal(true);
-      showToast('주문 확인 — 등록창을 띄웠습니다', 'success');
+      // MainPOS가 mount된 후 OrderPage(주문서)를 자동으로 띄우도록 신호
+      setAutoOpenOrderConfirm(true);
+      showToast('주문 확인 — 주문서를 띄웠습니다', 'success');
     },
     [showToast]
   );
@@ -912,6 +913,8 @@ export default function App() {
             onBack={() => setCurrentPage('dashboard')}
             loadedCustomer={loadedCustomer}
             onClearLoadedCustomer={() => setLoadedCustomer(null)}
+            autoOpenOrderConfirm={autoOpenOrderConfirm}
+            onOrderConfirmAutoOpened={() => setAutoOpenOrderConfirm(false)}
           />
         );
 
@@ -1018,12 +1021,17 @@ export default function App() {
             onDeleteAll={handleDeleteAllSavedCarts}
             onUpdate={handleUpdateSavedCart}
             onOrder={async (cartData) => {
-              const items = cartData.items || [];
               const pt = cartData.price_type || 'wholesale';
-              const total = items.reduce((sum, i) => {
-                const price = i.price || (pt === 'wholesale' ? (i.wholesale || 0) : (i.retail || i.wholesale || 0));
-                return sum + price * (i.quantity || 1);
-              }, 0);
+              // 🚨 items의 price 필드를 폴백 체인으로 보강해서 저장 (명세서 0원 방지)
+              // 저장된 장바구니의 items에 price가 없거나 0이면 wholesale/retail에서 폴백
+              const items = (cartData.items || []).map((i) => {
+                const fallbackPrice = pt === 'wholesale'
+                  ? (Number(i.wholesale) || 0)
+                  : (Number(i.retail) || Number(i.wholesale) || 0);
+                const price = Number(i.price) > 0 ? Number(i.price) : fallbackPrice;
+                return { ...i, price };
+              });
+              const total = items.reduce((sum, i) => sum + (Number(i.price) || 0) * (i.quantity || 1), 0);
               // 먼저 장바구니 카드 삭제
               if (cartData.id) {
                 await handleDeleteSavedCart(cartData.id);
@@ -1092,6 +1100,7 @@ export default function App() {
           <ShippingLabel
             orders={orders}
             customers={customers}
+            savedCarts={savedCarts}
             onBack={() => setCurrentPage('pos')}
             refreshCustomers={refreshCustomers}
             showToast={showToast}

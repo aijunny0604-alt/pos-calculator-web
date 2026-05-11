@@ -5,7 +5,15 @@ import {
   ChevronDown, CheckCircle2, CircleDollarSign
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
+import SubPrice from '@/components/ui/SubPrice';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
+import useCountUp from '@/hooks/useCountUp';
+
+// 카운트업 숫자 표시 (toLocaleString) — 명세서 통계와 동일 톤
+function CountNumber({ value, duration = 700 }) {
+  const n = useCountUp(Number(value) || 0, duration);
+  return <>{Number(n).toLocaleString('ko-KR')}</>;
+}
 
 export default function OrderHistory({
   orders,
@@ -389,110 +397,159 @@ export default function OrderHistory({
         >
           <div className="px-2 sm:px-4 pb-4 space-y-3">
             {/* Stats cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 overflow-hidden">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 overflow-hidden">
               <div
-                className="rounded-xl p-3 border"
-                style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+                className="rounded-xl p-3 sm:p-4 border transition-all hover:-translate-y-0.5"
+                style={{
+                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--foreground) 6%, var(--card)), var(--card))',
+                  borderColor: 'var(--border)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+                }}
               >
-                <p className="text-xs flex items-center gap-1 mb-1" style={{ color: 'var(--muted-foreground)' }}>
-                  <FileText className="w-3 h-3" />
+                <p className="text-xs sm:text-sm flex items-center gap-1.5 mb-1.5 font-bold" style={{ color: 'var(--muted-foreground)' }}>
+                  <FileText className="w-3.5 h-3.5" />
                   {dateFilter === 'all' ? '총 주문' : '조회 주문'}
                 </p>
-                <p className="font-bold text-base sm:text-lg" style={{ color: 'var(--foreground)' }}>
-                  {filteredOrders.length}건
+                <p
+                  className="font-black text-2xl sm:text-3xl leading-tight tabular-nums flex items-baseline gap-1"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  <CountNumber value={filteredOrders.length} />
+                  <span className="text-sm sm:text-base font-bold opacity-70">건</span>
                 </p>
                 {dateFilter !== 'all' && (
-                  <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--muted-foreground)' }}>
                     전체 {orders.length}건
                   </p>
                 )}
               </div>
 
               <div
-                className="rounded-xl p-3 border"
-                style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+                className="rounded-xl p-3 sm:p-4 border transition-all hover:-translate-y-0.5"
+                style={{
+                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--success) 12%, var(--card)), color-mix(in srgb, var(--success) 4%, var(--card)))',
+                  borderColor: 'color-mix(in srgb, var(--success) 30%, var(--border))',
+                  boxShadow: '0 4px 20px color-mix(in srgb, var(--success) 12%, transparent)',
+                }}
               >
-                <p className="text-xs flex items-center gap-1 mb-1" style={{ color: 'var(--muted-foreground)' }}>
-                  <Calculator className="w-3 h-3" />
+                <p className="text-xs sm:text-sm flex items-center gap-1.5 mb-1.5 font-bold" style={{ color: 'var(--muted-foreground)' }}>
+                  <Calculator className="w-3.5 h-3.5" />
                   {dateFilter === 'all' ? '총 매출' : '조회 매출'}
                 </p>
-                <p className="font-bold text-base sm:text-lg truncate" style={{ color: 'var(--success)' }}>
-                  {formatPrice(filteredTotalSales - filteredTotalReturned)}원
+                <p
+                  className="font-black text-2xl sm:text-3xl leading-tight tabular-nums flex items-baseline gap-1 truncate"
+                  style={{ color: 'var(--success)', textShadow: '0 0 24px color-mix(in srgb, var(--success) 30%, transparent)' }}
+                >
+                  <CountNumber value={filteredTotalSales - filteredTotalReturned} />
+                  <span className="text-sm sm:text-base font-bold opacity-80">원</span>
                 </p>
                 {filteredTotalReturned > 0 && (
-                  <p className="text-[10px] line-through" style={{ color: 'var(--muted-foreground)' }}>
+                  <p className="text-[11px] line-through mt-1" style={{ color: 'var(--muted-foreground)' }}>
                     {formatPrice(filteredTotalSales)}원
                   </p>
                 )}
                 {dateFilter !== 'all' && (
-                  <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--muted-foreground)' }}>
                     전체 {formatPrice(totalSales - totalReturned)}원
                   </p>
                 )}
               </div>
 
               <div
-                className="rounded-xl p-3 border"
-                style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+                className="rounded-xl p-3 sm:p-4 border transition-all hover:-translate-y-0.5"
+                style={{
+                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--card)), color-mix(in srgb, var(--primary) 4%, var(--card)))',
+                  borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--border))',
+                  boxShadow: '0 4px 20px color-mix(in srgb, var(--primary) 12%, transparent)',
+                }}
               >
-                <p className="text-xs flex items-center gap-1 mb-1" style={{ color: 'var(--muted-foreground)' }}>
-                  <Receipt className="w-3 h-3" />
+                <p className="text-xs sm:text-sm flex items-center gap-1.5 mb-1.5 font-bold" style={{ color: 'var(--muted-foreground)' }}>
+                  <Receipt className="w-3.5 h-3.5" />
                   공급가액
                 </p>
-                <p className="font-bold text-base sm:text-lg truncate" style={{ color: 'var(--primary)' }}>
-                  {formatPrice(calcExVat(filteredTotalSales - filteredTotalReturned))}원
+                <p
+                  className="font-black text-2xl sm:text-3xl leading-tight tabular-nums flex items-baseline gap-1 truncate"
+                  style={{ color: 'var(--primary)', textShadow: '0 0 24px color-mix(in srgb, var(--primary) 30%, transparent)' }}
+                >
+                  <CountNumber value={calcExVat(filteredTotalSales - filteredTotalReturned)} />
+                  <span className="text-sm sm:text-base font-bold opacity-80">원</span>
                 </p>
               </div>
 
               <div
-                className="rounded-xl p-3 border"
-                style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+                className="rounded-xl p-3 sm:p-4 border transition-all hover:-translate-y-0.5"
+                style={{
+                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--purple) 14%, var(--card)), color-mix(in srgb, var(--purple) 4%, var(--card)))',
+                  borderColor: 'color-mix(in srgb, var(--purple) 32%, var(--border))',
+                  boxShadow: '0 4px 20px color-mix(in srgb, var(--purple) 14%, transparent)',
+                }}
               >
-                <p className="text-xs flex items-center gap-1 mb-1" style={{ color: 'var(--muted-foreground)' }}>
-                  <Receipt className="w-3 h-3" />
+                <p className="text-xs sm:text-sm flex items-center gap-1.5 mb-1.5 font-bold" style={{ color: 'var(--muted-foreground)' }}>
+                  <Receipt className="w-3.5 h-3.5" />
                   부가세
                 </p>
-                <p className="font-bold text-base sm:text-lg truncate" style={{ color: 'var(--purple)' }}>
-                  {formatPrice(
-                    (filteredTotalSales - filteredTotalReturned) -
-                    calcExVat(filteredTotalSales - filteredTotalReturned)
-                  )}원
+                <p
+                  className="font-black text-2xl sm:text-3xl leading-tight tabular-nums flex items-baseline gap-1 truncate"
+                  style={{ color: 'var(--purple)', textShadow: '0 0 24px color-mix(in srgb, var(--purple) 30%, transparent)' }}
+                >
+                  <CountNumber
+                    value={(filteredTotalSales - filteredTotalReturned) - calcExVat(filteredTotalSales - filteredTotalReturned)}
+                  />
+                  <span className="text-sm sm:text-base font-bold opacity-80">원</span>
                 </p>
               </div>
 
               <button
                 onClick={() => setShowReturnsOnly(prev => !prev)}
-                className="rounded-xl p-3 border text-left transition-all"
+                className="rounded-xl p-3 sm:p-4 border text-left transition-all hover:-translate-y-0.5"
                 style={{
                   background: showReturnsOnly
-                    ? 'color-mix(in srgb, var(--warning) 25%, var(--card))'
+                    ? 'linear-gradient(135deg, color-mix(in srgb, var(--warning) 28%, var(--card)), color-mix(in srgb, var(--warning) 12%, var(--card)))'
                     : filteredTotalReturned > 0
-                      ? 'color-mix(in srgb, var(--warning) 10%, var(--card))'
-                      : 'var(--card)',
+                      ? 'linear-gradient(135deg, color-mix(in srgb, var(--warning) 14%, var(--card)), color-mix(in srgb, var(--warning) 4%, var(--card)))'
+                      : 'linear-gradient(135deg, color-mix(in srgb, var(--foreground) 6%, var(--card)), var(--card))',
                   borderColor: showReturnsOnly
                     ? 'var(--warning)'
                     : filteredTotalReturned > 0
                       ? 'color-mix(in srgb, var(--warning) 40%, var(--border))'
                       : 'var(--border)',
-                  boxShadow: showReturnsOnly ? '0 0 0 1px var(--warning)' : 'none',
+                  boxShadow: showReturnsOnly
+                    ? '0 0 0 1px var(--warning), 0 4px 24px color-mix(in srgb, var(--warning) 25%, transparent)'
+                    : filteredTotalReturned > 0
+                      ? '0 4px 18px color-mix(in srgb, var(--warning) 12%, transparent)'
+                      : '0 4px 16px rgba(0,0,0,0.04)',
                 }}
               >
                 <p
-                  className="text-xs flex items-center gap-1 mb-1"
+                  className="text-xs sm:text-sm flex items-center gap-1.5 mb-1.5 font-bold"
                   style={{ color: filterReturnStats.total > 0 || showReturnsOnly ? 'var(--warning)' : 'var(--muted-foreground)' }}
                 >
-                  <RotateCcw className="w-3 h-3" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                   반품 처리 ({filterReturnStats.count}건)
                   {showReturnsOnly && <span className="ml-1 text-[10px] font-bold">필터 ON</span>}
                 </p>
                 <p
-                  className="font-bold text-base sm:text-lg truncate"
-                  style={{ color: filterReturnStats.total > 0 || showReturnsOnly ? 'var(--warning)' : 'var(--muted-foreground)' }}
+                  className="font-black text-2xl sm:text-3xl leading-tight tabular-nums flex items-baseline gap-1 truncate"
+                  style={{
+                    color: filterReturnStats.total > 0 || showReturnsOnly ? 'var(--warning)' : 'var(--muted-foreground)',
+                    textShadow: filterReturnStats.total > 0 || showReturnsOnly ? '0 0 24px color-mix(in srgb, var(--warning) 30%, transparent)' : 'none',
+                  }}
                 >
-                  {filterReturnStats.total > 0 ? `-${formatPrice(filterReturnStats.total)}원` : '0원'}
+                  {filterReturnStats.total > 0 ? (
+                    <>
+                      <span>-</span>
+                      <CountNumber value={filterReturnStats.total} />
+                      <span className="text-sm sm:text-base font-bold opacity-80">원</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>0</span>
+                      <span className="text-sm sm:text-base font-bold opacity-80">원</span>
+                    </>
+                  )}
                 </p>
                 {dateFilter !== 'all' && (
-                  <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--muted-foreground)' }}>
                     전체 {totalReturned > 0 ? `-${formatPrice(totalReturned)}원` : '0원'} ({totalReturnCount}건)
                   </p>
                 )}
@@ -504,15 +561,15 @@ export default function OrderHistory({
                   if (next === 'unchecked') setDateFilter('all');
                   return next;
                 })}
-                className="rounded-xl p-3 border text-left transition-all"
+                className="rounded-xl p-3 sm:p-4 border text-left transition-all hover:-translate-y-0.5"
                 style={{
                   background: memoFilter === 'unchecked'
-                    ? 'color-mix(in srgb, var(--destructive) 15%, var(--card))'
+                    ? 'linear-gradient(135deg, color-mix(in srgb, var(--destructive) 18%, var(--card)), color-mix(in srgb, var(--destructive) 6%, var(--card)))'
                     : memoFilter === 'all'
-                      ? 'color-mix(in srgb, var(--primary) 15%, var(--card))'
+                      ? 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 18%, var(--card)), color-mix(in srgb, var(--primary) 6%, var(--card)))'
                       : filteredMemoUnchecked > 0
-                        ? 'color-mix(in srgb, var(--destructive) 5%, var(--card))'
-                        : 'var(--card)',
+                        ? 'linear-gradient(135deg, color-mix(in srgb, var(--destructive) 8%, var(--card)), var(--card))'
+                        : 'linear-gradient(135deg, color-mix(in srgb, var(--foreground) 6%, var(--card)), var(--card))',
                   borderColor: memoFilter === 'unchecked'
                     ? 'var(--destructive)'
                     : memoFilter === 'all'
@@ -520,25 +577,33 @@ export default function OrderHistory({
                       : filteredMemoUnchecked > 0
                         ? 'color-mix(in srgb, var(--destructive) 30%, var(--border))'
                         : 'var(--border)',
-                  boxShadow: memoFilter !== 'off' ? `0 0 0 1px ${memoFilter === 'unchecked' ? 'var(--destructive)' : 'var(--primary)'}` : 'none',
+                  boxShadow: memoFilter !== 'off'
+                    ? `0 0 0 1px ${memoFilter === 'unchecked' ? 'var(--destructive)' : 'var(--primary)'}, 0 4px 24px color-mix(in srgb, ${memoFilter === 'unchecked' ? 'var(--destructive)' : 'var(--primary)'} 22%, transparent)`
+                    : '0 4px 16px rgba(0,0,0,0.04)',
                 }}
               >
                 <p
-                  className="text-xs flex items-center gap-1 mb-1"
+                  className="text-xs sm:text-sm flex items-center gap-1.5 mb-1.5 font-bold"
                   style={{ color: memoFilter === 'unchecked' ? 'var(--destructive)' : filteredMemoCount > 0 || memoFilter === 'all' ? 'var(--primary)' : 'var(--muted-foreground)' }}
                 >
-                  <FileText className="w-3 h-3" />
+                  <FileText className="w-3.5 h-3.5" />
                   {memoFilter === 'unchecked' ? `미확인 (${filteredMemoUnchecked}건)` : `메모 (${filteredMemoCount}건)`}
                   {memoFilter !== 'off' && <span className="ml-1 text-[10px] font-bold">{memoFilter === 'unchecked' ? '미확인' : '전체'}</span>}
                 </p>
                 <p
-                  className="font-bold text-base sm:text-lg"
-                  style={{ color: memoFilter === 'unchecked' ? 'var(--destructive)' : filteredMemoCount > 0 || memoFilter === 'all' ? 'var(--primary)' : 'var(--muted-foreground)' }}
+                  className="font-black text-2xl sm:text-3xl leading-tight tabular-nums flex items-baseline gap-1"
+                  style={{
+                    color: memoFilter === 'unchecked' ? 'var(--destructive)' : filteredMemoCount > 0 || memoFilter === 'all' ? 'var(--primary)' : 'var(--muted-foreground)',
+                    textShadow: memoFilter !== 'off' ? `0 0 24px color-mix(in srgb, ${memoFilter === 'unchecked' ? 'var(--destructive)' : 'var(--primary)'} 30%, transparent)` : 'none',
+                  }}
                 >
-                  {memoFilter === 'unchecked' ? `${filteredMemoUnchecked}건` : filteredMemoCount > 0 ? `${filteredMemoCount}건` : '0건'}
+                  <CountNumber
+                    value={memoFilter === 'unchecked' ? filteredMemoUnchecked : filteredMemoCount}
+                  />
+                  <span className="text-sm sm:text-base font-bold opacity-80">건</span>
                 </p>
                 {dateFilter !== 'all' && (
-                  <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--muted-foreground)' }}>
                     전체 미확인 {totalMemoUnchecked}건 / {totalMemoCount}건
                   </p>
                 )}
@@ -669,6 +734,7 @@ export default function OrderHistory({
               const isPaid = !!paidInfo;
               const paidMethod = isPaid ? METHOD_MAP[paidInfo.method] : null;
               const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
+              const isReturned = (order.totalReturned || 0) > 0;
 
               return (
                 <div
@@ -678,25 +744,39 @@ export default function OrderHistory({
                   style={{
                     background: isSelected
                       ? 'color-mix(in srgb, var(--primary) 8%, var(--card))'
-                      : isPaid
-                        ? 'color-mix(in srgb, #10b981 10%, var(--card))'
-                        : isBlacklist
-                          ? 'color-mix(in srgb, var(--destructive) 6%, var(--card))'
-                          : 'var(--card)',
+                      : isReturned
+                        ? 'color-mix(in srgb, #f59e0b 14%, var(--card))'
+                        : isPaid
+                          ? 'color-mix(in srgb, #10b981 10%, var(--card))'
+                          : isBlacklist
+                            ? 'color-mix(in srgb, var(--destructive) 6%, var(--card))'
+                            : 'var(--card)',
                     borderColor: isSelected
                       ? 'var(--primary)'
-                      : isPaid
-                        ? '#10b981'
-                        : isBlacklist
-                          ? 'var(--destructive)'
-                          : 'var(--border)',
-                    outline: isSelected ? '2px solid var(--primary)' : isPaid ? '1px solid rgba(16,185,129,0.4)' : 'none',
+                      : isReturned
+                        ? '#f59e0b'
+                        : isPaid
+                          ? '#10b981'
+                          : isBlacklist
+                            ? 'var(--destructive)'
+                            : 'var(--border)',
+                    borderWidth: isReturned ? '2px' : '1px',
+                    outline: isSelected ? '2px solid var(--primary)' : isReturned ? '1px solid rgba(245,158,11,0.5)' : isPaid ? '1px solid rgba(16,185,129,0.4)' : 'none',
                     outlineOffset: '-1px',
-                    boxShadow: isPaid ? '0 0 0 1px rgba(16, 185, 129, 0.25), 0 4px 14px rgba(16, 185, 129, 0.12)' : undefined,
+                    boxShadow: isReturned
+                      ? '0 0 0 1px rgba(245, 158, 11, 0.35), 0 4px 14px rgba(245, 158, 11, 0.18)'
+                      : isPaid
+                        ? '0 0 0 1px rgba(16, 185, 129, 0.25), 0 4px 14px rgba(16, 185, 129, 0.12)'
+                        : undefined,
                   }}
                 >
                   {/* Top accent bar */}
-                  {isPaid ? (
+                  {isReturned ? (
+                    <div
+                      className="absolute top-0 left-0 right-0 h-1.5"
+                      style={{ background: 'linear-gradient(90deg,#f59e0b,#fbbf24)' }}
+                    />
+                  ) : isPaid ? (
                     <div
                       className="absolute top-0 left-0 right-0 h-1.5"
                       style={{ background: 'linear-gradient(90deg,#10b981,#34d399)' }}
@@ -707,6 +787,17 @@ export default function OrderHistory({
                       style={{ background: 'var(--destructive)' }}
                     />
                   ) : null}
+
+                  {/* Returned badge (top-right corner ribbon) */}
+                  {isReturned && (
+                    <div
+                      className="absolute top-2 right-2 z-10 px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                      style={{ background: '#f59e0b', color: 'white' }}
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      반품
+                    </div>
+                  )}
 
                   {/* Top row: checkbox + customer name (big) + order number + price type + amount */}
                   <div className="flex items-start gap-3 mb-3">
@@ -724,7 +815,7 @@ export default function OrderHistory({
                         <div className="flex items-center gap-1.5 flex-wrap mb-1">
                           <span className="flex-shrink-0 text-base">{isBlacklist ? '🚫' : '👤'}</span>
                           <span
-                            className="font-bold text-base sm:text-lg break-words leading-snug min-w-0"
+                            className="font-bold text-base sm:text-lg break-keep leading-snug min-w-0"
                             style={{ color: isBlacklist ? 'var(--destructive)' : 'var(--foreground)' }}
                           >
                             {order.customerName}
@@ -796,12 +887,10 @@ export default function OrderHistory({
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="font-bold text-xl sm:text-2xl leading-tight" style={{ color: 'var(--success)' }}>
+                      <p className="font-bold text-xl sm:text-2xl leading-tight whitespace-nowrap" style={{ color: 'var(--success)' }}>
                         {formatPrice((order.totalAmount || 0))}원
                       </p>
-                      <p className="text-[11px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                        공급가 {formatPrice(calcExVat((order.totalAmount || 0)))}원
-                      </p>
+                      <SubPrice total={order.totalAmount || 0} layout="stacked" size="sm" className="mt-0.5" />
                     </div>
                   </div>
 
@@ -820,8 +909,25 @@ export default function OrderHistory({
                         <span style={{ color: 'var(--muted-foreground)' }}> 외 {order.items.length - 3}건</span>
                       )}
                     </div>
-                    <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                      {order.items.length}종 / {order.items.reduce((sum, item) => sum + item.quantity, 0)}개
+                    <div className="text-xs flex items-center gap-2 flex-wrap" style={{ color: 'var(--muted-foreground)' }}>
+                      <span>{order.items.length}종 / {order.items.reduce((sum, item) => sum + item.quantity, 0)}개</span>
+                      {(() => {
+                        const discounted = order.items.filter(it => it && it.discountType && Number(it.discountValue) > 0);
+                        if (discounted.length === 0) return null;
+                        const totalSaved = discounted.reduce((s, it) => {
+                          const base = Number(it.originalPrice) || Number(it.price) || 0;
+                          const cur = Number(it.price) || 0;
+                          return s + Math.max(0, (base - cur)) * (it.quantity || 1);
+                        }, 0);
+                        return (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                            style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)' }}
+                          >
+                            🏷 할인 {discounted.length}건 (-{formatPrice(totalSaved)}원)
+                          </span>
+                        );
+                      })()}
                     </div>
                     {/* 블랙리스트 사유만 표시 (고객명은 상단으로 이동) */}
                     {isBlacklist && blacklistInfo?.reason && (
@@ -857,7 +963,13 @@ export default function OrderHistory({
                           반품 -{formatPrice((order.totalReturned || 0))}원
                           {returnedInFilter && (
                             <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'var(--warning)', color: 'white' }}>
-                              ⚡ 기간 내 처리
+                              {dateFilter === 'today'
+                                ? '오늘 반품 처리'
+                                : dateFilter === 'yesterday'
+                                  ? '어제 반품 처리'
+                                  : dateFilter === 'custom' && customDate
+                                    ? `${Number(customDate.slice(5, 7))}/${Number(customDate.slice(8, 10))} 반품 처리`
+                                    : '기간 내 반품 처리'}
                             </span>
                           )}
                         </div>
@@ -1015,9 +1127,22 @@ export default function OrderHistory({
                           return (
                             <button
                               key={m.key}
-                              onClick={() => {
-                                setPaid(order.id || order.orderNumber, m.key);
+                              onClick={async () => {
                                 setMethodPickerId(null);
+                                const res = await setPaid(order.id || order.orderNumber, m.key, order, customers);
+                                // C1: 동기화 실패 시 사용자에게 알림 (거래처 미등록 등)
+                                if (res?.syncResult && res.syncResult.success === false) {
+                                  const r = res.syncResult.reason;
+                                  if (r === 'no_customer') {
+                                    alert('완불 표시는 적용됐지만 거래처 관리/명세서에는 반영되지 않았습니다.\n해당 주문의 거래처를 먼저 [거래처 관리]에 등록해주세요.\n\n주문 고객명: ' + (res.syncResult.customerName || '(없음)'));
+                                  } else if (r === 'zero_total') {
+                                    // 0원 주문은 무시 — 알림 생략
+                                  } else if (r === 'no_order') {
+                                    alert('주문 정보를 찾을 수 없어 거래처 관리에 반영되지 않았습니다.');
+                                  } else {
+                                    console.warn('[완불체크] 동기화 실패:', res.syncResult);
+                                  }
+                                }
                               }}
                               className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors"
                               style={{

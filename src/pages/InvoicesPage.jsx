@@ -325,6 +325,8 @@ export default function InvoicesPage({
       const lineWithVat = unitWithVat * qty;
       const supply = Math.round(lineWithVat / 1.1);
       const vat = lineWithVat - supply;
+      const isDiscounted = !!it.discountType && Number(it.discountValue) > 0 && ov.unitWithVat == null;
+      const baseUnit = isDiscounted ? (Number(it.originalPrice) || unitWithVat) : unitWithVat;
       out.push({
         key,
         date,
@@ -338,6 +340,10 @@ export default function InvoicesPage({
         vat,
         memo: '',
         edited: !!(ov.qty != null || ov.unitWithVat != null || ov.name != null),
+        isDiscounted,
+        baseUnitWithVat: baseUnit,
+        discountType: it.discountType,
+        discountValue: it.discountValue,
       });
     });
     return out;
@@ -745,6 +751,7 @@ export default function InvoicesPage({
                     <TraditionalInvoice
                       settings={settings}
                       customerLabel={`${inv.name} 귀하`}
+                      customerKey={inv.id || inv.name}
                       issueDate={dateRange.label}
                       lines={inv.lines}
                       totals={inv.totals}
@@ -1108,9 +1115,66 @@ function CarryoverDateDrawer({ byDate, selectedDates, onToggle, onSelectAll, onC
 // ─────────────────────────────────────────────
 // 거래명세서 양식 — 모던/미니멀 (A4 + 카톡 친화)
 // ─────────────────────────────────────────────
-function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals, compact = false, onEditLine, onDeleteLine }) {
+// localStorage keys for invoice notice
+const INVOICE_FOOTER_DEFAULT_KEY = 'pos_invoice_footer_default_v1';
+const INVOICE_FOOTER_OVERRIDES_KEY = 'pos_invoice_footer_overrides_v1';
+
+function readFooterDefault() {
+  try { return localStorage.getItem(INVOICE_FOOTER_DEFAULT_KEY) || ''; } catch { return ''; }
+}
+function readFooterOverrides() {
+  try { return JSON.parse(localStorage.getItem(INVOICE_FOOTER_OVERRIDES_KEY) || '{}') || {}; } catch { return {}; }
+}
+
+function TraditionalInvoice({ settings, customerLabel, customerKey, issueDate, lines, totals, compact = false, onEditLine, onDeleteLine }) {
+  // 안내 문구 우선순위: 개별 오버라이드 > 사용자 기본값 > settings.invoice_footer
+  const [overridesVersion, setOverridesVersion] = useState(0);
+  const overrides = readFooterOverrides();
+  const userDefault = readFooterDefault();
+  const customNotice = customerKey != null ? overrides[String(customerKey)] : '';
+  const effectiveNotice = (customNotice ?? '') || userDefault || settings?.invoice_footer || '';
+
+  const [editingNotice, setEditingNotice] = useState(false);
+  const [draftNotice, setDraftNotice] = useState('');
+  const [scope, setScope] = useState('this'); // 'this' | 'default'
+
+  const startEdit = () => {
+    setDraftNotice(effectiveNotice);
+    setScope(customNotice ? 'this' : 'default');
+    setEditingNotice(true);
+  };
+  const cancelEdit = () => { setEditingNotice(false); setDraftNotice(''); };
+  const saveNotice = () => {
+    try {
+      if (scope === 'this' && customerKey != null) {
+        const next = { ...readFooterOverrides(), [String(customerKey)]: draftNotice };
+        localStorage.setItem(INVOICE_FOOTER_OVERRIDES_KEY, JSON.stringify(next));
+      } else {
+        localStorage.setItem(INVOICE_FOOTER_DEFAULT_KEY, draftNotice);
+        // 이 업체만 오버라이드가 있었다면 제거 (전체 기본으로 통일)
+        if (customNotice && customerKey != null) {
+          const next = { ...readFooterOverrides() };
+          delete next[String(customerKey)];
+          localStorage.setItem(INVOICE_FOOTER_OVERRIDES_KEY, JSON.stringify(next));
+        }
+      }
+      setOverridesVersion((v) => v + 1);
+      setEditingNotice(false);
+    } catch (e) {
+      console.warn('saveNotice failed', e);
+    }
+  };
+  const clearOverride = () => {
+    if (customerKey == null) return;
+    const next = { ...readFooterOverrides() };
+    delete next[String(customerKey)];
+    try { localStorage.setItem(INVOICE_FOOTER_OVERRIDES_KEY, JSON.stringify(next)); } catch {}
+    setOverridesVersion((v) => v + 1);
+    setEditingNotice(false);
+  };
+
   return (
-    <div className="text-[13px] text-gray-800" style={{ fontFamily: '"맑은 고딕","Malgun Gothic",system-ui,sans-serif' }}>
+    <div className="text-[13px] text-gray-800" data-overrides-v={overridesVersion} style={{ fontFamily: '"맑은 고딕","Malgun Gothic",system-ui,sans-serif' }}>
       {!compact && (
         <>
           {/* ─── 상단 헤더 — 브랜드 + 제목 ─── */}
@@ -1140,7 +1204,7 @@ function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals,
               <InfoRow label="업태 / 종목" value={`${settings?.business_type || '도소매'} / ${settings?.business_item || '자동차용품 및 부속'}`} />
             </InfoCard>
 
-            <InfoCard title="공급받는자" accent="#dc2626">
+            <InfoCard title="공급받는자" accent="#1f2937">
               <InfoRow label="거래처" value={customerLabel} bold />
               <InfoRow label="발행일" value={issueDate} mono />
               <InfoRow label="품목 수" value={`${totals.count}건`} mono />
@@ -1151,9 +1215,9 @@ function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals,
 
       {/* compact 모드: 간단한 업체명 배너만 */}
       {compact && (
-        <div className="mb-4 pb-3 flex items-center justify-between" style={{ borderBottom: '2px solid #dc2626' }}>
+        <div className="mb-4 pb-3 flex items-center justify-between" style={{ borderBottom: '2px solid #1f2937' }}>
           <div>
-            <div className="text-xl font-bold text-red-700">🏢 {customerLabel}</div>
+            <div className="text-xl font-bold text-gray-900">🏢 {customerLabel}</div>
             <div className="text-[12px] text-gray-500 mt-1">{issueDate} · {totals.count}건</div>
           </div>
         </div>
@@ -1218,9 +1282,19 @@ function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals,
                     {l.code && <span className="ml-1.5 text-[11px] text-gray-400">#{l.code}</span>}
                     {l.edited && <span className="ml-1.5 text-[10px] text-amber-700 font-bold">✏️ 수정됨</span>}
                     {!l.edited && zeroLine && <span className="ml-1.5 text-[10px] text-red-600 font-bold">⚠️ 단가 0원</span>}
+                    {l.isDiscounted && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 align-middle">
+                        🏷 {l.discountType === 'percent' ? `${l.discountValue}% 할인` : l.discountType === 'amount' ? `${fmt(l.discountValue)}원 할인` : `특가`}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{l.qty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">{fmt(l.unitPrice)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">
+                    {l.isDiscounted && l.baseUnitWithVat > l.unitWithVat && (
+                      <div className="text-[10px] line-through text-gray-400">{fmt(Math.round(l.baseUnitWithVat / 1.1))}</div>
+                    )}
+                    {fmt(l.unitPrice)}
+                  </td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{fmt(l.supply)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-orange-700">{fmt(l.vat)}</td>
                   <td className="px-1 py-1 text-center no-print">
@@ -1278,26 +1352,82 @@ function TraditionalInvoice({ settings, customerLabel, issueDate, lines, totals,
         </div>
       </div>
 
-      {/* ─── 푸터 — 계좌 + 안내 ─── */}
-      {(settings?.bank_account || settings?.invoice_footer) && (
-        <div
-          className="rounded-lg px-4 py-3 text-[12px] text-gray-700 space-y-1.5"
-          style={{ background: '#f9fafb', border: '1px dashed #d1d5db' }}
-        >
-          {settings?.bank_account && (
+      {/* ─── 푸터 — 계좌 + 안내 (인라인 편집 가능) ─── */}
+      <div
+        className="rounded-lg px-4 py-3 text-[12px] text-gray-700 space-y-1.5"
+        style={{ background: '#f9fafb', border: '1px dashed #d1d5db' }}
+      >
+        {settings?.bank_account && (
+          <div className="flex gap-2 items-start">
+            <span className="font-bold text-gray-900 flex-shrink-0">💳 입금계좌</span>
+            <span className="break-keep">{settings.bank_account}</span>
+          </div>
+        )}
+        {/* 안내 영역 */}
+        {!editingNotice ? (
+          <div className="flex gap-2 items-start group">
+            <span className="font-bold text-gray-900 flex-shrink-0">📝 안내</span>
+            <span className="break-keep flex-1">
+              {effectiveNotice || <span className="text-gray-400 italic">(안내 문구 없음 — ✏️ 클릭해서 작성)</span>}
+            </span>
+            <button
+              onClick={startEdit}
+              className="no-print flex-shrink-0 opacity-50 group-hover:opacity-100 px-1.5 py-0.5 rounded text-[11px] font-bold bg-gray-200 text-gray-700 hover:bg-amber-500 hover:text-white transition-colors"
+              title="안내 문구 수정"
+            >
+              ✏️ 수정
+            </button>
+            {customNotice && (
+              <span className="no-print text-[10px] text-amber-700 flex-shrink-0" title="이 업체만 별도 적용 중">⚙️ 개별</span>
+            )}
+          </div>
+        ) : (
+          <div className="no-print space-y-2 py-1">
             <div className="flex gap-2 items-start">
-              <span className="font-bold text-gray-900 flex-shrink-0">💳 입금계좌</span>
-              <span className="break-keep">{settings.bank_account}</span>
+              <span className="font-bold text-gray-900 flex-shrink-0 mt-1">📝 안내</span>
+              <textarea
+                className="flex-1 min-h-[60px] px-2 py-1 rounded border border-gray-300 text-[12px] focus:outline-none focus:border-amber-500"
+                value={draftNotice}
+                onChange={(e) => setDraftNotice(e.target.value)}
+                placeholder="예: 입금 확인 부탁드립니다."
+                autoFocus
+              />
             </div>
-          )}
-          {settings?.invoice_footer && (
-            <div className="flex gap-2 items-start">
-              <span className="font-bold text-gray-900 flex-shrink-0">📝 안내</span>
-              <span className="break-keep">{settings.invoice_footer}</span>
+            <div className="flex flex-wrap items-center gap-3 pl-6 text-[11px]">
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name={`scope-${customerKey}`} checked={scope === 'this'} onChange={() => setScope('this')} disabled={customerKey == null} />
+                <span>이 업체만</span>
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name={`scope-${customerKey}`} checked={scope === 'default'} onChange={() => setScope('default')} />
+                <span>전체 기본 (자동 적용)</span>
+              </label>
+              <div className="flex-1" />
+              {customNotice && (
+                <button
+                  onClick={clearOverride}
+                  className="px-2 py-1 rounded text-[11px] bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  title="이 업체의 개별 설정 제거 (전체 기본으로 복귀)"
+                >
+                  개별 해제
+                </button>
+              )}
+              <button
+                onClick={cancelEdit}
+                className="px-2 py-1 rounded text-[11px] border border-gray-300 text-gray-600 hover:bg-gray-100"
+              >
+                취소
+              </button>
+              <button
+                onClick={saveNotice}
+                className="px-3 py-1 rounded text-[11px] font-bold bg-amber-500 text-white hover:bg-amber-600"
+              >
+                저장
+              </button>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* 인수자 사인란 */}
       <div className="mt-4 pt-3 flex justify-end gap-6 text-[12px] text-gray-500" style={{ borderTop: '1px solid #e5e7eb' }}>

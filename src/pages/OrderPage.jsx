@@ -373,7 +373,12 @@ export default function OrderPage({
           data-lenis-prevent="true"
           onTouchMove={(e) => e.stopPropagation()}
           style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}
-          onClick={() => { setShowSearchResults(false); setShowCustomerSuggestions(false); }}
+          onClick={(e) => {
+            // 고객 검색 / 제품 검색 영역 안에서 발생한 클릭은 닫지 않음
+            if (e.target.closest('[data-customer-search-area]') || e.target.closest('[data-product-search-area]')) return;
+            setShowSearchResults(false);
+            setShowCustomerSuggestions(false);
+          }}
         >
           {/* 고객 정보 */}
           <div
@@ -381,7 +386,7 @@ export default function OrderPage({
             style={{ background: 'color-mix(in srgb, var(--card) 80%, transparent)', border: '1px solid var(--border)' }}
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <div className="relative" data-customer-search-area onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                 <label className="block text-xs mb-1 flex items-center gap-1" style={{ color: 'var(--muted-foreground)' }}>
                   <Building className="w-3 h-3" />
                   고객명 / 업체명
@@ -519,7 +524,7 @@ export default function OrderPage({
           </div>
 
           {/* 제품 추가 검색 */}
-          <div className="relative mb-4" onClick={(e) => e.stopPropagation()}>
+          <div className="relative mb-4" data-product-search-area onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
             <div
               className="flex items-center gap-2 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-[var(--primary)]"
               style={{ background: 'var(--card)', border: '1px solid var(--border)' }}

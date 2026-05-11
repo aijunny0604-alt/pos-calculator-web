@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Save, X, Maximize2, Minimize2 } from 'lucide-react';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
-import { getTodayKST, offsetDateKST } from '@/lib/utils';
+import { getTodayKST, offsetDateKST, calcExVat } from '@/lib/utils';
+import SubPrice from '@/components/ui/SubPrice';
 
 export default function SaveCartModal({
   isOpen,
@@ -23,6 +24,14 @@ export default function SaveCartModal({
   const [status, setStatus] = useState('pending');
   const [priority, setPriority] = useState('normal');
   const [memo, setMemo] = useState('');
+  const [showCustSugg, setShowCustSugg] = useState(false);
+
+  // 부분 매칭 거래처 검색 (OrderPage 패턴)
+  const customerSuggestions = cartName.trim().length >= 1
+    ? (customers || []).filter(c =>
+        c?.name?.toLowerCase().replace(/\s/g, '').includes(cartName.trim().toLowerCase().replace(/\s/g, ''))
+      ).slice(0, 6)
+    : [];
   const {
     maximized: isFullscreen,
     toggleMaximized: toggleFullscreen,
@@ -153,7 +162,7 @@ export default function SaveCartModal({
         {/* Scrollable body */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4 modal-scroll-area" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }} onTouchMove={(e) => e.stopPropagation()}>
           {/* Cart name */}
-          <div>
+          <div className="relative" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
               저장 이름 (업체명)
             </label>
@@ -163,7 +172,7 @@ export default function SaveCartModal({
               onChange={(e) => {
                 const val = e.target.value;
                 setCartName(val);
-                // 등록된 거래처명과 일치하면 전화번호/주소 자동 채움
+                setShowCustSugg(true);
                 if (val.trim() && customers.length > 0) {
                   const matched = customers.find(
                     c => c?.name?.toLowerCase().replace(/\s/g, '') === val.trim().toLowerCase().replace(/\s/g, '')
@@ -174,12 +183,47 @@ export default function SaveCartModal({
                   }
                 }
               }}
+              onFocus={(e) => { e.target.select(); setShowCustSugg(true); }}
+              onBlur={() => { setTimeout(() => setShowCustSugg(false), 150); }}
               placeholder="고객명 또는 저장명 입력"
               className={inputClass}
               style={inputStyle}
               autoFocus
-              onFocus={(e) => e.target.select()}
             />
+            {showCustSugg && customerSuggestions.length > 0 && (
+              <div
+                className="absolute z-30 w-full mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto"
+                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+              >
+                {customerSuggestions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setCartName(c.name);
+                      if (c.phone) setCustomerPhone(c.phone);
+                      if (c.address) setCustomerAddress(c.address);
+                      setShowCustSugg(false);
+                    }}
+                    className="w-full px-3 py-2 text-left transition-colors hover:bg-[var(--accent)]"
+                    style={{ borderBottom: '1px solid var(--border)' }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-sm break-words leading-snug" style={{ color: c.is_blacklist ? 'var(--destructive)' : 'var(--foreground)' }}>
+                        {c.is_blacklist ? '🚫 ' : ''}{c.name}
+                      </p>
+                      {c.phone && (
+                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--muted-foreground)' }}>{c.phone}</span>
+                      )}
+                    </div>
+                    {c.address && (
+                      <p className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>{c.address}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Phone and Address */}
@@ -331,9 +375,12 @@ export default function SaveCartModal({
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>합계</span>
-              <span className="text-lg font-bold" style={{ color: 'var(--success)' }}>
-                {formatPrice(total)}
-              </span>
+              <div className="text-right">
+                <div className="text-lg font-bold" style={{ color: 'var(--success)' }}>
+                  {formatPrice(total)}
+                </div>
+                <SubPrice total={total} layout="inline" size="sm" />
+              </div>
             </div>
           </div>
 

@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
 
-export default function ShippingLabel({ orders = [], customers = [], onBack, refreshCustomers, showToast }) {
+export default function ShippingLabel({ orders = [], customers = [], savedCarts = [], onBack, refreshCustomers, showToast }) {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [senderList] = useState(['무브모터스', '엠파츠']);
   const [dateFilter, setDateFilter] = useState('today');
@@ -111,10 +111,31 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
 
   // -- Filtering --
 
-  const safeOrders = orders || [];
   const todayKST = getTodayKST();
   const yesterdayKST = offsetDateKST(todayKST, -1);
   const weekAgoKST = offsetDateKST(todayKST, -7);
+
+  // 오늘 출고 예약된 저장 장바구니를 주문 형식으로 변환해 합침
+  const todayCartsAsOrders = useMemo(() => {
+    return (savedCarts || [])
+      .filter((c) => c?.delivery_date === todayKST)
+      .map((c) => ({
+        id: `cart-${c.id}`,
+        orderNumber: `CART-${String(c.id || '').slice(-6).toUpperCase()}`,
+        customerName: c.name || '',
+        customerPhone: c.phone || '',
+        customerAddress: c.address || '',
+        items: c.items || [],
+        totalAmount: c.total || 0,
+        priceType: c.priceType || c.price_type || 'wholesale',
+        // dateFilter='today' 매칭을 위해 오늘 자정 KST로 세팅 (실제 카트는 createdAt 별개)
+        createdAt: `${todayKST}T00:00:00+09:00`,
+        memo: c.memo || '',
+        __fromSavedCart: true,
+      }));
+  }, [savedCarts, todayKST]);
+
+  const safeOrders = [...(orders || []), ...todayCartsAsOrders];
 
   const filteredOrders = safeOrders.filter(order => {
     if (!order.createdAt) return false;
@@ -695,11 +716,13 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                   <div
                     key={order.orderNumber}
                     className={`rounded-xl border transition-colors ${
-                      isSelected ? '' : 'bg-[var(--card)] border-[var(--border)]'
+                      isSelected ? '' : !order.__fromSavedCart ? 'bg-[var(--card)] border-[var(--border)]' : ''
                     }`}
                     style={isSelected
                       ? { background: 'color-mix(in srgb, var(--warning) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))' }
-                      : {}
+                      : order.__fromSavedCart
+                        ? { background: 'color-mix(in srgb, #f59e0b 5%, var(--card))', borderColor: 'color-mix(in srgb, #f59e0b 35%, var(--border))', borderLeftWidth: '3px', borderLeftColor: '#f59e0b' }
+                        : {}
                     }
                   >
                     <div className="p-3 cursor-pointer" onClick={() => toggleOrder(order.orderNumber)}>
@@ -733,6 +756,11 @@ export default function ShippingLabel({ orders = [], customers = [], onBack, ref
                             )}
                             {hasSavedSetting && (
                               <span className="px-2 py-0.5 text-xs rounded-full" style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}>설정저장됨</span>
+                            )}
+                            {order.__fromSavedCart && (
+                              <span className="px-2 py-0.5 text-xs rounded-full font-bold flex items-center gap-1" style={{ background: '#f59e0b', color: 'white' }} title="저장된 장바구니에서 가져온 출고 예약 항목">
+                                📦 출고예약
+                              </span>
                             )}
                           </div>
                           <p className="text-[var(--muted-foreground)] text-xs break-words leading-snug">{customer?.address || '주소 미등록'}</p>

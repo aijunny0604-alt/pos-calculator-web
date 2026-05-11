@@ -1353,7 +1353,7 @@ ${aiLearningData.slice(0, 50).map(l =>
             style={{ backgroundColor: selectedCount === 0 ? 'var(--muted-foreground)' : 'var(--success)' }}
           >
             <ShoppingCart className="w-5 h-5" />
-            {selectedCount > 0 ? `${selectedCount}개 제품 장바구니에 담기` : '제품을 선택하세요'}
+            {selectedCount > 0 ? `${selectedCount}개 제품 주문하기` : '제품을 선택하세요'}
           </button>
         </div>
       )}

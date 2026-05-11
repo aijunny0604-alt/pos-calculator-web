@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ArrowLeft, Menu, Save, Search, ShoppingCart, Trash2, Check, RefreshCw,
-  ChevronDown, Package, Clock, Download, FileText, Edit3, X, Plus,
-  Minus, ShoppingBag, Calculator, AlertTriangle, Receipt, Maximize2, Minimize2, Copy
+  ChevronDown, ChevronUp, Package, Clock, Download, FileText, Edit3, X, Plus,
+  Minus, ShoppingBag, Calculator, AlertTriangle, Receipt, Maximize2, Minimize2, Copy, Percent, Tag
 } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
+import SubPrice from '@/components/ui/SubPrice';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import QuickItemBar from '@/components/ui/QuickItemBar';
 import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST, calcExVat, formatDate } from '@/lib/utils';
+import { calcFinalPrice, convertDiscountValue, discountLabel as fmtDiscountLabel, discountPlaceholder } from '@/lib/discount';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
+import useDraggableResizable from '@/hooks/useDraggableResizable';
 
 export default function SavedCarts({
   savedCarts,
@@ -82,6 +86,16 @@ export default function SavedCarts({
   const [editedDetailCart, setEditedDetailCart] = useState(null);
   const [showProductSearchDetail, setShowProductSearchDetail] = useState(false);
   const [productSearchTermDetail, setProductSearchTermDetail] = useState('');
+  // 카드별 할인 영역 펼침 상태 (idx Set) — 카트 전환/모달 닫힘 시 useEffect로 자동 리셋
+  const [openDiscountIdxs, setOpenDiscountIdxs] = useState(() => new Set());
+  const toggleDiscountOpen = (idx) => {
+    setOpenDiscountIdxs((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
   const [customDate, setCustomDate] = useState('');
@@ -89,7 +103,16 @@ export default function SavedCarts({
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [calculatorInitialValue, setCalculatorInitialValue] = useState(null);
-  const { isFullscreen: isDetailFullscreen, toggleFullscreen: toggleDetailFullscreen } = useModalFullscreen();
+  const {
+    maximized: isDetailFullscreen,
+    toggleMaximized: toggleDetailFullscreen,
+    isDesktop: isDetailDraggable,
+    containerStyle: detailDragStyle,
+    dragHandleProps: detailDragHandle,
+    handles: detailResizeHandles,
+    reset: resetDetailModalPos,
+  } = useDraggableResizable('pos-web.savedCartDetailModal', { w: 1200, h: 820 });
+  const [isBottomExpanded, setIsBottomExpanded] = useState(true);
 
   // Keyboard nav for product search in detail modal (must be in component body, not inside renderDetailModal)
   const scFilteredProducts = products.length > 0 ? products.filter(product => {
@@ -117,6 +140,11 @@ export default function SavedCarts({
       setEditedDetailCart({ ...detailCart });
     }
   }, [isEditingDetail, editedDetailCart, detailCart]);
+
+  // 카트 전환 또는 편집 모드 종료 시 할인 펼침 상태 자동 정리 (M2)
+  useEffect(() => {
+    setOpenDiscountIdxs(new Set());
+  }, [detailCart?.id, isEditingDetail]);
 
   // ESC key handler
   useEffect(() => {
@@ -395,35 +423,44 @@ export default function SavedCarts({
         <div
           className="relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
           style={{
-            maxWidth: isDetailFullscreen ? '100vw' : 'min(48rem, calc(100vw - 2rem))',
+            maxWidth: isDetailFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))',
             height: isDetailFullscreen ? '100vh' : 'auto',
-            maxHeight: isDetailFullscreen ? '100vh' : '85vh',
+            maxHeight: isDetailFullscreen ? '100vh' : 'calc(100vh - 2rem)',
             borderRadius: isDetailFullscreen ? '0' : '0.75rem',
             boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+            ...(isDetailDraggable ? detailDragStyle : {}),
           }}
           onClick={e => e.stopPropagation()}
         >
+          {/* 리사이즈 핸들 (데스크톱 전용) */}
+          {detailResizeHandles}
           {/* Modal header */}
-          <div className="bg-[var(--primary)] px-4 sm:px-6 py-4 flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                <ShoppingBag className="w-5 h-5 text-white" />
+          <div
+            {...detailDragHandle}
+            className="bg-[var(--primary)] px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 flex-shrink-0"
+            style={{ ...(detailDragHandle.style || {}) }}
+            onDoubleClick={isDetailDraggable ? toggleDetailFullscreen : undefined}
+            title={isDetailDraggable ? '드래그해서 이동 · 더블클릭 = 전체화면 · 가장자리 드래그 = 크기 변경' : undefined}
+          >
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap">
                   {isEditingDetail ? (
                     <input
                       type="text"
                       value={currentCart.name}
                       onChange={(e) => setEditedDetailCart({ ...editedDetailCart, name: e.target.value })}
-                      className="text-base sm:text-lg font-bold text-white bg-white/20 px-2 py-1 rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 min-w-0"
+                      className="flex-1 min-w-0 text-base sm:text-lg font-bold text-white bg-white/20 px-2 py-1 rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
                       placeholder="업체명/이름"
                     />
                   ) : (
                     <h2 className="text-base sm:text-xl font-bold text-white break-keep leading-snug min-w-0 truncate">{currentCart.name}</h2>
                   )}
                   <span
-                    className="px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 border border-white/20"
+                    className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0 border border-white/20"
                     style={{
                       background: (currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale') ? 'rgba(255,255,255,0.25)' : 'rgba(168,85,247,0.7)',
                       color: 'white'
@@ -432,15 +469,16 @@ export default function SavedCarts({
                     {(currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale') ? '도매' : '소비자'}
                   </span>
                 </div>
-                <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.7)' }}>{currentCart.date} {currentCart.time}</p>
+                <p className="text-[11px] sm:text-xs mt-0.5 break-keep" style={{ color: 'rgba(255,255,255,0.75)' }}>{currentCart.date} {currentCart.time}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="flex items-center gap-1 flex-shrink-0">
               {!isEditingDetail ? (
                 <button
                   onClick={() => { setIsEditingDetail(true); setEditedDetailCart({ ...detailCart }); }}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
+                  className="px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors"
                   style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}
+                  aria-label="수정"
                 >
                   <Edit3 className="w-4 h-4" />
                   <span className="hidden sm:inline">수정</span>
@@ -448,8 +486,9 @@ export default function SavedCarts({
               ) : (
                 <button
                   onClick={saveEditedDetail}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors bg-white"
+                  className="px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors bg-white"
                   style={{ color: 'var(--primary)' }}
+                  aria-label="저장"
                 >
                   <Check className="w-4 h-4" />
                   <span className="hidden sm:inline">저장</span>
@@ -457,7 +496,7 @@ export default function SavedCarts({
               )}
               <button
                 onClick={toggleDetailFullscreen}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                className="p-1.5 sm:p-2 hover:bg-white/20 rounded-lg transition-colors"
                 title={isDetailFullscreen ? '원래 크기' : '전체화면'}
               >
                 {isDetailFullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
@@ -469,7 +508,8 @@ export default function SavedCarts({
                   setIsEditingDetail(false);
                   setEditedDetailCart(null);
                 }}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                className="p-1.5 sm:p-2 hover:bg-white/20 rounded-lg transition-colors"
+                aria-label="닫기"
               >
                 <X className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </button>
@@ -497,6 +537,20 @@ export default function SavedCarts({
                 </button>
               )}
             </div>
+
+            {/* QuickItemBar — 택배비/퀵비/수수료 등 즉석 추가 (편집 모드 전용) */}
+            {isEditingDetail && (
+              <div className="mb-4">
+                <QuickItemBar
+                  onAddLine={(line) => {
+                    setEditedDetailCart({
+                      ...editedDetailCart,
+                      items: [...(editedDetailCart?.items || currentCart.items), line],
+                    });
+                  }}
+                />
+              </div>
+            )}
 
             {/* Product search */}
             {isEditingDetail && showProductSearchDetail && (
@@ -556,58 +610,271 @@ export default function SavedCarts({
                 const itemSupply = Math.round(itemPrice / 1.1);
                 const itemTotalSupply = Math.round(itemTotal / 1.1);
 
+                const isWholesale = currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale';
+                const priceField = isWholesale ? 'wholesale' : 'retail';
+                const baseUnit = Number(item.originalPrice ?? item[priceField] ?? item.price ?? 0) || itemPrice;
+                const isDiscounted = !!item.discountType && Number(item.discountValue) > 0;
+                const discountOpen = openDiscountIdxs.has(idx) || isDiscounted;
+
+                const updateItem = (patch) => {
+                  const newItems = [...currentCart.items];
+                  newItems[idx] = { ...newItems[idx], ...patch };
+                  setEditedDetailCart({ ...editedDetailCart, items: newItems });
+                };
+                // 단가 직접 수정 — 할인 메타 해제하고 그 값으로 고정 (안전장치: 할인 적용 중에는 readOnly로 잠금)
+                const updatePrice = (raw) => {
+                  const num = Number(String(raw).replace(/[^\d]/g, '')) || 0;
+                  updateItem({
+                    price: num,
+                    [priceField]: num,
+                    originalPrice: undefined,
+                    discountType: undefined,
+                    discountValue: undefined,
+                  });
+                };
+                // 할인 적용 — originalPrice 보존, price = 할인 후 값. 3가지 모드: percent/amount/fixed
+                const applyDiscount = (type, rawValue) => {
+                  const v = Number(String(rawValue).replace(/[^\d.]/g, '')) || 0;
+                  const base = Number(item.originalPrice ?? item[priceField] ?? item.price ?? 0) || 0;
+                  if (v <= 0) {
+                    // 값 0이면 할인 해제하고 메타도 정리 (단, 모드 토글 흐름은 switchDiscountType에서 별도 처리)
+                    updateItem({
+                      price: base,
+                      [priceField]: base,
+                      originalPrice: undefined,
+                      discountType: undefined,
+                      discountValue: undefined,
+                    });
+                    return;
+                  }
+                  const final = calcFinalPrice(base, type, v);
+                  updateItem({
+                    originalPrice: base,
+                    discountType: type,
+                    discountValue: v,
+                    price: final,
+                    [priceField]: final,
+                  });
+                };
+                // 토글 = 모드 전환만. 활성 상태면 같은 결과 유지하며 value 자동 변환, 비활성이면 모드만 보관
+                const switchDiscountType = (newType) => {
+                  if (item.discountType === newType) return;
+                  if (!isDiscounted) {
+                    updateItem({ discountType: newType });
+                    return;
+                  }
+                  const base = Number(item.originalPrice) || baseUnit;
+                  const newValue = convertDiscountValue(base, itemPrice, newType);
+                  if (newValue <= 0) {
+                    updateItem({ discountType: newType, discountValue: 0 });
+                    return;
+                  }
+                  applyDiscount(newType, newValue);
+                };
+                const clearDiscount = () => {
+                  const base = Number(item.originalPrice ?? item.price ?? 0) || 0;
+                  updateItem({
+                    price: base,
+                    [priceField]: base,
+                    originalPrice: undefined,
+                    discountType: undefined,
+                    discountValue: undefined,
+                  });
+                };
+                const discountAmount = isDiscounted ? Math.max(0, baseUnit - itemPrice) : 0;
+                // 비활성 상태에서도 사용자가 마지막 선택한 모드 시각 표시 (default percent)
+                const activeMode = item.discountType || 'percent';
+
+                if (isEditingDetail) {
+                  // 편집 모드 — 모바일 친화 세로 적층
+                  return (
+                    <div key={idx} className="rounded-lg border border-[var(--border)] overflow-hidden">
+                      {/* 1행: 제품명 input (full width) */}
+                      <input
+                        type="text"
+                        value={item.name || ''}
+                        onChange={(e) => updateItem({ name: e.target.value })}
+                        placeholder="제품명"
+                        className="w-full px-3 py-2.5 text-base font-semibold bg-[var(--background)] border-b border-[var(--border)] focus:outline-none focus:bg-[var(--card)] focus:ring-2 focus:ring-inset focus:ring-[var(--primary)]/40"
+                      />
+                      {/* 2행: 단가 input + 합계 (좌우 분할) */}
+                      <div className="grid grid-cols-2 gap-2 p-3 bg-[var(--card)] border-b border-[var(--border)]">
+                        <label className="flex flex-col gap-0.5">
+                          <span className="text-[10px] font-medium" style={{ color: isDiscounted ? 'var(--warning)' : 'var(--muted-foreground)' }}>
+                            {isDiscounted ? '할인 적용 단가 (자동)' : '단가 (VAT포함)'}
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={itemPrice > 0 ? Number(itemPrice).toLocaleString('ko-KR') : ''}
+                            onChange={(e) => updatePrice(e.target.value)}
+                            readOnly={isDiscounted}
+                            title={isDiscounted ? '할인 적용 중 — 직접 수정하려면 아래 [해제] 버튼을 눌러주세요' : undefined}
+                            placeholder="0"
+                            className={`w-full px-2 py-1.5 text-sm font-bold tabular-nums border rounded focus:outline-none ${
+                              isDiscounted
+                                ? 'bg-[var(--secondary)] border-[var(--border)] cursor-not-allowed opacity-80'
+                                : 'bg-[var(--background)] border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)]/40'
+                            }`}
+                            style={{ color: isDiscounted ? 'var(--warning)' : 'var(--primary)' }}
+                          />
+                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                            VAT제외 {formatPrice(itemSupply)}
+                          </span>
+                        </label>
+                        <div className="flex flex-col gap-0.5 text-right">
+                          <span className="text-[10px] font-medium" style={{ color: 'var(--muted-foreground)' }}>합계</span>
+                          <p className="px-2 py-1.5 text-sm font-bold tabular-nums" style={{ color: 'var(--success)' }}>
+                            {formatPrice(itemTotal)}원
+                          </p>
+                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+                            VAT제외 {formatPrice(itemTotalSupply)}
+                          </span>
+                        </div>
+                      </div>
+                      {/* 2.5행: 할인 토글 + 펼침 영역 */}
+                      <div
+                        className="border-b border-[var(--border)]"
+                        style={{ background: isDiscounted ? 'color-mix(in srgb, var(--warning) 8%, var(--card))' : 'var(--card)' }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleDiscountOpen(idx)}
+                          className="w-full px-3 py-2 flex items-center justify-between gap-2 text-left hover:bg-[var(--accent)]/40 transition-colors"
+                        >
+                          <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: isDiscounted ? 'var(--warning)' : 'var(--muted-foreground)' }}>
+                            <Tag className="w-3.5 h-3.5" />
+                            {isDiscounted
+                              ? `할인 적용 중 · ${item.discountType === 'percent' ? `${item.discountValue}% 할인` : item.discountType === 'amount' ? `${formatPrice(item.discountValue)}원 할인` : `특가 ${formatPrice(itemPrice)}원`}`
+                              : '할인 추가'}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            {isDiscounted && (
+                              <span className="text-[10px] tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                                정가 <span className="line-through">{formatPrice(baseUnit)}</span> → <span style={{ color: 'var(--warning)', fontWeight: 700 }}>{formatPrice(itemPrice)}</span>
+                              </span>
+                            )}
+                            <ChevronDown className={`w-4 h-4 transition-transform ${discountOpen ? 'rotate-180' : ''}`} style={{ color: 'var(--muted-foreground)' }} />
+                          </span>
+                        </button>
+                        {discountOpen && (
+                          <div className="px-3 pb-2.5 grid grid-cols-[auto_1fr_auto] gap-2 items-center">
+                            <div className="flex rounded-md overflow-hidden border border-[var(--border)]">
+                              {[
+                                { k: 'percent', label: <Percent className="w-3 h-3" />, aria: '퍼센트 할인' },
+                                { k: 'amount', label: '원', aria: '원 단위 차감' },
+                                { k: 'fixed', label: '지정', aria: '지정 단가' },
+                              ].map((m, mi) => (
+                                <button
+                                  key={m.k}
+                                  type="button"
+                                  onClick={() => switchDiscountType(m.k)}
+                                  className={`px-2 py-1.5 text-xs font-bold transition-colors flex items-center justify-center ${mi > 0 ? 'border-l border-[var(--border)]' : ''}`}
+                                  style={{
+                                    background: activeMode === m.k ? 'var(--primary)' : 'var(--background)',
+                                    color: activeMode === m.k ? 'white' : 'var(--foreground)',
+                                  }}
+                                  aria-label={m.aria}
+                                >
+                                  {m.label}
+                                </button>
+                              ))}
+                            </div>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={item.discountValue ? Number(item.discountValue).toLocaleString('ko-KR') : ''}
+                              onChange={(e) => applyDiscount(activeMode, e.target.value)}
+                              placeholder={discountPlaceholder(activeMode)}
+                              className="w-full px-2 py-1.5 text-sm font-semibold tabular-nums bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                            />
+                            {isDiscounted ? (
+                              <button
+                                type="button"
+                                onClick={clearDiscount}
+                                className="px-2.5 py-1.5 text-xs font-bold rounded border transition-colors"
+                                style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
+                              >
+                                해제
+                              </button>
+                            ) : (
+                              <span className="text-[10px] px-1" style={{ color: 'var(--muted-foreground)' }}>
+                                정가 {formatPrice(baseUnit)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {isDiscounted && (
+                          <div className="px-3 pb-2 text-[10px] flex items-center justify-between gap-2" style={{ color: 'var(--muted-foreground)' }}>
+                            <span>차감액: <span className="font-bold" style={{ color: 'var(--warning)' }}>-{formatPrice(discountAmount)}원</span> × ×{item.quantity}</span>
+                            <span>총 절감 <span className="font-bold" style={{ color: 'var(--warning)' }}>-{formatPrice(discountAmount * item.quantity)}원</span></span>
+                          </div>
+                        )}
+                      </div>
+                      {/* 3행: 수량 컨트롤 + 삭제 */}
+                      <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-[var(--secondary)]">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              if (item.quantity > 1) updateItem({ quantity: item.quantity - 1 });
+                            }}
+                            className="w-9 h-9 border border-[var(--border)] hover:bg-[var(--accent)] rounded flex items-center justify-center transition-colors"
+                            aria-label="수량 감소"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="font-bold text-sm min-w-[3rem] text-center tabular-nums">×{item.quantity}</span>
+                          <button
+                            onClick={() => updateItem({ quantity: item.quantity + 1 })}
+                            className="w-9 h-9 bg-[var(--primary)] hover:opacity-90 text-white rounded flex items-center justify-center transition-opacity"
+                            aria-label="수량 증가"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const newItems = currentCart.items.filter((_, i) => i !== idx);
+                            setEditedDetailCart({ ...editedDetailCart, items: newItems });
+                          }}
+                          className="w-9 h-9 border rounded flex items-center justify-center transition-colors"
+                          style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
+                          aria-label="제품 삭제"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // 보기 모드 — 기존 1행 레이아웃 유지 (할인 적용 시 정가/할인 배지 노출)
                 return (
                   <div key={idx} className="rounded-lg p-3 sm:p-4 border border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--accent)] transition-all">
                     <div className="flex items-start sm:items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold break-words leading-snug">{item.name}</p>
+                        {isDiscounted && (
+                          <span
+                            className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                            style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)' }}
+                          >
+                            <Tag className="w-3 h-3" />
+                            {item.discountType === 'percent' ? `${item.discountValue}%` : `${formatPrice(item.discountValue)}원`} 할인
+                          </span>
+                        )}
                         {itemPrice > 0 && (
                           <div className="mt-1">
+                            {isDiscounted && (
+                              <p className="text-xs line-through" style={{ color: 'var(--muted-foreground)' }}>{formatPrice(baseUnit)}</p>
+                            )}
                             <p className="text-sm" style={{ color: 'var(--primary)' }}>{formatPrice(itemPrice)}</p>
                             <p className="text-[var(--muted-foreground)] text-xs">(VAT제외 {formatPrice(itemSupply)})</p>
                           </div>
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                        {isEditingDetail ? (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => {
-                                const newItems = [...currentCart.items];
-                                if (newItems[idx].quantity > 1) {
-                                  newItems[idx] = { ...newItems[idx], quantity: newItems[idx].quantity - 1 };
-                                  setEditedDetailCart({ ...editedDetailCart, items: newItems });
-                                }
-                              }}
-                              className="w-7 h-7 border border-[var(--border)] hover:bg-[var(--accent)] rounded flex items-center justify-center transition-colors"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="font-semibold text-xs sm:text-sm min-w-[1.5rem] sm:min-w-[2.5rem] text-center">×{item.quantity}</span>
-                            <button
-                              onClick={() => {
-                                const newItems = [...currentCart.items];
-                                newItems[idx] = { ...newItems[idx], quantity: newItems[idx].quantity + 1 };
-                                setEditedDetailCart({ ...editedDetailCart, items: newItems });
-                              }}
-                              className="w-7 h-7 bg-[var(--primary)] hover:opacity-90 text-white rounded flex items-center justify-center transition-opacity"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                const newItems = currentCart.items.filter((_, i) => i !== idx);
-                                setEditedDetailCart({ ...editedDetailCart, items: newItems });
-                              }}
-                              className="w-7 h-7 border rounded flex items-center justify-center transition-colors ml-1"
-                              style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <p className="text-[var(--muted-foreground)] text-sm">×{item.quantity}개</p>
-                        )}
+                        <p className="text-[var(--muted-foreground)] text-sm">×{item.quantity}개</p>
                         {itemPrice > 0 ? (
                           <div className="text-right">
                             <p className="font-bold text-base" style={{ color: 'var(--success)' }}>{formatPrice(itemTotal)}</p>
@@ -634,11 +901,11 @@ export default function SavedCarts({
 
           {/* Status edit section */}
           {isEditingDetail && (
-            <div className="border-t border-[var(--border)] px-4 sm:px-6 py-3 flex-shrink-0 bg-[var(--secondary)]">
-              <div className="space-y-3">
+            <div className="border-t border-[var(--border)] px-3 sm:px-6 py-3 sm:py-4 flex-shrink-0 bg-[var(--secondary)]">
+              <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <p className="text-[var(--muted-foreground)] text-xs mb-2">주문 상태</p>
-                  <div className="flex flex-wrap gap-2">
+                  <p className="text-[var(--muted-foreground)] text-xs font-medium mb-1.5">주문 상태</p>
+                  <div className="grid grid-cols-5 gap-1.5">
                     {[
                       { key: 'pending', label: '대기' },
                       { key: 'reservation', label: '입고예약' },
@@ -649,7 +916,7 @@ export default function SavedCarts({
                       <button
                         key={key}
                         onClick={() => setEditedDetailCart({ ...editedDetailCart, status: key })}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                        className={`px-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors border break-keep ${
                           (editedDetailCart?.status || currentCart.status || 'pending') === key
                             ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                             : 'bg-[var(--background)] text-[var(--foreground)] border-[var(--border)] hover:bg-[var(--accent)]'
@@ -660,78 +927,105 @@ export default function SavedCarts({
                     ))}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[var(--muted-foreground)] text-xs mb-1 block">배송 예정일</label>
+                    <label className="text-[var(--muted-foreground)] text-xs font-medium mb-1.5 block">배송 예정일</label>
                     <input
                       type="date"
                       value={editedDetailCart?.delivery_date || ''}
                       onChange={(e) => setEditedDetailCart({ ...editedDetailCart, delivery_date: e.target.value })}
-                      className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                      className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                     />
                   </div>
                   <div>
-                    <label className="text-[var(--muted-foreground)] text-xs mb-1 block">우선순위</label>
-                    <div className="flex flex-wrap gap-1.5">
+                    <label className="text-[var(--muted-foreground)] text-xs font-medium mb-1.5 block">우선순위</label>
+                    <div className="grid grid-cols-4 gap-1.5">
                       {[
                         { key: 'low', label: '낮음' },
                         { key: 'normal', label: '보통' },
                         { key: 'high', label: '높음' },
                         { key: 'urgent', label: '긴급' },
-                      ].map(({ key, label }) => (
-                        <button
-                          key={key}
-                          onClick={() => setEditedDetailCart({ ...editedDetailCart, priority: key })}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
-                            (editedDetailCart?.priority || currentCart.priority || 'normal') === key
-                              ? key === 'urgent' || key === 'high'
-                                ? 'text-white border-[var(--destructive)]'
-                                : 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                              : 'bg-[var(--background)] text-[var(--foreground)] border-[var(--border)] hover:bg-[var(--accent)]'
-                          }`}
-                          style={(editedDetailCart?.priority || currentCart.priority || 'normal') === key && (key === 'urgent' || key === 'high')
-                            ? { background: 'var(--destructive)' }
-                            : undefined
-                          }
-                        >
-                          {label}
-                        </button>
-                      ))}
+                      ].map(({ key, label }) => {
+                        const active = (editedDetailCart?.priority || currentCart.priority || 'normal') === key;
+                        const danger = key === 'urgent' || key === 'high';
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => setEditedDetailCart({ ...editedDetailCart, priority: key })}
+                            className={`px-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors border break-keep ${
+                              active
+                                ? danger
+                                  ? 'text-white border-[var(--destructive)]'
+                                  : 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                                : 'bg-[var(--background)] text-[var(--foreground)] border-[var(--border)] hover:bg-[var(--accent)]'
+                            }`}
+                            style={active && danger ? { background: 'var(--destructive)' } : undefined}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
                 <div>
-                  <label className="text-[var(--muted-foreground)] text-xs mb-1 block">메모</label>
+                  <label className="text-[var(--muted-foreground)] text-xs font-medium mb-1.5 block">메모</label>
                   <input
                     type="text"
                     value={editedDetailCart?.memo || ''}
                     onChange={(e) => setEditedDetailCart({ ...editedDetailCart, memo: e.target.value })}
                     placeholder="메모 입력..."
-                    className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                    className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                   />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Total + action buttons */}
-          <div className="border-t border-[var(--border)] px-4 sm:px-6 py-4 flex-shrink-0 bg-[var(--card)]">
-            <div
-              className="bg-[var(--secondary)] rounded-lg p-4 mb-4 cursor-pointer hover:bg-[var(--accent)] transition-colors"
-              onClick={() => { setCalculatorInitialValue(currentTotal); setShowCalculatorModal(true); }}
-              title="계산기 열기"
+          {/* Total + action buttons (collapsible) */}
+          <div className="border-t border-[var(--border)] px-4 sm:px-6 py-3 sm:py-4 flex-shrink-0 bg-[var(--card)]">
+            {/* Compact bar — always visible, click to toggle */}
+            <button
+              onClick={() => setIsBottomExpanded(!isBottomExpanded)}
+              className="w-full flex items-center justify-between mb-3 px-3 py-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
             >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[var(--muted-foreground)] text-sm">공급가액</span>
-                <span className="text-sm font-medium">{formatPrice(Math.round(currentTotal / 1.1))}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>총 금액</span>
+                <span className="text-lg sm:text-xl font-bold" style={{ color: 'var(--success)' }}>{formatPrice(currentTotal)}원</span>
               </div>
-              <div className="flex items-center justify-between mb-2 pb-2 border-b border-[var(--border)]">
-                <span className="text-[var(--muted-foreground)] text-sm">부가세</span>
-                <span className="text-sm font-medium">{formatPrice(currentTotal - Math.round(currentTotal / 1.1))}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">총 금액</span>
-                <span className="text-xl font-bold" style={{ color: 'var(--success)' }}>{formatPrice(currentTotal)}</span>
+              {isBottomExpanded ? (
+                <ChevronDown className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+              ) : (
+                <ChevronUp className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+              )}
+            </button>
+
+            {/* Expandable detail */}
+            <div
+              className="overflow-hidden transition-all duration-300 ease-in-out"
+              style={{
+                maxHeight: isBottomExpanded ? '300px' : '0px',
+                opacity: isBottomExpanded ? 1 : 0,
+                marginBottom: isBottomExpanded ? '1rem' : '0',
+              }}
+            >
+              <div
+                className="bg-[var(--secondary)] rounded-lg p-3 sm:p-4 cursor-pointer hover:bg-[var(--accent)] transition-colors"
+                onClick={() => { setCalculatorInitialValue(currentTotal); setShowCalculatorModal(true); }}
+                title="계산기 열기"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[var(--muted-foreground)] text-sm">공급가액</span>
+                  <span className="text-sm font-medium">{formatPrice(Math.round(currentTotal / 1.1))}원</span>
+                </div>
+                <div className="flex items-center justify-between mb-2 pb-2 border-b border-[var(--border)]">
+                  <span className="text-[var(--muted-foreground)] text-sm">부가세</span>
+                  <span className="text-sm font-medium">{formatPrice(currentTotal - Math.round(currentTotal / 1.1))}원</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">총 금액</span>
+                  <span className="text-xl font-bold" style={{ color: 'var(--success)' }}>{formatPrice(currentTotal)}원</span>
+                </div>
               </div>
             </div>
 
@@ -758,14 +1052,14 @@ export default function SavedCarts({
                 </button>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 <button
                   onClick={() => { onLoad(currentCart); onBack(); }}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 hover:opacity-90 text-white rounded-lg font-semibold transition-opacity"
+                  className="flex-1 min-w-[7rem] flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 hover:opacity-90 text-white rounded-lg text-sm sm:text-base font-semibold transition-opacity"
                   style={{ background: 'var(--success)' }}
                 >
-                  <Download className="w-4 h-4" />
-                  불러오기
+                  <Download className="w-4 h-4 flex-shrink-0" />
+                  <span>불러오기</span>
                 </button>
                 {onOrder && (
                   <button
@@ -774,20 +1068,21 @@ export default function SavedCarts({
                       setDetailCart(null);
                       setDetailIndex(null);
                     }}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg font-semibold transition-opacity"
+                    className="flex-1 min-w-[7rem] flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-sm sm:text-base font-semibold transition-opacity"
                   >
-                    <FileText className="w-4 h-4" />
-                    주문확인
+                    <FileText className="w-4 h-4 flex-shrink-0" />
+                    <span>주문확인</span>
                   </button>
                 )}
                 <button
                   onClick={() => handleCopyCart(currentCart)}
-                  className="px-4 py-2.5 rounded-lg font-semibold flex items-center justify-center transition-all border"
+                  className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-semibold flex items-center justify-center transition-all border flex-shrink-0"
                   style={{
                     background: copied ? 'var(--success)' : 'var(--background)',
                     color: copied ? 'white' : 'var(--foreground)',
                     borderColor: copied ? 'var(--success)' : 'var(--border)',
                   }}
+                  title="복사"
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </button>
@@ -801,8 +1096,9 @@ export default function SavedCarts({
                     }
                   }}
                   disabled={deletingId != null}
-                  className="px-4 py-2.5 border rounded-lg transition-colors disabled:opacity-50"
+                  className="px-3 sm:px-4 py-2 sm:py-2.5 border rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
                   style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
+                  title="삭제"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -1172,8 +1468,8 @@ export default function SavedCarts({
                         <div className="flex items-start justify-between mb-1.5">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                              {isBlacklist && <span className="flex-shrink-0" style={{ color: 'var(--destructive)' }}>🚫</span>}
-                              <h3 className="font-semibold break-words leading-snug min-w-0" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>
+                              <span className="flex-shrink-0 text-base" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>{isBlacklist ? '🚫' : '👤'}</span>
+                              <h3 className="text-base sm:text-lg font-bold break-words leading-snug min-w-0" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>
                                 {cart.name}
                               </h3>
                               {isBlacklist && (
@@ -1211,7 +1507,12 @@ export default function SavedCarts({
                             </div>
                             <p className="text-[var(--muted-foreground)] text-xs mt-1">{cart.date} {cart.time}</p>
                           </div>
-                          <p className="font-bold text-sm ml-2 flex-shrink-0" style={{ color: 'var(--success)' }}>{formatPrice(cart.total)}</p>
+                          <div className="ml-2 flex-shrink-0 text-right">
+                            <p className="font-bold text-xl sm:text-2xl leading-tight whitespace-nowrap" style={{ color: 'var(--success)' }}>
+                              {formatPrice(cart.total)}<span className="text-xs font-bold ml-0.5">원</span>
+                            </p>
+                            <SubPrice total={cart.total || 0} layout="stacked" size="sm" className="mt-0.5" />
+                          </div>
                         </div>
 
                         {/* Items summary */}

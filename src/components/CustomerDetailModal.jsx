@@ -2,55 +2,132 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { exportCustomerReport } from '@/lib/exportExcel';
 import { FileSpreadsheet, Printer, ChevronDown, ChevronUp } from 'lucide-react';
-// 주문 상세 경량 뷰 — 전체 주문 정보 표시 + 주문 내역 페이지로 이동 유도
+// 주문 상세 경량 뷰 — 큰 모달 + 정가/할인 표시
 const OrderDetailPopup = ({ order, onClose }) => {
   if (!order) return null;
   const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
   const items = Array.isArray(order.items) ? order.items : [];
+  const total = Number(order.total || 0);
+  const supply = Math.round(total / 1.1);
+  const vat = total - supply;
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-[var(--card)] text-[var(--foreground)] rounded-lg p-5 max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
-          <div>
-            <h3 className="text-base font-bold">주문 상세</h3>
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              {order.id || order.order_id || '-'} · {(order.created_at || '').slice(0, 10)}
-            </p>
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-3 sm:p-6" onClick={onClose}>
+      <div
+        className="bg-[var(--card)] text-[var(--foreground)] rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="px-5 py-4 flex items-center justify-between flex-shrink-0" style={{ background: 'var(--success)', color: 'white' }}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-xl">📋</span>
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-bold leading-tight">주문 상세</h3>
+              <p className="text-[11px] sm:text-xs opacity-90 truncate">
+                {order.id || order.order_id || '-'} · {(order.created_at || '').slice(0, 10)}
+              </p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-xl opacity-60 hover:opacity-100">×</button>
+          <button onClick={onClose} className="text-2xl opacity-90 hover:opacity-100 px-2 leading-none flex-shrink-0">×</button>
         </div>
-        <div className="text-sm space-y-1 mb-3">
-          <p><span className="opacity-60">고객:</span> {order.customer_name || order.customerName || '-'}</p>
+
+        {/* 합계 배너 */}
+        <div className="px-4 sm:px-6 py-3 sm:py-4 grid grid-cols-3 gap-3 flex-shrink-0 border-b" style={{ borderColor: 'var(--border)', background: 'var(--secondary)' }}>
+          <div>
+            <div className="text-[10px] sm:text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>총 금액</div>
+            <div className="text-lg sm:text-2xl font-black tabular-nums" style={{ color: 'var(--success)' }}>{fmt(total)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] sm:text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>공급가액</div>
+            <div className="text-lg sm:text-2xl font-black tabular-nums" style={{ color: 'var(--primary)' }}>{fmt(supply)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] sm:text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>부가세</div>
+            <div className="text-lg sm:text-2xl font-black tabular-nums" style={{ color: 'var(--purple, #a855f7)' }}>{fmt(vat)}</div>
+          </div>
+        </div>
+
+        {/* 고객 + 메모 */}
+        <div className="px-4 sm:px-6 py-3 text-sm space-y-1 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <p className="break-words"><span className="opacity-60">고객:</span> <b>{order.customer_name || order.customerName || '-'}</b></p>
           {(order.customer_phone || order.customerPhone) && (
             <p><span className="opacity-60">전화:</span> {order.customer_phone || order.customerPhone}</p>
           )}
-          {order.memo && <p><span className="opacity-60">메모:</span> {order.memo}</p>}
+          {order.memo && <p className="break-words"><span className="opacity-60">메모:</span> {order.memo}</p>}
         </div>
-        {items.length > 0 && (
-          <div className="border rounded-md overflow-hidden mb-3" style={{ borderColor: 'var(--border)' }}>
-            <div className="px-3 py-2 text-[11px] font-bold" style={{ background: 'var(--muted)' }}>품목 ({items.length})</div>
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {items.slice(0, 10).map((it, i) => (
-                <div key={i} className="px-3 py-1.5 text-xs flex items-center justify-between gap-2">
-                  <span className="flex-1 min-w-0 break-words leading-snug">{it.name || it.product_name || '품목'}</span>
-                  <span className="whitespace-nowrap opacity-70">×{it.quantity || 1}</span>
-                  <span className="whitespace-nowrap tabular-nums">{fmt((it.price || 0) * (it.quantity || 1))}원</span>
-                </div>
-              ))}
-              {items.length > 10 && (
-                <div className="px-3 py-1.5 text-xs text-center opacity-60">... 외 {items.length - 10}개</div>
-              )}
+
+        {/* 품목 — 스크롤 영역 */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {items.length > 0 ? (
+            <div>
+              <div className="sticky top-0 z-10 px-4 sm:px-6 py-2 text-[11px] sm:text-xs font-bold border-b flex items-center justify-between" style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}>
+                <span>상품 목록 ({items.length}종)</span>
+                <span className="opacity-70">총 {items.reduce((s, it) => s + (it.quantity || 0), 0)}개</span>
+              </div>
+              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                {items.map((it, i) => {
+                  const qty = it.quantity || 1;
+                  const unit = Number(it.price ?? it.wholesale ?? it.retail ?? 0) || 0;
+                  const lineTotal = unit * qty;
+                  const lineSupply = Math.round(lineTotal / 1.1);
+                  const isDiscounted = !!it.discountType && Number(it.discountValue) > 0;
+                  const baseUnit = isDiscounted ? (Number(it.originalPrice) || unit) : unit;
+                  const dLabel = isDiscounted
+                    ? (it.discountType === 'percent' ? `${it.discountValue}%` : it.discountType === 'amount' ? `${fmt(it.discountValue)}원` : '특가')
+                    : '';
+                  return (
+                    <div key={i} className="px-4 sm:px-6 py-3 flex items-start justify-between gap-3 hover:bg-[var(--accent)]/30 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm sm:text-base break-words leading-snug">{it.name || it.product_name || '품목'}</span>
+                          {isDiscounted && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                              style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)' }}
+                            >
+                              🏷 {dLabel} 할인
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-[11px] sm:text-xs flex items-center gap-2 flex-wrap" style={{ color: 'var(--muted-foreground)' }}>
+                          {isDiscounted ? (
+                            <>
+                              <span>수량 {qty}개</span>
+                              <span>×</span>
+                              <span className="line-through opacity-70">{fmt(baseUnit)}원</span>
+                              <span className="font-bold" style={{ color: 'var(--warning)' }}>→ {fmt(unit)}원</span>
+                            </>
+                          ) : (
+                            <span>수량 {qty}개 × {fmt(unit)}원</span>
+                          )}
+                          <span>(공급 {fmt(Math.round(unit / 1.1))}원)</span>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        {isDiscounted && (
+                          <div className="text-[11px] line-through tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                            {fmt(baseUnit * qty)}원
+                          </div>
+                        )}
+                        <div className="font-bold text-base sm:text-lg tabular-nums" style={{ color: 'var(--success)' }}>{fmt(lineTotal)}원</div>
+                        <div className="text-[10px] sm:text-[11px] tabular-nums" style={{ color: 'var(--muted-foreground)' }}>공급 {fmt(lineSupply)}원</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
-        <div className="flex items-center justify-between text-sm mb-4 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-          <span className="font-bold">합계</span>
-          <span className="font-black text-base tabular-nums">{fmt(order.total)}원</span>
+          ) : (
+            <p className="text-center py-12 text-sm" style={{ color: 'var(--muted-foreground)' }}>품목이 없습니다</p>
+          )}
         </div>
-        <p className="text-[11px] text-center opacity-60 mb-2">
-          상세 편집/반품은 <b>주문 내역</b> 페이지에서 이용하세요
-        </p>
-        <button onClick={onClose} className="w-full px-4 py-2 bg-[var(--primary)] text-white rounded font-semibold text-sm">닫기</button>
+
+        {/* 푸터 */}
+        <div className="flex-shrink-0 border-t px-4 sm:px-6 py-3" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-[11px] text-center mb-2" style={{ color: 'var(--muted-foreground)' }}>
+            상세 편집/반품은 <b>주문 내역</b> 페이지에서 이용하세요
+          </p>
+          <button onClick={onClose} className="w-full px-4 py-2.5 bg-[var(--primary)] text-white rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity">닫기</button>
+        </div>
       </div>
     </div>
   );

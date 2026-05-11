@@ -49,6 +49,8 @@ export default function MainPOS({
   onBack,
   loadedCustomer,
   onClearLoadedCustomer,
+  autoOpenOrderConfirm = false,
+  onOrderConfirmAutoOpened,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
@@ -72,6 +74,14 @@ export default function MainPOS({
       setIsCartExpanded(false);
     }
   }, [cart.length]);
+
+  // AI 주문 인식 → 담기 → 주문서 자동 오픈 (App에서 신호 전달)
+  useEffect(() => {
+    if (autoOpenOrderConfirm && cart.length > 0) {
+      setShowOrderConfirm(true);
+      onOrderConfirmAutoOpened?.();
+    }
+  }, [autoOpenOrderConfirm, cart.length, onOrderConfirmAutoOpened]);
 
   const products = externalProducts.length > 0 ? externalProducts : priceData;
 
@@ -580,31 +590,19 @@ export default function MainPOS({
                                   </div>
                                 </div>
                               ) : (
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <p
-                                      className="text-lg sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums"
-                                      style={{
-                                        color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)',
-                                        letterSpacing: '-0.02em',
-                                      }}
-                                    >
-                                      {formatPrice(displayPrice)}<span className="text-xs font-bold ml-0.5">원</span>
-                                    </p>
-                                    <p className="text-[10px] whitespace-nowrap mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                                      VAT제외 {formatPrice(exVatPrice)}원
-                                    </p>
-                                  </div>
-                                  <div
-                                    className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full border"
+                                <div className="min-w-0">
+                                  <p
+                                    className="text-lg sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums"
                                     style={{
-                                      background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
-                                      borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--border))',
-                                      color: 'var(--primary)',
+                                      color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)',
+                                      letterSpacing: '-0.02em',
                                     }}
                                   >
-                                    <Plus className="w-4 h-4" />
-                                  </div>
+                                    {formatPrice(displayPrice)}<span className="text-xs font-bold ml-0.5">원</span>
+                                  </p>
+                                  <p className="text-[10px] whitespace-nowrap mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                                    VAT제외 {formatPrice(exVatPrice)}원
+                                  </p>
                                 </div>
                               )}
                               </div>{/* end demo image inner wrapper */}
@@ -784,6 +782,9 @@ export default function MainPOS({
                           style={{ color: hasDiscount ? 'var(--warning)' : 'var(--primary)' }}
                         >
                           {formatPrice(item.finalTotal)}원
+                        </p>
+                        <p className="text-[9px] leading-tight" style={{ color: 'var(--muted-foreground)' }}>
+                          공급 {formatPrice(calcExVat(item.finalTotal))}
                         </p>
                       </div>
                     </div>

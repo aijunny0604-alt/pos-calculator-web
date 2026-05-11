@@ -10,6 +10,7 @@ import PaymentRegisterModal from '@/components/PaymentRegisterModal';
 import PaymentEditModal from '@/components/PaymentEditModal';
 import BulkPaymentModal from '@/components/BulkPaymentModal';
 import { formatPrice, formatDate, calcExVat, handleSearchFocus } from '@/lib/utils';
+import SubPrice from '@/components/ui/SubPrice';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import { supabase } from '@/lib/supabase';
 import { CircleDollarSign } from 'lucide-react';
@@ -669,18 +670,42 @@ export default function CustomerList({
                           ) : (
                             <p className="font-bold" style={{ color: 'var(--success)' }}>{formatPrice(order.totalAmount)}</p>
                           )}
+                          <SubPrice
+                            total={(order.totalAmount || 0) - (order.totalReturned || 0)}
+                            layout="stacked"
+                            size="xs"
+                            className="mt-0.5"
+                          />
                         </div>
                       </div>
 
                       {/* Card middle: items */}
                       <div className="bg-[var(--secondary)] rounded-lg p-2 mb-3">
                         <div className="space-y-1">
-                          {(order.items || []).slice(0, 3).map((item, idx) => (
-                            <div key={idx} className="flex justify-between text-xs">
-                              <span className="text-[var(--foreground)] flex-1 min-w-0 break-words mr-2">{item.name} x{item.quantity}</span>
-                              <span className="text-[var(--muted-foreground)] flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
-                            </div>
-                          ))}
+                          {(order.items || []).slice(0, 3).map((item, idx) => {
+                            const lineTotal = (item.price ?? item.wholesale ?? item.retail ?? 0) * item.quantity;
+                            const isDiscounted = !!item.discountType && Number(item.discountValue) > 0;
+                            const dLabel = isDiscounted
+                              ? (item.discountType === 'percent' ? `${item.discountValue}%` : item.discountType === 'amount' ? `${formatPrice(item.discountValue)}원` : '특가')
+                              : '';
+                            return (
+                              <div key={idx} className="flex justify-between text-xs">
+                                <span className="text-[var(--foreground)] flex-1 min-w-0 break-words mr-2">
+                                  {item.name} x{item.quantity}
+                                  {isDiscounted && (
+                                    <span className="ml-1 inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold align-middle"
+                                      style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)' }}>
+                                      🏷 {dLabel}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="flex-shrink-0 text-right">
+                                  <span className="text-[var(--muted-foreground)]">{formatPrice(lineTotal)}</span>
+                                  <span className="block text-[9px] opacity-75 leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat(lineTotal))}</span>
+                                </span>
+                              </div>
+                            );
+                          })}
                           {(order.items || []).length > 3 && (
                             <p className="text-[var(--muted-foreground)] text-xs">외 {order.items.length - 3}개 상품</p>
                           )}
@@ -901,19 +926,22 @@ export default function CustomerList({
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={toggleDetailFullscreen}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                  title={isDetailFullscreen ? '원래 크기' : '전체화면'}
-                >
-                  {isDetailFullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
-                </button>
-                <button
-                  onClick={() => { setDetailOrder(null); setIsReturning(false); setReturnItems([]); }}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-white" />
-                </button>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={toggleDetailFullscreen}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    title={isDetailFullscreen ? '원래 크기' : '전체화면'}
+                  >
+                    {isDetailFullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
+                  </button>
+                  <button
+                    onClick={() => { setDetailOrder(null); setIsReturning(false); setReturnItems([]); }}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    title="닫기"
+                  >
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -988,16 +1016,18 @@ export default function CustomerList({
                           </div>
                           <p className="text-[var(--muted-foreground)] text-xs">
                             수량: {item.quantity}개 × {formatPrice(item.price ?? item.wholesale ?? item.retail ?? 0)}원
+                            <span className="ml-1 text-[10px] opacity-75">(공급 {formatPrice(calcExVat(item.price ?? item.wholesale ?? item.retail ?? 0))}원)</span>
                             {(item.price == null || Number(item.price) === 0) && (
                               <span className="ml-1 text-[10px] text-red-500 font-bold">⚠️ 단가 누락</span>
                             )}
                           </p>
                         </div>
                         <p
-                          className={`font-semibold ${returnedQty > 0 ? 'line-through' : ''}`}
+                          className={`font-semibold text-right ${returnedQty > 0 ? 'line-through' : ''}`}
                           style={{ color: returnedQty > 0 ? 'var(--warning)' : 'var(--success)' }}
                         >
                           {formatPrice((Number(item.price) || Number(item.wholesale) || Number(item.retail) || 0) * item.quantity)}
+                          <span className="block text-[10px] font-normal leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat((Number(item.price) || Number(item.wholesale) || Number(item.retail) || 0) * item.quantity))}</span>
                         </p>
                       </div>
                     );

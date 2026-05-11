@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   X, FileText, Package, Plus, Minus, Trash2, Edit3, RotateCcw,
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
-  ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2
+  ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2, Tag, Percent
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
+import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
+import QuickItemBar from '@/components/ui/QuickItemBar';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
@@ -39,6 +41,19 @@ export default function OrderDetail({
   const [showCalculator, setShowCalculator] = useState(false);
   // Mobile bottom section collapse state
   const [isBottomExpanded, setIsBottomExpanded] = useState(true);
+  // 카드별 할인 영역 펼침 (idx Set) — 편집 종료/다른 주문 전환 시 자동 초기화
+  const [openDiscountIdxs, setOpenDiscountIdxs] = useState(() => new Set());
+  const toggleDiscountOpen = (idx) => {
+    setOpenDiscountIdxs((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+  useEffect(() => {
+    setOpenDiscountIdxs(new Set());
+  }, [order?.id, isEditing]);
   // 드래그/리사이즈 (데스크톱 전용, 모바일은 기존 중앙 정렬 유지)
   const {
     maximized: isFullscreen,
@@ -720,6 +735,18 @@ export default function OrderDetail({
               )}
             </div>
 
+            {/* QuickItemBar — 택배비/퀵비/수수료 등 즉석 추가 (편집 모드 전용) */}
+            {isEditing && (
+              <div className="mb-4">
+                <QuickItemBar
+                  onAddLine={(line) => {
+                    const newItems = [...editedOrder.items, line];
+                    setEditedOrder({ ...editedOrder, items: newItems });
+                  }}
+                />
+              </div>
+            )}
+
             {/* Product search for adding */}
             {isEditing && showProductSearch && (
               <div className="mb-4 relative">
@@ -858,10 +885,10 @@ export default function OrderDetail({
               style={{ background: 'var(--secondary)', color: 'var(--muted-foreground)' }}
             >
               <div className="col-span-1 text-center">No.</div>
-              <div className={isEditing ? 'col-span-4' : 'col-span-5'}>제품명</div>
-              <div className="col-span-2 text-right">단가</div>
-              <div className={`${isEditing ? 'col-span-2' : 'col-span-1'} text-center`}>수량</div>
-              <div className="col-span-2 text-right">금액</div>
+              <div className="col-span-3">제품명</div>
+              <div className="col-span-3 text-center">단가</div>
+              <div className={`${isEditing ? 'col-span-1' : 'col-span-2'} text-center`}>수량</div>
+              <div className="col-span-3 text-center">금액</div>
               {isEditing && <div className="col-span-1" />}
             </div>
 
@@ -870,6 +897,85 @@ export default function OrderDetail({
               {currentItems.map((item, index) => {
                 const returnedQty = getReturnedQuantity(item.id);
                 const isEven = index % 2 === 0;
+                const isDiscounted = !!item.discountType && Number(item.discountValue) > 0;
+                const unit = getItemPrice(item);
+                const baseUnit = isDiscounted ? (Number(item.originalPrice) || unit) : unit;
+                const discountLabel = isDiscounted
+                  ? (item.discountType === 'percent'
+                      ? `${item.discountValue}%`
+                      : item.discountType === 'amount'
+                        ? `${formatPrice(item.discountValue)}원`
+                        : `특가`)
+                  : '';
+                const discountAmount = isDiscounted ? Math.max(0, baseUnit - unit) : 0;
+                const isWholesale = (order?.priceType || 'wholesale') === 'wholesale';
+                const priceField = isWholesale ? 'wholesale' : 'retail';
+                const discountOpen = openDiscountIdxs.has(index) || isDiscounted;
+
+                const updateItem = (patch) => {
+                  if (!editedOrder) return;
+                  const newItems = [...editedOrder.items];
+                  newItems[index] = { ...newItems[index], ...patch };
+                  setEditedOrder({ ...editedOrder, items: newItems });
+                };
+                const updatePrice = (raw) => {
+                  const num = Number(String(raw).replace(/[^\d]/g, '')) || 0;
+                  updateItem({
+                    price: num,
+                    [priceField]: num,
+                    originalPrice: undefined,
+                    discountType: undefined,
+                    discountValue: undefined,
+                  });
+                };
+                const updateName = (raw) => updateItem({ name: raw });
+                const applyDiscount = (type, rawValue) => {
+                  const v = Number(String(rawValue).replace(/[^\d.]/g, '')) || 0;
+                  const base = Number(item.originalPrice ?? item[priceField] ?? item.price ?? 0) || 0;
+                  if (v <= 0) {
+                    updateItem({
+                      price: base,
+                      [priceField]: base,
+                      originalPrice: undefined,
+                      discountType: undefined,
+                      discountValue: undefined,
+                    });
+                    return;
+                  }
+                  const final = calcFinalPrice(base, type, v);
+                  updateItem({
+                    originalPrice: base,
+                    discountType: type,
+                    discountValue: v,
+                    price: final,
+                    [priceField]: final,
+                  });
+                };
+                const switchDiscountType = (newType) => {
+                  if (item.discountType === newType) return;
+                  if (!isDiscounted) {
+                    updateItem({ discountType: newType });
+                    return;
+                  }
+                  const base = Number(item.originalPrice) || baseUnit;
+                  const newValue = convertDiscountValue(base, unit, newType);
+                  if (newValue <= 0) {
+                    updateItem({ discountType: newType, discountValue: 0 });
+                    return;
+                  }
+                  applyDiscount(newType, newValue);
+                };
+                const clearDiscount = () => {
+                  const base = Number(item.originalPrice ?? item.price ?? 0) || 0;
+                  updateItem({
+                    price: base,
+                    [priceField]: base,
+                    originalPrice: undefined,
+                    discountType: undefined,
+                    discountValue: undefined,
+                  });
+                };
+                const activeMode = item.discountType || 'percent';
                 return (
                   <div
                     key={index}
@@ -904,18 +1010,38 @@ export default function OrderDetail({
                               </span>
                             )}
                           </div>
-                          <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
-                            <span className="break-words">{item.name}</span>
-                            {isEditing && (
+                          {isEditing ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={item.name || ''}
+                                onChange={(e) => updateName(e.target.value)}
+                                placeholder="제품명"
+                                className="flex-1 min-w-0 px-2 py-1.5 text-sm font-semibold border rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                                style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                              />
                               <button
                                 onClick={() => openReplaceProduct(index)}
-                                className="p-1 rounded transition-colors hover:bg-[var(--accent)] ml-1 inline-flex align-middle"
-                                title="다른 제품으로 변경"
+                                className="p-1.5 rounded transition-colors hover:bg-[var(--accent)] flex-shrink-0"
+                                title="다른 제품으로 통째 교체"
                               >
                                 <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--warning)' }} />
                               </button>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+                              <span className="break-words">{item.name}</span>
+                            </div>
+                          )}
+                          {isDiscounted && !isEditing && (
+                            <span
+                              className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                              style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)' }}
+                            >
+                              <Tag className="w-3 h-3" />
+                              {discountLabel} 할인
+                            </span>
+                          )}
                         </div>
                         {isEditing && (
                           <button
@@ -933,14 +1059,122 @@ export default function OrderDetail({
 
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div className="rounded-lg p-2" style={{ background: 'var(--muted)' }}>
-                          <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>단가</div>
-                          <div className="font-medium" style={{ color: 'var(--foreground)' }}>{formatPrice(getItemPrice(item))}원</div>
+                          <div className="text-xs mb-0.5 font-medium" style={{ color: isDiscounted ? 'var(--warning)' : 'var(--muted-foreground)' }}>
+                            {isEditing ? (isDiscounted ? '할인 적용 단가' : '단가 (VAT포함)') : '단가'}
+                          </div>
+                          {isDiscounted && (
+                            <div className="text-[10px] line-through tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                              {formatPrice(baseUnit)}원
+                            </div>
+                          )}
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={unit > 0 ? Number(unit).toLocaleString('ko-KR') : ''}
+                              onChange={(e) => updatePrice(e.target.value)}
+                              readOnly={isDiscounted}
+                              title={isDiscounted ? '할인 적용 중 — 직접 수정하려면 [해제] 버튼을 눌러주세요' : undefined}
+                              placeholder="0"
+                              className={`w-full px-1.5 py-1 text-sm font-bold tabular-nums border rounded focus:outline-none ${
+                                isDiscounted
+                                  ? 'bg-[var(--secondary)] border-[var(--border)] cursor-not-allowed opacity-80'
+                                  : 'bg-[var(--background)] border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)]/40'
+                              }`}
+                              style={{ color: isDiscounted ? 'var(--warning)' : 'var(--primary)' }}
+                            />
+                          ) : (
+                            <div className="font-medium tabular-nums" style={{ color: isDiscounted ? 'var(--warning)' : 'var(--foreground)' }}>{formatPrice(unit)}원</div>
+                          )}
+                          <div className="text-[10px] mt-0.5 leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat(unit))}원</div>
                         </div>
                         <div className="rounded-lg p-2" style={{ background: 'var(--muted)' }}>
                           <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>금액</div>
-                          <div className="font-bold" style={{ color: 'var(--primary)' }}>{formatPrice(getItemPrice(item) * item.quantity)}원</div>
+                          {isDiscounted && (
+                            <div className="text-[10px] line-through tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                              {formatPrice(baseUnit * item.quantity)}원
+                            </div>
+                          )}
+                          <div className="font-bold tabular-nums" style={{ color: 'var(--primary)' }}>{formatPrice(unit * item.quantity)}원</div>
+                          <div className="text-[10px] mt-0.5 leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat(unit * item.quantity))}원</div>
                         </div>
                       </div>
+                      {isEditing && (
+                        <div
+                          className="rounded-lg overflow-hidden border"
+                          style={{
+                            background: isDiscounted ? 'color-mix(in srgb, var(--warning) 8%, var(--card))' : 'var(--card)',
+                            borderColor: isDiscounted ? 'color-mix(in srgb, var(--warning) 30%, var(--border))' : 'var(--border)',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleDiscountOpen(index)}
+                            className="w-full px-2 py-1.5 flex items-center justify-between gap-2 text-left hover:bg-[var(--accent)]/40 transition-colors"
+                          >
+                            <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: isDiscounted ? 'var(--warning)' : 'var(--muted-foreground)' }}>
+                              <Tag className="w-3.5 h-3.5" />
+                              {isDiscounted
+                                ? `할인 적용 중 · ${item.discountType === 'fixed' ? `특가 ${formatPrice(unit)}원` : `${discountLabel} 할인`}`
+                                : '할인 추가'}
+                            </span>
+                            <ChevronDown className={`w-4 h-4 transition-transform ${discountOpen ? 'rotate-180' : ''}`} style={{ color: 'var(--muted-foreground)' }} />
+                          </button>
+                          {discountOpen && (
+                            <div className="px-2 pb-2 grid grid-cols-[auto_1fr_auto] gap-1.5 items-center">
+                              <div className="flex rounded-md overflow-hidden border border-[var(--border)]">
+                                {[
+                                  { k: 'percent', label: <Percent className="w-3 h-3" />, aria: '퍼센트 할인' },
+                                  { k: 'amount', label: '원', aria: '원 단위 차감' },
+                                  { k: 'fixed', label: '지정', aria: '지정 단가' },
+                                ].map((m, mi) => (
+                                  <button
+                                    key={m.k}
+                                    type="button"
+                                    onClick={() => switchDiscountType(m.k)}
+                                    className={`px-1.5 py-1.5 text-xs font-bold transition-colors flex items-center justify-center ${mi > 0 ? 'border-l border-[var(--border)]' : ''}`}
+                                    style={{
+                                      background: activeMode === m.k ? 'var(--primary)' : 'var(--background)',
+                                      color: activeMode === m.k ? 'white' : 'var(--foreground)',
+                                    }}
+                                    aria-label={m.aria}
+                                  >
+                                    {m.label}
+                                  </button>
+                                ))}
+                              </div>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={item.discountValue ? Number(item.discountValue).toLocaleString('ko-KR') : ''}
+                                onChange={(e) => applyDiscount(activeMode, e.target.value)}
+                                placeholder={discountPlaceholder(activeMode)}
+                                className="w-full px-2 py-1.5 text-sm font-semibold tabular-nums bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                              />
+                              {isDiscounted ? (
+                                <button
+                                  type="button"
+                                  onClick={clearDiscount}
+                                  className="px-2 py-1.5 text-xs font-bold rounded border transition-colors"
+                                  style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
+                                >
+                                  해제
+                                </button>
+                              ) : (
+                                <span className="text-[10px] px-1" style={{ color: 'var(--muted-foreground)' }}>
+                                  정가 {formatPrice(baseUnit)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {isDiscounted && discountOpen && (
+                            <div className="px-2 pb-1.5 text-[10px] flex items-center justify-between gap-2" style={{ color: 'var(--muted-foreground)' }}>
+                              <span>차감액: <span className="font-bold" style={{ color: 'var(--warning)' }}>-{formatPrice(discountAmount)}원</span></span>
+                              <span>총 절감 <span className="font-bold" style={{ color: 'var(--warning)' }}>-{formatPrice(discountAmount * item.quantity)}원</span></span>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between rounded-lg p-2" style={{ background: 'var(--muted)' }}>
                         <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>수량</span>
@@ -988,8 +1222,30 @@ export default function OrderDetail({
                         <div className="col-span-1 text-center text-base font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                           {index + 1}
                         </div>
-                        <div className={`${isEditing ? 'col-span-4' : 'col-span-5'} font-semibold flex items-center gap-2 min-w-0`} style={{ color: 'var(--foreground)' }}>
-                          <span className="flex-1 min-w-0 break-words text-base leading-snug">{item.name}</span>
+                        <div className="col-span-3 font-semibold flex items-center gap-2 min-w-0" style={{ color: 'var(--foreground)' }}>
+                          <div className="flex-1 min-w-0">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={item.name || ''}
+                                onChange={(e) => updateName(e.target.value)}
+                                placeholder="제품명"
+                                className="w-full px-2 py-1 text-sm font-semibold border rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                                style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                              />
+                            ) : (
+                              <span className="break-words text-base leading-snug">{item.name}</span>
+                            )}
+                            {isDiscounted && !isEditing && (
+                              <span
+                                className="inline-flex items-center gap-1 ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle"
+                                style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)' }}
+                              >
+                                <Tag className="w-3 h-3" />
+                                {discountLabel} 할인
+                              </span>
+                            )}
+                          </div>
                           {returnedQty > 0 && (
                             <span
                               className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
@@ -1005,16 +1261,38 @@ export default function OrderDetail({
                             <button
                               onClick={() => openReplaceProduct(index)}
                               className="p-1 rounded opacity-60 hover:opacity-100 transition-all hover:bg-[var(--accent)] flex-shrink-0"
-                              title="다른 제품으로 변경"
+                              title="다른 제품으로 통째 교체"
                             >
                               <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--warning)' }} />
                             </button>
                           )}
                         </div>
-                        <div className="col-span-2 text-right text-base font-medium" style={{ color: 'var(--muted-foreground)' }}>
-                          {formatPrice(getItemPrice(item))}원
+                        <div className="col-span-3 text-center" style={{ color: 'var(--muted-foreground)' }}>
+                          {isDiscounted && (
+                            <div className="text-[12px] line-through tabular-nums">{formatPrice(baseUnit)}원</div>
+                          )}
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={unit > 0 ? Number(unit).toLocaleString('ko-KR') : ''}
+                              onChange={(e) => updatePrice(e.target.value)}
+                              readOnly={isDiscounted}
+                              title={isDiscounted ? '할인 적용 중 — 직접 수정하려면 [해제] 버튼을 눌러주세요' : undefined}
+                              placeholder="0"
+                              className={`w-full px-2 py-1.5 text-base font-bold tabular-nums text-center border rounded focus:outline-none ${
+                                isDiscounted
+                                  ? 'bg-[var(--secondary)] border-[var(--border)] cursor-not-allowed opacity-80'
+                                  : 'bg-[var(--background)] border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)]/40'
+                              }`}
+                              style={{ color: isDiscounted ? 'var(--warning)' : 'var(--foreground)' }}
+                            />
+                          ) : (
+                            <div className="text-lg font-medium tabular-nums" style={{ color: isDiscounted ? 'var(--warning)' : 'inherit' }}>{formatPrice(unit)}원</div>
+                          )}
+                          <div className="text-[13px] opacity-80 leading-tight mt-0.5 tabular-nums">공급가 {formatPrice(calcExVat(unit))}원</div>
                         </div>
-                        <div className={`${isEditing ? 'col-span-2' : 'col-span-1'} text-center`}>
+                        <div className={`${isEditing ? 'col-span-1' : 'col-span-2'} text-center`}>
                           {isEditing ? (
                             <div className="flex items-center justify-center gap-1">
                               <button
@@ -1051,8 +1329,12 @@ export default function OrderDetail({
                             <span className="font-semibold text-base" style={{ color: 'var(--foreground)' }}>{item.quantity}개</span>
                           )}
                         </div>
-                        <div className="col-span-2 text-right font-bold text-lg" style={{ color: 'var(--primary)' }}>
-                          {formatPrice(getItemPrice(item) * item.quantity)}원
+                        <div className="col-span-3 text-center">
+                          {isDiscounted && (
+                            <div className="text-[12px] line-through tabular-nums" style={{ color: 'var(--muted-foreground)' }}>{formatPrice(baseUnit * item.quantity)}원</div>
+                          )}
+                          <div className="font-bold text-xl tabular-nums" style={{ color: 'var(--primary)' }}>{formatPrice(unit * item.quantity)}원</div>
+                          <div className="text-[13px] font-normal leading-tight mt-0.5 tabular-nums" style={{ color: 'var(--muted-foreground)' }}>공급가 {formatPrice(calcExVat(unit * item.quantity))}원</div>
                         </div>
                         {isEditing && (
                           <div className="col-span-1 flex justify-center">
@@ -1069,6 +1351,94 @@ export default function OrderDetail({
                           </div>
                         )}
                       </div>
+                      {isEditing && (
+                        <div
+                          className="px-5 pb-3 -mt-2"
+                          style={{ background: isDiscounted ? 'color-mix(in srgb, var(--warning) 5%, transparent)' : 'transparent' }}
+                        >
+                          <div
+                            className="rounded-lg overflow-hidden border"
+                            style={{
+                              background: isDiscounted ? 'color-mix(in srgb, var(--warning) 8%, var(--card))' : 'var(--card)',
+                              borderColor: isDiscounted ? 'color-mix(in srgb, var(--warning) 30%, var(--border))' : 'var(--border)',
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleDiscountOpen(index)}
+                              className="w-full px-3 py-2 flex items-center justify-between gap-2 text-left hover:bg-[var(--accent)]/40 transition-colors"
+                            >
+                              <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: isDiscounted ? 'var(--warning)' : 'var(--muted-foreground)' }}>
+                                <Tag className="w-3.5 h-3.5" />
+                                {isDiscounted
+                                  ? `할인 적용 중 · ${item.discountType === 'fixed' ? `특가 ${formatPrice(unit)}원` : `${discountLabel} 할인`}`
+                                  : '할인 추가'}
+                              </span>
+                              <span className="flex items-center gap-2">
+                                {isDiscounted && (
+                                  <span className="text-[11px] tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                                    정가 <span className="line-through">{formatPrice(baseUnit)}</span> → <span style={{ color: 'var(--warning)', fontWeight: 700 }}>{formatPrice(unit)}</span>
+                                  </span>
+                                )}
+                                <ChevronDown className={`w-4 h-4 transition-transform ${discountOpen ? 'rotate-180' : ''}`} style={{ color: 'var(--muted-foreground)' }} />
+                              </span>
+                            </button>
+                            {discountOpen && (
+                              <div className="px-3 pb-2.5 grid grid-cols-[auto_1fr_auto] gap-2 items-center">
+                                <div className="flex rounded-md overflow-hidden border border-[var(--border)]">
+                                  {[
+                                    { k: 'percent', label: <Percent className="w-3 h-3" />, aria: '퍼센트 할인' },
+                                    { k: 'amount', label: '원', aria: '원 단위 차감' },
+                                    { k: 'fixed', label: '지정', aria: '지정 단가' },
+                                  ].map((m, mi) => (
+                                    <button
+                                      key={m.k}
+                                      type="button"
+                                      onClick={() => switchDiscountType(m.k)}
+                                      className={`px-2 py-1.5 text-xs font-bold transition-colors flex items-center justify-center ${mi > 0 ? 'border-l border-[var(--border)]' : ''}`}
+                                      style={{
+                                        background: activeMode === m.k ? 'var(--primary)' : 'var(--background)',
+                                        color: activeMode === m.k ? 'white' : 'var(--foreground)',
+                                      }}
+                                      aria-label={m.aria}
+                                    >
+                                      {m.label}
+                                    </button>
+                                  ))}
+                                </div>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={item.discountValue ? Number(item.discountValue).toLocaleString('ko-KR') : ''}
+                                  onChange={(e) => applyDiscount(activeMode, e.target.value)}
+                                  placeholder={discountPlaceholder(activeMode)}
+                                  className="w-full px-2 py-1.5 text-sm font-semibold tabular-nums bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                                />
+                                {isDiscounted ? (
+                                  <button
+                                    type="button"
+                                    onClick={clearDiscount}
+                                    className="px-2.5 py-1.5 text-xs font-bold rounded border transition-colors"
+                                    style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
+                                  >
+                                    해제
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] px-1" style={{ color: 'var(--muted-foreground)' }}>
+                                    정가 {formatPrice(baseUnit)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {isDiscounted && discountOpen && (
+                              <div className="px-3 pb-2 text-[11px] flex items-center justify-between gap-2" style={{ color: 'var(--muted-foreground)' }}>
+                                <span>차감액: <span className="font-bold" style={{ color: 'var(--warning)' }}>-{formatPrice(discountAmount)}원</span> × ×{item.quantity}</span>
+                                <span>총 절감 <span className="font-bold" style={{ color: 'var(--warning)' }}>-{formatPrice(discountAmount * item.quantity)}원</span></span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

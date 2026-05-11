@@ -178,12 +178,12 @@ export default function StockOverview({ products = [], categories = [], formatPr
         >
           <div className="px-4 pb-4 pt-2 space-y-3">
             {/* Stat filter cards */}
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-5 gap-2 sm:gap-3">
               {statCards.map(({ key, label, value, color, activeBorder, activeBg }) => (
                 <button
                   key={key}
                   onClick={() => setStockFilter(key)}
-                  className={`rounded-lg p-2 text-center transition-all border ${
+                  className={`rounded-xl p-3 sm:p-4 text-center transition-all border ${
                     stockFilter === key
                       ? 'ring-2 ring-offset-1'
                       : 'border-[var(--border)] hover:bg-[var(--secondary)]'
@@ -194,8 +194,8 @@ export default function StockOverview({ products = [], categories = [], formatPr
                     '--tw-ring-color': stockFilter === key ? activeBorder : 'transparent',
                   }}
                 >
-                  <p className="text-[10px] mb-0.5" style={{ color: 'var(--muted-foreground)' }}>{label}</p>
-                  <p className="text-base font-bold" style={{ color }}>{value}</p>
+                  <p className="text-xs sm:text-sm font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>{label}</p>
+                  <p className="text-2xl sm:text-3xl font-black tabular-nums leading-none" style={{ color }}>{value}</p>
                 </button>
               ))}
             </div>

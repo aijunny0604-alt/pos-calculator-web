@@ -201,8 +201,11 @@ export default function useManualPaid() {
     };
   }, []);
 
-  const setPaid = useCallback((orderId, method) => {
-    if (!orderId || !method) return;
+  // setPaid(orderId, method, orderHint?, customers?) — Promise 반환. 호출부에서 .then으로 결과 검사 가능
+  // 결과: { localOk: true, syncResult: { success, reason? } | null }
+  // customers: 호출부가 이미 보유 시 전달하면 syncOrderPaidRecord 내부 추가 fetch 회피 (M1)
+  const setPaid = useCallback(async (orderId, method, orderHint = null, customers = null) => {
+    if (!orderId || !method) return { localOk: false };
     const current = loadLocalMap();
     const key = String(orderId);
     const prev = current[key];
@@ -215,7 +218,7 @@ export default function useManualPaid() {
     setMap(next);
     broadcast();
 
-    // 2) Supabase 비동기 upsert (fire-and-forget)
+    // 2) Supabase manual_paid_orders upsert (시각 마커, fire-and-forget)
     supabase.upsertManualPaid(orderId, method).catch((err) => {
       Sentry.captureException(err, { tags: { feature: 'manual-paid', op: 'setPaid-upsert' }, extra: { orderId, method } });
     });
@@ -226,7 +229,18 @@ export default function useManualPaid() {
     } else if (!prevMethod) {
       appendAuditLog(buildAuditEntry('set', orderId, { method }));
     }
-    // prevMethod === method인 경우 로그 생략
+
+    // 4) payment_records + payment_history 자동 동기화 — await로 결과 받음 (C1/M3)
+    let syncResult = null;
+    if (prevMethod !== method) {
+      try {
+        syncResult = await supabase.syncOrderPaidRecord(orderId, method, orderHint, customers);
+      } catch (err) {
+        Sentry.captureException(err, { tags: { feature: 'manual-paid', op: 'setPaid-syncRecord' }, extra: { orderId, method } });
+        syncResult = { success: false, reason: 'exception', error: err?.message };
+      }
+    }
+    return { localOk: true, syncResult };
   }, []);
 
   const clearPaid = useCallback((orderId) => {
@@ -243,12 +257,17 @@ export default function useManualPaid() {
     setMap(next);
     broadcast();
 
-    // 2) Supabase 비동기 delete
+    // 2) Supabase manual_paid_orders delete
     supabase.deleteManualPaid(orderId).catch((err) => {
       Sentry.captureException(err, { tags: { feature: 'manual-paid', op: 'clearPaid-delete' }, extra: { orderId } });
     });
 
-    // 3) Audit
+    // 3) 자동 생성된 payment_history 회수 (다른 입금은 보존)
+    supabase.revokeAutoPaidHistory(orderId).catch((err) => {
+      Sentry.captureException(err, { tags: { feature: 'manual-paid', op: 'clearPaid-revoke' }, extra: { orderId } });
+    });
+
+    // 4) Audit
     appendAuditLog(buildAuditEntry('clear', orderId, { prevMethod }));
   }, []);
 
