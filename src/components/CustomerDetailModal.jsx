@@ -664,7 +664,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
           payment={records.find((r) => String(r.order_id) === String(orderDetail.id)) || null}
           customer={customer}
           manualInfo={manualPaid[orderDetail.id] || null}
-          onSelectMethod={(k) => setPaid(orderDetail.id, k)}
+          onSelectMethod={(k) => setPaid(orderDetail.id, k, orderDetail, customer ? [customer] : [])}
           onClearPaid={() => clearPaid(orderDetail.id)}
           onClose={() => setOrderDetail(null)}
         />

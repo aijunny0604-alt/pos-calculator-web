@@ -30,6 +30,18 @@ export const supabase = {
       return await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?order=created_at.desc`, { headers });
     } catch (e) { console.error('getOrders:', e); return null; }
   },
+  // 단건 주문 조회 — CustomerDetailModal에서 payment_record.order_id가 캐시에 없을 때 호출.
+  // 이전엔 미정의 상태로 호출 → 런타임 크래시 위험. 2026-05-11 code-review Critical #1 fix.
+  async getOrderById(orderId) {
+    if (!orderId) return null;
+    try {
+      const result = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&limit=1`,
+        { headers }
+      );
+      return Array.isArray(result) && result.length > 0 ? result[0] : null;
+    } catch (e) { console.error('getOrderById:', e); return null; }
+  },
   async saveOrder(order) {
     try {
       return await fetchJSON(`${SUPABASE_URL}/rest/v1/orders`, {

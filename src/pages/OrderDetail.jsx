@@ -216,18 +216,42 @@ export default function OrderDetail({
   };
 
   // Edit: execute replace
+  // 할인 메타 보존 fix (2026-05-11 code-review Critical #2):
+  // 기존 라인에 할인 적용 중이면 confirm으로 사용자 알림 + 새 제품 라인에 메타 명시 clear.
+  // 이전엔 메타가 조용히 사라져서 "할인이 왜 없어졌지?" 혼동 유발했음.
   const handleReplaceProduct = (newProduct) => {
     if (replacingItemIndex === null || !editedOrder) return;
+    const oldItem = editedOrder.items[replacingItemIndex];
+    const hadDiscount = !!oldItem.discountType && Number(oldItem.discountValue) > 0;
+    if (hadDiscount) {
+      const dLabel = oldItem.discountType === 'percent'
+        ? `${oldItem.discountValue}%`
+        : oldItem.discountType === 'amount'
+          ? `${Number(oldItem.discountValue).toLocaleString('ko-KR')}원 차감`
+          : '특가';
+      const ok = window.confirm(
+        `현재 라인에 ${dLabel} 할인이 적용 중입니다.\n다른 제품으로 교체하면 할인이 해제됩니다.\n\n계속하시겠습니까?`
+      );
+      if (!ok) {
+        setReplacingItemIndex(null);
+        setReplaceSearchTerm('');
+        return;
+      }
+    }
     const price = order.priceType === 'wholesale'
       ? newProduct.wholesale
       : (newProduct.retail || newProduct.wholesale);
-    const currentQty = editedOrder.items[replacingItemIndex].quantity;
+    const currentQty = oldItem.quantity;
     const newItems = [...editedOrder.items];
     newItems[replacingItemIndex] = {
       id: newProduct.id,
       name: newProduct.name,
       price: price,
       quantity: currentQty,
+      // 할인 메타 명시 clear (제품이 통째 바뀌었으므로 기존 originalPrice/discountType/discountValue 무효)
+      originalPrice: null,
+      discountType: null,
+      discountValue: null,
     };
     setEditedOrder({ ...editedOrder, items: newItems });
     setReplacingItemIndex(null);
