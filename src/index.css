@@ -188,6 +188,31 @@ html, body {
 }
 
 /* ──────────────────────────────────────────────────
+   온라인/오프라인 상태 표시 (2026-05-11)
+   사이드바 도트 펄스 링 + 상단 슬라이드 토스트
+   ────────────────────────────────────────────────── */
+@keyframes connection-pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.9; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes connection-blink-red {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--destructive) 60%, transparent); }
+  50% { opacity: 0.55; box-shadow: 0 0 0 4px color-mix(in srgb, var(--destructive) 20%, transparent); }
+}
+@keyframes toast-slide-down-in {
+  from { opacity: 0; transform: translate(-50%, -120%); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes toast-slide-down-out {
+  from { opacity: 1; transform: translate(-50%, 0); }
+  to { opacity: 0; transform: translate(-50%, -120%); }
+}
+.animate-connection-pulse-ring { animation: connection-pulse-ring 2s ease-out infinite; }
+.animate-connection-blink-red { animation: connection-blink-red 0.9s ease-in-out infinite; }
+.animate-toast-slide-down-in { animation: toast-slide-down-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-toast-slide-down-out { animation: toast-slide-down-out 0.3s cubic-bezier(0.4, 0, 1, 1) both; }
+
+/* ──────────────────────────────────────────────────
    접근성 (Accessibility) — P0 design-sense 2026-04-20
    ────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {

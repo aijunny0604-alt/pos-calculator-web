@@ -83,9 +83,22 @@ export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount 
           <Calculator className="w-5 h-5 flex-shrink-0" />
           빠른 계산기
         </button>
-        <div className="flex items-center gap-2 px-3 py-2 text-xs text-[var(--muted-foreground)]">
-          <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-[var(--success)]' : 'bg-[var(--destructive)]'}`} />
-          {isOnline ? '클라우드 연결됨' : '오프라인'}
+        <div className="flex items-center gap-2.5 px-3 py-2 text-xs text-[var(--muted-foreground)]">
+          {/* 도트 + 외곽 펄스 링 (온라인) / 깜빡임 (오프라인) — 2026-05-11 */}
+          <div className="relative w-2 h-2 flex-shrink-0">
+            <div
+              className={`absolute inset-0 rounded-full ${isOnline ? 'bg-[var(--success)]' : 'bg-[var(--destructive)] animate-connection-blink-red'}`}
+            />
+            {isOnline && (
+              <span
+                className="absolute inset-0 rounded-full bg-[var(--success)] animate-connection-pulse-ring pointer-events-none"
+                aria-hidden="true"
+              />
+            )}
+          </div>
+          <span className={isOnline ? '' : 'text-[var(--destructive)] font-semibold'}>
+            {isOnline ? '클라우드 연결됨' : '오프라인'}
+          </span>
         </div>
       </div>
 
