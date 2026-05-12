@@ -103,15 +103,15 @@ export default function Dashboard({
 
   return (
     <div className="space-y-6">
-      {/* 연결 상태 배너 — 상시 표시, 간지 애니메이션 (2026-05-12) */}
-      <ConnectionBanner isOnline={supabaseConnected} />
-
-      {/* Header */}
-      <div className="flex-shrink-0">
-        <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>대시보드</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>
-          {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
-        </p>
+      {/* Header — 좌측 제목/날짜 + 우측 상단 ONLINE/OFFLINE 뱃지 (2026-05-12 v4) */}
+      <div className="flex items-start justify-between gap-3 flex-shrink-0">
+        <div>
+          <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>대시보드</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>
+            {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+          </p>
+        </div>
+        <ConnectionBanner isOnline={supabaseConnected} />
       </div>
 
       {/* Stat Cards */}
