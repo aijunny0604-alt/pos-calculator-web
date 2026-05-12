@@ -103,11 +103,11 @@ export default function Dashboard({
 
   return (
     <div className="space-y-6">
-      {/* Header — 좌측 제목/날짜 + 우측 상단 ONLINE/OFFLINE 뱃지 (2026-05-12 v4) */}
+      {/* Header — 큰 페이지 제목 (헤더 통일) + 우측 상단 ONLINE/OFFLINE 뱃지 (2026-05-12 v5) */}
       <div className="flex items-start justify-between gap-3 flex-shrink-0">
         <div>
-          <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>대시보드</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight" style={{ color: 'var(--foreground)' }}>대시보드</h1>
+          <p className="text-sm mt-1.5" style={{ color: 'var(--muted-foreground)' }}>
             {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
           </p>
         </div>

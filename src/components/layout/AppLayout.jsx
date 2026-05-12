@@ -49,7 +49,11 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
       {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {!isFullScreen && (
-          <Header onMenuClick={() => setSidebarOpen(prev => !prev)} currentPage={currentPage} isOnline={isOnline} />
+          // 데스크탑에서 헤더 숨김 — 페이지 내부 큰 h1로 통일 (2026-05-12 사용자 요청)
+          // 모바일은 햄버거 메뉴 위해 유지
+          <div className="md:hidden">
+            <Header onMenuClick={() => setSidebarOpen(prev => !prev)} currentPage={currentPage} isOnline={isOnline} />
+          </div>
         )}
         <main className={`flex-1 min-h-0 overflow-y-auto scroll-smooth ${
           isFullScreen
