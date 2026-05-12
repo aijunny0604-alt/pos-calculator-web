@@ -227,6 +227,28 @@ html, body {
 .animate-connection-banner-in { animation: connection-banner-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-connection-shake-once { animation: connection-shake-once 0.6s ease-in-out; }
 
+/* 노드 그래프 컨스텔레이션 (2026-05-12 v2) */
+@keyframes connection-edge-pulse {
+  0%, 100% { stroke-opacity: 0.4; }
+  50% { stroke-opacity: 1; stroke-width: 1.6; }
+}
+@keyframes connection-edge-fail {
+  0%, 100% { stroke-opacity: 0.2; stroke-dashoffset: 0; }
+  50% { stroke-opacity: 0.6; stroke-dashoffset: 6; }
+}
+@keyframes connection-node-pulse {
+  0% { transform: scale(0.9); stroke-opacity: 0.9; }
+  100% { transform: scale(2.2); stroke-opacity: 0; }
+}
+@keyframes connection-node-drift {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(0, -2px); }
+}
+@keyframes connection-node-blink {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+
 /* ──────────────────────────────────────────────────
    접근성 (Accessibility) — P0 design-sense 2026-04-20
    ────────────────────────────────────────────────── */
