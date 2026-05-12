@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import Toast from '@/components/ui/Toast';
-import ConnectionToast from '@/components/ui/ConnectionToast';
 
 import Dashboard from '@/pages/Dashboard';
 import MainPOS from '@/pages/MainPOS';
@@ -1313,8 +1312,6 @@ export default function App() {
         />
       )}
 
-      {/* 연결 상태 변경 토스트 (2026-05-11) — 오프라인 전환/온라인 복구 슬라이드 알림 */}
-      <ConnectionToast isOnline={supabaseConnected} />
     </>
   );
 }

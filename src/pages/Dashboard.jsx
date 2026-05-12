@@ -7,6 +7,7 @@ import {
 import { formatPrice, formatDateTime, getTodayKST, toDateKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import PaymentDashboardSection from '@/components/dashboard/PaymentDashboardSection';
+import ConnectionBanner from '@/components/dashboard/ConnectionBanner';
 
 export default function Dashboard({
   orders = [],
@@ -102,12 +103,14 @@ export default function Dashboard({
 
   return (
     <div className="space-y-6">
+      {/* 연결 상태 배너 — 상시 표시, 간지 애니메이션 (2026-05-12) */}
+      <ConnectionBanner isOnline={supabaseConnected} />
+
       {/* Header */}
       <div className="flex-shrink-0">
         <h1 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>대시보드</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>
           {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
-          {!supabaseConnected && ' · 오프라인 모드'}
         </p>
       </div>
 
