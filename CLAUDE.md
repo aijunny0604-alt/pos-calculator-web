@@ -213,7 +213,7 @@ npx gh-pages -d dist     # GitHub Pages 배포
 - **날짜 계산**: `+09:00` + `toISOString()` 조합 금지, `offsetDateKST()` 사용
 - **새 제품 추가**: `supabase.addProduct(POST)` 사용. `saveProduct`은 id 있으면 PATCH
 - **주문 저장**: 같은 고객 당일 주문 자동 병합. WebSocket 실시간 반영
-- **가격 0원 방어**: 카트 담기·주문 저장 전 `wholesale/retail/price > 0` 검증 필수. `formatPrice`는 NaN-safe (모든 비유한수 → '0'). 명세서 등 소비자 표시에서는 `price ?? wholesale ?? retail ?? 0` 폴백 체인 사용
+- **가격 0원 방어**: 카트 담기는 **경고만**(자바라 무료 라인 등 의도된 0원 허용). 주문 저장은 confirm 게이트로 사용자 확인 후 진행. `formatPrice`는 NaN-safe (모든 비유한수 → '0'). 명세서 등 소비자 표시에서는 `price ?? wholesale ?? retail ?? 0` 폴백 체인 사용. **카트 차단 금지** — 2026-04-23 (1단계) 도입 후 운영에서 정상 0원 라인까지 막혀 차단 정책은 철회 (2026-05-15)
 - **명세서 수동 수정**: 원본 `orders.items`는 절대 건드리지 않음. 명세서 한정 조정은 localStorage 키 `pos_invoice_line_overrides_v1`에 `{ [recordId:itemIndex]: {name, qty, unitWithVat, deleted} }` 형태로 저장
 - **명세서 안내 문구**: localStorage 키 — 사용자 기본 `pos_invoice_footer_default_v1` (string), 업체별 개별 `pos_invoice_footer_overrides_v1` (`{ [customerId]: text }`). 표시 우선순위: 개별 > 기본 > `settings.invoice_footer`
 - **공급가/부가세 표시**: 모든 화면은 `<SubPrice total={X} layout="stacked|inline|supply-only" size="sm|xs" />` 헬퍼 사용 ([src/components/ui/SubPrice.jsx](src/components/ui/SubPrice.jsx)). 라벨/폰트 일관성 + calcExVat 1회 계산. NaN-safe 내장

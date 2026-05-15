@@ -24,7 +24,7 @@
 | 파일 | 라우팅 ID | 설명 |
 |------|-----------|------|
 | `Dashboard.jsx` | `dashboard` | 대시보드 (통계카드, 최근주문, 바로가기) |
-| `MainPOS.jsx` | `pos` | POS 계산기 — 상품그리드 + 장바구니 + 주문확인. **addToCart 0원 가드** |
+| `MainPOS.jsx` | `pos` | POS 계산기 — 상품그리드 + 장바구니 + 주문확인. **addToCart 0원 경고**(차단 아님, 자바라 무료 라인 등 의도된 0원 허용) |
 | `OrderHistory.jsx` | `orders` | 주문 내역 — 필터/삭제/반품필터, 통계 카드 카운트업, 할인 인디케이터 |
 | `OrderDetail.jsx` | (모달) | 주문 상세 보기/수정/인쇄/제품교체/할인/QuickItemBar |
 | `SavedCarts.jsx` | `saved-carts` | 저장된 장바구니 관리 (드래그·리사이즈 모달, 할인, QuickItemBar) |

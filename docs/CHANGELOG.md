@@ -4,6 +4,18 @@
 
 ---
 
+### 2026-05-15 작업 내역
+
+#### 가격 0원 카트 차단 정책 철회 (운영 버그 핫픽스)
+
+**1. MainPOS.addToCart 가드 완화 (Critical UX fix)**
+- 문제: 4/23 도입한 `wholesale<=0 && retail<=0` 카트 담기 거부 가드가 자바라 무료 라인/덤/사은품처럼 의도된 0원 제품까지 막아 운영에서 "주문 안 됨" 신고 발생
+- 수정 (`src/pages/MainPOS.jsx:157-161`): `return` 제거 + 토스트 type `'error'` → `'warning'`로 톤다운. 담기는 허용하되 사용자에게 알림만 제공
+- 2차 안전망 유지: `App.saveOrder`의 `confirm` 게이트(`App.jsx:428-434`)는 그대로 — 사용자가 의도성 확인 후 진행 가능
+- CLAUDE.md "가격 0원 방어" 규칙 + ARCHITECTURE.md MainPOS 설명 동기화
+
+---
+
 ### 2026-05-10 작업 내역
 
 #### 모바일 모달 안정화 + 번들 최적화 (5 파일, +111/-27)
@@ -344,7 +356,7 @@
 
 **5. 데이터 품질 가드 (3단계 방어, 1단계 완료)**
 - **근본 원인 분석**: 특정 주문의 `items[].price`가 `undefined`로 저장된 사례 발견. 환불 로직은 무죄 (items 건드리지 않고 별도 `returns` 배열 사용). 실제 원인은 `MainPOS.cartWithDiscount`에서 도매 모드일 때 `item.wholesale`이 0/null이면 폴백 없이 그대로 저장됨
-- **MainPOS.addToCart 가드** (`src/pages/MainPOS.jsx`): `wholesale <= 0 && retail <= 0`이면 카트 담기 거부 + 토스트 `"가격이 0원입니다. 먼저 제품 가격을 등록해주세요"`
+- **MainPOS.addToCart 가드** (`src/pages/MainPOS.jsx`): `wholesale <= 0 && retail <= 0`이면 카트 담기 거부 + 토스트 `"가격이 0원입니다. 먼저 제품 가격을 등록해주세요"` ~~(2026-05-15 철회: 자바라 무료 라인까지 막혀 경고 토스트로 완화)~~
 - **App.saveOrder 가드** (`src/App.jsx`): 저장 직전 `items.filter(price<=0 || !Number.isFinite)` 체크 → 발견 시 `confirm()`으로 사용자 경고 후 선택적 진행
 - **formatPrice NaN-safe** (`src/lib/utils.js`): 모든 비유한수(NaN/undefined/null)를 `'0'`으로 폴백
 - **CustomerList 주문 상세 모달**: `item.price ?? item.wholesale ?? item.retail ?? 0` 폴백 체인 + 단가 누락 시 "⚠️ 단가 누락" 배지 표시
