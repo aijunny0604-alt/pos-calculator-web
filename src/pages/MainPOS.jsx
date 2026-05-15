@@ -154,12 +154,11 @@ export default function MainPOS({
     const isIncoming = product.stock_status === 'incoming';
     const isOutOfStock = baseStock === 0 && !isIncoming;
 
-    // 🛡️ 가격 0원 가드 — 도매·소매 둘 다 없거나 0이면 담기 거부
+    // 🛡️ 가격 0원 경고 — 도매·소매 둘 다 0이면 토스트만 띄우고 담기는 허용 (자바라 무료 라인 등 의도된 0원 케이스 지원)
     const ws = Number(product.wholesale) || 0;
     const rt = Number(product.retail) || 0;
     if (ws <= 0 && rt <= 0) {
-      showToast && showToast(`⚠️ "${product.name}" 가격이 0원입니다. 먼저 제품 가격을 등록해주세요`, 'error');
-      return;
+      showToast && showToast(`⚠️ "${product.name}" 가격 0원 — 주문서에서 단가 확인하세요`, 'warning');
     }
 
     if (currentQty >= baseStock && baseStock > 0) {
