@@ -2,16 +2,17 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FileText, X, Building, Phone, MapPin, Search, Plus, Minus,
   Package, ShoppingCart, RefreshCw, Trash2, Check, Copy, Printer,
-  ShoppingBag, Maximize2, Minimize2
+  ShoppingBag, Maximize2, Minimize2, ChevronDown, Percent
 } from 'lucide-react';
 import QuickCalculator from './QuickCalculator';
 import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
+import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 export default function OrderPage({
   cart, priceType, totalAmount, formatPrice: formatPriceProp, onSaveOrder, isSaving,
-  onUpdateQuantity, onRemoveItem, onAddItem, onReplaceItem,
+  onUpdateQuantity, onRemoveItem, onAddItem, onReplaceItem, onUpdateItem,
   products, initialCustomer, onSaveCart, customers = [],
   onBack, cartWithDiscount = [], totalDiscount = 0, showToast
 }) {
@@ -33,7 +34,18 @@ export default function OrderPage({
   const [showQuickCalculator, setShowQuickCalculator] = useState(false);
   const [calculatorInitialValue, setCalculatorInitialValue] = useState(null);
   const [successModal, setSuccessModal] = useState(null);
+  const [openDiscountIds, setOpenDiscountIds] = useState(() => new Set());
   const { isFullscreen, toggleFullscreen } = useModalFullscreen();
+
+  const toggleDiscountOpen = (id) => {
+    setOpenDiscountIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const priceField = priceType === 'wholesale' ? 'wholesale' : 'retail';
 
   // 저장된 장바구니 불러올 때 고객 정보 반영
   useEffect(() => {
@@ -136,13 +148,95 @@ export default function OrderPage({
   const today = new Date();
   const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // 할인 기준가 계산 헬퍼
+  // - originalPrice는 같은 가격타입 컨텍스트에서 저장된 경우만 신뢰 (originalPriceField로 식별)
+  //   legacy 데이터(originalPriceField 없음)는 현 priceField와 동일 가정
+  // - priceField 값이 유효하면 (>0) 그것 사용
+  // - 0/null인 경우 wholesale 폴백 (화면 표시 로직 `item.retail || item.wholesale`와 정합)
+  const getDiscountBase = useCallback((item) => {
+    const savedField = item.originalPriceField;
+    const savedBase = Number(item.originalPrice) || 0;
+    if (savedBase > 0 && (savedField == null || savedField === priceField)) {
+      return savedBase;
+    }
+    const fieldVal = Number(item[priceField]) || 0;
+    if (fieldVal > 0) return fieldVal;
+    const wholesale = Number(item.wholesale) || 0;
+    return wholesale;
+  }, [priceField]);
+
+  // 라인 할인 적용/해제 (item.originalPrice/discountType/discountValue 메타 관리)
+  const applyDiscount = useCallback((item, type, rawValue) => {
+    const v = Math.max(0, Number(rawValue) || 0);
+    const base = getDiscountBase(item);
+    if (v <= 0) {
+      onUpdateItem?.(item.id, {
+        [priceField]: base,
+        price: base,
+        originalPrice: undefined,
+        originalPriceField: undefined,
+        discountType: undefined,
+        discountValue: undefined,
+      });
+      return;
+    }
+    const final = calcFinalPrice(base, type, v);
+    onUpdateItem?.(item.id, {
+      [priceField]: final,
+      price: final,
+      originalPrice: base,
+      originalPriceField: priceField,
+      discountType: type,
+      discountValue: v,
+    });
+  }, [getDiscountBase, onUpdateItem, priceField]);
+
+  const switchDiscountType = useCallback((item, isLineDiscounted, currentUnit, newType) => {
+    if (item.discountType === newType) return;
+    if (!isLineDiscounted) {
+      onUpdateItem?.(item.id, { discountType: newType });
+      return;
+    }
+    const base = getDiscountBase(item) || currentUnit;
+    const newValue = convertDiscountValue(base, currentUnit, newType);
+    if (newValue <= 0) {
+      onUpdateItem?.(item.id, { discountType: newType, discountValue: 0 });
+      return;
+    }
+    applyDiscount(item, newType, newValue);
+  }, [applyDiscount, getDiscountBase, onUpdateItem]);
+
+  const clearDiscount = useCallback((item) => {
+    const base = getDiscountBase(item);
+    onUpdateItem?.(item.id, {
+      [priceField]: base,
+      price: base,
+      originalPrice: undefined,
+      originalPriceField: undefined,
+      discountType: undefined,
+      discountValue: undefined,
+    });
+  }, [getDiscountBase, onUpdateItem, priceField]);
+
+  // 할인 메타가 현재 가격타입(priceField)에서 유효한지 판정
+  // - originalPriceField가 다르면 이전 가격타입에서 적용된 할인이므로 현재 기준에선 무효
+  // - legacy 데이터(originalPriceField 없음)는 현 priceField와 동일 가정 (역호환)
+  const isDiscountActiveForCurrent = useCallback((item) => {
+    if (!item.discountType || !(Number(item.discountValue) > 0)) return false;
+    return item.originalPriceField == null || item.originalPriceField === priceField;
+  }, [priceField]);
+
+  // 라인 단가 계산 헬퍼: 현재 가격타입에서 유효한 할인이면 priceField 그대로 (0도 유효),
+  // 아니면 기존 폴백 체인 (retail 0/null → wholesale)
+  const getLineUnit = useCallback((item) => {
+    if (isDiscountActiveForCurrent(item)) return Number(item[priceField]) || 0;
+    return priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale);
+  }, [isDiscountActiveForCurrent, priceField, priceType]);
+
   // 실시간 총액 계산 (할인 적용)
   const currentTotal = cartWithDiscount.length > 0
     ? cartWithDiscount.reduce((sum, item) => sum + item.finalTotal, 0)
-    : cart.reduce((sum, item) => {
-        const price = priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale);
-        return sum + (price * item.quantity);
-      }, 0);
+    : cart.reduce((sum, item) => sum + (getLineUnit(item) * item.quantity), 0);
   const exVat = calcExVat(currentTotal);
   const vat = currentTotal - exVat;
 
@@ -155,12 +249,10 @@ export default function OrderPage({
     text += `단가기준: ${priceType === 'wholesale' ? '도매가 (부가세 포함)' : '소비자가 (부가세 포함)'}\n\n`;
 
     text += `[ 상품 목록 ]\n\n`;
-    const itemsToShow = cartWithDiscount.length > 0 ? cartWithDiscount : cart.map(item => ({
-      ...item,
-      unitPrice: priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale),
-      finalTotal: (priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale)) * item.quantity,
-      appliedTier: null
-    }));
+    const itemsToShow = cartWithDiscount.length > 0 ? cartWithDiscount : cart.map(item => {
+      const unit = getLineUnit(item);
+      return { ...item, unitPrice: unit, finalTotal: unit * item.quantity, appliedTier: null };
+    });
 
     itemsToShow.forEach((item, index) => {
       text += `${index + 1}. ${item.name}\n`;
@@ -210,12 +302,22 @@ export default function OrderPage({
       memo,
       priceType,
       totalAmount: currentTotal,
-      items: cart.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale),
-        quantity: item.quantity
-      }))
+      // 수량 할인(cartWithDiscount.unitPrice)과 라인 할인 모두 반영되도록
+      // cartWithDiscount가 있으면 그 단가 사용, 없으면 라인 단가 헬퍼 사용
+      items: (cartWithDiscount.length > 0 ? cartWithDiscount : cart).map(item => {
+        const unit = cartWithDiscount.length > 0
+          ? Number(item.unitPrice) || 0
+          : getLineUnit(item);
+        const baseItem = { id: item.id, name: item.name, price: unit, quantity: item.quantity };
+        // 현재 가격타입에서 유효한 할인 메타만 저장 (다른 가격타입 할인 메타 누락 방지)
+        if (isDiscountActiveForCurrent(item)) {
+          baseItem.originalPrice = Number(item.originalPrice) || unit;
+          baseItem.discountType = item.discountType;
+          baseItem.discountValue = Number(item.discountValue);
+          baseItem.originalPriceField = item.originalPriceField || priceField;
+        }
+        return baseItem;
+      })
     };
 
     const result = await onSaveOrder(orderData);
@@ -278,7 +380,7 @@ export default function OrderPage({
             <thead><tr><th>No</th><th>상품명</th><th>단가</th><th>수량</th><th>금액</th></tr></thead>
             <tbody>
               ${cart.map((item, index) => {
-                const price = priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale);
+                const price = getLineUnit(item);
                 return `<tr><td>${index + 1}</td><td>${escapeHtml(item.name)}</td><td>${fmt(price)}</td><td>${item.quantity}</td><td>${fmt(price * item.quantity)}</td></tr>`;
               }).join('')}
             </tbody>
@@ -617,18 +719,37 @@ export default function OrderPage({
                   <p style={{ color: 'var(--muted-foreground)' }}>주문 상품이 없습니다</p>
                 </div>
               ) : (
-                (cartWithDiscount.length > 0 ? cartWithDiscount : cart.map(item => ({
-                  ...item,
-                  unitPrice: priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale),
-                  finalTotal: (priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale)) * item.quantity,
-                  originalTotal: (priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale)) * item.quantity,
-                  appliedTier: null,
-                  totalDiscount: 0
-                }))).map((item) => {
-                  const price = item.unitPrice || (priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale));
+                (cartWithDiscount.length > 0 ? cartWithDiscount : cart.map(item => {
+                  const unit = getLineUnit(item);
+                  return {
+                    ...item,
+                    unitPrice: unit,
+                    finalTotal: unit * item.quantity,
+                    originalTotal: unit * item.quantity,
+                    appliedTier: null,
+                    totalDiscount: 0,
+                  };
+                })).map((item) => {
+                  // 할인된 라인은 unitPrice가 0이어도 유효 → ?? 사용
+                  const price = item.unitPrice ?? getLineUnit(item);
                   const itemTotal = item.finalTotal || price * item.quantity;
                   const hasDiscount = item.appliedTier && item.totalDiscount > 0;
                   const isChanging = changingItemId === item.id;
+
+                  // 라인 할인 메타 (현재 가격타입에서 유효한 할인만 인정)
+                  const isLineDiscounted = isDiscountActiveForCurrent(item);
+                  const lineBase = isLineDiscounted ? (Number(item.originalPrice) || price) : price;
+                  const lineDiscountAmount = isLineDiscounted ? Math.max(0, lineBase - price) : 0;
+                  const lineDiscountLabel = isLineDiscounted
+                    ? (item.discountType === 'percent'
+                        ? `${item.discountValue}%`
+                        : item.discountType === 'amount'
+                          ? `${fmt(item.discountValue)}원`
+                          : `특가`)
+                    : '';
+                  const discountOpen = openDiscountIds.has(item.id) || isLineDiscounted;
+                  const activeMode = item.discountType || 'percent';
+                  const anyDiscount = hasDiscount || isLineDiscounted;
 
                   const changeSearchResults = isChanging && changeSearchQuery.trim()
                     ? products.filter(p => {
@@ -643,10 +764,10 @@ export default function OrderPage({
                       key={item.id}
                       className="rounded-xl p-4 transition-colors"
                       style={{
-                        background: hasDiscount
+                        background: anyDiscount
                           ? 'color-mix(in srgb, var(--warning) 10%, var(--card))'
                           : 'color-mix(in srgb, var(--card) 80%, transparent)',
-                        border: hasDiscount
+                        border: anyDiscount
                           ? '1px solid color-mix(in srgb, var(--warning) 30%, transparent)'
                           : '1px solid var(--border)',
                       }}
@@ -654,7 +775,7 @@ export default function OrderPage({
                       {/* 상단: 상품명 + 변경/삭제 버튼 */}
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-medium truncate" style={{ color: 'var(--foreground)' }}>{item.name}</p>
                             {hasDiscount && (
                               <span
@@ -664,13 +785,28 @@ export default function OrderPage({
                                 {item.appliedTier.type === 'percent' ? `${item.appliedTier.value}%↓` : `${fmt(item.appliedTier.value)}↓`}
                               </span>
                             )}
+                            {isLineDiscounted && (
+                              <span
+                                className="text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-0.5"
+                                style={{ background: 'color-mix(in srgb, var(--warning) 30%, transparent)', color: 'var(--warning)' }}
+                                title="라인 할인 적용됨"
+                              >
+                                🏷 {lineDiscountLabel}
+                              </span>
+                            )}
                           </div>
                           <div className="text-sm mt-0.5">
                             {hasDiscount ? (
-                              <span className="flex items-center gap-2">
+                              <span className="flex items-center gap-2 flex-wrap">
                                 <span className="line-through" style={{ color: 'var(--muted-foreground)' }}>{fmt(price)}</span>
                                 <span className="font-medium" style={{ color: 'var(--warning)' }}>{fmt(item.discountedPrice)}</span>
                                 <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>(VAT제외 {fmt(Math.round(item.discountedPrice / 1.1))})</span>
+                              </span>
+                            ) : isLineDiscounted ? (
+                              <span className="flex items-center gap-2 flex-wrap">
+                                <span className="line-through" style={{ color: 'var(--muted-foreground)' }}>{fmt(lineBase)}</span>
+                                <span className="font-medium" style={{ color: 'var(--warning)' }}>{fmt(price)}</span>
+                                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>(VAT제외 {fmt(Math.round(price / 1.1))})</span>
                               </span>
                             ) : (
                               <span style={{ color: 'var(--primary)' }}>
@@ -796,6 +932,94 @@ export default function OrderPage({
                         </div>
                       )}
 
+                      {/* 라인 할인 토글 바 */}
+                      {onUpdateItem && (
+                        <div
+                          className="mb-2 rounded-lg overflow-hidden"
+                          style={{
+                            background: isLineDiscounted ? 'color-mix(in srgb, var(--warning) 8%, var(--card))' : 'var(--card)',
+                            border: isLineDiscounted
+                              ? '1px solid color-mix(in srgb, var(--warning) 30%, var(--border))'
+                              : '1px solid var(--border)',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleDiscountOpen(item.id)}
+                            className="w-full flex items-center justify-between px-3 py-2 transition-colors hover:opacity-90"
+                          >
+                            <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: isLineDiscounted ? 'var(--warning)' : 'var(--muted-foreground)' }}>
+                              <Percent className="w-3.5 h-3.5" />
+                              {isLineDiscounted
+                                ? `할인 적용 중 · ${item.discountType === 'fixed' ? `특가 ${fmt(price)}원` : `${lineDiscountLabel} 할인`}`
+                                : '할인 적용'}
+                            </span>
+                            <ChevronDown
+                              className={`w-4 h-4 transition-transform ${discountOpen ? 'rotate-180' : ''}`}
+                              style={{ color: 'var(--muted-foreground)' }}
+                            />
+                          </button>
+                          {discountOpen && (
+                            <div className="px-3 pb-3 pt-1 space-y-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                              <div className="flex items-center gap-1">
+                                {[
+                                  { k: 'percent', label: '%' },
+                                  { k: 'amount', label: '원' },
+                                  { k: 'fixed', label: '특가' },
+                                ].map((m) => (
+                                  <button
+                                    key={m.k}
+                                    type="button"
+                                    onClick={() => switchDiscountType(item, isLineDiscounted, price, m.k)}
+                                    className="flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors"
+                                    style={{
+                                      background: activeMode === m.k ? 'var(--warning)' : 'var(--secondary)',
+                                      color: activeMode === m.k ? 'white' : 'var(--foreground)',
+                                    }}
+                                  >
+                                    {m.label}
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={item.discountValue ? Number(item.discountValue).toLocaleString('ko-KR') : ''}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(/[^0-9]/g, '');
+                                    applyDiscount(item, activeMode, raw);
+                                  }}
+                                  placeholder={discountPlaceholder(activeMode)}
+                                  className="flex-1 px-3 py-2 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--warning)]"
+                                  style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+                                />
+                                {isLineDiscounted ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => clearDiscount(item)}
+                                    className="px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
+                                    style={{ background: 'var(--destructive)', color: 'white' }}
+                                  >
+                                    해제
+                                  </button>
+                                ) : (
+                                  <span className="text-xs px-2" style={{ color: 'var(--muted-foreground)' }}>
+                                    {activeMode === 'percent' ? '0~100' : activeMode === 'amount' ? '차감액' : '단가'}
+                                  </span>
+                                )}
+                              </div>
+                              {isLineDiscounted && (
+                                <div className="flex items-center justify-between text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                  <span>차감액: <span className="font-bold" style={{ color: 'var(--warning)' }}>-{fmt(lineDiscountAmount)}원</span></span>
+                                  <span>총 절감: <span className="font-bold" style={{ color: 'var(--warning)' }}>-{fmt(lineDiscountAmount * item.quantity)}원</span></span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* 하단: 수량 조절 + 소계 */}
                       <div
                         className="flex items-center justify-between rounded-lg p-2"
@@ -837,7 +1061,10 @@ export default function OrderPage({
                           {hasDiscount && (
                             <p className="text-xs line-through" style={{ color: 'var(--muted-foreground)' }}>{fmt(item.originalTotal)}원</p>
                           )}
-                          <p className="font-bold text-lg" style={{ color: hasDiscount ? 'var(--warning)' : 'var(--success)' }}>
+                          {!hasDiscount && isLineDiscounted && (
+                            <p className="text-xs line-through" style={{ color: 'var(--muted-foreground)' }}>{fmt(lineBase * item.quantity)}원</p>
+                          )}
+                          <p className="font-bold text-lg" style={{ color: anyDiscount ? 'var(--warning)' : 'var(--success)' }}>
                             {fmt(itemTotal)}원
                           </p>
                         </div>

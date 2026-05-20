@@ -192,6 +192,11 @@ export default function MainPOS({
     setCart(prev => prev.map(item => item.id === oldId ? { ...newProduct, quantity: qty } : item));
   };
 
+  // 임의 필드 패치 (할인 메타 적용/해제 등)
+  const updateItem = (productId, patch) => {
+    setCart(prev => prev.map(item => item.id === productId ? { ...item, ...patch } : item));
+  };
+
   const toggleCategory = (category) => {
     setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }));
   };
@@ -866,6 +871,7 @@ export default function MainPOS({
           onRemoveItem={removeFromCart}
           onAddItem={addToCart}
           onReplaceItem={replaceItem}
+          onUpdateItem={updateItem}
           products={products}
           initialCustomer={loadedCustomer}
           customers={customers}
