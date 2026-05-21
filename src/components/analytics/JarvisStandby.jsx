@@ -9,7 +9,19 @@ function pad(n, len = 2) {
   return String(n).padStart(len, '0');
 }
 
-export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted }) {
+export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted, isLoading, ttsSpeaking }) {
+  // 상태에 따른 sphere 모드
+  const sphereMode = isLoading
+    ? 'analyzing'
+    : voiceListening
+      ? 'listening'
+      : ttsSpeaking
+        ? 'responding'
+        : 'standby';
+  const statusColor = sphereMode === 'listening' ? '#ffaa00'
+                    : sphereMode === 'analyzing' ? '#a855f7'
+                    : sphereMode === 'responding' ? '#00ff88'
+                    : '#00d4ff';
   // 시스템 메트릭 더미 값 (실시간 변화 — 영화 느낌)
   const [metrics, setMetrics] = useState({
     cpu: 24,
@@ -74,11 +86,11 @@ export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted }) 
         <div className="tabular-nums">{timeStr}</div>
       </div>
 
-      {/* JARVIS 타이틀 */}
+      {/* JARVIS 타이틀 — 상태별 색상 변화 */}
       <div className="text-center mt-4 sm:mt-6 mb-3">
-        <h1 className="text-3xl sm:text-5xl font-black tracking-[0.15em] animate-jarvis-rgb-glitch" style={{
-          color: '#00d4ff',
-          textShadow: '0 0 12px rgba(0, 212, 255, 0.9), 0 0 32px rgba(0, 212, 255, 0.4)',
+        <h1 className="text-3xl sm:text-5xl font-black tracking-[0.15em] animate-jarvis-rgb-glitch transition-colors duration-500" style={{
+          color: statusColor,
+          textShadow: `0 0 12px ${statusColor}e6, 0 0 32px ${statusColor}66`,
           fontFamily: 'JetBrains Mono, monospace',
         }}>
           M.O.V.E
@@ -90,13 +102,13 @@ export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted }) 
         </div>
       </div>
 
-      {/* Dot Sphere */}
+      {/* Dot Sphere — 상태별 색상/모양 변화 */}
       <div className="relative flex items-center justify-center my-6 sm:my-8">
         <div className="relative" style={{ width: 'min(480px, 78vw)', height: 'min(480px, 78vw)' }}>
-          <JarvisDotSphere pointCount={520} size={480} />
-          {/* 외곽 미세 글로우 ring */}
-          <div className="absolute inset-0 rounded-full pointer-events-none" style={{
-            boxShadow: 'inset 0 0 80px rgba(0, 212, 255, 0.08), 0 0 80px rgba(0, 212, 255, 0.15)',
+          <JarvisDotSphere pointCount={520} size={480} mode={sphereMode} />
+          {/* 외곽 미세 글로우 ring — 상태 따라 색상 */}
+          <div className="absolute inset-0 rounded-full pointer-events-none transition-all duration-700" style={{
+            boxShadow: `inset 0 0 80px ${statusColor}1f, 0 0 80px ${statusColor}33`,
           }} />
         </div>
       </div>

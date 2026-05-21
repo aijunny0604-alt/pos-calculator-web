@@ -98,10 +98,12 @@ export default function ChatPanel({
       >
         {!hasMessages ? (
           <div className="min-h-full flex flex-col items-center justify-start text-center py-6 relative">
-            {/* 자비스 영화 스타일 스탠바이 화면 */}
+            {/* 자비스 영화 스타일 스탠바이 화면 — 상태 반응형 */}
             <JarvisStandby
               voiceListening={voice?.isListening}
+              isLoading={isLoading}
               ttsEnabled={false}
+              ttsSpeaking={false}
               sfxMuted={false}
             />
 
