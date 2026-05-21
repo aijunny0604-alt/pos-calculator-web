@@ -15,6 +15,7 @@ import { getPaymentSummary, getOverdueCustomers, getPaymentInflow } from './anal
 import { getReturnAnalysis } from './analytics/returns';
 import { getPendingCarts } from './analytics/carts';
 import { getLearningStats } from './analytics/learning';
+import { findProductSmart, findProductCandidates } from './productMatch';
 
 // 공통 enum
 const PERIOD_ENUM = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
@@ -401,7 +402,7 @@ export function executeTool(name, args = {}, context = {}) {
 
 // 쓰기 도구 dry-run — 검증 + preview만 만들고 실제 DB 변경 X
 // AI는 이 결과를 보고 "확인 후 실행하시겠어요?" 식으로 답변하도록 시스템 프롬프트가 유도
-function buildPendingAction(name, args, { customers, products }) {
+function buildPendingAction(name, args, { customers, products, aiLearningData = [] }) {
   if (name === 'addProduct') {
     const { name: productName, category, wholesale, retail, stock } = args;
     if (!productName) return { ok: false, error: '제품명이 필요합니다.' };
@@ -450,18 +451,16 @@ function buildPendingAction(name, args, { customers, products }) {
     if (newStock == null || newStock < 0 || !Number.isFinite(Number(newStock))) {
       return { ok: false, error: '재고 수량은 0 이상이어야 합니다.' };
     }
-    // 제품 찾기
+    // 제품 찾기 (AI 학습 사례 우선 + tolerance + 부분 + 토큰)
     let target = null;
     if (productId != null) target = products.find((p) => p.id === productId);
     if (!target && productName) {
-      const lower = productName.trim().toLowerCase();
-      // 정확 일치 우선
-      target = products.find((p) => (p?.name || '').toLowerCase() === lower);
-      // 부분 매칭
-      if (!target) target = products.find((p) => (p?.name || '').toLowerCase().includes(lower));
+      target = findProductSmart(productName, products, aiLearningData);
     }
     if (!target) {
-      return { ok: false, error: `제품 "${productName || productId}"을(를) 찾을 수 없습니다. 정확한 제품명을 확인해주세요.` };
+      const candidates = productName ? findProductCandidates(productName, products) : [];
+      const hint = candidates.length > 0 ? `\n\n비슷한 후보: ${candidates.join(' / ')}` : '';
+      return { ok: false, error: `제품 "${productName || productId}"을(를) 찾을 수 없습니다.${hint}` };
     }
     const currentStock = Number(target.stock) || 0;
     const diff = Number(newStock) - currentStock;
@@ -500,57 +499,16 @@ function buildPendingAction(name, args, { customers, products }) {
     }
     const customerLabel = customer ? customer.name : customerName.trim();
 
-    // 각 라인 제품 매칭 (자연어 fuzzy)
-    function findProductFuzzy(rawName) {
-      const lower = rawName.toLowerCase();
-      // 1) 정확 일치
-      let p = products.find((x) => (x?.name || '').toLowerCase() === lower);
-      if (p) return p;
-      // 2) 부분 일치
-      p = products.find((x) => (x?.name || '').toLowerCase().includes(lower));
-      if (p) return p;
-      // 3) 토큰 단위 (입력 모든 토큰이 제품명에 포함)
-      const tokens = lower.replace(/[,.\-_\/()]/g, ' ').split(/\s+/).filter(Boolean);
-      if (tokens.length > 0) {
-        p = products.find((x) => {
-          const pn = (x?.name || '').toLowerCase();
-          return tokens.every((t) => pn.includes(t));
-        });
-        if (p) return p;
-      }
-      return null;
-    }
-    function findCandidates(rawName, limit = 5) {
-      const lower = rawName.toLowerCase();
-      const tokens = lower.replace(/[,.\-_\/()]/g, ' ').split(/\s+/).filter(Boolean);
-      const scored = products
-        .map((p) => {
-          const pn = (p?.name || '').toLowerCase();
-          let score = 0;
-          if (pn.includes(lower)) score += 50;
-          for (const t of tokens) {
-            if (pn.includes(t)) score += 10;
-          }
-          // 제품명 글자수 짧을수록 가중치 (정확도)
-          if (score > 0) score += Math.max(0, 20 - pn.length);
-          return { name: p.name, score };
-        })
-        .filter((s) => s.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
-        .map((s) => s.name);
-      return scored;
-    }
-
+    // 각 라인 제품 매칭 (AI 학습 사례 우선 + tolerance + fuzzy)
     const resolved = [];
     const missingDetails = [];
     for (const it of items) {
       const pname = (it.productName || '').trim();
       const qty = Math.max(1, Math.floor(Number(it.quantity) || 1));
       if (!pname) continue;
-      const product = findProductFuzzy(pname);
+      const product = findProductSmart(pname, products, aiLearningData);
       if (!product) {
-        missingDetails.push({ name: pname, candidates: findCandidates(pname) });
+        missingDetails.push({ name: pname, candidates: findProductCandidates(pname, products) });
         continue;
       }
       const unitPrice = Number(product[priceType] || product.wholesale || product.retail) || 0;
@@ -642,12 +600,12 @@ function buildPendingAction(name, args, { customers, products }) {
     let target = null;
     if (productId != null) target = products.find((p) => p.id === productId);
     if (!target && productName) {
-      const lower = productName.trim().toLowerCase();
-      target = products.find((p) => (p?.name || '').toLowerCase() === lower)
-            || products.find((p) => (p?.name || '').toLowerCase().includes(lower));
+      target = findProductSmart(productName, products, aiLearningData);
     }
     if (!target) {
-      return { ok: false, error: `제품 "${productName || productId}"을(를) 찾을 수 없습니다.` };
+      const candidates = productName ? findProductCandidates(productName, products) : [];
+      const hint = candidates.length > 0 ? `\n\n비슷한 후보: ${candidates.join(' / ')}` : '';
+      return { ok: false, error: `제품 "${productName || productId}"을(를) 찾을 수 없습니다.${hint}` };
     }
     const params = { productId: target.id, productName: target.name };
     const lines = [`💰 가격 변경`, `• 제품: ${target.name}`];
