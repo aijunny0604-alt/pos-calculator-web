@@ -16,12 +16,8 @@ export default function BigBangIntro({ onComplete }) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) {
-      // 모션 민감 사용자: 즉시 완료
-      setTimeout(() => { if (!completedRef.current) { completedRef.current = true; onComplete?.(); } }, 100);
-      return;
-    }
+    // 항상 재생 (사용자가 데모/퍼포먼스 효과로 요청)
+    // reduced motion이어도 단순 빅뱅 시연은 진행 (1.5초 짧게)
 
     let W = canvas.clientWidth;
     let H = canvas.clientHeight;

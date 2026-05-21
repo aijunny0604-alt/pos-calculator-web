@@ -398,7 +398,14 @@ export default function JarvisDotSphere({
       ref={canvasRef}
       className="w-full h-full cursor-crosshair"
       aria-hidden="true"
-      style={{ maxWidth: size, maxHeight: size, aspectRatio: '1 / 1' }}
+      style={{
+        maxWidth: size,
+        maxHeight: size,
+        aspectRatio: '1 / 1',
+        // 사각형 canvas의 모서리를 radial mask로 자름 (원형 sphere만 보이도록)
+        WebkitMaskImage: 'radial-gradient(circle at center, black 55%, rgba(0,0,0,0.35) 80%, transparent 100%)',
+        maskImage: 'radial-gradient(circle at center, black 55%, rgba(0,0,0,0.35) 80%, transparent 100%)',
+      }}
     />
   );
 }
