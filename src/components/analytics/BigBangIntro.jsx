@@ -72,20 +72,24 @@ export default function BigBangIntro({ onComplete }) {
       // ============ Phase 1: 빅뱅 폭발 (0~0.4s) ============
       if (elapsed < 0.4) {
         const t = elapsed / 0.4;
-        // 중심 코어
-        const coreSize = (1 - t * 0.5) * Math.min(W, H) * 0.06 + t * 30;
-        const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreSize * 4);
-        coreGrad.addColorStop(0, `rgba(255, 255, 255, ${0.8 - t * 0.3})`);
-        coreGrad.addColorStop(0.3, `rgba(77, 255, 255, ${0.5 - t * 0.3})`);
-        coreGrad.addColorStop(1, 'rgba(0, 212, 255, 0)');
-        ctx.fillStyle = coreGrad;
-        ctx.beginPath();
-        ctx.arc(cx, cy, coreSize * 4, 0, Math.PI * 2);
-        ctx.fill();
-        // 충격파 (1개만 — 단순)
+        // 단일 섬광: 0~0.12s만 짧게 + 약하게
+        if (elapsed < 0.12) {
+          const flashT = elapsed / 0.12;
+          const flashAlpha = (1 - flashT) * 0.55;
+          const flashR = Math.min(W, H) * 0.18 * (0.3 + flashT * 0.7);
+          const flashGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, flashR);
+          flashGrad.addColorStop(0, `rgba(255, 255, 255, ${flashAlpha})`);
+          flashGrad.addColorStop(0.4, `rgba(77, 255, 255, ${flashAlpha * 0.6})`);
+          flashGrad.addColorStop(1, 'rgba(0, 212, 255, 0)');
+          ctx.fillStyle = flashGrad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, flashR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // 충격파 1개 (단순, fade)
         const shockR = t * Math.min(W, H) * 0.5;
-        ctx.strokeStyle = `rgba(77, 255, 255, ${(1 - t) * 0.8})`;
-        ctx.lineWidth = 3 * (1 - t);
+        ctx.strokeStyle = `rgba(77, 255, 255, ${(1 - t) * 0.65})`;
+        ctx.lineWidth = 2.5 * (1 - t);
         ctx.beginPath();
         ctx.arc(cx, cy, shockR, 0, Math.PI * 2);
         ctx.stroke();
