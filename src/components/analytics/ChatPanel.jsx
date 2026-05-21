@@ -130,18 +130,40 @@ export default function ChatPanel({
               <MessageBubble key={m.id} message={m} />
             ))}
             {isLoading && (
-              <div className="flex justify-start my-2">
-                <div className="bg-[var(--accent)] rounded-2xl px-4 py-2.5 flex items-center gap-2 max-w-[88%] sm:max-w-[78%]">
-                  <Loader2 className="w-4 h-4 animate-spin text-[var(--primary)] flex-shrink-0" />
-                  <span className="text-sm text-[var(--muted-foreground)] break-keep">
-                    {loadingStep || '🤖 AI가 응답 중...'}
+              <div className="flex justify-start my-2 animate-jarvis-card-emerge">
+                <div className="jarvis-glass rounded-2xl px-4 py-2.5 flex items-center gap-2.5 max-w-[88%] sm:max-w-[78%]" style={{
+                  boxShadow: '0 0 20px rgba(0,212,255,0.3), inset 0 0 20px rgba(0,212,255,0.05)',
+                  border: '1px solid rgba(0, 212, 255, 0.5)',
+                }}>
+                  {/* 회전 데이터 입자 */}
+                  <div className="relative w-5 h-5 flex-shrink-0">
+                    <svg className="absolute inset-0 animate-jarvis-arc-spin" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(0,212,255,0.8)" strokeWidth="2" strokeDasharray="4 4" />
+                    </svg>
+                    <svg className="absolute inset-0 animate-jarvis-arc-spin-rev" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="6" fill="none" stroke="rgba(77,255,255,0.7)" strokeWidth="1.5" strokeDasharray="2 3" />
+                    </svg>
+                    <div className="absolute inset-0 m-auto w-1.5 h-1.5 rounded-full animate-jarvis-glow-pulse" style={{
+                      background: '#4dffff',
+                      boxShadow: '0 0 6px #00d4ff',
+                    }} />
+                  </div>
+                  <span className="text-sm break-keep font-mono" style={{ color: 'var(--jarvis-cyan)' }}>
+                    {loadingStep || '⚡ 분석 중...'}
+                  </span>
+                  {/* 진동 막대 */}
+                  <span className="inline-flex items-center gap-0.5 ml-1">
+                    <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '0ms' }} />
+                    <span className="w-0.5 h-3 rounded-full animate-bounce" style={{ background: '#4dffff', animationDelay: '120ms' }} />
+                    <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '240ms' }} />
                   </span>
                   {onCancel && (
                     <button
                       type="button"
                       onClick={onCancel}
-                      className="ml-1 p-0.5 rounded hover:bg-black/10 flex-shrink-0"
+                      className="ml-1 p-0.5 rounded hover:bg-cyan-500/20 flex-shrink-0 transition-colors"
                       aria-label="취소"
+                      style={{ color: 'var(--jarvis-text-muted)' }}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>

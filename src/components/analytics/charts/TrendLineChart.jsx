@@ -12,8 +12,14 @@ function fmtKRW(v) {
 function TooltipBox({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg px-3 py-2 shadow-md text-xs">
-      <div className="font-semibold mb-1">{label}</div>
+    <div className="rounded-lg px-3 py-2 text-xs" style={{
+      background: 'rgba(5, 11, 24, 0.95)',
+      border: '1px solid rgba(0, 212, 255, 0.5)',
+      boxShadow: '0 0 16px rgba(0, 212, 255, 0.3)',
+      color: '#e8f4fd',
+      backdropFilter: 'blur(12px)',
+    }}>
+      <div className="font-semibold mb-1" style={{ color: '#00d4ff' }}>{label}</div>
       {payload.map((p, i) => (
         <div key={i} style={{ color: p.color }}>
           {p.name}: <span className="font-bold tabular-nums">
@@ -29,31 +35,36 @@ export default function TrendLineChart({ data = [], xKey = 'month', title, showQ
   if (!Array.isArray(data) || data.length === 0) return null;
 
   return (
-    <div className="w-full bg-white rounded-lg border border-[var(--border)] p-3 sm:p-4">
-      {title && <div className="text-sm font-semibold mb-2 break-keep">{title}</div>}
+    <div className="w-full jarvis-glass rounded-lg p-3 sm:p-4">
+      {title && <div className="text-sm font-semibold mb-2 break-keep" style={{ color: '#e8f4fd' }}>{title}</div>}
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis dataKey={xKey} fontSize={11} />
-          <YAxis tickFormatter={fmtKRW} fontSize={11} />
-          <Tooltip content={<TooltipBox />} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,212,255,0.12)" />
+          <XAxis dataKey={xKey} fontSize={11} stroke="#7fa3c8" tick={{ fill: '#7fa3c8' }} />
+          <YAxis tickFormatter={fmtKRW} fontSize={11} stroke="#7fa3c8" tick={{ fill: '#7fa3c8' }} />
+          <Tooltip content={<TooltipBox />} cursor={{ stroke: 'rgba(0,212,255,0.4)', strokeWidth: 1 }} />
           <Line
             type="monotone"
             dataKey="revenue"
             name="매출"
-            stroke="#10b981"
-            strokeWidth={2}
-            dot={{ fill: '#10b981', r: 3 }}
-            activeDot={{ r: 5 }}
+            stroke="#00d4ff"
+            strokeWidth={2.5}
+            dot={{ fill: '#00d4ff', r: 4, strokeWidth: 0 }}
+            activeDot={{ r: 6, fill: '#4dffff', stroke: '#00d4ff', strokeWidth: 2 }}
+            animationDuration={1200}
+            style={{ filter: 'drop-shadow(0 0 6px rgba(0,212,255,0.6))' }}
           />
           {showQty && (
             <Line
               type="monotone"
               dataKey="qty"
               name="수량"
-              stroke="#3b82f6"
-              strokeWidth={2}
-              dot={{ fill: '#3b82f6', r: 3 }}
+              stroke="#a855f7"
+              strokeWidth={2.5}
+              dot={{ fill: '#a855f7', r: 4, strokeWidth: 0 }}
+              activeDot={{ r: 6, fill: '#c084fc' }}
+              animationDuration={1400}
+              style={{ filter: 'drop-shadow(0 0 6px rgba(168,85,247,0.6))' }}
             />
           )}
         </LineChart>

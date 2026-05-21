@@ -153,7 +153,7 @@ const fmtKRW = (n) => Number(n || 0).toLocaleString('ko-KR');
 
 function PaymentSummaryCards({ data }) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
       <div className="text-sm font-semibold mb-3 break-keep">💵 결제 현황 ({data.total}건)</div>
       <div className="grid grid-cols-3 gap-2 mb-3">
         <div className="bg-green-50 rounded-lg p-2.5 text-center">
@@ -186,7 +186,7 @@ function PaymentSummaryCards({ data }) {
 
 function OverdueTable({ data }) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
       <div className="text-sm font-semibold mb-2 break-keep">💸 미수 거래처 ({data.length}곳)</div>
       <table className="w-full text-xs">
         <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
@@ -218,7 +218,7 @@ function OverdueTable({ data }) {
 
 function InflowCards({ data }) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
       <div className="text-sm font-semibold mb-2 break-keep">💰 입금 이력 ({data.period}, {data.total}건)</div>
       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
         <div className="border border-[var(--border)] rounded-lg p-2">
@@ -250,7 +250,7 @@ function InflowCards({ data }) {
 
 function ReturnAnalysisCards({ data }) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
       <div className="text-sm font-semibold mb-2 break-keep">↩️ 반품 분석 ({data.period})</div>
       <div className="grid grid-cols-3 gap-2 mb-3 text-xs">
         <div className="border border-[var(--border)] rounded-lg p-2">
@@ -294,7 +294,7 @@ function ReturnAnalysisCards({ data }) {
 
 function PendingCartsTable({ data }) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm font-semibold break-keep">📋 대기 주문 ({data.total}건)</div>
         <div className="text-[10px] text-[var(--muted-foreground)]">
@@ -330,7 +330,7 @@ function PendingCartsTable({ data }) {
 
 function LearningStatsCards({ data }) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
       <div className="text-sm font-semibold mb-2 break-keep">🧠 AI 학습 데이터 ({data.total}건)</div>
       {data.byProduct?.length > 0 && (
         <div className="mb-3">
@@ -361,7 +361,7 @@ function LearningStatsCards({ data }) {
 // 재고 부족 표
 function LowStockTable({ data, threshold }) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
       <div className="text-sm font-semibold mb-2 break-keep">📦 재고 부족 제품 (≤ {threshold}개)</div>
       <table className="w-full text-xs">
         <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
@@ -393,7 +393,7 @@ function LowStockTable({ data, threshold }) {
 function StockSummaryCards({ data }) {
   const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
       <div className="text-sm font-semibold mb-3 break-keep">📦 재고 현황 요약 (총 {data.total}개 제품)</div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         <div className="bg-[var(--accent)] rounded-lg p-2.5 text-center">
@@ -456,7 +456,7 @@ function StockSummaryCards({ data }) {
 function StockStatusTable({ data, status }) {
   const label = status === 'incoming' ? '입고대기' : status === 'out' ? '품절' : '정상';
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
       <div className="text-sm font-semibold mb-2 break-keep">📦 {label} 제품 ({data.length}개)</div>
       <table className="w-full text-xs">
         <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
@@ -484,7 +484,7 @@ function StockStatusTable({ data, status }) {
 function RestockTable({ data, period }) {
   const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
       <div className="text-sm font-semibold mb-2 break-keep">🔄 재주문 추천 ({period} 판매량 기준)</div>
       <table className="w-full text-xs">
         <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
@@ -523,7 +523,7 @@ function RestockTable({ data, period }) {
 // 표 컴포넌트 (단순 케이스)
 function DormantTable({ data, threshold }) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
       <div className="text-sm font-semibold mb-2 break-keep">⚠️ 휴면 위험 거래처 ({threshold}일 이상 미주문)</div>
       <table className="w-full text-xs">
         <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
@@ -551,7 +551,7 @@ function DormantTable({ data, threshold }) {
 
 function AffinityCards({ data }) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
       <div className="text-sm font-semibold mb-2 break-keep">🛒 {data.name} 자주 구매 패턴</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
@@ -584,7 +584,7 @@ function AffinityCards({ data }) {
 function RepeatGapCard({ data }) {
   const label = data.productId ? `제품 #${data.productId}` : data.customerName ? `${data.customerName}` : '대상';
   return (
-    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
       <div className="text-sm font-semibold mb-2 break-keep">🔄 재주문 주기 — {label}</div>
       <div className="grid grid-cols-3 gap-2 text-center">
         <div>
