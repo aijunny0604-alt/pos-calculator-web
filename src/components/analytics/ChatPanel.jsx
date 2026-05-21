@@ -6,93 +6,61 @@ import VoiceButton from './VoiceButton';
 import JarvisStandby from './JarvisStandby';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
-// MOVIS "생각중" 칩 — 양자 코어 + 데이터 스트림 + 멀티라인 도구명
+// MOVIS "생각중" 칩 — 단일 라인 컴팩트 (양자 코어 + 도구명 + 진동막대 + X)
 function ThinkingChip({ step, onCancel }) {
   return (
     <div className="flex justify-start my-2 animate-jarvis-card-emerge">
       <div
-        className="movis-glass-card rounded-2xl px-4 py-3 flex items-start gap-3 max-w-[95%] sm:max-w-[85%] min-w-0 relative overflow-hidden"
+        className="movis-glass-card rounded-full pl-2.5 pr-3 py-1.5 flex items-center gap-2.5 max-w-full min-w-0 relative"
         style={{
-          boxShadow: '0 8px 28px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 24px rgba(0,212,255,0.10)',
-          border: '1px solid rgba(0, 212, 255, 0.28)',
-          background: 'linear-gradient(135deg, rgba(8,16,30,0.72) 0%, rgba(15,26,45,0.78) 100%)',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.32), 0 0 14px rgba(0,212,255,0.10)',
+          border: '1px solid rgba(0, 212, 255, 0.26)',
+          background: 'rgba(8,16,30,0.72)',
         }}
       >
-        {/* 좌측 스캔라인 (위 → 아래 흐르는 데이터 빛) */}
-        <span
-          className="absolute left-0 top-0 bottom-0 w-[2px] pointer-events-none"
-          style={{
-            background: 'linear-gradient(180deg, transparent 0%, #4dffff 50%, transparent 100%)',
-            animation: 'jarvis-data-stream 1.6s ease-in-out infinite',
-          }}
-        />
-
-        {/* 양자 코어 (3중 회전 + 펄스) */}
-        <div className="relative w-9 h-9 flex-shrink-0 mt-0.5">
-          {/* 외곽 ring */}
-          <svg className="absolute inset-0 animate-jarvis-arc-spin" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(0,212,255,0.55)" strokeWidth="1.5" strokeDasharray="3 5" />
+        {/* 양자 코어 (3중 회전 + 펄스) — 작게 */}
+        <div className="relative w-5 h-5 flex-shrink-0">
+          <svg className="absolute inset-0 animate-jarvis-arc-spin" viewBox="0 0 20 20">
+            <circle cx="10" cy="10" r="9" fill="none" stroke="rgba(0,212,255,0.6)" strokeWidth="1.2" strokeDasharray="2 3" />
           </svg>
-          {/* 중간 ring (역회전) */}
-          <svg className="absolute inset-0 animate-jarvis-arc-spin-rev" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="11" fill="none" stroke="rgba(77,255,255,0.7)" strokeWidth="1.5" strokeDasharray="2 4" />
+          <svg className="absolute inset-0 animate-jarvis-arc-spin-rev" viewBox="0 0 20 20">
+            <circle cx="10" cy="10" r="5" fill="none" stroke="rgba(77,255,255,0.75)" strokeWidth="1" strokeDasharray="1.5 2.5" />
           </svg>
-          {/* 내부 ring */}
-          <svg className="absolute inset-0 animate-jarvis-arc-spin" style={{ animationDuration: '3s' }} viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="6" fill="none" stroke="rgba(168,85,247,0.55)" strokeWidth="1" strokeDasharray="1 2" />
-          </svg>
-          {/* 펄스 코어 */}
           <div
-            className="absolute inset-0 m-auto w-2.5 h-2.5 rounded-full animate-jarvis-glow-pulse"
+            className="absolute inset-0 m-auto w-1.5 h-1.5 rounded-full animate-jarvis-glow-pulse"
             style={{
               background: 'radial-gradient(circle, #ffffff 0%, #4dffff 40%, #00d4ff 100%)',
-              boxShadow: '0 0 10px rgba(0,212,255,0.85), 0 0 18px rgba(77,255,255,0.5)',
+              boxShadow: '0 0 6px rgba(0,212,255,0.85)',
             }}
           />
-          {/* 위성 입자 4개 (회전 궤도) */}
-          <div className="absolute inset-0 animate-jarvis-arc-spin" style={{ animationDuration: '2.4s' }}>
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: '#4dffff', boxShadow: '0 0 4px rgba(77,255,255,0.9)' }} />
-            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: '#a855f7', boxShadow: '0 0 4px rgba(168,85,247,0.8)' }} />
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full" style={{ background: '#00d4ff', boxShadow: '0 0 4px rgba(0,212,255,0.9)' }} />
-            <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full" style={{ background: '#ffffff', boxShadow: '0 0 4px rgba(255,255,255,0.7)' }} />
-          </div>
         </div>
 
-        {/* 텍스트 영역 (줄바꿈 허용 + truncate 제거) */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5 py-0.5">
-          {/* 상단 라벨 */}
-          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: 'var(--jarvis-text-muted)' }}>
-            <span className="inline-block w-1 h-1 rounded-full animate-pulse" style={{ background: '#00ff88', boxShadow: '0 0 4px #00ff88' }} />
-            <span>MOVIS · NEURAL PROCESSING</span>
-          </div>
-          {/* 실제 진행 단계 (멀티라인 + word-break) */}
-          <div
-            className="text-sm font-medium leading-snug"
-            style={{
-              color: 'var(--jarvis-cyan)',
-              wordBreak: 'break-word',
-              overflowWrap: 'anywhere',
-              textShadow: '0 0 6px rgba(0,212,255,0.35)',
-            }}
-          >
-            {step || '⚡ 분석 중...'}
-          </div>
-          {/* 진동 막대 (5개로 확장) */}
-          <span className="inline-flex items-end gap-0.5 mt-0.5">
-            <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '0ms', animationDuration: '0.9s' }} />
-            <span className="w-0.5 h-3 rounded-full animate-bounce" style={{ background: '#4dffff', animationDelay: '120ms', animationDuration: '0.9s' }} />
-            <span className="w-0.5 h-4 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '240ms', animationDuration: '0.9s' }} />
-            <span className="w-0.5 h-3 rounded-full animate-bounce" style={{ background: '#4dffff', animationDelay: '360ms', animationDuration: '0.9s' }} />
-            <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '480ms', animationDuration: '0.9s' }} />
-          </span>
-        </div>
+        {/* 도구명 한 줄 truncate */}
+        <span
+          className="text-xs sm:text-sm font-medium font-mono truncate"
+          style={{
+            color: 'var(--jarvis-cyan)',
+            textShadow: '0 0 4px rgba(0,212,255,0.35)',
+            maxWidth: 'min(60vw, 380px)',
+          }}
+          title={step || '분석 중'}
+        >
+          {step || '분석 중...'}
+        </span>
+
+        {/* 진동 막대 (작게, 3개) */}
+        <span className="inline-flex items-end gap-0.5 flex-shrink-0">
+          <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '0ms', animationDuration: '0.9s' }} />
+          <span className="w-0.5 h-3 rounded-full animate-bounce" style={{ background: '#4dffff', animationDelay: '120ms', animationDuration: '0.9s' }} />
+          <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '240ms', animationDuration: '0.9s' }} />
+        </span>
 
         {/* 취소 버튼 */}
         {onCancel && (
           <button
             type="button"
             onClick={onCancel}
-            className="ml-1 p-1.5 rounded-lg hover:bg-cyan-500/20 flex-shrink-0 transition-colors mt-0.5"
+            className="p-1 rounded-full hover:bg-cyan-500/20 flex-shrink-0 transition-colors"
             aria-label="취소"
             style={{ color: 'var(--jarvis-text-muted)' }}
           >
