@@ -124,8 +124,8 @@ export default function AIAnalytics({ orders = [], customers = [], products = []
           </h1>
         </div>
         <div className="text-[11px] sm:text-xs text-[var(--muted-foreground)] flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <span title="주문 / 거래처 / 제품 건수" className="hidden sm:inline">
-            📊 {orders.length} · {customers.length} · {products.length}
+          <span title="분석 가능한 데이터 규모" className="hidden sm:inline tabular-nums">
+            📊 주문 {orders.length} · 거래처 {customers.length} · 제품 {products.length}
           </span>
           {groqEnabled && (
             <span className="px-1.5 py-0.5 rounded bg-[var(--success)]/10 text-[var(--success)] text-[10px] font-medium" title="Groq 폴백 활성화됨">
