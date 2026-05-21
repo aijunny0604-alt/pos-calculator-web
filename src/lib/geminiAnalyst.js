@@ -120,7 +120,10 @@ const postGemini = async (contents, { signal } = {}) => {
               system_instruction: { parts: [{ text: ANALYST_SYSTEM_PROMPT }] },
               contents,
               tools: [{ function_declarations: GEMINI_TOOLS }],
-              generationConfig: { temperature: 0.2, maxOutputTokens: 4096 },
+              // toolConfig 명시 — Gemini가 functionCall 메커니즘만 쓰도록 강제
+              // (AUTO 미명시 시 가끔 tool_code/Python 텍스트로 답변하는 회귀 발생)
+              tool_config: { function_calling_config: { mode: 'AUTO' } },
+              generationConfig: { temperature: 0.15, maxOutputTokens: 4096 },
             }),
           }
         );
