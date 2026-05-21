@@ -20,6 +20,7 @@ import NotificationSettings from '@/pages/NotificationSettings';
 // 결제 관련 페이지는 lazy load (exceljs + html-to-image 포함된 무거운 chunk)
 const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
 const InvoicesContainer = lazy(() => import('@/pages/InvoicesContainer'));
+const AIAnalytics = lazy(() => import('@/pages/AIAnalytics'));
 
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
@@ -1119,6 +1120,18 @@ export default function App() {
             onSaveLearning={handleSaveLearning}
             initialText={aiOrderText}
           />
+        );
+
+      case 'ai-analytics':
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>AI 분석 로드 중...</div>}>
+            <AIAnalytics
+              orders={orders}
+              customers={customers}
+              products={products}
+              setCurrentPage={setCurrentPage}
+            />
+          </Suspense>
         );
 
       case 'admin':

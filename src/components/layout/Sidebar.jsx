@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, ShoppingBag, ClipboardList, ShoppingCart, Users, Package, Truck, Brain, Settings, Calculator, CircleDollarSign, FileText } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, ClipboardList, ShoppingCart, Users, Package, Truck, Brain, Settings, Calculator, CircleDollarSign, FileText, Sparkles } from 'lucide-react';
 import QuickCalculator from '@/pages/QuickCalculator';
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { id: 'stock', label: '재고 현황', icon: Package },
   { id: 'burnway-stock', label: '번웨이 다운파이프', icon: Package },
   { id: 'ai-order', label: 'AI 주문 인식', icon: Brain },
+  { id: 'ai-analytics', label: 'AI 분석', icon: Sparkles },
   { id: 'admin', label: '관리자', icon: Settings },
 ];
 
