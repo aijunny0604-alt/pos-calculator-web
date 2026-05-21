@@ -40,7 +40,7 @@ export default function JarvisHologramHUD({ size = 'lg' }) {
   return (
     <div
       ref={containerRef}
-      className={`relative ${sizeClass} mb-4 mx-auto transition-transform duration-300 ease-out`}
+      className={`relative ${sizeClass} mb-4 mx-auto transition-transform duration-300 ease-out jarvis-hologram-scanlines jarvis-hologram-noise animate-jarvis-hologram-flicker`}
       style={{ transformStyle: 'preserve-3d' }}
       aria-hidden="true"
     >
@@ -164,10 +164,9 @@ export default function JarvisHologramHUD({ size = 'lg' }) {
         <span className="opacity-40">FLUX 0.42</span>
       </div>
 
-      {/* 하단 HUD 라벨 */}
-      <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 text-[9px] font-mono tracking-[0.3em] uppercase" style={{
-        color: 'rgba(0, 212, 255, 0.7)',
-        textShadow: '0 0 4px rgba(0, 212, 255, 0.6)',
+      {/* 하단 HUD 라벨 — RGB 글리치 적용 */}
+      <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 text-[9px] font-mono tracking-[0.3em] uppercase animate-jarvis-rgb-glitch" style={{
+        color: 'rgba(0, 212, 255, 0.85)',
       }}>
         ▸ MOVE / INTELLIGENCE ◂
       </div>

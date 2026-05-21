@@ -281,7 +281,7 @@ export default function AIAnalytics({
 
   return (
     <div
-      className="flex flex-col h-full overflow-hidden relative jarvis-bg-deep"
+      className="flex flex-col h-full overflow-hidden relative jarvis-bg-deep jarvis-page-hologram"
       style={{ perspective: 'var(--jarvis-perspective)' }}
     >
       {/* 그리드 + god rays 배경 (정적) */}
