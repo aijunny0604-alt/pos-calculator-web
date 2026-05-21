@@ -268,10 +268,36 @@ export const GEMINI_TOOLS = [
       required: ['name'],
     },
   },
+  {
+    name: 'updateProductStock',
+    description: '특정 제품의 재고 수량을 변경합니다. productName으로 검색 (정확히 일치 우선, 부분 매칭 fallback). "스덴 밴딩 재고 30개로 변경", "다운파이프 재고 50개 입고" 같은 의도일 때 호출. 사용자 confirm 후 DB 적용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        productName: { type: 'string', description: '제품 이름 (정확히 또는 일부)' },
+        productId: { type: 'integer', description: '제품 ID (이름 모를 때)' },
+        newStock: { type: 'integer', description: '변경할 재고 수량 (0 이상)' },
+      },
+      required: ['newStock'],
+    },
+  },
+  {
+    name: 'updateProductPrice',
+    description: '특정 제품의 도매가/소비자가 변경. "다운파이프 도매가 5만원으로", "머플러 가격 수정" 같은 의도일 때 호출. 사용자 confirm 후 DB 적용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        productName: { type: 'string', description: '제품 이름' },
+        productId: { type: 'integer', description: '제품 ID' },
+        wholesale: { type: 'number', description: '새 도매가 (선택)' },
+        retail: { type: 'number', description: '새 소비자가 (선택)' },
+      },
+    },
+  },
 ];
 
 // 쓰기 도구 이름 목록 (executeTool에서 dry-run 처리용)
-export const WRITE_TOOLS = new Set(['addProduct', 'addCustomer']);
+export const WRITE_TOOLS = new Set(['addProduct', 'addCustomer', 'updateProductStock', 'updateProductPrice']);
 
 // 도구 이름 → 실제 실행 함수 매핑
 // 인자: (args, context) — context = { orders, customers, products }
@@ -378,6 +404,78 @@ function buildPendingAction(name, args, { customers, products }) {
         },
         warnings: existing ? [`⚠️ 동일 이름 "${customerName}" 거래처가 이미 있습니다`] : [],
         preview: `🏢 신규 거래처 등록\n• 이름: ${customerName}${phone ? `\n• 전화: ${phone}` : ''}${address ? `\n• 주소: ${address}` : ''}`,
+      },
+    };
+  }
+  if (name === 'updateProductStock') {
+    const { productName, productId, newStock } = args;
+    if (newStock == null || newStock < 0 || !Number.isFinite(Number(newStock))) {
+      return { ok: false, error: '재고 수량은 0 이상이어야 합니다.' };
+    }
+    // 제품 찾기
+    let target = null;
+    if (productId != null) target = products.find((p) => p.id === productId);
+    if (!target && productName) {
+      const lower = productName.trim().toLowerCase();
+      // 정확 일치 우선
+      target = products.find((p) => (p?.name || '').toLowerCase() === lower);
+      // 부분 매칭
+      if (!target) target = products.find((p) => (p?.name || '').toLowerCase().includes(lower));
+    }
+    if (!target) {
+      return { ok: false, error: `제품 "${productName || productId}"을(를) 찾을 수 없습니다. 정확한 제품명을 확인해주세요.` };
+    }
+    const currentStock = Number(target.stock) || 0;
+    const diff = Number(newStock) - currentStock;
+    return {
+      ok: true,
+      data: {
+        __pending: true,
+        action: 'updateProductStock',
+        params: {
+          productId: target.id,
+          productName: target.name,
+          newStock: Number(newStock),
+          oldStock: currentStock,
+        },
+        warnings: diff < -10 ? [`⚠️ 재고가 ${Math.abs(diff)}개 감소합니다 (큰 변동)`] : [],
+        preview: `📦 재고 변경\n• 제품: ${target.name}\n• 현재 재고: ${currentStock}개\n• 변경 후: ${newStock}개\n• 변동: ${diff > 0 ? '+' : ''}${diff}개`,
+      },
+    };
+  }
+  if (name === 'updateProductPrice') {
+    const { productName, productId, wholesale, retail } = args;
+    if (wholesale == null && retail == null) {
+      return { ok: false, error: '도매가 또는 소비자가 중 하나는 지정해야 합니다.' };
+    }
+    let target = null;
+    if (productId != null) target = products.find((p) => p.id === productId);
+    if (!target && productName) {
+      const lower = productName.trim().toLowerCase();
+      target = products.find((p) => (p?.name || '').toLowerCase() === lower)
+            || products.find((p) => (p?.name || '').toLowerCase().includes(lower));
+    }
+    if (!target) {
+      return { ok: false, error: `제품 "${productName || productId}"을(를) 찾을 수 없습니다.` };
+    }
+    const params = { productId: target.id, productName: target.name };
+    const lines = [`💰 가격 변경`, `• 제품: ${target.name}`];
+    if (wholesale != null && Number.isFinite(Number(wholesale)) && Number(wholesale) > 0) {
+      params.wholesale = Number(wholesale);
+      lines.push(`• 도매가: ${(Number(target.wholesale) || 0).toLocaleString('ko-KR')}원 → ${params.wholesale.toLocaleString('ko-KR')}원`);
+    }
+    if (retail != null && Number.isFinite(Number(retail)) && Number(retail) > 0) {
+      params.retail = Number(retail);
+      lines.push(`• 소비자가: ${(Number(target.retail) || 0).toLocaleString('ko-KR')}원 → ${params.retail.toLocaleString('ko-KR')}원`);
+    }
+    return {
+      ok: true,
+      data: {
+        __pending: true,
+        action: 'updateProductPrice',
+        params,
+        warnings: [],
+        preview: lines.join('\n'),
       },
     };
   }

@@ -174,6 +174,35 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ 거래처 "${pending.params.name}" 등록 실패`);
           showToast?.('거래처 등록 실패', 'error');
         }
+      } else if (pending.action === 'updateProductStock') {
+        const { productId, productName, newStock } = pending.params;
+        const updated = await supabase.updateProduct(productId, { stock: newStock });
+        if (updated) {
+          setProducts?.((prev) => prev.map((p) => p.id === productId ? { ...p, stock: newStock } : p));
+          chat.addSystemMessage(`✅ "${productName}" 재고 ${newStock}개로 변경 완료`);
+          showToast?.(`재고 변경됨: ${productName} → ${newStock}개`, 'success');
+        } else {
+          chat.addSystemMessage(`❌ "${productName}" 재고 변경 실패`);
+          showToast?.('재고 변경 실패', 'error');
+        }
+      } else if (pending.action === 'updateProductPrice') {
+        const { productId, productName, wholesale, retail } = pending.params;
+        const patch = {};
+        if (wholesale != null) patch.wholesale = wholesale;
+        if (retail != null) patch.retail = retail;
+        const updated = await supabase.updateProduct(productId, patch);
+        if (updated) {
+          setProducts?.((prev) => prev.map((p) => p.id === productId ? { ...p, ...patch } : p));
+          const changes = [
+            wholesale != null ? `도매 ${wholesale.toLocaleString('ko-KR')}원` : null,
+            retail != null ? `소비자 ${retail.toLocaleString('ko-KR')}원` : null,
+          ].filter(Boolean).join(' / ');
+          chat.addSystemMessage(`✅ "${productName}" 가격 변경 완료 (${changes})`);
+          showToast?.(`가격 변경됨: ${productName}`, 'success');
+        } else {
+          chat.addSystemMessage(`❌ "${productName}" 가격 변경 실패`);
+          showToast?.('가격 변경 실패', 'error');
+        }
       }
     } catch (e) {
       chat.addSystemMessage(`❌ 오류: ${e.message || e}`);
@@ -185,7 +214,13 @@ export default function AIAnalytics({
   };
 
   const handleCancelAction = (pending) => {
-    chat.addSystemMessage(`↩️ "${pending.params.name}" ${pending.action === 'addProduct' ? '제품' : '거래처'} 등록 취소됨`);
+    const labelMap = {
+      addProduct: `제품 "${pending.params.name}" 등록`,
+      addCustomer: `거래처 "${pending.params.name}" 등록`,
+      updateProductStock: `"${pending.params.productName}" 재고 변경`,
+      updateProductPrice: `"${pending.params.productName}" 가격 변경`,
+    };
+    chat.addSystemMessage(`↩️ ${labelMap[pending.action] || pending.action} 취소됨`);
     chat.resolvePendingAction(pending.id);
   };
   const [showSettings, setShowSettings] = useState(false);
