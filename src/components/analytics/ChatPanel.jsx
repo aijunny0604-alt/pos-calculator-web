@@ -3,7 +3,7 @@ import { Send, Sparkles, Trash2, Loader2, X } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import SuggestedQuestions from './SuggestedQuestions';
 import VoiceButton from './VoiceButton';
-import JarvisHologramHUD from './JarvisHologramHUD';
+import JarvisStandby from './JarvisStandby';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 const MAX_INPUT = 1000;
@@ -97,27 +97,22 @@ export default function ChatPanel({
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {!hasMessages ? (
-          <div className="h-full flex flex-col items-center justify-center text-center py-8 relative">
-            {/* 3D 자비스 홀로그램 HUD */}
-            <JarvisHologramHUD size="lg" />
+          <div className="min-h-full flex flex-col items-center justify-start text-center py-6 relative">
+            {/* 자비스 영화 스타일 스탠바이 화면 */}
+            <JarvisStandby
+              voiceListening={voice?.isListening}
+              ttsEnabled={false}
+              sfxMuted={false}
+            />
 
-            <h3 className="text-xl sm:text-2xl font-black mb-2 jarvis-text-glow jarvis-text-chromatic tracking-wide mt-6" style={{ color: 'var(--jarvis-text)' }}>
-              무엇이 궁금하세요?
-            </h3>
-            <p className="text-xs mb-6 max-w-xs break-keep leading-snug" style={{ color: 'var(--jarvis-text-muted)' }}>
-              자연어로 거래처 / 제품 / 매출 / VIP 분석을 물어보세요.
-              <br />예: <span style={{ color: 'var(--jarvis-cyan-soft)' }}>"이번 달 매출 1위 누구야?"</span>
-              {voice?.supported && (
-                <>
-                  <br />
-                  <span style={{ color: 'var(--jarvis-cyan)', textShadow: '0 0 6px rgba(0,212,255,0.5)' }}>
-                    🎤 음성 입력 가능 · Spacebar 길게
-                  </span>
-                </>
-              )}
-            </p>
-            <div className="w-full max-w-3xl">
+            {/* 추천 질문 */}
+            <div className="w-full max-w-3xl px-4 mt-4">
               <SuggestedQuestions items={suggestedItems} onSelect={handleSelect} />
+              {voice?.supported && (
+                <p className="text-[11px] mt-4 font-mono tracking-wider" style={{ color: 'var(--jarvis-text-muted)' }}>
+                  🎤 음성 입력: <span style={{ color: 'var(--jarvis-cyan)' }}>Spacebar 길게</span> 누르거나 아래 마이크 버튼 클릭
+                </p>
+              )}
             </div>
           </div>
         ) : (
