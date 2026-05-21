@@ -357,7 +357,9 @@ export default function AIAnalytics({
           aria-label="TTS 토글"
           style={{ color: tts.enabled ? 'var(--jarvis-cyan)' : 'var(--jarvis-text-muted)' }}
         >
-          <span className="text-xs font-bold">{tts.enabled ? '🔊' : '🔇'}</span>
+          {tts.enabled
+            ? <AudioLines className="w-4 h-4" style={{ color: 'var(--jarvis-accent)', filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.6))' }} />
+            : <MessageSquareOff className="w-4 h-4" style={{ color: 'var(--jarvis-text-muted)' }} />}
         </button>
       )}
       <button
@@ -401,7 +403,7 @@ export default function AIAnalytics({
                 <Settings className="w-5 h-5" />
                 AI 설정
               </h3>
-              <button onClick={() => setShowSettings(false)} className="p-2 rounded hover:bg-[var(--accent)] min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="닫기">
+              <button onClick={() => setShowSettings(false)} className="p-2 rounded hover:bg-cyan-500/10 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="닫기">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -409,9 +411,9 @@ export default function AIAnalytics({
             {/* Groq API 키 */}
             <div className="mb-5">
               <label className="block text-sm font-semibold mb-1.5">⚡ Groq API 키 (폴백용)</label>
-              <p className="text-xs text-[var(--muted-foreground)] mb-2 break-keep leading-snug">
+              <p className="text-xs text-[var(--jarvis-text-muted)] mb-2 break-keep leading-snug">
                 Gemini 한도 초과 시 자동 사용. 무료 발급:{' '}
-                <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-[var(--primary)] underline">
+                <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-[var(--jarvis-cyan)] underline">
                   console.groq.com/keys
                 </a>
               </p>
@@ -440,7 +442,7 @@ export default function AIAnalytics({
                   </button>
                 )}
               </div>
-              {groqEnabled && <p className="text-xs text-[var(--success)] mt-1.5">✓ Groq 키 설정됨</p>}
+              {groqEnabled && <p className="text-xs text-emerald-400 mt-1.5">✓ Groq 키 설정됨</p>}
             </div>
 
             {/* 프로바이더 선택 */}
@@ -482,7 +484,7 @@ export default function AIAnalytics({
                   className="w-full text-left px-3 py-2 rounded-lg border border-cyan-400/20 hover:bg-cyan-500/10 text-sm flex items-center justify-between gap-2"
                 >
                   <span>💬 대화 히스토리만 지우기</span>
-                  <span className="text-[10px] text-[var(--muted-foreground)]">{chat.messages.length}개</span>
+                  <span className="text-[10px] text-[var(--jarvis-text-muted)]">{chat.messages.length}개</span>
                 </button>
                 <button
                   onClick={() => { chat.clearCache(); showToast?.('답변 캐시 비움', 'success'); setShowSettings(false); }}
@@ -492,7 +494,7 @@ export default function AIAnalytics({
                 </button>
                 <button
                   onClick={() => setShowResetConfirm(true)}
-                  className="w-full text-left px-3 py-2 rounded-lg border border-cyan-400/20 bg-red-500/10 text-[var(--destructive)] hover:bg-red-500/15 text-sm font-semibold flex items-center gap-2"
+                  className="w-full text-left px-3 py-2 rounded-lg border border-cyan-400/20 bg-red-500/10 text-rose-400 hover:bg-red-500/15 text-sm font-semibold flex items-center gap-2"
                 >
                   <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                   🗑️ 전체 AI 데이터 초기화
@@ -553,13 +555,22 @@ export default function AIAnalytics({
       {/* 쓰기 액션 Confirm 모달 (큐 처리 — 첫 번째 pending만 표시) */}
       {chat.pendingActions.length > 0 && (() => {
         const pending = chat.pendingActions[0];
-        const isProduct = pending.action === 'addProduct';
+        const titleMap = {
+          addProduct: { title: '제품 등록 확인', Icon: Package },
+          addCustomer: { title: '거래처 등록 확인', Icon: Users },
+          updateProductStock: { title: '재고 변경 확인', Icon: Package },
+          updateProductPrice: { title: '가격 변경 확인', Icon: DollarSign },
+          saveOrder: { title: '주문 등록 확인', Icon: Truck },
+          updateCustomer: { title: '거래처 정보 수정 확인', Icon: Users },
+        };
+        const meta = titleMap[pending.action] || { title: '작업 확인', Icon: AlertTriangle };
+        const Icon = meta.Icon;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <div className="movis-glass-card max-w-md w-full p-4 sm:p-6 min-w-0">
               <div className="flex items-center gap-2 mb-4 movis-text-primary">
-                {isProduct ? <Package className="w-5 h-5 text-[var(--primary)]" /> : <Users className="w-5 h-5 text-[var(--primary)]" />}
-                <h3 className="text-lg font-bold">{isProduct ? '제품 등록 확인' : '거래처 등록 확인'}</h3>
+                <Icon className="w-5 h-5 text-[var(--jarvis-cyan)]" />
+                <h3 className="text-lg font-bold">{meta.title}</h3>
               </div>
               <div className="bg-[#0f1a2d]/70 border border-cyan-400/20 rounded-lg p-3 mb-4 text-sm whitespace-pre-line break-words leading-relaxed">
                 {pending.preview}
