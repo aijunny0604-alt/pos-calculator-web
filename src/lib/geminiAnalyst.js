@@ -120,9 +120,8 @@ const postGemini = async (contents, { signal } = {}) => {
               system_instruction: { parts: [{ text: ANALYST_SYSTEM_PROMPT }] },
               contents,
               tools: [{ function_declarations: GEMINI_TOOLS }],
-              // toolConfig 명시 — Gemini가 functionCall 메커니즘만 쓰도록 강제
-              // (AUTO 미명시 시 가끔 tool_code/Python 텍스트로 답변하는 회귀 발생)
-              tool_config: { function_calling_config: { mode: 'AUTO' } },
+              // Gemini v1beta REST API는 camelCase. tool_code 회귀 방지는 시스템 프롬프트로 충분.
+              toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
               generationConfig: { temperature: 0.15, maxOutputTokens: 4096 },
             }),
           }

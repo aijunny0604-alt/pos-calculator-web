@@ -160,10 +160,16 @@ export default function useAIAnalystChat({
         await new Promise((r) => setTimeout(r, MIN_THINKING_MS - elapsed));
       }
 
+      // 빈 응답이면 친절한 안내 메시지로 대체
+      const emptyResponseMsg = '⚠️ AI가 응답을 주지 않았어요. 잠시 후 다시 시도해주세요. '
+        + '계속 같은 증상이면 ⚙️ 설정에서 "AI 캐시 비우기"를 누른 뒤 다시 질문해주세요.';
+      const content = result.answer && result.answer.trim()
+        ? result.answer
+        : emptyResponseMsg;
       const assistantMsg = {
         id: newId(),
-        role: result.error ? 'error' : 'assistant',
-        content: result.answer || '응답이 비어있습니다.',
+        role: result.error || !result.answer ? 'error' : 'assistant',
+        content,
         ts: Date.now(),
         toolCalls: result.toolCalls,
         cached: result.cached,

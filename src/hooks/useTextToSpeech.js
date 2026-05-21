@@ -10,11 +10,11 @@ function getSynth() {
   return window.speechSynthesis || null;
 }
 
-// 한국어 여성 voice 우선순위 선택
+// 한국어 voice 우선순위 선택. 한국어 voice가 없으면 null (영어 voice로 한국어 읽으면 이상함 → 침묵)
 function pickKoreanFemaleVoice(voices) {
   if (!Array.isArray(voices) || voices.length === 0) return null;
 
-  // 우선순위 1: 한국어 + 여성 키워드 (확장)
+  // 우선순위 1: 한국어 + 여성 키워드
   const preferences = [
     /heami/i,         // Microsoft Heami
     /sunhi/i,         // Microsoft SunHi
@@ -27,19 +27,15 @@ function pickKoreanFemaleVoice(voices) {
     if (match) return match;
   }
 
-  // 우선순위 2: 한국어 lang
+  // 우선순위 2: ko-KR lang voice (여성 우선, 없으면 첫 한국어)
   const korean = voices.filter((v) => /^ko/i.test(v.lang || '') || /한국|korean/i.test(v.name || ''));
   if (korean.length > 0) {
     const female = korean.find((v) => /heami|sunhi|female|woman|여성|소리|yujin/i.test(v.name || ''));
     return female || korean[0];
   }
 
-  // 우선순위 3: 영어 여성 voice (한국어 텍스트도 영어 voice가 일정 부분 발화 가능 — 자비스 영어 톤)
-  const englishFemale = voices.find((v) => /samantha|zira|female|woman/i.test(v.name || '') && /^en/i.test(v.lang || ''));
-  if (englishFemale) return englishFemale;
-
-  // 우선순위 4: 첫 voice (fallback)
-  return voices[0];
+  // 한국어 voice 없음 → null (자동 발화 차단). 영어 voice는 한국어 발음 ❌
+  return null;
 }
 
 export default function useTextToSpeech({ defaultEnabled = false } = {}) {
@@ -101,6 +97,14 @@ export default function useTextToSpeech({ defaultEnabled = false } = {}) {
       if (vs && vs.length > 0) {
         voice = pickKoreanFemaleVoice(vs);
         if (voice) setSelectedVoice(voice);
+      }
+    }
+
+    // 한국어 voice 못 찾으면 강제 발화도 스킵 (영어/일본어 voice로 한국어 = 끔찍)
+    if (!voice || !/^ko/i.test(voice.lang || '')) {
+      if (!options.force) {
+        console.warn('TTS: 한국어 voice 없음 — 발화 스킵');
+        return false;
       }
     }
 
