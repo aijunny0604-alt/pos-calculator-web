@@ -8,11 +8,23 @@ import { useEffect, useRef } from 'react';
 const TOTAL_DURATION = 1.8;
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
+// StrictMode / HMR 의도적 중복 마운트 가드 (모듈 레벨)
+// React.StrictMode는 dev에서 mount → cleanup → remount 사이클을 의도적으로 실행함.
+// 가드 없이는 빅뱅이 두 번 처음부터 그려져 "퍼지는게 2번"으로 보임.
+let lastBigBangStartTime = 0;
+
 export default function BigBangIntro({ onComplete }) {
   const canvasRef = useRef(null);
   const completedRef = useRef(false);
 
   useEffect(() => {
+    // 1초 이내 재마운트 → 이전 인스턴스가 아직 그리는 중이라고 가정 → 스킵
+    const now = performance.now();
+    if (now - lastBigBangStartTime < 1000) {
+      return;
+    }
+    lastBigBangStartTime = now;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -210,7 +222,10 @@ export default function BigBangIntro({ onComplete }) {
     const onResize = () => resize();
     window.addEventListener('resize', onResize);
     return () => {
-      cancelAnimationFrame(rafId);
+      // cancelAnimationFrame을 2초 지연 → StrictMode 즉시 cleanup에서 첫 RAF를 죽이지 않게.
+      // 빅뱅은 1.8초면 자체 종료되므로 leak 없음.
+      const capturedRafId = rafId;
+      setTimeout(() => cancelAnimationFrame(capturedRafId), 2000);
       window.removeEventListener('resize', onResize);
     };
   }, [onComplete]);

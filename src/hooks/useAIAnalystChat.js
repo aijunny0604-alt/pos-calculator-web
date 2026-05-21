@@ -93,9 +93,15 @@ export default function useAIAnalystChat({
 
     // 사용자 메시지 즉시 추가
     const userMsg = { id: newId(), role: 'user', content: question, ts: Date.now() };
+    // WHY: 직전 6턴(user+assistant)을 컨텍스트로 전달 → "이전 대화 기억" 가능
+    // 너무 길면 토큰 비용/지연이 커져 6턴(=대화 3쌍)으로 제한
+    const history = messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .slice(-6)
+      .map((m) => ({ role: m.role, content: m.content }));
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
-    setLoadingStep('🤖 AI가 생각 중...');
+    setLoadingStep('🤖 MOVIS가 생각 중...');
 
     if (promptId) recordUsage(promptId);
 
@@ -116,6 +122,7 @@ export default function useAIAnalystChat({
         customerReturns,
       }, {
         signal: controller.signal,
+        history, // ← 이전 대화 컨텍스트
         onProgress: (call) => {
           // 특수 신호: 폴백 시작
           if (call?.name === '__fallback__') {
@@ -123,7 +130,7 @@ export default function useAIAnalystChat({
             return;
           }
           const friendly = friendlyToolName(call?.name) || call?.name || '데이터 조회';
-          setLoadingStep(`🔍 ${friendly}...`);
+          setLoadingStep(`🔍 ${friendly}`);
         },
       });
 
@@ -213,6 +220,7 @@ export default function useAIAnalystChat({
 // 도구 이름 → 사용자 친화 한국어 라벨
 function friendlyToolName(name) {
   const map = {
+    // 분석 (read)
     getTopCustomers: '매출 TOP 거래처 조회',
     getCustomerTrend: '거래처 추이 분석',
     getCustomerSegments: 'VIP 세그먼트 분석',
@@ -222,6 +230,23 @@ function friendlyToolName(name) {
     getRepeatPurchaseGap: '재주문 주기 계산',
     getCustomerProductAffinity: '거래처 구매 패턴 분석',
     getCompositeSummary: '종합 KPI 산출',
+    getInventoryStatus: '재고 현황 분석',
+    getPaymentSummary: '미수금 집계',
+    getReturnedItems: '반품 내역 조회',
+    getSavedCartsByCustomer: '저장 장바구니 조회',
+    getAILearningStats: 'AI 학습 통계',
+    // 쓰기 (write) — Confirm 모달 전 미리보기 준비
+    addProduct: '제품 등록 준비',
+    addCustomer: '거래처 등록 준비',
+    updateProductStock: '재고 변경 준비',
+    updateProductPrice: '가격 변경 준비',
+    updateCustomer: '거래처 정보 수정 준비',
+    saveOrder: '주문 등록 준비',
+    bulkAddProduct: '제품 일괄 등록 준비',
+    bulkAddCustomer: '거래처 일괄 등록 준비',
+    bulkUpdateProductStock: '재고 일괄 변경 준비',
+    bulkUpdateProductPrice: '가격 일괄 변경 준비',
+    bulkUpdateCustomer: '거래처 정보 일괄 변경 준비',
   };
   return map[name] || null;
 }

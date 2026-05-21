@@ -6,6 +6,104 @@ import VoiceButton from './VoiceButton';
 import JarvisStandby from './JarvisStandby';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
+// MOVIS "생각중" 칩 — 양자 코어 + 데이터 스트림 + 멀티라인 도구명
+function ThinkingChip({ step, onCancel }) {
+  return (
+    <div className="flex justify-start my-2 animate-jarvis-card-emerge">
+      <div
+        className="movis-glass-card rounded-2xl px-4 py-3 flex items-start gap-3 max-w-[95%] sm:max-w-[85%] min-w-0 relative overflow-hidden"
+        style={{
+          boxShadow: '0 8px 28px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 24px rgba(0,212,255,0.10)',
+          border: '1px solid rgba(0, 212, 255, 0.28)',
+          background: 'linear-gradient(135deg, rgba(8,16,30,0.72) 0%, rgba(15,26,45,0.78) 100%)',
+        }}
+      >
+        {/* 좌측 스캔라인 (위 → 아래 흐르는 데이터 빛) */}
+        <span
+          className="absolute left-0 top-0 bottom-0 w-[2px] pointer-events-none"
+          style={{
+            background: 'linear-gradient(180deg, transparent 0%, #4dffff 50%, transparent 100%)',
+            animation: 'jarvis-data-stream 1.6s ease-in-out infinite',
+          }}
+        />
+
+        {/* 양자 코어 (3중 회전 + 펄스) */}
+        <div className="relative w-9 h-9 flex-shrink-0 mt-0.5">
+          {/* 외곽 ring */}
+          <svg className="absolute inset-0 animate-jarvis-arc-spin" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(0,212,255,0.55)" strokeWidth="1.5" strokeDasharray="3 5" />
+          </svg>
+          {/* 중간 ring (역회전) */}
+          <svg className="absolute inset-0 animate-jarvis-arc-spin-rev" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="11" fill="none" stroke="rgba(77,255,255,0.7)" strokeWidth="1.5" strokeDasharray="2 4" />
+          </svg>
+          {/* 내부 ring */}
+          <svg className="absolute inset-0 animate-jarvis-arc-spin" style={{ animationDuration: '3s' }} viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="6" fill="none" stroke="rgba(168,85,247,0.55)" strokeWidth="1" strokeDasharray="1 2" />
+          </svg>
+          {/* 펄스 코어 */}
+          <div
+            className="absolute inset-0 m-auto w-2.5 h-2.5 rounded-full animate-jarvis-glow-pulse"
+            style={{
+              background: 'radial-gradient(circle, #ffffff 0%, #4dffff 40%, #00d4ff 100%)',
+              boxShadow: '0 0 10px rgba(0,212,255,0.85), 0 0 18px rgba(77,255,255,0.5)',
+            }}
+          />
+          {/* 위성 입자 4개 (회전 궤도) */}
+          <div className="absolute inset-0 animate-jarvis-arc-spin" style={{ animationDuration: '2.4s' }}>
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: '#4dffff', boxShadow: '0 0 4px rgba(77,255,255,0.9)' }} />
+            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: '#a855f7', boxShadow: '0 0 4px rgba(168,85,247,0.8)' }} />
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full" style={{ background: '#00d4ff', boxShadow: '0 0 4px rgba(0,212,255,0.9)' }} />
+            <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full" style={{ background: '#ffffff', boxShadow: '0 0 4px rgba(255,255,255,0.7)' }} />
+          </div>
+        </div>
+
+        {/* 텍스트 영역 (줄바꿈 허용 + truncate 제거) */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5 py-0.5">
+          {/* 상단 라벨 */}
+          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: 'var(--jarvis-text-muted)' }}>
+            <span className="inline-block w-1 h-1 rounded-full animate-pulse" style={{ background: '#00ff88', boxShadow: '0 0 4px #00ff88' }} />
+            <span>MOVIS · NEURAL PROCESSING</span>
+          </div>
+          {/* 실제 진행 단계 (멀티라인 + word-break) */}
+          <div
+            className="text-sm font-medium leading-snug"
+            style={{
+              color: 'var(--jarvis-cyan)',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              textShadow: '0 0 6px rgba(0,212,255,0.35)',
+            }}
+          >
+            {step || '⚡ 분석 중...'}
+          </div>
+          {/* 진동 막대 (5개로 확장) */}
+          <span className="inline-flex items-end gap-0.5 mt-0.5">
+            <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '0ms', animationDuration: '0.9s' }} />
+            <span className="w-0.5 h-3 rounded-full animate-bounce" style={{ background: '#4dffff', animationDelay: '120ms', animationDuration: '0.9s' }} />
+            <span className="w-0.5 h-4 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '240ms', animationDuration: '0.9s' }} />
+            <span className="w-0.5 h-3 rounded-full animate-bounce" style={{ background: '#4dffff', animationDelay: '360ms', animationDuration: '0.9s' }} />
+            <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '480ms', animationDuration: '0.9s' }} />
+          </span>
+        </div>
+
+        {/* 취소 버튼 */}
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="ml-1 p-1.5 rounded-lg hover:bg-cyan-500/20 flex-shrink-0 transition-colors mt-0.5"
+            aria-label="취소"
+            style={{ color: 'var(--jarvis-text-muted)' }}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // 좌/우 사이드 추천 질문 칩 (가로 배치)
 function SideChip({ item, onSelect, align = 'left' }) {
   const Icon = item.icon;
@@ -179,48 +277,7 @@ export default function ChatPanel({
             {messages.map((m) => (
               <MessageBubble key={m.id} message={m} tts={tts} />
             ))}
-            {isLoading && (
-              <div className="flex justify-start my-2 animate-jarvis-card-emerge">
-                <div className="movis-glass-card rounded-2xl px-4 py-2 flex items-center gap-3 max-w-[92%] sm:max-w-[78%] min-w-0" style={{
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(0, 212, 255, 0.22)',
-                }}>
-                  {/* 회전 데이터 입자 */}
-                  <div className="relative w-5 h-5 flex-shrink-0">
-                    <svg className="absolute inset-0 animate-jarvis-arc-spin" viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(0,212,255,0.8)" strokeWidth="2" strokeDasharray="4 4" />
-                    </svg>
-                    <svg className="absolute inset-0 animate-jarvis-arc-spin-rev" viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="6" fill="none" stroke="rgba(77,255,255,0.7)" strokeWidth="1.5" strokeDasharray="2 3" />
-                    </svg>
-                    <div className="absolute inset-0 m-auto w-1.5 h-1.5 rounded-full animate-jarvis-glow-pulse" style={{
-                      background: '#4dffff',
-                      boxShadow: '0 0 6px rgba(0,212,255,0.65)',
-                    }} />
-                  </div>
-                  <span className="text-sm break-words font-mono font-medium min-w-0" style={{ color: 'var(--jarvis-cyan)' }}>
-                    {loadingStep || '⚡ 분석 중...'}
-                  </span>
-                  {/* 진동 막대 */}
-                  <span className="inline-flex items-center gap-0.5 ml-1">
-                    <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '0ms' }} />
-                    <span className="w-0.5 h-3 rounded-full animate-bounce" style={{ background: '#4dffff', animationDelay: '120ms' }} />
-                    <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '240ms' }} />
-                  </span>
-                  {onCancel && (
-                    <button
-                      type="button"
-                      onClick={onCancel}
-                      className="ml-1 p-1.5 rounded hover:bg-cyan-500/20 flex-shrink-0 transition-colors"
-                      aria-label="취소"
-                      style={{ color: 'var(--jarvis-text-muted)' }}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
+            {isLoading && <ThinkingChip step={loadingStep} onCancel={onCancel} />}
             <div ref={bottomRef} />
           </>
         )}

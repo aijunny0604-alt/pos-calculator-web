@@ -140,13 +140,16 @@ export async function askAnalyst(question, context, options = {}) {
     onProgress,
     maxIterations = 5,
     skipCache,
+    history = [], // 이전 대화 [{role:'user'|'assistant', content}]
   } = options;
 
   const toolCalls = [];
   let iterations = 0;
+  const hasHistory = Array.isArray(history) && history.length > 0;
 
   try {
-    if (!skipCache) {
+    // 컨텍스트 있는 질문은 캐시 건너뜀 (같은 질문도 컨텍스트마다 답 다름)
+    if (!skipCache && !hasHistory) {
       const cached = getCachedAnswer(question);
       if (cached) {
         return {
@@ -158,7 +161,16 @@ export async function askAnalyst(question, context, options = {}) {
       }
     }
 
-    const contents = [{ role: 'user', parts: [{ text: question }] }];
+    // 이전 대화 history를 Gemini contents 포맷으로 변환 후 현재 질문 추가
+    const contents = [];
+    for (const h of history) {
+      if (!h?.content) continue;
+      contents.push({
+        role: h.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: String(h.content).slice(0, 2000) }], // 안전한 길이 제한
+      });
+    }
+    contents.push({ role: 'user', parts: [{ text: question }] });
     // WHY: 같은 함수와 같은 인자를 반복 호출하면 모델 루프가 길어지고 비용이 늘어 중복 실행을 막는다.
     const seenCalls = new Set();
 
@@ -171,7 +183,8 @@ export async function askAnalyst(question, context, options = {}) {
 
       if (functionCalls.length === 0) {
         const answer = parts[0]?.text || '';
-        saveCachedAnswer(question, answer, toolCalls);
+        // 컨텍스트 있는 질문은 캐시하지 않음 (대화 상태별 답이 달라짐)
+        if (!hasHistory) saveCachedAnswer(question, answer, toolCalls);
         return { answer, toolCalls, iterations, cached: false };
       }
 

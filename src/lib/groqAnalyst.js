@@ -145,7 +145,7 @@ async function postGroq(messages, { signal } = {}) {
  * @returns {Promise<{answer, toolCalls, iterations, cached:false, provider:'groq', error?}>}
  */
 export async function askGroq(question, context, options = {}) {
-  const { signal, onProgress, maxIterations = 5 } = options;
+  const { signal, onProgress, maxIterations = 5, history = [] } = options;
   const toolCalls = [];
   let iterations = 0;
 
@@ -153,8 +153,19 @@ export async function askGroq(question, context, options = {}) {
     return { answer: 'Groq 키가 설정되지 않았습니다.', toolCalls, iterations, cached: false, provider: 'groq', error: 'GROQ_NO_KEY' };
   }
 
+  // 이전 대화 history → OpenAI messages 포맷 (assistant role 그대로 사용)
+  const historyMsgs = Array.isArray(history)
+    ? history
+        .filter((h) => h?.content)
+        .map((h) => ({
+          role: h.role === 'assistant' ? 'assistant' : 'user',
+          content: String(h.content).slice(0, 2000),
+        }))
+    : [];
+
   const messages = [
     { role: 'system', content: ANALYST_SYSTEM_PROMPT },
+    ...historyMsgs,
     { role: 'user', content: question },
   ];
 
