@@ -186,6 +186,28 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ "${productName}" 재고 변경 실패`);
           showToast?.('재고 변경 실패', 'error');
         }
+      } else if (pending.action === 'bulkUpdateProductStock') {
+        const { updates } = pending.params;
+        // Promise.all로 일괄 호출
+        const results = await Promise.all(
+          updates.map((u) =>
+            supabase.updateProduct(u.productId, { stock: u.newStock })
+              .then((r) => ({ ok: Boolean(r), update: u }))
+              .catch(() => ({ ok: false, update: u }))
+          )
+        );
+        const okList = results.filter((r) => r.ok);
+        const failList = results.filter((r) => !r.ok);
+        if (okList.length > 0) {
+          // setProducts 일괄 반영
+          setProducts?.((prev) => {
+            const map = new Map(okList.map((r) => [r.update.productId, r.update.newStock]));
+            return prev.map((p) => (map.has(p.id) ? { ...p, stock: map.get(p.id) } : p));
+          });
+        }
+        const summary = `✅ 재고 ${okList.length}건 변경 완료${failList.length > 0 ? ` (실패 ${failList.length}건)` : ''}`;
+        chat.addSystemMessage(summary);
+        showToast?.(summary, okList.length > 0 ? 'success' : 'error');
       } else if (pending.action === 'saveOrder') {
         if (!saveOrderProp) {
           chat.addSystemMessage(`❌ 주문 저장 함수가 전달되지 않았습니다.`);
@@ -562,6 +584,7 @@ export default function AIAnalytics({
           updateProductPrice: { title: '가격 변경 확인', Icon: DollarSign },
           saveOrder: { title: '주문 등록 확인', Icon: Truck },
           updateCustomer: { title: '거래처 정보 수정 확인', Icon: Users },
+          bulkUpdateProductStock: { title: '재고 일괄 변경 확인', Icon: PackageX },
         };
         const meta = titleMap[pending.action] || { title: '작업 확인', Icon: AlertTriangle };
         const Icon = meta.Icon;

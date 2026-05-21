@@ -283,6 +283,28 @@ export const GEMINI_TOOLS = [
     },
   },
   {
+    name: 'bulkUpdateProductStock',
+    description: '여러 제품의 재고를 한 번의 confirm으로 일괄 변경. 사용자가 여러 라인(여러 제품)의 재고 정보를 한 번에 입력할 때 사용. 예: "스덴밴딩 38-45 56개, 38-90 40개, 43-45 24개..." 또는 표/목록 형태 입력. 단일 제품 변경은 updateProductStock 사용. "재고없음" → 0으로 인식.',
+    parameters: {
+      type: 'object',
+      properties: {
+        updates: {
+          type: 'array',
+          description: '재고 변경 라인 배열 (각 라인 = 제품명 + 새 재고)',
+          items: {
+            type: 'object',
+            properties: {
+              productName: { type: 'string', description: '제품 이름 (정확히 또는 일부)' },
+              newStock: { type: 'integer', description: '변경할 재고 (0 이상, 재고없음=0)' },
+            },
+            required: ['productName', 'newStock'],
+          },
+        },
+      },
+      required: ['updates'],
+    },
+  },
+  {
     name: 'updateProductPrice',
     description: '특정 제품의 도매가/소비자가 변경. "다운파이프 도매가 5만원으로", "머플러 가격 수정" 같은 의도일 때 호출. 사용자 confirm 후 DB 적용.',
     parameters: {
@@ -336,7 +358,7 @@ export const GEMINI_TOOLS = [
 ];
 
 // 쓰기 도구 이름 목록 (executeTool에서 dry-run 처리용)
-export const WRITE_TOOLS = new Set(['addProduct', 'addCustomer', 'updateProductStock', 'updateProductPrice', 'saveOrder', 'updateCustomer']);
+export const WRITE_TOOLS = new Set(['addProduct', 'addCustomer', 'updateProductStock', 'updateProductPrice', 'saveOrder', 'updateCustomer', 'bulkUpdateProductStock']);
 
 // 도구 이름 → 실제 실행 함수 매핑
 // 인자: (args, context) — context = { orders, customers, products }
@@ -589,6 +611,71 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
         params: { customerId: target.id, customerName: target.name, ...patch },
         warnings: [],
         preview: lines.join('\n'),
+      },
+    };
+  }
+  if (name === 'bulkUpdateProductStock') {
+    const { updates } = args;
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return { ok: false, error: '변경할 항목이 없습니다.' };
+    }
+    const resolved = [];
+    const missing = [];
+    for (const u of updates) {
+      const pname = (u?.productName || '').trim();
+      const newStock = Math.max(0, Math.floor(Number(u?.newStock) || 0));
+      if (!pname) continue;
+      const product = findProductSmart(pname, products, aiLearningData);
+      if (!product) {
+        missing.push({ name: pname, candidates: findProductCandidates(pname, products) });
+        continue;
+      }
+      const oldStock = Number(product.stock) || 0;
+      resolved.push({
+        productId: product.id,
+        productName: product.name,
+        inputName: pname,
+        oldStock,
+        newStock,
+        diff: newStock - oldStock,
+      });
+    }
+    if (resolved.length === 0) {
+      const lines = missing.map((m) => {
+        const hint = m.candidates.length > 0 ? ` (혹시? ${m.candidates.slice(0, 3).join(' / ')})` : '';
+        return `- "${m.name}"${hint}`;
+      }).join('\n');
+      return { ok: false, error: `매칭된 제품이 없습니다:\n${lines}` };
+    }
+    // 총 변동량
+    const totalIn = resolved.filter((r) => r.diff > 0).reduce((acc, r) => acc + r.diff, 0);
+    const totalOut = resolved.filter((r) => r.diff < 0).reduce((acc, r) => acc + Math.abs(r.diff), 0);
+    // preview 라인 (입력 → 실제 매칭된 이름, 변동 표시)
+    const previewLines = resolved.map((r) => {
+      const sign = r.diff > 0 ? `+${r.diff}` : `${r.diff}`;
+      const arrow = r.diff > 0 ? '↑' : r.diff < 0 ? '↓' : '→';
+      const nameMatch = r.inputName !== r.productName ? ` (입력: "${r.inputName}")` : '';
+      return `${arrow} ${r.productName}: ${r.oldStock} → ${r.newStock} (${sign})${nameMatch}`;
+    }).join('\n');
+    const missingPart = missing.length > 0
+      ? `\n\n⚠️ 매칭 못한 ${missing.length}개:\n` + missing.map((m) => `- ${m.name}`).join('\n')
+      : '';
+    const warnings = [];
+    if (totalOut > 50) warnings.push(`⚠️ 재고 ${totalOut}개 감소 (큰 변동)`);
+    if (missing.length > 0) warnings.push(`⚠️ ${missing.length}개 라인이 매칭 실패 — 정확한 이름으로 다시 시도 필요`);
+    return {
+      ok: true,
+      data: {
+        __pending: true,
+        action: 'bulkUpdateProductStock',
+        params: {
+          updates: resolved,
+          missing,
+          totalIn,
+          totalOut,
+        },
+        warnings,
+        preview: `📦 재고 일괄 변경 (${resolved.length}건)\n\n${previewLines}\n\n📊 합계: 입고 +${totalIn} / 출고 -${totalOut}${missingPart}`,
       },
     };
   }
