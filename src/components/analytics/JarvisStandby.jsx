@@ -9,6 +9,37 @@ function pad(n, len = 2) {
   return String(n).padStart(len, '0');
 }
 
+// 외계 헥사곤 데이터 마커 (sphere 주위에 떠있음)
+function HexagonMarker({ top, left, translateX = '0', translateY = '0', color, delay = 0 }) {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      style={{
+        top, left,
+        transform: `translate(${translateX}, ${translateY})`,
+        animation: `jarvis-hex-pulse 3s ease-in-out infinite ${delay}s`,
+      }}
+    >
+      <svg width="20" height="22" viewBox="0 0 20 22" style={{ filter: `drop-shadow(0 0 6px ${color}cc)` }}>
+        <polygon
+          points="10,1 19,6 19,16 10,21 1,16 1,6"
+          fill="none"
+          stroke={color}
+          strokeWidth="1"
+          opacity="0.8"
+        />
+        <polygon
+          points="10,5 16,8 16,14 10,17 4,14 4,8"
+          fill={`${color}22`}
+          stroke={color}
+          strokeWidth="0.5"
+        />
+        <circle cx="10" cy="11" r="1.5" fill={color} />
+      </svg>
+    </div>
+  );
+}
+
 export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted, isLoading, ttsSpeaking }) {
   // 상태에 따른 sphere 모드
   const sphereMode = isLoading
@@ -102,14 +133,19 @@ export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted, is
         </div>
       </div>
 
-      {/* Dot Sphere — 상태별 색상/모양 변화 */}
+      {/* Dot Sphere — 상태별 색상/모양 변화. boxShadow 사각형 잔재 완전 제거 */}
       <div className="relative flex items-center justify-center my-6 sm:my-8">
         <div className="relative" style={{ width: 'min(480px, 78vw)', height: 'min(480px, 78vw)' }}>
           <JarvisDotSphere pointCount={520} size={480} mode={sphereMode} />
-          {/* 외곽 미세 글로우 ring — 상태 따라 색상 */}
+          {/* 외곽 글로우 — 둥근 div만 + radial gradient (사각형 단차 X) */}
           <div className="absolute inset-0 rounded-full pointer-events-none transition-all duration-700" style={{
-            boxShadow: `inset 0 0 48px ${statusColor}1f, 0 0 48px ${statusColor}24`,
+            background: `radial-gradient(circle, transparent 60%, ${statusColor}10 75%, transparent 100%)`,
           }} />
+          {/* 외계 헥사고날 마커 (4방향) — sphere 주위에 떠있는 데이터 노드 */}
+          <HexagonMarker top="-2%" left="50%" translateX="-50%" color={statusColor} delay={0} />
+          <HexagonMarker top="50%" left="100%" translateX="-50%" translateY="-50%" color={statusColor} delay={0.5} />
+          <HexagonMarker top="102%" left="50%" translateX="-50%" translateY="-100%" color={statusColor} delay={1.0} />
+          <HexagonMarker top="50%" left="0%" translateX="-50%" translateY="-50%" color={statusColor} delay={1.5} />
         </div>
       </div>
 

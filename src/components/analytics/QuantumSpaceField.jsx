@@ -290,12 +290,8 @@ export default function QuantumSpaceField({ density = 'high' }) {
         ctx.globalCompositeOperation = 'source-over';
       }
 
-      // 6. Vignette (가장자리 어둡게) — 한 번만 그리기 위해 가장 끝
-      const vgrad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
-      vgrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-      vgrad.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
-      ctx.fillStyle = vgrad;
-      ctx.fillRect(0, 0, W, H);
+      // Vignette 제거 — fillRect가 사각형 단차 만들었음
+      // 페이지 자체에 radial gradient 배경 있으므로 별도 vignette 불필요
 
       if (!reduced) rafId = requestAnimationFrame(draw);
     }

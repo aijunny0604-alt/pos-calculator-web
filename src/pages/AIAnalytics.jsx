@@ -40,9 +40,13 @@ export default function AIAnalytics({
   const [customerReturns, setCustomerReturns] = useState([]);
   const [loadingExtra, setLoadingExtra] = useState(true);
 
-  // 빅뱅 진입 애니메이션 — 페이지 진입할 때마다 재생 (다른 페이지 갔다 오면 다시 보임)
+  // 빅뱅 진입 애니메이션 — 페이지 진입할 때마다 재생
   const [introDone, setIntroDone] = useState(false);
   const handleIntroDone = () => setIntroDone(true);
+  // 매 mount 시 강제 재생 (HMR/캐시로 인한 누락 방지)
+  useEffect(() => {
+    setIntroDone(false);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

@@ -88,6 +88,11 @@
   100% { stroke-dashoffset: 0; }
 }
 
+@keyframes jarvis-hex-pulse {
+  0%, 100% { opacity: 0.5; transform: var(--tw-transform) scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
 /* Hologram HUD: 추가 키프레임 */
 @keyframes jarvis-arc-spin-slow {
   to { transform: rotate(360deg); }
