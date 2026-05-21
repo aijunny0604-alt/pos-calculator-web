@@ -211,7 +211,7 @@ export default function ChatPanel({
                     <button
                       type="button"
                       onClick={onCancel}
-                      className="ml-1 p-0.5 rounded hover:bg-cyan-500/20 flex-shrink-0 transition-colors"
+                      className="ml-1 p-1.5 rounded hover:bg-cyan-500/20 flex-shrink-0 transition-colors"
                       aria-label="취소"
                       style={{ color: 'var(--jarvis-text-muted)' }}
                     >

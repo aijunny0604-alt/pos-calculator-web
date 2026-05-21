@@ -150,7 +150,7 @@ export default function JarvisHeader({
       <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <button
           type="button"
-          className="md:hidden p-1.5 rounded hover:bg-cyan-500/15 flex-shrink-0"
+          className="md:hidden p-2.5 rounded hover:bg-cyan-500/15 flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
           onClick={onSidebarToggle}
           aria-label="사이드바 열기"
           style={{ color: '#4dffff' }}

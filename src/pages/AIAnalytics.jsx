@@ -401,7 +401,7 @@ export default function AIAnalytics({
                 <Settings className="w-5 h-5" />
                 AI 설정
               </h3>
-              <button onClick={() => setShowSettings(false)} className="p-1 rounded hover:bg-[var(--accent)]" aria-label="닫기">
+              <button onClick={() => setShowSettings(false)} className="p-2 rounded hover:bg-[var(--accent)] min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="닫기">
                 <X className="w-4 h-4" />
               </button>
             </div>

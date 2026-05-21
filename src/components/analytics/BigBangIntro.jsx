@@ -132,10 +132,9 @@ export default function BigBangIntro({ onComplete }) {
         ctx.fillStyle = scanGrad;
         ctx.fillRect(0, scanY - 30, W, 60);
         // 텍스트
-        drawSystemText(ctx, cx, cy - 80, 'INITIALIZING QUANTUM SYSTEM', k * 0.9, isMobile);
-        // 진단 텍스트 (소형 좌측 상단)
-        drawDiagnostic(ctx, 20, 30, 'VACUUM FLUCTUATIONS: NOMINAL', k, isMobile);
-        drawDiagnostic(ctx, 20, 50, `PARTICLES DETECTED: ${Math.floor(k * N)}/${N}`, k, isMobile);
+        drawSystemText(ctx, cx, cy - 60, 'INITIALIZING QUANTUM SYSTEM', k * 0.9, isMobile);
+        drawDiagnostic(ctx, cx, cy - 30, 'VACUUM FLUCTUATIONS: NOMINAL', k, isMobile, 'center');
+        drawDiagnostic(ctx, cx, cy - 12, `PARTICLES DETECTED: ${Math.floor(k * N)}/${N}`, k, isMobile, 'center');
       }
 
       // ============ Phase 2: 양자 격자 정렬 (0.6~1.4s) ============
@@ -180,11 +179,11 @@ export default function BigBangIntro({ onComplete }) {
           ctx.arc(x, y, p.size, 0, Math.PI * 2);
           ctx.fill();
         }
-        drawSystemText(ctx, cx, cy - 80, 'ALIGNING QUANTUM FIELD', 1, isMobile);
-        drawDiagnostic(ctx, 20, 30, 'QUANTUM FIELD: STABILIZING', 1, isMobile);
-        drawDiagnostic(ctx, 20, 50, `LATTICE SYNC: ${Math.floor(t * 100)}%`, 1, isMobile);
-        // 좌측 calibration bar
-        drawCalibrationBar(ctx, 20, 80, 180, t, '#00d4ff', isMobile);
+        drawSystemText(ctx, cx, cy - 60, 'ALIGNING QUANTUM FIELD', 1, isMobile);
+        drawDiagnostic(ctx, cx, cy - 30, 'QUANTUM FIELD: STABILIZING', 1, isMobile, 'center');
+        drawDiagnostic(ctx, cx, cy - 12, `LATTICE SYNC: ${Math.floor(t * 100)}%`, 1, isMobile, 'center');
+        // 중앙 calibration bar
+        drawCalibrationBar(ctx, cx - 90, cy + 10, 180, t, '#00d4ff', isMobile);
       }
 
       // ============ Phase 3: 얽힘 + 결맞음 (1.4~2.2s) ============
@@ -253,24 +252,24 @@ export default function BigBangIntro({ onComplete }) {
           p.lastX = x;
           p.lastY = y;
         }
-        drawSystemText(ctx, cx, cy - 80, 'ENTANGLING PARTICLES', 1, isMobile);
-        drawDiagnostic(ctx, 20, 30, 'COHERENCE: STABLE', 1, isMobile);
-        drawDiagnostic(ctx, 20, 50, `ENTANGLEMENT PAIRS: ${Math.floor(N / 2)}`, 1, isMobile);
-        drawCalibrationBar(ctx, 20, 80, 180, 1, '#00ff88', isMobile);
-        // 우측 wave function visualization (sin curve)
-        if (!isMobile) {
-          ctx.strokeStyle = `rgba(0, 212, 255, ${0.5 * coherenceAlpha})`;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          for (let x = W - 220; x < W - 20; x += 2) {
-            const wx = x - (W - 220);
-            const y = 50 + Math.sin(wx * 0.08 + elapsed * 5) * 16 + Math.sin(wx * 0.3) * 6;
-            if (x === W - 220) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
-          ctx.stroke();
-          drawDiagnostic(ctx, W - 220, 30, 'ψ(x,t) WAVE FUNCTION', 1, isMobile, 'right');
+        drawSystemText(ctx, cx, cy - 60, 'ENTANGLING PARTICLES', 1, isMobile);
+        drawDiagnostic(ctx, cx, cy - 30, 'COHERENCE: STABLE', 1, isMobile, 'center');
+        drawDiagnostic(ctx, cx, cy - 12, `ENTANGLEMENT PAIRS: ${Math.floor(N / 2)}`, 1, isMobile, 'center');
+        drawCalibrationBar(ctx, cx - 90, cy + 10, 180, 1, '#00ff88', isMobile);
+        // wave function visualization (중앙 아래)
+        ctx.strokeStyle = `rgba(0, 212, 255, ${0.5 * coherenceAlpha})`;
+        ctx.lineWidth = 1;
+        const waveW = isMobile ? 160 : 200;
+        const waveStart = cx - waveW / 2;
+        ctx.beginPath();
+        for (let x = waveStart; x < waveStart + waveW; x += 2) {
+          const wx = x - waveStart;
+          const y = cy + 40 + Math.sin(wx * 0.08 + elapsed * 5) * 10 + Math.sin(wx * 0.3) * 4;
+          if (x === waveStart) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
+        ctx.stroke();
+        drawDiagnostic(ctx, cx, cy + 60, 'ψ(x,t) WAVE FUNCTION', 1, isMobile, 'center');
       }
 
       // ============ Phase 4: 응축 → 가속 (2.2~3.0s) ============
@@ -323,10 +322,10 @@ export default function BigBangIntro({ onComplete }) {
           }
           ctx.globalCompositeOperation = 'source-over';
         }
-        drawSystemText(ctx, cx, cy - 80, 'QUANTUM CORE ACCELERATING', 1, isMobile);
-        drawDiagnostic(ctx, 20, 30, `ENERGY: ${Math.floor(t * 100)}%`, 1, isMobile);
-        drawDiagnostic(ctx, 20, 50, 'CORE TEMP: 2.7K', 1, isMobile);
-        drawCalibrationBar(ctx, 20, 80, 180, 1, '#ffaa00', isMobile);
+        drawSystemText(ctx, cx, cy - 60, 'QUANTUM CORE ACCELERATING', 1, isMobile);
+        drawDiagnostic(ctx, cx, cy - 30, `ENERGY: ${Math.floor(t * 100)}%`, 1, isMobile, 'center');
+        drawDiagnostic(ctx, cx, cy - 12, 'CORE TEMP: 2.7K', 1, isMobile, 'center');
+        drawCalibrationBar(ctx, cx - 90, cy + 10, 180, 1, '#ffaa00', isMobile);
       }
 
       // ============ Phase 5: MOVIS 로고 + 페이드 (3.0~3.6s) ============
