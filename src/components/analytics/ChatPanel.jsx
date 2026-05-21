@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Send, Sparkles, Trash2, Loader2, X } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import SuggestedQuestions from './SuggestedQuestions';
+import VoiceButton from './VoiceButton';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 const MAX_INPUT = 1000;
@@ -16,12 +17,20 @@ export default function ChatPanel({
   onClear,
   onCancel,
   disabled,
+  voice, // useVoiceInput 훅 결과 { isListening, interim, supported, permissionDenied, start, stop, error }
 }) {
   const [text, setText] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // 음성 인식 interim → textarea 실시간 반영
+  useEffect(() => {
+    if (voice?.isListening && voice?.interim) {
+      setText(voice.interim);
+    }
+  }, [voice?.interim, voice?.isListening]);
 
   // 새 메시지 추가 시 자동 스크롤
   useEffect(() => {
@@ -134,17 +143,47 @@ export default function ChatPanel({
 
       {/* 입력 영역 (sticky bottom) */}
       <div className="border-t border-[var(--border)] p-2 sm:p-3 flex-shrink-0 bg-white">
+        {voice?.isListening && (
+          <div className="mb-2 flex items-center gap-2 text-xs text-cyan-600 px-2 animate-pulse">
+            <span className="inline-flex items-center gap-0.5">
+              <span className="w-1 h-3 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1 h-4 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '120ms' }} />
+              <span className="w-1 h-5 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '240ms' }} />
+              <span className="w-1 h-4 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '360ms' }} />
+              <span className="w-1 h-3 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '480ms' }} />
+            </span>
+            <span className="break-keep font-medium">듣고 있어요... (다시 클릭하거나 1.5초 침묵 시 종료)</span>
+          </div>
+        )}
+        {voice?.error && (
+          <div className="mb-2 text-xs text-[var(--destructive)] px-2 break-keep">{voice.error}</div>
+        )}
         <div className="flex items-end gap-2">
+          {voice && (
+            <VoiceButton
+              isListening={voice.isListening}
+              supported={voice.supported}
+              permissionDenied={voice.permissionDenied}
+              interim={voice.interim}
+              onStart={voice.start}
+              onStop={voice.stop}
+              size="md"
+            />
+          )}
           <div className="flex-1 min-w-0 relative">
             <textarea
               ref={textareaRef}
               value={text}
               onChange={(e) => setText(e.target.value.slice(0, MAX_INPUT))}
               onKeyDown={handleKeyDown}
-              placeholder={disabled ? '데이터 로딩 중...' : '질문을 입력하세요 (Enter=전송, Shift+Enter=줄바꿈)'}
+              placeholder={disabled ? '데이터 로딩 중...' : voice?.supported ? '질문 입력 또는 🎤 음성 (Spacebar 길게)' : '질문을 입력하세요 (Enter=전송)'}
               disabled={disabled}
               rows={1}
-              className="w-full resize-none px-3 py-2.5 pr-14 rounded-xl border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-sm break-keep leading-snug min-h-[44px] max-h-32"
+              className={`w-full resize-none px-3 py-2.5 pr-14 rounded-xl border focus:outline-none focus:ring-2 text-sm break-keep leading-snug min-h-[44px] max-h-32 transition-colors ${
+                voice?.isListening
+                  ? 'border-cyan-400 focus:ring-cyan-400 bg-cyan-50/30'
+                  : 'border-[var(--border)] focus:ring-[var(--primary)]'
+              }`}
               style={{ overflow: 'auto' }}
             />
             <span className="absolute bottom-1.5 right-2 text-[10px] text-[var(--muted-foreground)] pointer-events-none tabular-nums">

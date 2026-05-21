@@ -1,8 +1,11 @@
-import { useMemo, useState, useEffect } from 'react';
-import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2 } from 'lucide-react';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2, Volume2, VolumeX } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
 import useAIAnalystChat from '@/hooks/useAIAnalystChat';
+import useVoiceInput from '@/hooks/useVoiceInput';
+import useTextToSpeech from '@/hooks/useTextToSpeech';
 import { hasGroqKey, saveGroqKey, getGroqKey, getProviderPreference, setProviderPreference } from '@/lib/aiAnalyst';
+import { sfxMicOn, sfxMicOff, sfxMessageArrive, sfxAnswerComplete, sfxError, isMuted, setMuted, unlockAudio } from '@/lib/jarvisSound';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { supabase } from '@/lib/supabase';
 
@@ -60,6 +63,70 @@ export default function AIAnalytics({
     paymentRecords, paymentHistory, customerReturns,
   });
   const [executing, setExecuting] = useState(false);
+
+  // TTS (한국어 여성 voice)
+  const tts = useTextToSpeech();
+
+  // 효과음 음소거 상태
+  const [sfxMuted, setSfxMutedState] = useState(() => isMuted());
+  const toggleSfx = () => {
+    const next = !sfxMuted;
+    setMuted(next);
+    setSfxMutedState(next);
+    if (!next) unlockAudio();
+  };
+
+  // 음성 인식 → 질문 전송 시 음성으로 들어온 거 표시 (자동 TTS 응답용)
+  const lastInputWasVoiceRef = useRef(false);
+
+  // 음성 인식 훅
+  const voice = useVoiceInput({
+    autoSubmit: true,
+    onFinal: (text) => {
+      lastInputWasVoiceRef.current = true;
+      sfxMicOff();
+      chat.send(text);
+    },
+  });
+
+  // 마이크 시작 시 효과음 + JARVIS 응답
+  useEffect(() => {
+    if (voice.isListening) {
+      unlockAudio();
+      sfxMicOn();
+    }
+  }, [voice.isListening]);
+
+  // 새 AI 메시지 도착 → 효과음 + (음성 입력 사용자라면) 자동 TTS
+  const prevMsgCountRef = useRef(chat.messages.length);
+  useEffect(() => {
+    const prev = prevMsgCountRef.current;
+    const cur = chat.messages.length;
+    if (cur > prev) {
+      const last = chat.messages[cur - 1];
+      if (last?.role === 'assistant') {
+        sfxAnswerComplete();
+        // 음성으로 질문했거나 TTS 강제 ON이면 자동 발화
+        if (lastInputWasVoiceRef.current || tts.enabled) {
+          // 마크다운 문법 제거 (간단 정리)
+          const plain = (last.content || '')
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/##\s+/g, '')
+            .replace(/`/g, '')
+            .replace(/[│┌┐└┘├┤┬┴┼─━]/g, ' ')
+            .slice(0, 600); // 너무 길면 잘림 방지
+          tts.speak(plain);
+          lastInputWasVoiceRef.current = false;
+        }
+      } else if (last?.role === 'error') {
+        sfxError();
+        lastInputWasVoiceRef.current = false;
+      } else if (last?.role === 'system') {
+        sfxMessageArrive();
+      }
+    }
+    prevMsgCountRef.current = cur;
+  }, [chat.messages, tts]);
 
   // 쓰기 액션 실행
   const handleExecuteAction = async (pending) => {
@@ -198,6 +265,28 @@ export default function AIAnalytics({
             <span className="px-1.5 py-0.5 rounded bg-[var(--success)]/10 text-[var(--success)] text-[10px] font-medium" title="Groq 폴백 활성화됨">
               ⚡ Groq
             </span>
+          )}
+          {/* 효과음 토글 */}
+          <button
+            type="button"
+            onClick={() => { unlockAudio(); toggleSfx(); }}
+            className="p-1 rounded hover:bg-[var(--accent)]"
+            title={sfxMuted ? '효과음 켜기' : '효과음 끄기'}
+            aria-label={sfxMuted ? '효과음 켜기' : '효과음 끄기'}
+          >
+            {sfxMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-cyan-600" />}
+          </button>
+          {/* TTS 자동 재생 토글 */}
+          {tts.supported && (
+            <button
+              type="button"
+              onClick={() => tts.setEnabled(!tts.enabled)}
+              className={`p-1 rounded hover:bg-[var(--accent)] ${tts.enabled ? 'text-cyan-600' : ''}`}
+              title={tts.enabled ? 'AI 답변 자동 음성 ON' : 'AI 답변 자동 음성 OFF (음성 입력 시는 항상 재생)'}
+              aria-label="TTS 토글"
+            >
+              <span className="text-xs font-bold">{tts.enabled ? '🔊' : '🔇'}</span>
+            </button>
           )}
           <button
             type="button"
@@ -360,14 +449,15 @@ export default function AIAnalytics({
       <div className="flex-1 min-h-0">
         <ChatPanel
           messages={chat.messages}
-          onSend={chat.send}
+          onSend={(text) => { lastInputWasVoiceRef.current = false; chat.send(text); }}
           isLoading={chat.isLoading}
           loadingStep={chat.loadingStep}
           suggestedItems={sortedPrompts}
-          onSelectSuggested={handleSelect}
+          onSelectSuggested={(item) => { lastInputWasVoiceRef.current = false; handleSelect(item); }}
           onClear={chat.clear}
           onCancel={chat.cancel}
           disabled={!dataReady}
+          voice={voice}
         />
       </div>
 
