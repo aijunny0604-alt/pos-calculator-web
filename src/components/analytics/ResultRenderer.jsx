@@ -128,9 +128,234 @@ function renderOne(tc) {
       if (!data.results?.length) return null;
       return <RestockTable data={data.results} period={data.salesPeriod} />;
     }
+    case 'getPaymentSummary':
+      return <PaymentSummaryCards data={data} />;
+    case 'getOverdueCustomers': {
+      if (!data.results?.length) return null;
+      return <OverdueTable data={data.results} />;
+    }
+    case 'getPaymentInflow':
+      return <InflowCards data={data} />;
+    case 'getReturnAnalysis':
+      return <ReturnAnalysisCards data={data} />;
+    case 'getPendingCarts': {
+      if (!data.results?.length) return null;
+      return <PendingCartsTable data={data} />;
+    }
+    case 'getLearningStats':
+      return <LearningStatsCards data={data} />;
     default:
       return null;
   }
+}
+
+const fmtKRW = (n) => Number(n || 0).toLocaleString('ko-KR');
+
+function PaymentSummaryCards({ data }) {
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-3 break-keep">💵 결제 현황 ({data.total}건)</div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="bg-green-50 rounded-lg p-2.5 text-center">
+          <div className="text-[10px] text-[var(--muted-foreground)]">완납</div>
+          <div className="text-lg font-black tabular-nums text-[var(--success)]">{data.paid}</div>
+        </div>
+        <div className="bg-amber-50 rounded-lg p-2.5 text-center">
+          <div className="text-[10px] text-[var(--muted-foreground)]">부분</div>
+          <div className="text-lg font-black tabular-nums text-amber-600">{data.partial}</div>
+        </div>
+        <div className="bg-red-50 rounded-lg p-2.5 text-center">
+          <div className="text-[10px] text-[var(--muted-foreground)]">미수</div>
+          <div className="text-lg font-black tabular-nums text-[var(--destructive)]">{data.unpaid}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--muted-foreground)]">총 결제 금액</div>
+          <div className="font-bold tabular-nums">{fmtKRW(data.totalAmount)}원</div>
+        </div>
+        <div className="border border-red-200 bg-red-50 rounded-lg p-2">
+          <div className="text-[var(--muted-foreground)]">총 미수금</div>
+          <div className="font-bold tabular-nums text-[var(--destructive)]">{fmtKRW(data.totalBalance)}원</div>
+        </div>
+      </div>
+      <div className="text-[10px] text-[var(--muted-foreground)] mt-2">입금률 {data.paidRate}% · 입금 이력 {data.totalHistoryCount}건</div>
+    </div>
+  );
+}
+
+function OverdueTable({ data }) {
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+      <div className="text-sm font-semibold mb-2 break-keep">💸 미수 거래처 ({data.length}곳)</div>
+      <table className="w-full text-xs">
+        <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
+          <tr>
+            <th className="text-left py-1.5 pr-2">#</th>
+            <th className="text-left py-1.5 pr-2">거래처</th>
+            <th className="text-right py-1.5 pr-2">미수금</th>
+            <th className="text-right py-1.5 pr-2 hidden sm:table-cell">건수</th>
+            <th className="text-right py-1.5">최장 경과일</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((c, i) => (
+            <tr key={i} className="border-b border-[var(--border)]/50">
+              <td className="py-1.5 pr-2 tabular-nums font-semibold">{c.rank}</td>
+              <td className="py-1.5 pr-2 break-keep">{c.name}</td>
+              <td className="text-right py-1.5 pr-2 tabular-nums font-bold text-[var(--destructive)]">{fmtKRW(c.totalBalance)}원</td>
+              <td className="text-right py-1.5 pr-2 tabular-nums hidden sm:table-cell">{c.recordCount}</td>
+              <td className={`text-right py-1.5 tabular-nums ${c.oldestDays >= 60 ? 'text-[var(--destructive)] font-bold' : c.oldestDays >= 30 ? 'text-amber-600' : ''}`}>
+                {c.oldestDays}일
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function InflowCards({ data }) {
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-2 break-keep">💰 입금 이력 ({data.period}, {data.total}건)</div>
+      <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--muted-foreground)]">총 입금액</div>
+          <div className="font-bold tabular-nums">{fmtKRW(data.totalAmount)}원</div>
+        </div>
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--muted-foreground)]">평균 입금</div>
+          <div className="font-bold tabular-nums">{fmtKRW(data.avgAmount)}원</div>
+        </div>
+      </div>
+      {data.byMethod?.length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-[var(--muted-foreground)] mb-1">결제 방법별</div>
+          <table className="w-full text-xs">
+            {data.byMethod.map((m, i) => (
+              <tr key={i} className="border-b border-[var(--border)]/30">
+                <td className="py-1">{m.method || '미지정'}</td>
+                <td className="text-right py-1 tabular-nums">{m.count}건</td>
+                <td className="text-right py-1 tabular-nums font-semibold">{fmtKRW(m.amount)}원</td>
+              </tr>
+            ))}
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReturnAnalysisCards({ data }) {
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-2 break-keep">↩️ 반품 분석 ({data.period})</div>
+      <div className="grid grid-cols-3 gap-2 mb-3 text-xs">
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--muted-foreground)]">총 매출</div>
+          <div className="font-bold tabular-nums">{fmtKRW(data.totalRevenue)}원</div>
+        </div>
+        <div className="border border-red-200 bg-red-50 rounded-lg p-2">
+          <div className="text-[var(--muted-foreground)]">반품액</div>
+          <div className="font-bold tabular-nums text-[var(--destructive)]">{fmtKRW(data.totalReturnedAmount)}원</div>
+        </div>
+        <div className="border border-amber-200 bg-amber-50 rounded-lg p-2">
+          <div className="text-[var(--muted-foreground)]">반품률</div>
+          <div className="font-bold tabular-nums text-amber-600">{data.returnRate}%</div>
+        </div>
+      </div>
+      {data.topReturnedProducts?.length > 0 && (
+        <div className="mb-3">
+          <div className="text-xs font-medium text-[var(--muted-foreground)] mb-1">자주 반품되는 제품 TOP 5</div>
+          {data.topReturnedProducts.slice(0, 5).map((p, i) => (
+            <div key={i} className="flex justify-between text-xs py-0.5">
+              <span className="break-keep">{i + 1}. {p.name}</span>
+              <span className="tabular-nums">{p.qty}개 / {fmtKRW(p.amount)}원</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {data.topReturnedCustomers?.length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-[var(--muted-foreground)] mb-1">반품 많은 거래처 TOP 5</div>
+          {data.topReturnedCustomers.slice(0, 5).map((c, i) => (
+            <div key={i} className="flex justify-between text-xs py-0.5">
+              <span className="break-keep">{i + 1}. {c.name}</span>
+              <span className="tabular-nums">{c.returnCount}건 / {fmtKRW(c.amount)}원</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PendingCartsTable({ data }) {
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-sm font-semibold break-keep">📋 대기 주문 ({data.total}건)</div>
+        <div className="text-[10px] text-[var(--muted-foreground)]">
+          예정 {data.upcomingCount} · 지연 <span className="text-[var(--destructive)] font-semibold">{data.overdueCount}</span>
+        </div>
+      </div>
+      <table className="w-full text-xs">
+        <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
+          <tr>
+            <th className="text-left py-1.5 pr-2">카트명</th>
+            <th className="text-left py-1.5 pr-2 hidden sm:table-cell">거래처</th>
+            <th className="text-right py-1.5 pr-2">예정일</th>
+            <th className="text-right py-1.5">금액</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.results.map((c, i) => (
+            <tr key={i} className={`border-b border-[var(--border)]/50 ${c.overdue ? 'bg-red-50' : ''}`}>
+              <td className="py-1.5 pr-2 break-keep">{c.cartName}</td>
+              <td className="py-1.5 pr-2 hidden sm:table-cell text-[var(--muted-foreground)] break-keep">{c.customerName || '-'}</td>
+              <td className={`text-right py-1.5 pr-2 tabular-nums ${c.overdue ? 'text-[var(--destructive)] font-semibold' : ''}`}>
+                {c.deliveryDate || '-'}
+              </td>
+              <td className="text-right py-1.5 tabular-nums">{fmtKRW(c.amount)}원</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="text-[10px] text-[var(--muted-foreground)] mt-2">총액: {fmtKRW(data.totalAmount)}원</div>
+    </div>
+  );
+}
+
+function LearningStatsCards({ data }) {
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-2 break-keep">🧠 AI 학습 데이터 ({data.total}건)</div>
+      {data.byProduct?.length > 0 && (
+        <div className="mb-3">
+          <div className="text-xs font-medium text-[var(--muted-foreground)] mb-1">자주 교정되는 제품 TOP 10</div>
+          {data.byProduct.slice(0, 10).map((p, i) => (
+            <div key={i} className="flex justify-between text-xs py-0.5">
+              <span className="break-keep">{i + 1}. {p.productName}</span>
+              <span className="tabular-nums">{p.count}회</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {data.byReason?.length > 0 && (
+        <div>
+          <div className="text-xs font-medium text-[var(--muted-foreground)] mb-1">교정 사유별</div>
+          {data.byReason.map((r, i) => (
+            <div key={i} className="flex justify-between text-xs py-0.5">
+              <span className="break-keep text-[var(--muted-foreground)]">{r.reason}</span>
+              <span className="tabular-nums">{r.count}회</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // 재고 부족 표

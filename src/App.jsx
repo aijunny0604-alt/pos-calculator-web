@@ -1129,6 +1129,8 @@ export default function App() {
               orders={orders}
               customers={customers}
               products={products}
+              savedCarts={savedCarts}
+              aiLearningData={aiLearningData}
               setProducts={setProducts}
               setCustomers={setCustomers}
               setCurrentPage={setCurrentPage}

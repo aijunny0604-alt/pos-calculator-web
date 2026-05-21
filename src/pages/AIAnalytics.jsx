@@ -15,8 +15,49 @@ const DEFAULT_PROMPTS = [
   { id: 'summary', label: '이번 달 전체 요약', icon: BarChart3 },
 ];
 
-export default function AIAnalytics({ orders = [], customers = [], products = [], setProducts, setCustomers, setCurrentPage, showToast }) {
-  const chat = useAIAnalystChat({ orders, customers, products });
+export default function AIAnalytics({
+  orders = [],
+  customers = [],
+  products = [],
+  savedCarts = [],
+  aiLearningData = [],
+  setProducts,
+  setCustomers,
+  setCurrentPage,
+  showToast,
+}) {
+  // payment_records / payment_history / customer_returns 는 AIAnalytics 진입 시 lazy load (App state 미보유)
+  const [paymentRecords, setPaymentRecords] = useState([]);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [customerReturns, setCustomerReturns] = useState([]);
+  const [loadingExtra, setLoadingExtra] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [pr, ph, cr] = await Promise.all([
+          supabase.getPaymentRecords({ limit: 5000 }),
+          supabase.getPaymentHistory({ limit: 5000 }),
+          supabase.getCustomerReturns(),
+        ]);
+        if (cancelled) return;
+        setPaymentRecords(pr || []);
+        setPaymentHistory(ph || []);
+        setCustomerReturns(cr || []);
+      } catch (e) {
+        console.warn('AI 분석용 추가 데이터 로드 실패:', e);
+      } finally {
+        if (!cancelled) setLoadingExtra(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const chat = useAIAnalystChat({
+    orders, customers, products, savedCarts, aiLearningData,
+    paymentRecords, paymentHistory, customerReturns,
+  });
   const [executing, setExecuting] = useState(false);
 
   // 쓰기 액션 실행
@@ -124,8 +165,9 @@ export default function AIAnalytics({ orders = [], customers = [], products = []
           </h1>
         </div>
         <div className="text-[11px] sm:text-xs text-[var(--muted-foreground)] flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <span title="분석 가능한 데이터 규모" className="hidden sm:inline tabular-nums">
+          <span title={`주문 ${orders.length} · 거래처 ${customers.length} · 제품 ${products.length} · 결제 ${paymentRecords.length} · 입금 ${paymentHistory.length} · 반품 ${customerReturns.length} · 저장카트 ${savedCarts.length} · AI학습 ${aiLearningData.length}`} className="hidden sm:inline tabular-nums">
             📊 주문 {orders.length} · 거래처 {customers.length} · 제품 {products.length}
+            {loadingExtra ? <span className="ml-1 text-[var(--muted-foreground)]">...</span> : <span className="ml-1 text-[var(--success)]">+5</span>}
           </span>
           {groqEnabled && (
             <span className="px-1.5 py-0.5 rounded bg-[var(--success)]/10 text-[var(--success)] text-[10px] font-medium" title="Groq 폴백 활성화됨">

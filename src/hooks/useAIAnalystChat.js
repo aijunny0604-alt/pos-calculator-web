@@ -53,7 +53,16 @@ function saveUsage(usage) {
 
 const newId = () => `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-export default function useAIAnalystChat({ orders = [], customers = [], products = [] } = {}) {
+export default function useAIAnalystChat({
+  orders = [],
+  customers = [],
+  products = [],
+  savedCarts = [],
+  aiLearningData = [],
+  paymentRecords = [],
+  paymentHistory = [],
+  customerReturns = [],
+} = {}) {
   const [messages, setMessages] = useState(() => loadHistory());
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
@@ -96,7 +105,16 @@ export default function useAIAnalystChat({ orders = [], customers = [], products
     abortRef.current = controller;
 
     try {
-      const result = await askAI(question, { orders, customers, products }, {
+      const result = await askAI(question, {
+        orders,
+        customers,
+        products,
+        savedCarts,
+        aiLearningData,
+        paymentRecords,
+        paymentHistory,
+        customerReturns,
+      }, {
         signal: controller.signal,
         onProgress: (call) => {
           // 특수 신호: 폴백 시작
@@ -150,7 +168,7 @@ export default function useAIAnalystChat({ orders = [], customers = [], products
       setLoadingStep('');
       abortRef.current = null;
     }
-  }, [orders, customers, products, isLoading, recordUsage]);
+  }, [orders, customers, products, savedCarts, aiLearningData, paymentRecords, paymentHistory, customerReturns, isLoading, recordUsage]);
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();

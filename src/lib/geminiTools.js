@@ -11,6 +11,10 @@ import { getTopProducts, getProductTrend, getRepeatPurchaseGap } from './analyti
 import { getCustomerProductAffinity } from './analytics/affinity';
 import { getCompositeSummary } from './analytics/summary';
 import { getLowStockProducts, getStockSummary, getProductsByStockStatus, getRestockRecommendations } from './analytics/inventory';
+import { getPaymentSummary, getOverdueCustomers, getPaymentInflow } from './analytics/payments';
+import { getReturnAnalysis } from './analytics/returns';
+import { getPendingCarts } from './analytics/carts';
+import { getLearningStats } from './analytics/learning';
 
 // 공통 enum
 const PERIOD_ENUM = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
@@ -174,6 +178,67 @@ export const GEMINI_TOOLS = [
       },
     },
   },
+  // ===== 결제/미수 분석 =====
+  {
+    name: 'getPaymentSummary',
+    description: '전체 결제 현황 요약 (완납/부분/미수 카운트 + 총 미수금 + 입금률). "결제 현황", "미수 얼마", "전체 결제 어때" 같은 질문에 사용.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'getOverdueCustomers',
+    description: '미수 거래처 (미수금 큰 순). "미수 누구", "받을 돈 많은 곳", "외상 거래처", "N일 이상 미수" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        minDays: { type: 'integer', description: '최소 경과 일수 (기본 0)' },
+        minBalance: { type: 'integer', description: '최소 미수금 (기본 0원)' },
+        limit: { type: 'integer', description: 'TOP N (기본 30)' },
+      },
+    },
+  },
+  {
+    name: 'getPaymentInflow',
+    description: '입금 이력 분석 (기간 내 총 입금액 + 방법별 + 최근 N건). "이번 달 입금", "현금 입금 얼마", "입금 이력" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: PERIOD_ENUM, description: '기간 (기본 1M)' },
+        limit: { type: 'integer', description: '최근 입금 N건 (기본 50)' },
+      },
+    },
+  },
+  // ===== 반품 분석 =====
+  {
+    name: 'getReturnAnalysis',
+    description: '반품 통계 (기간 내 반품률, 자주 반품되는 제품/거래처). "반품 얼마", "반품률", "반품 자주 나는 제품" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: PERIOD_ENUM, description: '기간 (기본 3M)' },
+      },
+    },
+  },
+  // ===== 저장된 장바구니 =====
+  {
+    name: 'getPendingCarts',
+    description: '대기 중인 주문 (저장된 장바구니). 출고예정일 임박/지연 표시. "대기 주문", "출고 예정", "저장 카트" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        onlyUpcoming: { type: 'boolean', description: '오늘 이후 출고예정만 (기본 false)' },
+        limit: { type: 'integer', description: 'TOP N (기본 50)' },
+      },
+    },
+  },
+  // ===== AI 학습 데이터 =====
+  {
+    name: 'getLearningStats',
+    description: 'AI 주문 인식 학습 데이터 통계. 자주 교정되는 제품/사유. "AI 학습", "교정 사례", "AI 잘 인식하나" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: { limit: { type: 'integer', description: 'TOP N (기본 20)' } },
+    },
+  },
   // ===== 쓰기 도구 (사용자 confirm 필수) =====
   {
     name: 'addProduct',
@@ -250,6 +315,18 @@ export function executeTool(name, args = {}, context = {}) {
         return { ok: true, data: getProductsByStockStatus(products, args) };
       case 'getRestockRecommendations':
         return { ok: true, data: getRestockRecommendations(products, orders, args) };
+      case 'getPaymentSummary':
+        return { ok: true, data: getPaymentSummary(context.paymentRecords, context.paymentHistory) };
+      case 'getOverdueCustomers':
+        return { ok: true, data: getOverdueCustomers(context.paymentRecords, customers, args) };
+      case 'getPaymentInflow':
+        return { ok: true, data: getPaymentInflow(context.paymentHistory, args) };
+      case 'getReturnAnalysis':
+        return { ok: true, data: getReturnAnalysis(orders, context.customerReturns, args) };
+      case 'getPendingCarts':
+        return { ok: true, data: getPendingCarts(context.savedCarts, args) };
+      case 'getLearningStats':
+        return { ok: true, data: getLearningStats(context.aiLearningData, args) };
       default:
         return { ok: false, error: `Unknown tool: ${name}` };
     }
