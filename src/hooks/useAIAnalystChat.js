@@ -14,6 +14,16 @@ const HISTORY_KEY = 'pos_ai_analytics_history_v1';
 const USAGE_KEY = 'pos_ai_quick_prompts_usage_v1';
 const MAX_HISTORY = 50;
 
+// AI에 전달할 history에서 제외할 부정 답변 패턴
+// (이게 컨텍스트에 들어가면 모델이 "기능 없다"는 인식을 강화함)
+const NEGATIVE_HISTORY_PATTERNS = [
+  /기능(은|이)?\s*없/,
+  /할 수\s*없/,
+  /지원하지\s*않/,
+  /불가능/,
+  /바로\s*알려드릴 수\s*있는 기능/,
+];
+
 function loadHistory() {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
@@ -93,11 +103,17 @@ export default function useAIAnalystChat({
 
     // 사용자 메시지 즉시 추가
     const userMsg = { id: newId(), role: 'user', content: question, ts: Date.now() };
-    // WHY: 직전 6턴(user+assistant)을 컨텍스트로 전달 → "이전 대화 기억" 가능
-    // 너무 길면 토큰 비용/지연이 커져 6턴(=대화 3쌍)으로 제한
+    // WHY: 직전 12메시지(약 6왕복)를 컨텍스트로 전달 → "이전 대화 기억" 가능
+    // 부정 답변("기능 없습니다" 류)이 히스토리에 포함되면 AI가 부정 맥락을 강화해서 반복하므로 필터링.
     const history = messages
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .slice(-6)
+      .filter((m) => {
+        if (m.role !== 'user' && m.role !== 'assistant') return false;
+        if (m.role === 'assistant') {
+          return !NEGATIVE_HISTORY_PATTERNS.some((re) => re.test(m.content || ''));
+        }
+        return true;
+      })
+      .slice(-12)
       .map((m) => ({ role: m.role, content: m.content }));
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
