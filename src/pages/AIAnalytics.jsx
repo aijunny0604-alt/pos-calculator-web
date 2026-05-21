@@ -165,6 +165,23 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ 제품 "${pending.params.name}" 등록 실패`);
           showToast?.('제품 등록 실패', 'error');
         }
+      } else if (pending.action === 'bulkAddProduct') {
+        const { products: productRows } = pending.params;
+        const results = await Promise.all(
+          productRows.map((product) =>
+            supabase.addProduct(product)
+              .then((created) => ({ ok: Boolean(created), created, product }))
+              .catch(() => ({ ok: false, created: null, product }))
+          )
+        );
+        const okList = results.filter((r) => r.ok);
+        const failList = results.filter((r) => !r.ok);
+        if (okList.length > 0) {
+          setProducts?.((prev) => [...prev, ...okList.map((r) => r.created)]);
+        }
+        const summary = `✅ 제품 ${okList.length}건 등록 완료${failList.length > 0 ? ` (실패 ${failList.length}건)` : ''}`;
+        chat.addSystemMessage(summary);
+        showToast?.(summary, okList.length > 0 ? 'success' : 'error');
       } else if (pending.action === 'addCustomer') {
         const created = await supabase.addCustomer(pending.params);
         if (created) {
@@ -175,6 +192,23 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ 거래처 "${pending.params.name}" 등록 실패`);
           showToast?.('거래처 등록 실패', 'error');
         }
+      } else if (pending.action === 'bulkAddCustomer') {
+        const { customers: customerRows } = pending.params;
+        const results = await Promise.all(
+          customerRows.map((customer) =>
+            supabase.addCustomer(customer)
+              .then((created) => ({ ok: Boolean(created), created, customer }))
+              .catch(() => ({ ok: false, created: null, customer }))
+          )
+        );
+        const okList = results.filter((r) => r.ok);
+        const failList = results.filter((r) => !r.ok);
+        if (okList.length > 0) {
+          setCustomers?.((prev) => [...prev, ...okList.map((r) => r.created)]);
+        }
+        const summary = `✅ 거래처 ${okList.length}건 등록 완료${failList.length > 0 ? ` (실패 ${failList.length}건)` : ''}`;
+        chat.addSystemMessage(summary);
+        showToast?.(summary, okList.length > 0 ? 'success' : 'error');
       } else if (pending.action === 'updateProductStock') {
         const { productId, productName, newStock } = pending.params;
         const updated = await supabase.updateProduct(productId, { stock: newStock });
@@ -244,6 +278,29 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ "${customerName}" 정보 변경 실패`);
           showToast?.('거래처 수정 실패', 'error');
         }
+      } else if (pending.action === 'bulkUpdateCustomer') {
+        const { updates } = pending.params;
+        const results = await Promise.all(
+          updates.map((u) => {
+            const patch = {};
+            if (u.phone !== undefined) patch.phone = u.phone;
+            if (u.address !== undefined) patch.address = u.address;
+            return supabase.updateCustomer(u.customerId, patch)
+              .then((updated) => ({ ok: Boolean(updated), update: u, patch }))
+              .catch(() => ({ ok: false, update: u, patch }));
+          })
+        );
+        const okList = results.filter((r) => r.ok);
+        const failList = results.filter((r) => !r.ok);
+        if (okList.length > 0) {
+          setCustomers?.((prev) => {
+            const map = new Map(okList.map((r) => [r.update.customerId, r.patch]));
+            return prev.map((c) => (map.has(c.id) ? { ...c, ...map.get(c.id) } : c));
+          });
+        }
+        const summary = `✅ 거래처 ${okList.length}건 정보 변경 완료${failList.length > 0 ? ` (실패 ${failList.length}건)` : ''}`;
+        chat.addSystemMessage(summary);
+        showToast?.(summary, okList.length > 0 ? 'success' : 'error');
       } else if (pending.action === 'updateProductPrice') {
         const { productId, productName, wholesale, retail } = pending.params;
         const patch = {};
@@ -262,6 +319,29 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ "${productName}" 가격 변경 실패`);
           showToast?.('가격 변경 실패', 'error');
         }
+      } else if (pending.action === 'bulkUpdateProductPrice') {
+        const { updates } = pending.params;
+        const results = await Promise.all(
+          updates.map((u) => {
+            const patch = {};
+            if (u.wholesale != null) patch.wholesale = u.wholesale;
+            if (u.retail != null) patch.retail = u.retail;
+            return supabase.updateProduct(u.productId, patch)
+              .then((updated) => ({ ok: Boolean(updated), update: u, patch }))
+              .catch(() => ({ ok: false, update: u, patch }));
+          })
+        );
+        const okList = results.filter((r) => r.ok);
+        const failList = results.filter((r) => !r.ok);
+        if (okList.length > 0) {
+          setProducts?.((prev) => {
+            const map = new Map(okList.map((r) => [r.update.productId, r.patch]));
+            return prev.map((p) => (map.has(p.id) ? { ...p, ...map.get(p.id) } : p));
+          });
+        }
+        const summary = `✅ 가격 ${okList.length}건 변경 완료${failList.length > 0 ? ` (실패 ${failList.length}건)` : ''}`;
+        chat.addSystemMessage(summary);
+        showToast?.(summary, okList.length > 0 ? 'success' : 'error');
       }
     } catch (e) {
       chat.addSystemMessage(`❌ 오류: ${e.message || e}`);
@@ -276,10 +356,14 @@ export default function AIAnalytics({
     const labelMap = {
       addProduct: `제품 "${pending.params.name}" 등록`,
       addCustomer: `거래처 "${pending.params.name}" 등록`,
+      bulkAddProduct: `제품 ${pending.params.products?.length || 0}건 일괄 등록`,
+      bulkAddCustomer: `거래처 ${pending.params.customers?.length || 0}건 일괄 등록`,
       updateProductStock: `"${pending.params.productName}" 재고 변경`,
       updateProductPrice: `"${pending.params.productName}" 가격 변경`,
+      bulkUpdateProductPrice: `가격 ${pending.params.updates?.length || 0}건 일괄 변경`,
       saveOrder: `"${pending.params.customerName}" 주문 등록`,
       updateCustomer: `"${pending.params.customerName}" 정보 수정`,
+      bulkUpdateCustomer: `거래처 ${pending.params.updates?.length || 0}건 정보 일괄 변경`,
     };
     chat.addSystemMessage(`↩️ ${labelMap[pending.action] || pending.action} 취소됨`);
     chat.resolvePendingAction(pending.id);
@@ -580,10 +664,14 @@ export default function AIAnalytics({
         const titleMap = {
           addProduct: { title: '제품 등록 확인', Icon: Package },
           addCustomer: { title: '거래처 등록 확인', Icon: Users },
+          bulkAddProduct: { title: '제품 일괄 등록 확인', Icon: Package },
+          bulkAddCustomer: { title: '거래처 일괄 등록 확인', Icon: Users },
           updateProductStock: { title: '재고 변경 확인', Icon: Package },
           updateProductPrice: { title: '가격 변경 확인', Icon: DollarSign },
+          bulkUpdateProductPrice: { title: '가격 일괄 변경 확인', Icon: DollarSign },
           saveOrder: { title: '주문 등록 확인', Icon: Truck },
           updateCustomer: { title: '거래처 정보 수정 확인', Icon: Users },
+          bulkUpdateCustomer: { title: '거래처 정보 일괄 변경 확인', Icon: Users },
           bulkUpdateProductStock: { title: '재고 일괄 변경 확인', Icon: PackageX },
         };
         const meta = titleMap[pending.action] || { title: '작업 확인', Icon: AlertTriangle };
