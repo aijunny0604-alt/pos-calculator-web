@@ -9,41 +9,44 @@
 
 import { useEffect, useRef } from 'react';
 
+// 지구 자전 컨셉: 안정적인 Y축 회전 + 고정 axial tilt (23.5도 ≈ 0.41 rad)
+const EARTH_TILT = 0.41;
+
 const STATE_CONFIG = {
   standby: {
     primary: [0, 212, 255],
     accent: [77, 255, 255],
-    spinSpeed: 0.006,
-    tilt: 0.3,
+    spinSpeed: 0.010,   // 명확한 자전 속도
+    tilt: EARTH_TILT,
     pulseSpeed: 1.5,
-    radiusOscillation: 0.02,
+    radiusOscillation: 0.015,
     connectionThreshold: 0.18,
   },
   listening: {
     primary: [255, 170, 0],
     accent: [255, 56, 96],
-    spinSpeed: 0.014,
-    tilt: 0.35,
+    spinSpeed: 0.020,
+    tilt: EARTH_TILT,
     pulseSpeed: 4.0,
-    radiusOscillation: 0.10,
+    radiusOscillation: 0.08,
     connectionThreshold: 0.22,
   },
   analyzing: {
     primary: [168, 85, 247],
     accent: [0, 212, 255],
-    spinSpeed: 0.025,
-    tilt: 0.5,
+    spinSpeed: 0.035,
+    tilt: EARTH_TILT,
     pulseSpeed: 3.0,
-    radiusOscillation: 0.05,
+    radiusOscillation: 0.04,
     connectionThreshold: 0.20,
   },
   responding: {
     primary: [0, 255, 136],
     accent: [77, 255, 255],
-    spinSpeed: 0.008,
-    tilt: 0.3,
+    spinSpeed: 0.012,
+    tilt: EARTH_TILT,
     pulseSpeed: 2.0,
-    radiusOscillation: 0.04,
+    radiusOscillation: 0.03,
     connectionThreshold: 0.20,
   },
 };
@@ -184,8 +187,9 @@ export default function JarvisDotSphere({
       const radius = baseRadius * pulse;
 
       if (!reduced) {
+        // 지구 자전: Y축만 안정적 회전, X축 tilt 고정 (좌우 흔들 제거)
         rotation.y += cfg.spinSpeed;
-        rotation.x = cfg.tilt + Math.sin(t * 0.25) * 0.12;
+        rotation.x = cfg.tilt;
       }
       const cosX = Math.cos(rotation.x), sinX = Math.sin(rotation.x);
       const cosY = Math.cos(rotation.y), sinY = Math.sin(rotation.y);
