@@ -1129,7 +1129,10 @@ export default function App() {
               orders={orders}
               customers={customers}
               products={products}
+              setProducts={setProducts}
+              setCustomers={setCustomers}
               setCurrentPage={setCurrentPage}
+              showToast={showToast}
             />
           </Suspense>
         );

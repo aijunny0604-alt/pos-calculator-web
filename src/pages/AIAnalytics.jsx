@@ -1,8 +1,9 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check } from 'lucide-react';
+import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
 import useAIAnalystChat from '@/hooks/useAIAnalystChat';
 import { hasGroqKey, saveGroqKey, getGroqKey, getProviderPreference, setProviderPreference } from '@/lib/aiAnalyst';
+import { supabase } from '@/lib/supabase';
 
 // 기본 추천 질문 (MVP 5개 + 옵션 추가 가능)
 const DEFAULT_PROMPTS = [
@@ -14,8 +15,48 @@ const DEFAULT_PROMPTS = [
   { id: 'summary', label: '이번 달 전체 요약', icon: BarChart3 },
 ];
 
-export default function AIAnalytics({ orders = [], customers = [], products = [], setCurrentPage }) {
+export default function AIAnalytics({ orders = [], customers = [], products = [], setProducts, setCustomers, setCurrentPage, showToast }) {
   const chat = useAIAnalystChat({ orders, customers, products });
+  const [executing, setExecuting] = useState(false);
+
+  // 쓰기 액션 실행
+  const handleExecuteAction = async (pending) => {
+    setExecuting(true);
+    try {
+      if (pending.action === 'addProduct') {
+        const created = await supabase.addProduct(pending.params);
+        if (created) {
+          setProducts?.((prev) => [...prev, created]);
+          chat.addSystemMessage(`✅ 제품 "${pending.params.name}" 등록 완료 (id: ${created.id})`);
+          showToast?.(`제품 "${pending.params.name}" 추가됨`, 'success');
+        } else {
+          chat.addSystemMessage(`❌ 제품 "${pending.params.name}" 등록 실패`);
+          showToast?.('제품 등록 실패', 'error');
+        }
+      } else if (pending.action === 'addCustomer') {
+        const created = await supabase.addCustomer(pending.params);
+        if (created) {
+          setCustomers?.((prev) => [...prev, created]);
+          chat.addSystemMessage(`✅ 거래처 "${pending.params.name}" 등록 완료 (id: ${created.id})`);
+          showToast?.(`거래처 "${pending.params.name}" 추가됨`, 'success');
+        } else {
+          chat.addSystemMessage(`❌ 거래처 "${pending.params.name}" 등록 실패`);
+          showToast?.('거래처 등록 실패', 'error');
+        }
+      }
+    } catch (e) {
+      chat.addSystemMessage(`❌ 오류: ${e.message || e}`);
+      showToast?.(`실행 중 오류: ${e.message || e}`, 'error');
+    } finally {
+      setExecuting(false);
+      chat.resolvePendingAction(pending.id);
+    }
+  };
+
+  const handleCancelAction = (pending) => {
+    chat.addSystemMessage(`↩️ "${pending.params.name}" ${pending.action === 'addProduct' ? '제품' : '거래처'} 등록 취소됨`);
+    chat.resolvePendingAction(pending.id);
+  };
   const [showSettings, setShowSettings] = useState(false);
   const [keyInput, setKeyInput] = useState('');
   const [provider, setProvider] = useState(() => getProviderPreference());
@@ -217,6 +258,55 @@ export default function AIAnalytics({ orders = [], customers = [], products = []
           disabled={!dataReady}
         />
       </div>
+
+      {/* 쓰기 액션 Confirm 모달 (큐 처리 — 첫 번째 pending만 표시) */}
+      {chat.pendingActions.length > 0 && (() => {
+        const pending = chat.pendingActions[0];
+        const isProduct = pending.action === 'addProduct';
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-xl">
+              <div className="flex items-center gap-2 mb-3">
+                {isProduct ? <Package className="w-5 h-5 text-[var(--primary)]" /> : <Users className="w-5 h-5 text-[var(--primary)]" />}
+                <h3 className="text-lg font-bold">{isProduct ? '제품 등록 확인' : '거래처 등록 확인'}</h3>
+              </div>
+              <div className="bg-[var(--accent)] rounded-lg p-3 mb-3 text-sm whitespace-pre-line break-keep leading-relaxed">
+                {pending.preview}
+              </div>
+              {pending.warnings.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
+                  {pending.warnings.map((w, i) => (
+                    <div key={i} className="flex items-start gap-1.5 text-xs text-amber-800 break-keep">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <span>{w}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="text-[11px] text-[var(--muted-foreground)] mb-4 break-keep leading-snug">
+                💡 [실행] 누르면 Supabase에 즉시 저장됩니다. 잘못된 경우 관리자 페이지에서 수정/삭제 가능합니다.
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleExecuteAction(pending)}
+                  disabled={executing}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold hover:opacity-90 disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  {executing ? '실행 중...' : '✅ 실행'}
+                </button>
+                <button
+                  onClick={() => handleCancelAction(pending)}
+                  disabled={executing}
+                  className="px-4 py-2.5 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] disabled:opacity-50"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

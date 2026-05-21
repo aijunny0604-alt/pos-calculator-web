@@ -57,6 +57,7 @@ export default function useAIAnalystChat({ orders = [], customers = [], products
   const [messages, setMessages] = useState(() => loadHistory());
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
+  const [pendingActions, setPendingActions] = useState([]); // 쓰기 도구 confirm 대기
   const abortRef = useRef(null);
 
   // 메시지 변경 시 영속화
@@ -119,6 +120,21 @@ export default function useAIAnalystChat({ orders = [], customers = [], products
         provider: result.provider, // 'gemini' | 'groq' | 'gemini→groq'
       };
       setMessages((prev) => [...prev, assistantMsg]);
+
+      // 쓰기 도구 pending action 추출 → confirm 모달 표시
+      const pending = (result.toolCalls || [])
+        .filter((tc) => tc?.result?.ok && tc?.result?.data?.__pending)
+        .map((tc) => ({
+          id: newId(),
+          messageId: assistantMsg.id,
+          action: tc.result.data.action,
+          params: tc.result.data.params,
+          preview: tc.result.data.preview,
+          warnings: tc.result.data.warnings || [],
+        }));
+      if (pending.length > 0) {
+        setPendingActions((prev) => [...prev, ...pending]);
+      }
     } catch (e) {
       if (e?.name !== 'AbortError') {
         const errorMsg = {
@@ -151,10 +167,23 @@ export default function useAIAnalystChat({ orders = [], customers = [], products
     clearAnalystCache();
   }, []);
 
+  // 시스템 메시지 추가 (실행 결과 알림용)
+  const addSystemMessage = useCallback((content) => {
+    setMessages((prev) => [...prev, { id: newId(), role: 'system', content, ts: Date.now() }]);
+  }, []);
+
+  // pending action 제거 (사용자가 confirm 또는 cancel)
+  const resolvePendingAction = useCallback((actionId) => {
+    setPendingActions((prev) => prev.filter((p) => p.id !== actionId));
+  }, []);
+
   return {
     messages,
     isLoading,
     loadingStep,
+    pendingActions,
+    resolvePendingAction,
+    addSystemMessage,
     send,
     cancel,
     clear,
