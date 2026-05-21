@@ -164,12 +164,6 @@ export default function ChatPanel({
                 </div>
               </div>
             )}
-            {/* 메시지 있을 때도 하단에 작은 추천 질문 */}
-            {!isLoading && suggestedItems.length > 0 && (
-              <div className="mt-4">
-                <SuggestedQuestions items={suggestedItems.slice(0, 6)} onSelect={handleSelect} title="💡 다른 질문" />
-              </div>
-            )}
             <div ref={bottomRef} />
           </>
         )}

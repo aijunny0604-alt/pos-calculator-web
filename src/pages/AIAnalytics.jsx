@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2, Volume2, VolumeX } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
-import ParticleBackground from '@/components/analytics/ParticleBackground';
+import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
 import useAIAnalystChat from '@/hooks/useAIAnalystChat';
 import useVoiceInput from '@/hooks/useVoiceInput';
 import useTextToSpeech from '@/hooks/useTextToSpeech';
@@ -284,12 +284,12 @@ export default function AIAnalytics({
       className="flex flex-col h-full overflow-hidden relative jarvis-bg-deep jarvis-page-hologram"
       style={{ perspective: 'var(--jarvis-perspective)' }}
     >
-      {/* 그리드 + god rays 배경 (정적) */}
-      <div className="absolute inset-0 jarvis-bg-grid pointer-events-none" style={{ zIndex: 0, opacity: 0.4 }} />
+      {/* 그리드 + god rays 배경 (정적) — 미세하게만 */}
+      <div className="absolute inset-0 jarvis-bg-grid pointer-events-none" style={{ zIndex: 0, opacity: 0.2 }} />
       <div className="absolute inset-0 jarvis-god-rays pointer-events-none" style={{ zIndex: 0 }} />
 
-      {/* 부동 입자 배경 (canvas) */}
-      <ParticleBackground />
+      {/* 양자 우주 공간 (별 + 성운 + 양자 입자 + lens flare + vignette) */}
+      <QuantumSpaceField />
 
       {/* JARVIS 헤더 */}
       <JarvisHeader
