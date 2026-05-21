@@ -1,8 +1,9 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle } from 'lucide-react';
+import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2 } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
 import useAIAnalystChat from '@/hooks/useAIAnalystChat';
 import { hasGroqKey, saveGroqKey, getGroqKey, getProviderPreference, setProviderPreference } from '@/lib/aiAnalyst';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { supabase } from '@/lib/supabase';
 
 // 기본 추천 질문 (MVP 5개 + 옵션 추가 가능)
@@ -134,6 +135,30 @@ export default function AIAnalytics({
   const handleProviderChange = (value) => {
     setProvider(value);
     setProviderPreference(value);
+  };
+
+  // 전체 AI 데이터 초기화 (대화 + 캐시 + 사용 빈도 + RFM 임계값)
+  // Groq 키와 프로바이더 선택은 유지
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const handleResetAll = () => {
+    try {
+      // 대화 히스토리
+      chat.clear();
+      // 답변 캐시
+      chat.clearCache();
+      // 사용 빈도
+      localStorage.removeItem('pos_ai_quick_prompts_usage_v1');
+      // RFM 임계값
+      localStorage.removeItem('pos_ai_rfm_thresholds_v1');
+      // 저장된 인사이트 (Phase 5 예약 키)
+      localStorage.removeItem('pos_ai_insights_v1');
+      showToast?.('AI 데이터를 모두 초기화했습니다', 'success');
+    } catch (e) {
+      showToast?.(`초기화 실패: ${e.message}`, 'error');
+    } finally {
+      setShowResetConfirm(false);
+      setShowSettings(false);
+    }
   };
 
   return (
@@ -272,12 +297,57 @@ export default function AIAnalytics({
               </div>
             </div>
 
+            {/* 데이터 관리 섹션 */}
+            <div className="border-t border-[var(--border)] pt-3 mb-3">
+              <label className="block text-sm font-semibold mb-2 flex items-center gap-1.5">
+                <Trash2 className="w-4 h-4" />
+                데이터 관리
+              </label>
+              <div className="space-y-1.5">
+                <button
+                  onClick={() => { chat.clear(); showToast?.('대화 히스토리 삭제됨', 'success'); setShowSettings(false); }}
+                  className="w-full text-left px-3 py-2 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] text-sm flex items-center justify-between"
+                >
+                  <span>💬 대화 히스토리만 지우기</span>
+                  <span className="text-[10px] text-[var(--muted-foreground)]">{chat.messages.length}개</span>
+                </button>
+                <button
+                  onClick={() => { chat.clearCache(); showToast?.('답변 캐시 비움', 'success'); setShowSettings(false); }}
+                  className="w-full text-left px-3 py-2 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] text-sm"
+                >
+                  📋 답변 캐시 비우기 (5분 TTL)
+                </button>
+                <button
+                  onClick={() => setShowResetConfirm(true)}
+                  className="w-full text-left px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-[var(--destructive)] hover:bg-red-100 text-sm font-semibold flex items-center gap-1.5"
+                >
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  🗑️ 전체 AI 데이터 초기화
+                </button>
+              </div>
+              <div className="text-[10px] text-[var(--muted-foreground)] mt-1.5 break-keep leading-snug">
+                ⚠️ 전체 초기화: 대화 + 캐시 + 사용 빈도 + RFM 임계값 + 인사이트 모두 삭제 (Groq 키와 프로바이더 선택은 유지)
+              </div>
+            </div>
+
             <div className="text-[11px] text-[var(--muted-foreground)] border-t border-[var(--border)] pt-3 break-keep leading-snug">
               💡 키는 브라우저 localStorage에만 저장되며 서버로 전송되지 않습니다. 보안을 위해 Groq Console에서 정기 교체를 권장합니다.
             </div>
           </div>
         </div>
       )}
+
+      {/* 전체 초기화 확인 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={showResetConfirm}
+        title="모든 AI 데이터를 초기화할까요?"
+        message={`다음 항목이 모두 삭제됩니다:\n\n• 대화 히스토리 ${chat.messages.length}개\n• 답변 캐시\n• 추천 질문 사용 빈도\n• RFM 임계값 설정\n• 저장된 인사이트\n\n(Groq 키와 프로바이더 선택은 유지됩니다)\n\n되돌릴 수 없습니다.`}
+        confirmText="🗑️ 전체 초기화"
+        cancelText="취소"
+        destructive
+        onConfirm={handleResetAll}
+        onCancel={() => setShowResetConfirm(false)}
+      />
 
       {/* 데이터 부족 안내 */}
       {!dataReady && (

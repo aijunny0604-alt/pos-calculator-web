@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Send, Sparkles, Trash2, Loader2, X } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import SuggestedQuestions from './SuggestedQuestions';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 const MAX_INPUT = 1000;
 
@@ -17,6 +18,7 @@ export default function ChatPanel({
   disabled,
 }) {
   const [text, setText] = useState('');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -64,12 +66,12 @@ export default function ChatPanel({
         {hasMessages && onClear && (
           <button
             type="button"
-            onClick={onClear}
-            className="flex items-center gap-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--destructive)] px-2 py-1 rounded transition-colors flex-shrink-0"
+            onClick={() => setShowClearConfirm(true)}
+            className="flex items-center gap-1 text-xs text-[var(--muted-foreground)] hover:text-white hover:bg-[var(--destructive)] border border-[var(--border)] hover:border-[var(--destructive)] px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
             aria-label="대화 지우기"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">지우기</span>
+            <span>대화 지우기</span>
           </button>
         )}
       </div>
@@ -160,6 +162,18 @@ export default function ChatPanel({
           </button>
         </div>
       </div>
+
+      {/* 대화 지우기 확인 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={showClearConfirm}
+        title="대화 내용을 모두 지울까요?"
+        message={`현재 메시지 ${messages.length}개가 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.\n\n(캐시/사용 빈도/RFM 임계값은 유지됩니다 — 전체 초기화는 ⚙️ 설정에서)`}
+        confirmText="🗑 지우기"
+        cancelText="취소"
+        destructive
+        onConfirm={() => { setShowClearConfirm(false); onClear?.(); }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </div>
   );
 }
