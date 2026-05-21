@@ -10,6 +10,7 @@ import { getTopCustomers, getCustomerTrend, getCustomerSegments, getDormantCusto
 import { getTopProducts, getProductTrend, getRepeatPurchaseGap } from './analytics/products';
 import { getCustomerProductAffinity } from './analytics/affinity';
 import { getCompositeSummary } from './analytics/summary';
+import { getLowStockProducts, getStockSummary, getProductsByStockStatus, getRestockRecommendations } from './analytics/inventory';
 
 // 공통 enum
 const PERIOD_ENUM = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
@@ -126,6 +127,53 @@ export const GEMINI_TOOLS = [
       required: ['period'],
     },
   },
+  // ===== 재고 분석 도구 =====
+  {
+    name: 'getLowStockProducts',
+    description: '재고 부족 제품 조회 (threshold 이하 또는 품절). 최근 판매량 함께 표시. "재고 부족", "재고 적은 것", "곧 떨어질 거", "재고 부족한 애들" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        threshold: { type: 'integer', description: '재고 임계값 (기본 5). 이 값 이하만 반환' },
+        limit: { type: 'integer', description: 'TOP N (기본 30)' },
+        includeOutOfStock: { type: 'boolean', description: '품절 포함 여부 (기본 true)' },
+      },
+    },
+  },
+  {
+    name: 'getStockSummary',
+    description: '전체 재고 현황 요약 (총 제품수, 정상/부족/품절/입고대기 카운트, 카테고리별, 총 재고 가치). "재고 현황", "전체 재고 어때", "재고 요약" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        lowThreshold: { type: 'integer', description: '부족 기준 (기본 5)' },
+      },
+    },
+  },
+  {
+    name: 'getProductsByStockStatus',
+    description: '재고 상태별 제품 조회. status=incoming(입고대기), out(품절), normal(정상). "입고대기 제품", "품절 목록" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['incoming', 'out', 'normal'], description: '재고 상태' },
+        limit: { type: 'integer', description: 'TOP N (기본 50)' },
+      },
+      required: ['status'],
+    },
+  },
+  {
+    name: 'getRestockRecommendations',
+    description: '재주문 추천 — 재고 부족 + 최근 판매 활발한 제품의 시급도 분석. 우선순위 점수 + 추천 수량 포함. "재주문 해야할 제품", "뭐 들여놔야 해", "발주 추천", "재주문 리스트" 같은 질문에 가장 적합.',
+    parameters: {
+      type: 'object',
+      properties: {
+        stockThreshold: { type: 'integer', description: '재고 임계 (기본 5)' },
+        salesPeriod: { type: 'string', enum: PERIOD_ENUM, description: '판매량 기준 기간 (기본 1M)' },
+        limit: { type: 'integer', description: 'TOP N (기본 20)' },
+      },
+    },
+  },
   // ===== 쓰기 도구 (사용자 confirm 필수) =====
   {
     name: 'addProduct',
@@ -194,6 +242,14 @@ export function executeTool(name, args = {}, context = {}) {
         return { ok: true, data: getCustomerProductAffinity(orders, products, customers, args) };
       case 'getCompositeSummary':
         return { ok: true, data: getCompositeSummary(orders, customers, products, args) };
+      case 'getLowStockProducts':
+        return { ok: true, data: getLowStockProducts(products, orders, args) };
+      case 'getStockSummary':
+        return { ok: true, data: getStockSummary(products, args) };
+      case 'getProductsByStockStatus':
+        return { ok: true, data: getProductsByStockStatus(products, args) };
+      case 'getRestockRecommendations':
+        return { ok: true, data: getRestockRecommendations(products, orders, args) };
       default:
         return { ok: false, error: `Unknown tool: ${name}` };
     }

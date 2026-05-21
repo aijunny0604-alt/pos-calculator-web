@@ -113,9 +113,186 @@ function renderOne(tc) {
       if (data.avgGapDays == null) return null;
       return <RepeatGapCard data={data} />;
     }
+    case 'getLowStockProducts': {
+      if (!data.results?.length) return null;
+      return <LowStockTable data={data.results} threshold={data.threshold} />;
+    }
+    case 'getStockSummary': {
+      return <StockSummaryCards data={data} />;
+    }
+    case 'getProductsByStockStatus': {
+      if (!data.results?.length) return null;
+      return <StockStatusTable data={data.results} status={data.status} />;
+    }
+    case 'getRestockRecommendations': {
+      if (!data.results?.length) return null;
+      return <RestockTable data={data.results} period={data.salesPeriod} />;
+    }
     default:
       return null;
   }
+}
+
+// 재고 부족 표
+function LowStockTable({ data, threshold }) {
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+      <div className="text-sm font-semibold mb-2 break-keep">📦 재고 부족 제품 (≤ {threshold}개)</div>
+      <table className="w-full text-xs">
+        <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
+          <tr>
+            <th className="text-left py-1.5 pr-2">제품명</th>
+            <th className="text-left py-1.5 pr-2 hidden sm:table-cell">카테고리</th>
+            <th className="text-right py-1.5 pr-2">현재 재고</th>
+            <th className="text-right py-1.5">최근 1개월 판매</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((p, i) => (
+            <tr key={i} className="border-b border-[var(--border)]/50">
+              <td className="py-1.5 pr-2 break-keep">{p.name}</td>
+              <td className="py-1.5 pr-2 hidden sm:table-cell text-[var(--muted-foreground)]">{p.category}</td>
+              <td className={`text-right py-1.5 pr-2 tabular-nums font-semibold ${p.stock === 0 ? 'text-[var(--destructive)]' : p.stock <= 2 ? 'text-amber-600' : ''}`}>
+                {p.stock === 0 ? '품절' : `${p.stock}개`}
+              </td>
+              <td className="text-right py-1.5 tabular-nums">{p.recentSoldQty}개</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// 재고 현황 요약 카드
+function StockSummaryCards({ data }) {
+  const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-3 break-keep">📦 재고 현황 요약 (총 {data.total}개 제품)</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+        <div className="bg-[var(--accent)] rounded-lg p-2.5 text-center">
+          <div className="text-[10px] text-[var(--muted-foreground)]">정상</div>
+          <div className="text-lg sm:text-xl font-black tabular-nums text-[var(--success)]">{data.normal}</div>
+        </div>
+        <div className="bg-amber-50 rounded-lg p-2.5 text-center">
+          <div className="text-[10px] text-[var(--muted-foreground)]">부족 (≤{data.lowThreshold})</div>
+          <div className="text-lg sm:text-xl font-black tabular-nums text-amber-600">{data.low}</div>
+        </div>
+        <div className="bg-red-50 rounded-lg p-2.5 text-center">
+          <div className="text-[10px] text-[var(--muted-foreground)]">품절</div>
+          <div className="text-lg sm:text-xl font-black tabular-nums text-[var(--destructive)]">{data.out}</div>
+        </div>
+        <div className="bg-blue-50 rounded-lg p-2.5 text-center">
+          <div className="text-[10px] text-[var(--muted-foreground)]">입고대기</div>
+          <div className="text-lg sm:text-xl font-black tabular-nums text-blue-600">{data.incoming}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--muted-foreground)]">총 재고 수량</div>
+          <div className="font-bold tabular-nums">{fmt(data.totalStockUnits)}개</div>
+        </div>
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--muted-foreground)]">재고 가치 (도매가 기준)</div>
+          <div className="font-bold tabular-nums">{fmt(data.totalStockValueWholesale)}원</div>
+        </div>
+      </div>
+      {data.byCategory?.length > 0 && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-[var(--muted-foreground)] hover:text-[var(--foreground)]">📂 카테고리별 ({data.byCategory.length}개)</summary>
+          <table className="w-full mt-2">
+            <thead className="text-[var(--muted-foreground)]">
+              <tr>
+                <th className="text-left py-1">카테고리</th>
+                <th className="text-right py-1">제품수</th>
+                <th className="text-right py-1">재고합</th>
+                <th className="text-right py-1">가치</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.byCategory.map((c, i) => (
+                <tr key={i} className="border-b border-[var(--border)]/30">
+                  <td className="py-1 break-keep">{c.category}</td>
+                  <td className="text-right tabular-nums">{c.count}</td>
+                  <td className="text-right tabular-nums">{c.units}</td>
+                  <td className="text-right tabular-nums">{fmt(c.valueWholesale)}원</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// 상태별 재고 표
+function StockStatusTable({ data, status }) {
+  const label = status === 'incoming' ? '입고대기' : status === 'out' ? '품절' : '정상';
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+      <div className="text-sm font-semibold mb-2 break-keep">📦 {label} 제품 ({data.length}개)</div>
+      <table className="w-full text-xs">
+        <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
+          <tr>
+            <th className="text-left py-1.5 pr-2">제품명</th>
+            <th className="text-left py-1.5 pr-2 hidden sm:table-cell">카테고리</th>
+            <th className="text-right py-1.5">재고</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.slice(0, 50).map((p, i) => (
+            <tr key={i} className="border-b border-[var(--border)]/50">
+              <td className="py-1.5 pr-2 break-keep">{p.name}</td>
+              <td className="py-1.5 pr-2 hidden sm:table-cell text-[var(--muted-foreground)]">{p.category}</td>
+              <td className="text-right py-1.5 tabular-nums">{p.stock}개</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// 재주문 추천 표 (가장 중요한 도구)
+function RestockTable({ data, period }) {
+  const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+  return (
+    <div className="bg-white border border-[var(--border)] rounded-lg p-3 sm:p-4 overflow-x-auto">
+      <div className="text-sm font-semibold mb-2 break-keep">🔄 재주문 추천 ({period} 판매량 기준)</div>
+      <table className="w-full text-xs">
+        <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
+          <tr>
+            <th className="text-left py-1.5 pr-2">#</th>
+            <th className="text-left py-1.5 pr-2">제품</th>
+            <th className="text-right py-1.5 pr-2">현재 재고</th>
+            <th className="text-right py-1.5 pr-2 hidden sm:table-cell">최근 판매</th>
+            <th className="text-right py-1.5 pr-2">추천 발주</th>
+            <th className="text-left py-1.5 hidden sm:table-cell">사유</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((p, i) => (
+            <tr key={i} className="border-b border-[var(--border)]/50">
+              <td className="py-1.5 pr-2 tabular-nums font-semibold text-[var(--primary)]">{p.rank}</td>
+              <td className="py-1.5 pr-2 break-keep">
+                <div>{p.name}</div>
+                <div className="text-[10px] text-[var(--muted-foreground)]">{p.category}</div>
+              </td>
+              <td className={`text-right py-1.5 pr-2 tabular-nums font-semibold ${p.stock === 0 ? 'text-[var(--destructive)]' : p.stock <= 3 ? 'text-amber-600' : ''}`}>
+                {p.stock === 0 ? '품절' : `${p.stock}개`}
+              </td>
+              <td className="text-right py-1.5 pr-2 tabular-nums hidden sm:table-cell">{p.recentSoldQty}개</td>
+              <td className="text-right py-1.5 pr-2 tabular-nums font-bold text-[var(--success)]">{p.suggestedRestock}개</td>
+              <td className="py-1.5 hidden sm:table-cell text-[var(--muted-foreground)]">{p.reason}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="text-[10px] text-[var(--muted-foreground)] mt-2 break-keep">💡 추천 수량 = 최근 판매량 × 2.5배. 시급도 점수 높은 순.</div>
+    </div>
+  );
 }
 
 // 표 컴포넌트 (단순 케이스)
