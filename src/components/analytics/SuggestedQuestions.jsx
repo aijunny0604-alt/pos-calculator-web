@@ -7,7 +7,7 @@ export default function SuggestedQuestions({ items, onSelect, title = '💡 추�
   return (
     <div className="w-full">
       {title && (
-        <div className="text-xs font-medium text-[var(--muted-foreground)] mb-2 px-1">
+        <div className="text-[11px] uppercase tracking-widest mb-2 px-1 font-mono" style={{ color: 'var(--jarvis-text-muted)' }}>
           {title}
         </div>
       )}
@@ -19,13 +19,31 @@ export default function SuggestedQuestions({ items, onSelect, title = '💡 추�
               key={item.id}
               type="button"
               onClick={() => onSelect?.(item)}
-              className="flex items-center gap-2 px-3 py-2 rounded-full text-sm border border-[var(--border)] bg-white hover:bg-[var(--primary)] hover:text-[var(--primary-foreground)] hover:border-[var(--primary)] transition-colors text-left break-keep leading-snug min-w-0"
+              className="group flex items-center gap-2 px-3 py-2 rounded-full text-sm transition-all text-left break-keep leading-snug min-w-0 relative"
+              style={{
+                background: 'rgba(15, 23, 41, 0.5)',
+                color: 'var(--jarvis-text)',
+                border: '1px solid var(--jarvis-border)',
+                backdropFilter: 'blur(8px)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(0, 212, 255, 0.15)';
+                e.currentTarget.style.borderColor = 'var(--jarvis-cyan)';
+                e.currentTarget.style.boxShadow = '0 0 16px rgba(0,212,255,0.4)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(15, 23, 41, 0.5)';
+                e.currentTarget.style.borderColor = 'var(--jarvis-border)';
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
             >
-              {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+              {Icon && <Icon className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--jarvis-cyan)' }} />}
               <span className="flex-1 min-w-0">{item.label}</span>
               {item.count > 0 && (
-                <span className="text-[10px] text-[var(--muted-foreground)] flex-shrink-0 font-mono">
-                  {item.count}
+                <span className="text-[10px] flex-shrink-0 font-mono" style={{ color: 'var(--jarvis-cyan)' }}>
+                  ×{item.count}
                 </span>
               )}
             </button>

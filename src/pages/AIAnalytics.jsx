@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2, Volume2, VolumeX } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
+import JarvisHeader from '@/components/analytics/JarvisHeader';
+import ParticleBackground from '@/components/analytics/ParticleBackground';
 import useAIAnalystChat from '@/hooks/useAIAnalystChat';
 import useVoiceInput from '@/hooks/useVoiceInput';
 import useTextToSpeech from '@/hooks/useTextToSpeech';
@@ -228,85 +230,75 @@ export default function AIAnalytics({
     }
   };
 
+  // 헤더 우측 액션 버튼 묶음
+  const rightActions = (
+    <>
+      {groqEnabled && (
+        <span className="hidden sm:inline px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider" style={{
+          background: 'rgba(0, 255, 136, 0.15)',
+          color: 'var(--jarvis-success)',
+          border: '1px solid rgba(0, 255, 136, 0.4)',
+          boxShadow: '0 0 8px rgba(0,255,136,0.3)',
+        }} title="Groq 폴백 활성화됨">
+          ⚡ GROQ
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => { unlockAudio(); toggleSfx(); }}
+        className="p-1.5 rounded hover:bg-cyan-500/10 transition-colors"
+        title={sfxMuted ? '효과음 켜기' : '효과음 끄기'}
+        aria-label={sfxMuted ? '효과음 켜기' : '효과음 끄기'}
+      >
+        {sfxMuted
+          ? <VolumeX className="w-4 h-4" style={{ color: 'var(--jarvis-text-muted)' }} />
+          : <Volume2 className="w-4 h-4" style={{ color: 'var(--jarvis-cyan)', filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.6))' }} />}
+      </button>
+      {tts.supported && (
+        <button
+          type="button"
+          onClick={() => tts.setEnabled(!tts.enabled)}
+          className="p-1.5 rounded hover:bg-cyan-500/10 transition-colors"
+          title={tts.enabled ? 'AI 답변 자동 음성 ON' : 'AI 답변 자동 음성 OFF (음성 입력 시는 항상 재생)'}
+          aria-label="TTS 토글"
+          style={{ color: tts.enabled ? 'var(--jarvis-cyan)' : 'var(--jarvis-text-muted)' }}
+        >
+          <span className="text-xs font-bold">{tts.enabled ? '🔊' : '🔇'}</span>
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => setShowSettings(true)}
+        className="p-1.5 rounded hover:bg-cyan-500/10 transition-colors"
+        aria-label="AI 설정"
+        title="AI 설정"
+        style={{ color: 'var(--jarvis-text-muted)' }}
+      >
+        <Settings className="w-4 h-4" />
+      </button>
+    </>
+  );
+
   return (
-    <div className="flex flex-col h-full bg-[var(--background)] overflow-hidden">
-      {/* 상단 헤더 */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-[var(--border)] bg-white flex-shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          {/* 모바일 햄버거 / 데스크탑 뒤로가기 */}
-          <button
-            type="button"
-            className="md:hidden p-1.5 rounded hover:bg-[var(--accent)] flex-shrink-0"
-            onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
-            aria-label="사이드바 열기"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            className="hidden md:flex items-center gap-1 p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] flex-shrink-0"
-            onClick={() => setCurrentPage?.('dashboard')}
-            aria-label="대시보드로"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-xs">대시보드</span>
-          </button>
-          <h1 className="flex items-center gap-2 text-lg sm:text-2xl font-black break-keep min-w-0">
-            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--primary)] flex-shrink-0" />
-            AI 분석
-          </h1>
-        </div>
-        <div className="text-[11px] sm:text-xs text-[var(--muted-foreground)] flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <span title={`주문 ${orders.length} · 거래처 ${customers.length} · 제품 ${products.length} · 결제 ${paymentRecords.length} · 입금 ${paymentHistory.length} · 반품 ${customerReturns.length} · 저장카트 ${savedCarts.length} · AI학습 ${aiLearningData.length}`} className="hidden sm:inline tabular-nums">
-            📊 주문 {orders.length} · 거래처 {customers.length} · 제품 {products.length}
-            {loadingExtra ? <span className="ml-1 text-[var(--muted-foreground)]">...</span> : <span className="ml-1 text-[var(--success)]">+5</span>}
-          </span>
-          {groqEnabled && (
-            <span className="px-1.5 py-0.5 rounded bg-[var(--success)]/10 text-[var(--success)] text-[10px] font-medium" title="Groq 폴백 활성화됨">
-              ⚡ Groq
-            </span>
-          )}
-          {/* 효과음 토글 */}
-          <button
-            type="button"
-            onClick={() => { unlockAudio(); toggleSfx(); }}
-            className="p-1 rounded hover:bg-[var(--accent)]"
-            title={sfxMuted ? '효과음 켜기' : '효과음 끄기'}
-            aria-label={sfxMuted ? '효과음 켜기' : '효과음 끄기'}
-          >
-            {sfxMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-cyan-600" />}
-          </button>
-          {/* TTS 자동 재생 토글 */}
-          {tts.supported && (
-            <button
-              type="button"
-              onClick={() => tts.setEnabled(!tts.enabled)}
-              className={`p-1 rounded hover:bg-[var(--accent)] ${tts.enabled ? 'text-cyan-600' : ''}`}
-              title={tts.enabled ? 'AI 답변 자동 음성 ON' : 'AI 답변 자동 음성 OFF (음성 입력 시는 항상 재생)'}
-              aria-label="TTS 토글"
-            >
-              <span className="text-xs font-bold">{tts.enabled ? '🔊' : '🔇'}</span>
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={chat.clearCache}
-            className="hover:text-[var(--foreground)] underline hidden sm:inline"
-            title="저장된 답변 캐시 비우기"
-          >
-            캐시 초기화
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            className="p-1 rounded hover:bg-[var(--accent)]"
-            aria-label="AI 설정"
-            title="AI 설정 (Groq 키 입력, 프로바이더 선택)"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+    <div
+      className="flex flex-col h-full overflow-hidden relative jarvis-bg-deep"
+      style={{ perspective: 'var(--jarvis-perspective)' }}
+    >
+      {/* 그리드 + god rays 배경 (정적) */}
+      <div className="absolute inset-0 jarvis-bg-grid pointer-events-none" style={{ zIndex: 0, opacity: 0.4 }} />
+      <div className="absolute inset-0 jarvis-god-rays pointer-events-none" style={{ zIndex: 0 }} />
+
+      {/* 부동 입자 배경 (canvas) */}
+      <ParticleBackground />
+
+      {/* JARVIS 헤더 */}
+      <JarvisHeader
+        counts={{ orders: orders.length, customers: customers.length, products: products.length }}
+        loadingExtra={loadingExtra}
+        rightActions={rightActions}
+        onBack={() => setCurrentPage?.('dashboard')}
+        onSidebarToggle={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
+      />
 
       {/* 설정 모달 */}
       {showSettings && (
@@ -440,13 +432,17 @@ export default function AIAnalytics({
 
       {/* 데이터 부족 안내 */}
       {!dataReady && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-800 flex-shrink-0">
-          ⚠️ 데이터를 불러오는 중입니다. 잠시만 기다려주세요.
+        <div className="px-4 py-2 text-xs flex-shrink-0 relative z-10" style={{
+          background: 'rgba(255, 170, 0, 0.12)',
+          color: 'var(--jarvis-warning)',
+          borderBottom: '1px solid rgba(255, 170, 0, 0.3)',
+        }}>
+          ⚠ NEURAL LINK SYNC... 데이터를 불러오는 중입니다.
         </div>
       )}
 
-      {/* 메인 채팅 */}
-      <div className="flex-1 min-h-0">
+      {/* 메인 채팅 — z축 0 중경 */}
+      <div className="flex-1 min-h-0 relative" style={{ zIndex: 5 }}>
         <ChatPanel
           messages={chat.messages}
           onSend={(text) => { lastInputWasVoiceRef.current = false; chat.send(text); }}

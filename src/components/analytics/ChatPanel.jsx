@@ -67,10 +67,14 @@ export default function ChatPanel({
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-[var(--border)] flex-shrink-0">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 flex-shrink-0" style={{
+        background: 'rgba(5, 11, 24, 0.6)',
+        borderBottom: '1px solid rgba(0, 212, 255, 0.2)',
+        backdropFilter: 'blur(10px)',
+      }}>
         <div className="flex items-center gap-2 min-w-0">
-          <Sparkles className="w-5 h-5 text-[var(--primary)] flex-shrink-0" />
-          <span className="font-semibold text-sm break-keep">분석 어시스턴트</span>
+          <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--jarvis-cyan)', filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.7))' }} />
+          <span className="font-mono text-[11px] uppercase tracking-widest" style={{ color: 'var(--jarvis-text-muted)' }}>NEURAL CHANNEL</span>
         </div>
         {hasMessages && onClear && (
           <button
@@ -88,18 +92,33 @@ export default function ChatPanel({
       {/* 메시지 영역 */}
       <div
         ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 relative z-10"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {!hasMessages ? (
-          <div className="h-full flex flex-col items-center justify-center text-center py-8">
-            <div className="w-16 h-16 rounded-full bg-[var(--accent)] flex items-center justify-center mb-3">
-              <Sparkles className="w-8 h-8 text-[var(--primary)]" />
+          <div className="h-full flex flex-col items-center justify-center text-center py-8 relative">
+            {/* Arc reactor 같은 큰 아이콘 */}
+            <div className="relative w-24 h-24 mb-4 flex-shrink-0">
+              <svg className="absolute inset-0 animate-jarvis-arc-spin" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 0 10px rgba(0,212,255,0.6))' }}>
+                <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(0,212,255,0.5)" strokeWidth="1.5" strokeDasharray="6 6" />
+              </svg>
+              <svg className="absolute inset-0 animate-jarvis-arc-spin-rev" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="32" fill="none" stroke="rgba(77,255,255,0.55)" strokeWidth="1" strokeDasharray="3 5" />
+              </svg>
+              <div className="absolute inset-0 m-auto rounded-full animate-jarvis-glow-pulse" style={{
+                width: '48%', height: '48%', top: '26%', left: '26%',
+                background: 'radial-gradient(circle, #4dffff 0%, #00d4ff 50%, rgba(0,212,255,0.2) 100%)',
+                boxShadow: '0 0 16px rgba(0,212,255,0.9), inset 0 0 8px rgba(255,255,255,0.7)',
+              }} />
+              <Sparkles className="absolute inset-0 m-auto w-6 h-6" style={{ color: '#fff' }} />
             </div>
-            <h3 className="text-base font-bold mb-1">무엇이 궁금하세요?</h3>
-            <p className="text-xs text-[var(--muted-foreground)] mb-6 max-w-xs break-keep leading-snug">
+            <h3 className="text-lg font-black mb-1 jarvis-text-glow tracking-wide" style={{ color: 'var(--jarvis-text)' }}>
+              무엇이 궁금하세요?
+            </h3>
+            <p className="text-xs mb-6 max-w-xs break-keep leading-snug" style={{ color: 'var(--jarvis-text-muted)' }}>
               자연어로 거래처/제품/매출/VIP 분석을 물어보세요.
               <br />예: "이번 달 매출 1위 누구야?"
+              {voice?.supported && <><br /><span style={{ color: 'var(--jarvis-cyan)' }}>🎤 음성 입력 가능 (Spacebar 길게)</span></>}
             </p>
             <div className="w-full max-w-2xl">
               <SuggestedQuestions items={suggestedItems} onSelect={handleSelect} />
@@ -142,7 +161,12 @@ export default function ChatPanel({
       </div>
 
       {/* 입력 영역 (sticky bottom) */}
-      <div className="border-t border-[var(--border)] p-2 sm:p-3 flex-shrink-0 bg-white">
+      <div className="p-2 sm:p-3 flex-shrink-0 relative z-10" style={{
+        background: 'rgba(5, 11, 24, 0.8)',
+        borderTop: '1px solid rgba(0, 212, 255, 0.25)',
+        backdropFilter: 'blur(10px)',
+        boxShadow: '0 -8px 24px rgba(0, 212, 255, 0.08)',
+      }}>
         {voice?.isListening && (
           <div className="mb-2 flex items-center gap-2 text-xs text-cyan-600 px-2 animate-pulse">
             <span className="inline-flex items-center gap-0.5">
@@ -179,12 +203,14 @@ export default function ChatPanel({
               placeholder={disabled ? '데이터 로딩 중...' : voice?.supported ? '질문 입력 또는 🎤 음성 (Spacebar 길게)' : '질문을 입력하세요 (Enter=전송)'}
               disabled={disabled}
               rows={1}
-              className={`w-full resize-none px-3 py-2.5 pr-14 rounded-xl border focus:outline-none focus:ring-2 text-sm break-keep leading-snug min-h-[44px] max-h-32 transition-colors ${
-                voice?.isListening
-                  ? 'border-cyan-400 focus:ring-cyan-400 bg-cyan-50/30'
-                  : 'border-[var(--border)] focus:ring-[var(--primary)]'
-              }`}
-              style={{ overflow: 'auto' }}
+              className="w-full resize-none px-3 py-2.5 pr-14 rounded-xl text-sm break-keep leading-snug min-h-[44px] max-h-32 transition-all focus:outline-none"
+              style={{
+                overflow: 'auto',
+                background: voice?.isListening ? 'rgba(0, 212, 255, 0.08)' : 'rgba(15, 23, 41, 0.6)',
+                color: 'var(--jarvis-text)',
+                border: voice?.isListening ? '1px solid rgba(0, 212, 255, 0.7)' : '1px solid rgba(0, 212, 255, 0.3)',
+                boxShadow: voice?.isListening ? '0 0 12px rgba(0,212,255,0.4), inset 0 0 8px rgba(0,212,255,0.1)' : 'inset 0 0 8px rgba(0,212,255,0.05)',
+              }}
             />
             <span className="absolute bottom-1.5 right-2 text-[10px] text-[var(--muted-foreground)] pointer-events-none tabular-nums">
               {text.length}/{MAX_INPUT}
@@ -195,7 +221,14 @@ export default function ChatPanel({
             onClick={submit}
             disabled={!text.trim() || isLoading || disabled}
             aria-label="전송"
-            className="flex-shrink-0 w-11 h-11 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+            className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{
+              background: !text.trim() || isLoading || disabled
+                ? 'rgba(0, 212, 255, 0.2)'
+                : 'linear-gradient(135deg, #00d4ff, #4dffff)',
+              color: '#050b18',
+              boxShadow: !text.trim() || isLoading || disabled ? 'none' : '0 0 16px rgba(0,212,255,0.6), 0 4px 12px rgba(0,0,0,0.4)',
+            }}
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           </button>
