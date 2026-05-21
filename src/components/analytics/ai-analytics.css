@@ -1,10 +1,7 @@
 /* AI 분석 페이지 통합 다크 SF 톤 — 절제 + 일관성 */
 
 .ai-analytics-root {
-  background:
-    radial-gradient(ellipse 100% 60% at 50% 0%, rgba(0, 212, 255, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(168, 85, 247, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at center, #0a1929 0%, #050b18 60%, #020610 100%);
+  background: #000000;
   color: #e8f4fd;
 }
 

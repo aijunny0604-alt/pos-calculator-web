@@ -307,8 +307,7 @@ export default function AIAnalytics({
       {/* 빅뱅 진입 애니메이션 (매 진입 시 재생) */}
       {!introDone && <BigBangIntro onComplete={handleIntroDone} />}
 
-      {/* 양자 우주 공간 (절제된 강도) */}
-      <QuantumSpaceField />
+      {/* 우주 배경 제거 — 사용자 요청: 스페이스 블랙 + 양자 sphere만 */}
 
       {/* JARVIS 헤더 */}
       <JarvisHeader
