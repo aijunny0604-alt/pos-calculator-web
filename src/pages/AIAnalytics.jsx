@@ -55,7 +55,7 @@ export default function AIAnalytics({ orders = [], customers = [], products = []
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[var(--background)] overflow-hidden">
+    <div className="flex flex-col h-full bg-[var(--background)] overflow-hidden">
       {/* 상단 헤더 */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-[var(--border)] bg-white flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
