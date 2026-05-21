@@ -110,6 +110,10 @@ export default function useAIAnalystChat({
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // ThinkingChip 최소 표시 시간 (캐시 hit 시에도 사용자가 칩을 볼 수 있게)
+    const startedAt = Date.now();
+    const MIN_THINKING_MS = 450;
+
     try {
       const result = await askAI(question, {
         orders,
@@ -133,6 +137,12 @@ export default function useAIAnalystChat({
           setLoadingStep(`🔍 ${friendly}`);
         },
       });
+
+      // 캐시 hit 등으로 너무 빠르면 ThinkingChip을 잠깐 더 보여줌
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_THINKING_MS) {
+        await new Promise((r) => setTimeout(r, MIN_THINKING_MS - elapsed));
+      }
 
       const assistantMsg = {
         id: newId(),

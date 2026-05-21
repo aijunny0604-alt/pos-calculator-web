@@ -1,10 +1,24 @@
 import { GEMINI_TOOLS, executeTool, ANALYST_SYSTEM_PROMPT } from './geminiTools';
 import { getTodayKST } from './utils';
 
-const CACHE_KEY = 'pos_ai_cache_v1';
+const CACHE_KEY = 'pos_ai_cache_v2'; // v1 → v2 (시스템 프롬프트 변경 시 옛 캐시 자동 무효화)
 const CACHE_TTL = 300000;
 const MAX_CACHE_ENTRIES = 100;
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+
+// 사용자에게 부정적인 답변(기능 부재/거절)은 캐시하지 않음 — 시스템 프롬프트 개선 후 새 답변 받게.
+const NEGATIVE_PATTERNS = [
+  /기능(은|이)?\s*없/,
+  /할 수\s*없/,
+  /지원하지\s*않/,
+  /불가능/,
+  /죄송합니다.*없어요/,
+  /바로\s*알려드릴 수\s*있는 기능/,
+];
+const isNegativeAnswer = (answer) => {
+  if (!answer || typeof answer !== 'string') return false;
+  return NEGATIVE_PATTERNS.some((re) => re.test(answer));
+};
 
 const getGeminiKeys = () => {
   const keys = [];
@@ -183,8 +197,11 @@ export async function askAnalyst(question, context, options = {}) {
 
       if (functionCalls.length === 0) {
         const answer = parts[0]?.text || '';
-        // 컨텍스트 있는 질문은 캐시하지 않음 (대화 상태별 답이 달라짐)
-        if (!hasHistory) saveCachedAnswer(question, answer, toolCalls);
+        // 컨텍스트 있는 질문 또는 부정적 답변은 캐시하지 않음
+        // (대화 상태별 답이 다름 + "기능 없음" 같은 답은 프롬프트 개선으로 곧 바뀜)
+        if (!hasHistory && !isNegativeAnswer(answer)) {
+          saveCachedAnswer(question, answer, toolCalls);
+        }
         return { answer, toolCalls, iterations, cached: false };
       }
 
@@ -256,7 +273,18 @@ export async function askAnalyst(question, context, options = {}) {
 
 export function clearAnalystCache() {
   localStorage.removeItem(CACHE_KEY);
+  // 옛 버전 캐시도 같이 정리
+  try {
+    localStorage.removeItem('pos_ai_cache_v1');
+  } catch {}
 }
+
+// 모듈 로드 시 옛 v1 캐시 자동 삭제 (시스템 프롬프트가 바뀌었으므로 옛 답변 무효)
+try {
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('pos_ai_cache_v1')) {
+    localStorage.removeItem('pos_ai_cache_v1');
+  }
+} catch {}
 
 export function getCacheStats() {
   const cache = readCache();

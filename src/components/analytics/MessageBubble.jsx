@@ -123,10 +123,11 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
         };
   const bubbleClass = '';
 
-  // 차트 있는 assistant는 더 넓게 (그래야 표/차트 보기 좋음)
+  // 차트 있는 assistant는 더 넓게, 일반 텍스트는 가독성 위해 lg에서 픽셀 제한
+  // (한 줄이 너무 길면 시선 이동이 커져 읽기 어려움)
   const maxWidthClass = hasCharts
     ? 'max-w-full sm:max-w-[92%]'
-    : 'max-w-[88%] sm:max-w-[78%]';
+    : 'max-w-[90%] sm:max-w-[78%] lg:max-w-[640px]';
 
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-2 animate-jarvis-card-emerge`}>
