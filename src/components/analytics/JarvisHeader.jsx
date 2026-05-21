@@ -78,8 +78,8 @@ function ArcReactor({ size = 40 }) {
           height: '38%',
           top: '31%',
           left: '31%',
-          background: 'radial-gradient(circle, #ffffff 0%, #4dffff 30%, #00d4ff 70%, rgba(0,212,255,0.2) 100%)',
-          boxShadow: '0 0 10px rgba(0, 212, 255, 0.95), 0 0 20px rgba(0, 212, 255, 0.5), inset 0 0 6px rgba(255, 255, 255, 0.8)',
+          background: 'radial-gradient(circle, rgba(232,244,253,0.95) 0%, var(--jarvis-accent) 32%, var(--jarvis-cyan) 72%, rgba(0,212,255,0.18) 100%)',
+          boxShadow: '0 0 10px rgba(0, 212, 255, 0.45), 0 0 18px rgba(0, 212, 255, 0.18), inset 0 0 6px rgba(232, 244, 253, 0.55)',
         }}
       />
 
@@ -115,14 +115,14 @@ function CountDigit({ value, label, color = '#00d4ff' }) {
   }, [value]);
 
   return (
-    <div className="flex flex-col items-center min-w-[44px]">
+    <div className="flex flex-col items-center min-w-12">
       <span
         className="text-sm sm:text-base font-bold tabular-nums leading-none"
-        style={{ color, textShadow: `0 0 6px ${color}, 0 0 12px ${color}66` }}
+        style={{ color, textShadow: `0 0 6px ${color}80` }}
       >
         {display}
       </span>
-      <span className="text-[8px] uppercase tracking-wider mt-0.5" style={{ color: 'var(--jarvis-text-muted)' }}>
+      <span className="text-[8px] uppercase tracking-wider mt-1 font-semibold" style={{ color: 'var(--jarvis-text-muted)' }}>
         {label}
       </span>
     </div>
@@ -138,20 +138,21 @@ export default function JarvisHeader({
 }) {
   return (
     <div
-      className="relative flex items-center justify-between px-3 sm:px-5 py-2.5 flex-shrink-0 z-20"
+      className="relative flex items-center justify-between gap-3 px-3 sm:px-6 py-2 flex-shrink-0 z-20 movis-glass-panel"
       style={{
-        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
-        borderBottom: '1px solid rgba(0, 212, 255, 0.3)',
-        boxShadow: '0 2px 12px rgba(0, 212, 255, 0.08), inset 0 -1px 0 rgba(0, 212, 255, 0.15)',
+        borderTop: 'none',
+        borderLeft: 'none',
+        borderRight: 'none',
       }}
     >
       {/* 좌측: nav + arc + title */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           type="button"
-          className="md:hidden p-1.5 rounded hover:bg-cyan-500/10 flex-shrink-0 text-cyan-700"
+          className="md:hidden p-2 rounded hover:bg-cyan-500/15 flex-shrink-0"
           onClick={onSidebarToggle}
           aria-label="사이드바 열기"
+          style={{ color: 'var(--jarvis-accent)' }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
@@ -159,9 +160,10 @@ export default function JarvisHeader({
         </button>
         <button
           type="button"
-          className="hidden md:flex items-center gap-1 px-2 py-1 rounded hover:bg-cyan-500/10 text-cyan-700 hover:text-cyan-800 flex-shrink-0 text-xs"
+          className="hidden md:flex items-center gap-2 px-2 py-2 rounded hover:bg-cyan-500/15 flex-shrink-0 text-xs font-medium"
           onClick={onBack}
           aria-label="대시보드로"
+          style={{ color: 'var(--jarvis-text-muted)' }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
@@ -171,25 +173,25 @@ export default function JarvisHeader({
         <ArcReactor size={36} />
         <div className="flex flex-col min-w-0">
           <span
-            className="text-base sm:text-lg font-black tracking-wider"
+            className="text-base sm:text-lg font-black tracking-wider truncate"
             style={{
-              color: '#0e7490',
+              color: 'var(--jarvis-text-primary)',
               fontFamily: 'JetBrains Mono, monospace',
               letterSpacing: '0.08em',
-              textShadow: '0 0 8px rgba(0,212,255,0.4)',
+              textShadow: '0 0 10px rgba(0, 212, 255, 0.35)',
             }}
           >
             MOVE INTELLIGENCE
           </span>
-          <span className="text-[10px] uppercase tracking-widest" style={{ color: '#64748b' }}>
-            <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle animate-jarvis-glow-pulse" style={{ background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
-            MOVIS QUANTUM AI · ONLINE
+          <span className="text-[10px] uppercase tracking-widest truncate font-medium" style={{ color: 'var(--jarvis-text-muted)' }}>
+            <span className="inline-block w-1.5 h-1.5 rounded-full mr-2 align-middle animate-jarvis-glow-pulse" style={{ background: '#00ff88', boxShadow: '0 0 6px rgba(0, 255, 136, 0.65)' }} />
+            MOVIS · QUANTUM AI · ONLINE
           </span>
         </div>
       </div>
 
       {/* 우측: 카운트 + 액션 */}
-      <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
         <div className="hidden md:flex items-center gap-3">
           <CountDigit value={counts.orders ?? 0} label="ORDERS" color="#00d4ff" />
           <span className="text-cyan-700">·</span>

@@ -55,11 +55,11 @@ export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted, is
   const armed = voiceListening || ttsEnabled;
 
   return (
-    <div className="relative w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 select-none">
+    <div className="relative w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 select-none min-w-0">
       {/* 상단 시스템 메트릭 (좌측) */}
       <div className="absolute top-0 left-4 sm:left-6 text-[10px] sm:text-[11px] font-mono leading-tight" style={{
-        color: 'rgba(0, 212, 255, 0.85)',
-        textShadow: '0 0 6px rgba(0, 212, 255, 0.5)',
+        color: 'var(--jarvis-cyan)',
+        textShadow: '0 0 6px rgba(0, 212, 255, 0.35)',
       }}>
         <div>SYS::ONLINE</div>
         <div>CPU::{Math.round(metrics.cpu)}%</div>
@@ -70,15 +70,15 @@ export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted, is
 
       {/* 상단 우측 카운터 */}
       <div className="absolute top-0 right-4 sm:right-6 text-right text-[10px] sm:text-[11px] font-mono" style={{
-        color: 'rgba(77, 255, 255, 0.7)',
-        textShadow: '0 0 6px rgba(0, 212, 255, 0.4)',
+        color: 'var(--jarvis-accent)',
+        textShadow: '0 0 6px rgba(0, 212, 255, 0.3)',
       }}>
         <div className="flex items-center gap-2 justify-end mb-1 opacity-80">
           {!sfxMuted && <Volume2 className="w-3 h-3" />}
           {ttsEnabled && <span>🔊</span>}
           {voiceListening && (
             <span className="inline-flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#ff3860', boxShadow: '0 0 4px #ff3860' }} />
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#ff3860', boxShadow: '0 0 4px rgba(255,56,96,0.65)' }} />
               <span style={{ color: '#ff3860' }}>REC</span>
             </span>
           )}
@@ -95,8 +95,8 @@ export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted, is
         }}>
           M.O.V.E
         </h1>
-        <div className="text-[10px] sm:text-xs font-mono tracking-[0.4em] mt-1.5 uppercase" style={{
-          color: 'rgba(232, 244, 253, 0.7)',
+        <div className="text-[10px] sm:text-xs font-mono tracking-[0.4em] mt-2 uppercase" style={{
+          color: 'var(--jarvis-text-muted)',
         }}>
           PERSONAL · AI · ASSISTANT
         </div>
@@ -108,17 +108,17 @@ export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted, is
           <JarvisDotSphere pointCount={520} size={480} mode={sphereMode} />
           {/* 외곽 미세 글로우 ring — 상태 따라 색상 */}
           <div className="absolute inset-0 rounded-full pointer-events-none transition-all duration-700" style={{
-            boxShadow: `inset 0 0 80px ${statusColor}1f, 0 0 80px ${statusColor}33`,
+            boxShadow: `inset 0 0 48px ${statusColor}1f, 0 0 48px ${statusColor}24`,
           }} />
         </div>
       </div>
 
       {/* 하단 ARMED 상태 */}
-      <div className="flex items-center justify-center gap-2 mt-4 sm:mt-6 font-mono text-sm sm:text-base">
+      <div className="flex items-center justify-center gap-2 mt-4 sm:mt-6 font-mono text-sm sm:text-base min-w-0 px-2 text-center">
         <span className="inline-block w-2.5 h-2.5 rounded-full animate-jarvis-glow-pulse" style={{
           background: armed ? '#00ff88' : 'rgba(127, 163, 200, 0.6)',
           boxShadow: armed
-            ? '0 0 12px #00ff88, 0 0 24px rgba(0, 255, 136, 0.6)'
+            ? '0 0 10px rgba(0, 255, 136, 0.55), 0 0 18px rgba(0, 255, 136, 0.24)'
             : 'none',
         }} />
         <span style={{

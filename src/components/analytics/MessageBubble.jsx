@@ -82,8 +82,8 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
   // system 메시지 — 가운데 작은 회색
   if (role === 'system') {
     return (
-      <div className="flex justify-center my-2">
-        <span className="text-[11px] px-3 py-1 rounded-full" style={{
+      <div className="flex justify-center my-2 px-2">
+        <span className="text-[11px] font-medium px-3 py-2 rounded-full min-w-0 break-words" style={{
           color: 'var(--jarvis-text-muted)',
           background: 'rgba(0, 212, 255, 0.08)',
           border: '1px solid rgba(0, 212, 255, 0.2)',
@@ -98,28 +98,28 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
   const isError = role === 'error';
   const hasCharts = !isUser && !isError && Array.isArray(toolCalls) && toolCalls.length > 0;
 
-  // 라이트 톤 글래스 스타일
+  // 다크 SF 글래스 스타일
   const bubbleStyle = isUser
     ? {
-        background: 'linear-gradient(135deg, #0891b2, #06b6d4)',
-        color: '#ffffff',
-        border: '1px solid rgba(0, 212, 255, 0.5)',
-        boxShadow: '0 4px 16px rgba(0, 212, 255, 0.25)',
+        background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.22), rgba(77, 255, 255, 0.12))',
+        color: 'var(--jarvis-text-primary)',
+        border: '1px solid rgba(0, 212, 255, 0.25)',
+        boxShadow: '0 6px 18px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)',
       }
     : isError
       ? {
-          background: '#fef2f2',
-          color: '#b91c1c',
-          border: '1px solid rgba(239, 68, 68, 0.4)',
-          boxShadow: '0 4px 16px rgba(239, 68, 68, 0.1)',
+          background: 'linear-gradient(135deg, rgba(255, 56, 96, 0.16), rgba(255, 56, 96, 0.06))',
+          color: '#ffb4c0',
+          border: '1px solid rgba(0, 212, 255, 0.22)',
+          boxShadow: '0 6px 18px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,56,96,0.08)',
         }
       : {
-          background: 'rgba(255, 255, 255, 0.95)',
-          color: '#1e293b',
-          border: '1px solid rgba(0, 212, 255, 0.25)',
-          backdropFilter: 'blur(8px) saturate(120%)',
-          WebkitBackdropFilter: 'blur(8px) saturate(120%)',
-          boxShadow: '0 4px 16px rgba(0, 212, 255, 0.08), inset 0 0 0 1px rgba(255,255,255,0.5)',
+          background: 'rgba(15, 26, 45, 0.7)',
+          color: 'var(--jarvis-text-primary)',
+          border: '1px solid rgba(0, 212, 255, 0.18)',
+          backdropFilter: 'blur(14px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(14px) saturate(140%)',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255,255,255,0.04)',
         };
   const bubbleClass = '';
 
@@ -131,13 +131,13 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-2 animate-jarvis-card-emerge`}>
       <div
-        className={`${maxWidthClass} rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 min-w-0 group relative`}
+        className={`${maxWidthClass} rounded-2xl px-3 sm:px-4 py-2 min-w-0 group relative`}
         title={ts ? formatTime(ts) : ''}
         style={bubbleStyle}
       >
         {/* 헤더 (assistant/error 만) */}
         {!isUser && (
-          <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold opacity-80">
+          <div className="flex items-center gap-2 mb-2 text-[11px] font-semibold opacity-80 min-w-0">
             {isError ? <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> : <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />}
             <span>{isError ? '오류' : 'MOVIS'}</span>
             {/* TTS 재생 버튼 (assistant 메시지만) */}
@@ -155,10 +155,10 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
               </button>
             )}
             {cached && (
-              <span className="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{
+              <span className="ml-auto text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0" style={{
                 background: 'rgba(0,212,255,0.1)',
                 color: 'var(--jarvis-cyan)',
-                border: '1px solid rgba(0,212,255,0.3)',
+                border: '1px solid rgba(0,212,255,0.22)',
               }}
                     title="5분 이내 동일 질문 캐시">
                 📋 캐시
@@ -168,14 +168,14 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
         )}
 
         {/* 본문 */}
-        <div className={`text-sm ${isUser ? 'break-keep leading-snug' : ''}`}>
+        <div className={`text-sm min-w-0 ${isUser ? 'break-words leading-snug' : 'break-words'}`}>
           {isUser ? (
             <span className="whitespace-pre-wrap">{content}</span>
           ) : (
             <>
               <MarkdownLite content={displayedContent} />
               {shouldType && !done && (
-                <span className="inline-block w-2 h-4 ml-0.5 align-text-bottom animate-jarvis-cursor" style={{ background: '#00d4ff', boxShadow: '0 0 4px #00d4ff' }} />
+                <span className="inline-block w-2 h-4 ml-1 align-text-bottom animate-jarvis-cursor" style={{ background: 'var(--jarvis-cyan)', boxShadow: '0 0 4px rgba(0,212,255,0.65)' }} />
               )}
             </>
           )}
@@ -186,18 +186,18 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
 
         {/* 도구 호출 이력 (assistant only, 1건 이상) */}
         {hasCharts && (
-          <div className="mt-2 pt-2 border-t border-black/5">
+          <div className="mt-2 pt-2 border-t border-cyan-400/20">
             <button
               type="button"
               onClick={() => setShowTools((v) => !v)}
-              className="flex items-center gap-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              className="flex items-center gap-2 text-[11px] font-medium text-[var(--jarvis-text-muted)] hover:text-[var(--jarvis-text-primary)]"
               aria-expanded={showTools}
             >
               {showTools ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               <span>🔍 사용 도구 {toolCalls.length}개</span>
             </button>
             {showTools && (
-              <ul className="mt-1 space-y-0.5 text-[11px] text-[var(--muted-foreground)]">
+              <ul className="mt-2 space-y-1 text-[11px] text-[var(--jarvis-text-muted)]">
                 {toolCalls.map((tc, i) => (
                   <li key={i} className="break-keep">
                     <code className="font-mono">{tc.name}</code>

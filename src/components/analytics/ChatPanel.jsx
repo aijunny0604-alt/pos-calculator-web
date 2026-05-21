@@ -69,20 +69,23 @@ export default function ChatPanel({
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-2 flex-shrink-0" style={{
-        background: 'rgba(248, 250, 252, 0.85)',
-        borderBottom: '1px solid rgba(0, 212, 255, 0.25)',
+      <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 flex-shrink-0 movis-glass-panel" style={{
+        background: 'rgba(8, 16, 30, 0.5)',
+        borderTop: 'none',
+        borderLeft: 'none',
+        borderRight: 'none',
+        borderBottom: '1px solid rgba(0, 212, 255, 0.18)',
         backdropFilter: 'blur(10px)',
       }}>
         <div className="flex items-center gap-2 min-w-0">
-          <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: '#0891b2', filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.4))' }} />
-          <span className="font-mono text-[11px] uppercase tracking-widest" style={{ color: '#64748b' }}>NEURAL CHANNEL</span>
+          <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--jarvis-accent)', filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.45))' }} />
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-widest truncate" style={{ color: 'var(--jarvis-text-muted)' }}>NEURAL CHANNEL</span>
         </div>
         {hasMessages && onClear && (
           <button
             type="button"
             onClick={() => setShowClearConfirm(true)}
-            className="flex items-center gap-1 text-xs text-[var(--muted-foreground)] hover:text-white hover:bg-[var(--destructive)] border border-[var(--border)] hover:border-[var(--destructive)] px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
+            className="flex items-center gap-2 text-xs text-[var(--jarvis-text-muted)] hover:text-[var(--jarvis-text-primary)] hover:bg-red-500/15 border border-cyan-400/20 hover:border-cyan-400/25 px-3 py-2 rounded-lg transition-colors flex-shrink-0 font-semibold"
             aria-label="대화 지우기"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -109,7 +112,7 @@ export default function ChatPanel({
             />
 
             {/* 추천 질문 */}
-            <div className="w-full max-w-3xl px-4 mt-4">
+            <div className="w-full max-w-3xl px-4 mt-4 min-w-0">
               <SuggestedQuestions items={suggestedItems} onSelect={handleSelect} />
               {voice?.supported && (
                 <p className="text-[11px] mt-4 font-mono tracking-wider" style={{ color: 'var(--jarvis-text-muted)' }}>
@@ -125,9 +128,9 @@ export default function ChatPanel({
             ))}
             {isLoading && (
               <div className="flex justify-start my-2 animate-jarvis-card-emerge">
-                <div className="jarvis-glass rounded-2xl px-4 py-2.5 flex items-center gap-2.5 max-w-[88%] sm:max-w-[78%]" style={{
-                  boxShadow: '0 0 20px rgba(0,212,255,0.3), inset 0 0 20px rgba(0,212,255,0.05)',
-                  border: '1px solid rgba(0, 212, 255, 0.5)',
+                <div className="movis-glass-card rounded-2xl px-4 py-2 flex items-center gap-3 max-w-[92%] sm:max-w-[78%] min-w-0" style={{
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(0, 212, 255, 0.22)',
                 }}>
                   {/* 회전 데이터 입자 */}
                   <div className="relative w-5 h-5 flex-shrink-0">
@@ -139,10 +142,10 @@ export default function ChatPanel({
                     </svg>
                     <div className="absolute inset-0 m-auto w-1.5 h-1.5 rounded-full animate-jarvis-glow-pulse" style={{
                       background: '#4dffff',
-                      boxShadow: '0 0 6px #00d4ff',
+                      boxShadow: '0 0 6px rgba(0,212,255,0.65)',
                     }} />
                   </div>
-                  <span className="text-sm break-keep font-mono" style={{ color: 'var(--jarvis-cyan)' }}>
+                  <span className="text-sm break-words font-mono font-medium min-w-0" style={{ color: 'var(--jarvis-cyan)' }}>
                     {loadingStep || '⚡ 분석 중...'}
                   </span>
                   {/* 진동 막대 */}
@@ -172,13 +175,13 @@ export default function ChatPanel({
 
       {/* 입력 영역 (sticky bottom) */}
       <div className="p-2 sm:p-3 flex-shrink-0 relative z-10" style={{
-        background: 'rgba(255, 255, 255, 0.9)',
-        borderTop: '1px solid rgba(0, 212, 255, 0.3)',
-        backdropFilter: 'blur(10px)',
-        boxShadow: '0 -4px 16px rgba(0, 212, 255, 0.05)',
+        background: 'rgba(8, 16, 30, 0.65)',
+        borderTop: '1px solid rgba(0, 212, 255, 0.2)',
+        backdropFilter: 'blur(12px)',
+        boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.32), 0 -1px 0 rgba(0, 212, 255, 0.12)',
       }}>
         {voice?.isListening && (
-          <div className="mb-2 flex items-center gap-2 text-xs text-cyan-600 px-2 animate-pulse">
+          <div className="mb-2 flex items-center gap-2 text-xs text-cyan-600 px-2 animate-pulse min-w-0">
             <span className="inline-flex items-center gap-0.5">
               <span className="w-1 h-3 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
               <span className="w-1 h-4 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '120ms' }} />
@@ -216,10 +219,10 @@ export default function ChatPanel({
               className="w-full resize-none px-3 py-2.5 pr-14 rounded-xl text-sm break-keep leading-snug min-h-[44px] max-h-32 transition-all focus:outline-none"
               style={{
                 overflow: 'auto',
-                background: voice?.isListening ? 'rgba(207, 250, 254, 0.7)' : '#ffffff',
-                color: '#1e293b',
-                border: voice?.isListening ? '1px solid rgba(0, 212, 255, 0.7)' : '1px solid rgba(0, 212, 255, 0.35)',
-                boxShadow: voice?.isListening ? '0 0 12px rgba(0,212,255,0.4)' : 'none',
+                background: voice?.isListening ? 'rgba(0, 212, 255, 0.08)' : 'rgba(15, 26, 45, 0.65)',
+                color: 'var(--jarvis-text-primary)',
+                border: voice?.isListening ? '1px solid rgba(0, 212, 255, 0.25)' : '1px solid rgba(0, 212, 255, 0.22)',
+                boxShadow: voice?.isListening ? '0 0 14px rgba(0,212,255,0.22), inset 0 0 10px rgba(0,212,255,0.06)' : 'inset 0 0 8px rgba(0,212,255,0.04)',
               }}
             />
             <span className="absolute bottom-1.5 right-2 text-[10px] text-[var(--muted-foreground)] pointer-events-none tabular-nums">
@@ -237,7 +240,7 @@ export default function ChatPanel({
                 ? 'rgba(0, 212, 255, 0.2)'
                 : 'linear-gradient(135deg, #00d4ff, #4dffff)',
               color: '#050b18',
-              boxShadow: !text.trim() || isLoading || disabled ? 'none' : '0 0 16px rgba(0,212,255,0.6), 0 4px 12px rgba(0,0,0,0.4)',
+              boxShadow: !text.trim() || isLoading || disabled ? 'none' : '0 0 12px rgba(0,212,255,0.35), 0 6px 14px rgba(0,0,0,0.36)',
             }}
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}

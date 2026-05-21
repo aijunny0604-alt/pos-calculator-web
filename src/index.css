@@ -19,6 +19,9 @@
   --jarvis-warning: #ffaa00;
   --jarvis-danger: #ff3860;
   --jarvis-success: #00ff88;
+  --jarvis-accent: #4dffff;
+  --jarvis-text-primary: #e8f4fd;
+  --jarvis-text-secondary: #b5cee0;
   --jarvis-glow-sm: 0 0 8px rgba(0, 212, 255, 0.4);
   --jarvis-glow-md: 0 0 20px rgba(0, 212, 255, 0.5);
   --jarvis-glow-lg: 0 0 40px rgba(0, 212, 255, 0.8);

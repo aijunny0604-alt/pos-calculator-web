@@ -4,6 +4,7 @@ import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
 import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
 import BigBangIntro from '@/components/analytics/BigBangIntro';
+import '@/components/analytics/ai-analytics.css';
 import useAIAnalystChat from '@/hooks/useAIAnalystChat';
 import useVoiceInput from '@/hooks/useVoiceInput';
 import useTextToSpeech from '@/hooks/useTextToSpeech';
@@ -239,11 +240,11 @@ export default function AIAnalytics({
   const rightActions = (
     <>
       {groqEnabled && (
-        <span className="hidden sm:inline px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider" style={{
+        <span className="hidden sm:inline px-2 py-1 rounded text-[10px] font-mono font-semibold uppercase tracking-wider" style={{
           background: 'rgba(0, 255, 136, 0.15)',
           color: 'var(--jarvis-success)',
-          border: '1px solid rgba(0, 255, 136, 0.4)',
-          boxShadow: '0 0 8px rgba(0,255,136,0.3)',
+          border: '1px solid rgba(0, 212, 255, 0.22)',
+          boxShadow: '0 0 8px rgba(0,255,136,0.18)',
         }} title="Groq 폴백 활성화됨">
           ⚡ GROQ
         </span>
@@ -251,19 +252,19 @@ export default function AIAnalytics({
       <button
         type="button"
         onClick={() => { unlockAudio(); toggleSfx(); }}
-        className="p-1.5 rounded hover:bg-cyan-500/10 transition-colors"
+        className="p-2 rounded hover:bg-cyan-500/10 transition-colors"
         title={sfxMuted ? '효과음 켜기' : '효과음 끄기'}
         aria-label={sfxMuted ? '효과음 켜기' : '효과음 끄기'}
       >
         {sfxMuted
           ? <VolumeX className="w-4 h-4" style={{ color: 'var(--jarvis-text-muted)' }} />
-          : <Volume2 className="w-4 h-4" style={{ color: 'var(--jarvis-cyan)', filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.6))' }} />}
+          : <Volume2 className="w-4 h-4" style={{ color: 'var(--jarvis-cyan)', filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.45))' }} />}
       </button>
       {tts.supported && (
         <button
           type="button"
           onClick={() => tts.setEnabled(!tts.enabled)}
-          className="p-1.5 rounded hover:bg-cyan-500/10 transition-colors"
+          className="p-2 rounded hover:bg-cyan-500/10 transition-colors"
           title={tts.enabled ? 'AI 답변 자동 음성 ON' : 'AI 답변 자동 음성 OFF (음성 입력 시는 항상 재생)'}
           aria-label="TTS 토글"
           style={{ color: tts.enabled ? 'var(--jarvis-cyan)' : 'var(--jarvis-text-muted)' }}
@@ -274,7 +275,7 @@ export default function AIAnalytics({
       <button
         type="button"
         onClick={() => setShowSettings(true)}
-        className="p-1.5 rounded hover:bg-cyan-500/10 transition-colors"
+        className="p-2 rounded hover:bg-cyan-500/10 transition-colors"
         aria-label="AI 설정"
         title="AI 설정"
         style={{ color: 'var(--jarvis-text-muted)' }}
@@ -286,11 +287,14 @@ export default function AIAnalytics({
 
   return (
     <div
-      className="flex flex-col h-full overflow-hidden relative bg-white"
+      className="ai-analytics-root flex flex-col h-full overflow-hidden relative"
       style={{ perspective: 'var(--jarvis-perspective)' }}
     >
       {/* 빅뱅 진입 애니메이션 (매 진입 시 재생) */}
       {!introDone && <BigBangIntro onComplete={handleIntroDone} />}
+
+      {/* 양자 우주 공간 (절제된 강도) */}
+      <QuantumSpaceField />
 
       {/* JARVIS 헤더 */}
       <JarvisHeader
@@ -303,10 +307,10 @@ export default function AIAnalytics({
 
       {/* 설정 모달 */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowSettings(false)}>
-          <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowSettings(false)}>
+          <div className="movis-glass-card max-w-md w-full p-4 sm:p-6 min-w-0" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center gap-2">
+              <h3 className="text-lg font-bold flex items-center gap-2 movis-text-primary min-w-0">
                 <Settings className="w-5 h-5" />
                 AI 설정
               </h3>
@@ -329,13 +333,13 @@ export default function AIAnalytics({
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
                 placeholder="gsk_..."
-                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-sm font-mono"
+                className="w-full px-3 py-2 rounded-lg border border-cyan-400/20 bg-[#0f1a2d]/70 text-[var(--jarvis-text-primary)] focus:outline-none focus:ring-2 focus:ring-cyan-400/25 text-sm font-mono"
                 autoComplete="off"
               />
               <div className="flex gap-2 mt-2">
                 <button
                   onClick={handleSaveKey}
-                  className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-semibold hover:opacity-90"
+                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-[var(--jarvis-cyan)] text-[#050b18] text-sm font-semibold hover:opacity-90"
                 >
                   <Check className="w-4 h-4" />
                   저장
@@ -343,7 +347,7 @@ export default function AIAnalytics({
                 {groqEnabled && (
                   <button
                     onClick={() => { saveGroqKey(''); setKeyInput(''); setGroqEnabled(false); }}
-                    className="px-3 py-2 rounded-lg border border-[var(--border)] text-sm hover:bg-[var(--accent)]"
+                    className="px-3 py-2 rounded-lg border border-cyan-400/20 text-sm hover:bg-cyan-500/10"
                   >
                     삭제
                   </button>
@@ -361,9 +365,9 @@ export default function AIAnalytics({
                   { v: 'gemini-only', label: 'Gemini만 사용' },
                   { v: 'groq-only', label: 'Groq만 사용 (키 필요)', disabled: !groqEnabled },
                 ].map((opt) => (
-                  <label key={opt.v} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-sm ${
-                    provider === opt.v ? 'border-[var(--primary)] bg-[var(--primary)]/5' : 'border-[var(--border)]'
-                  } ${opt.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[var(--accent)]'}`}>
+                  <label key={opt.v} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-sm min-w-0 ${
+                    provider === opt.v ? 'border-cyan-400/25 bg-cyan-500/10' : 'border-cyan-400/20'
+                  } ${opt.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-500/10'}`}>
                     <input
                       type="radio"
                       name="aiProvider"
@@ -373,46 +377,46 @@ export default function AIAnalytics({
                       onChange={(e) => handleProviderChange(e.target.value)}
                       className="flex-shrink-0"
                     />
-                    <span className="break-keep">{opt.label}</span>
+                    <span className="break-words min-w-0">{opt.label}</span>
                   </label>
                 ))}
               </div>
             </div>
 
             {/* 데이터 관리 섹션 */}
-            <div className="border-t border-[var(--border)] pt-3 mb-3">
-              <label className="block text-sm font-semibold mb-2 flex items-center gap-1.5">
+            <div className="border-t border-cyan-400/20 pt-4 mb-4">
+              <label className="block text-sm font-semibold mb-2 flex items-center gap-2 movis-text-primary">
                 <Trash2 className="w-4 h-4" />
                 데이터 관리
               </label>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <button
                   onClick={() => { chat.clear(); showToast?.('대화 히스토리 삭제됨', 'success'); setShowSettings(false); }}
-                  className="w-full text-left px-3 py-2 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] text-sm flex items-center justify-between"
+                  className="w-full text-left px-3 py-2 rounded-lg border border-cyan-400/20 hover:bg-cyan-500/10 text-sm flex items-center justify-between gap-2"
                 >
                   <span>💬 대화 히스토리만 지우기</span>
                   <span className="text-[10px] text-[var(--muted-foreground)]">{chat.messages.length}개</span>
                 </button>
                 <button
                   onClick={() => { chat.clearCache(); showToast?.('답변 캐시 비움', 'success'); setShowSettings(false); }}
-                  className="w-full text-left px-3 py-2 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] text-sm"
+                  className="w-full text-left px-3 py-2 rounded-lg border border-cyan-400/20 hover:bg-cyan-500/10 text-sm"
                 >
                   📋 답변 캐시 비우기 (5분 TTL)
                 </button>
                 <button
                   onClick={() => setShowResetConfirm(true)}
-                  className="w-full text-left px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-[var(--destructive)] hover:bg-red-100 text-sm font-semibold flex items-center gap-1.5"
+                  className="w-full text-left px-3 py-2 rounded-lg border border-cyan-400/20 bg-red-500/10 text-[var(--destructive)] hover:bg-red-500/15 text-sm font-semibold flex items-center gap-2"
                 >
                   <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                   🗑️ 전체 AI 데이터 초기화
                 </button>
               </div>
-              <div className="text-[10px] text-[var(--muted-foreground)] mt-1.5 break-keep leading-snug">
+              <div className="text-[10px] text-[var(--jarvis-text-muted)] mt-2 break-words leading-snug">
                 ⚠️ 전체 초기화: 대화 + 캐시 + 사용 빈도 + RFM 임계값 + 인사이트 모두 삭제 (Groq 키와 프로바이더 선택은 유지)
               </div>
             </div>
 
-            <div className="text-[11px] text-[var(--muted-foreground)] border-t border-[var(--border)] pt-3 break-keep leading-snug">
+            <div className="text-[11px] text-[var(--jarvis-text-muted)] border-t border-cyan-400/20 pt-4 break-words leading-snug">
               💡 키는 브라우저 localStorage에만 저장되며 서버로 전송되지 않습니다. 보안을 위해 Groq Console에서 정기 교체를 권장합니다.
             </div>
           </div>
@@ -436,7 +440,7 @@ export default function AIAnalytics({
         <div className="px-4 py-2 text-xs flex-shrink-0 relative z-10" style={{
           background: 'rgba(255, 170, 0, 0.12)',
           color: 'var(--jarvis-warning)',
-          borderBottom: '1px solid rgba(255, 170, 0, 0.3)',
+          borderBottom: '1px solid rgba(0, 212, 255, 0.2)',
         }}>
           ⚠ NEURAL LINK SYNC... 데이터를 불러오는 중입니다.
         </div>
@@ -464,33 +468,33 @@ export default function AIAnalytics({
         const pending = chat.pendingActions[0];
         const isProduct = pending.action === 'addProduct';
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-xl">
-              <div className="flex items-center gap-2 mb-3">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="movis-glass-card max-w-md w-full p-4 sm:p-6 min-w-0">
+              <div className="flex items-center gap-2 mb-4 movis-text-primary">
                 {isProduct ? <Package className="w-5 h-5 text-[var(--primary)]" /> : <Users className="w-5 h-5 text-[var(--primary)]" />}
                 <h3 className="text-lg font-bold">{isProduct ? '제품 등록 확인' : '거래처 등록 확인'}</h3>
               </div>
-              <div className="bg-[var(--accent)] rounded-lg p-3 mb-3 text-sm whitespace-pre-line break-keep leading-relaxed">
+              <div className="bg-[#0f1a2d]/70 border border-cyan-400/20 rounded-lg p-3 mb-4 text-sm whitespace-pre-line break-words leading-relaxed">
                 {pending.preview}
               </div>
               {pending.warnings.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
+                <div className="bg-amber-500/10 border border-cyan-400/20 rounded-lg p-3 mb-4">
                   {pending.warnings.map((w, i) => (
-                    <div key={i} className="flex items-start gap-1.5 text-xs text-amber-800 break-keep">
+                    <div key={i} className="flex items-start gap-2 text-xs text-amber-300 break-words">
                       <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <span>{w}</span>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="text-[11px] text-[var(--muted-foreground)] mb-4 break-keep leading-snug">
+              <div className="text-[11px] text-[var(--jarvis-text-muted)] mb-4 break-words leading-snug">
                 💡 [실행] 누르면 Supabase에 즉시 저장됩니다. 잘못된 경우 관리자 페이지에서 수정/삭제 가능합니다.
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => handleExecuteAction(pending)}
                   disabled={executing}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-[var(--jarvis-cyan)] text-[#050b18] font-semibold hover:opacity-90 disabled:opacity-50"
                 >
                   <Check className="w-4 h-4" />
                   {executing ? '실행 중...' : '✅ 실행'}
@@ -498,7 +502,7 @@ export default function AIAnalytics({
                 <button
                   onClick={() => handleCancelAction(pending)}
                   disabled={executing}
-                  className="px-4 py-2.5 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg border border-cyan-400/20 hover:bg-cyan-500/10 disabled:opacity-50"
                 >
                   취소
                 </button>
