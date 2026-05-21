@@ -1,10 +1,11 @@
 // 제품 매칭 유틸 — TextAnalyze.jsx의 matchWithTolerance 추출 + ai_learning 우선 매칭
 // 사용: saveOrder / updateProductStock / updateProductPrice 등 쓰기 도구에서 공유
 
-// 검색 텍스트 정리 (수량/단위 제거)
+// 검색 텍스트 정리 (수량/단위 제거 + 한글 자판 오타 ㅡ → - 변환)
 export function cleanSearchText(text) {
   if (!text) return '';
   return text
+    .replace(/ㅡ/g, '-')  // 한글 자판 "ㅡ" → ASCII "-"
     .replace(/\d+\s*(개|세트|set|ea|pcs|본|장|박스|box)\s*$/i, '')
     .replace(/[x×*]\s*\d+\s*$/i, '')
     .replace(/[,.\-_/\\()[\]{}]/g, ' ')
@@ -90,10 +91,14 @@ export function findProductByLearning(query, products, aiLearningData) {
 // 통합 fuzzy 매칭 — 7단계 (학습 → 정확 → tolerance → 부분 → 토큰 100% → 토큰 70% → 압도적 1위)
 export function findProductSmart(query, products, aiLearningData) {
   if (!query || !Array.isArray(products) || products.length === 0) return null;
+  // 짧은/공백뿐인 쿼리 가드 (lower.includes('')는 true가 되어 첫 제품 잘못 반환되는 버그 방지)
+  const trimmed = String(query).trim();
+  if (trimmed.length < 2) return null;
   // 1) AI 학습 사례 우선
   const learned = findProductByLearning(query, products, aiLearningData);
   if (learned) return learned;
-  const lower = query.trim().toLowerCase();
+  // 한글 자판 "ㅡ" → "-" 변환 (사용자 입력 정규화)
+  const lower = trimmed.toLowerCase().replace(/ㅡ/g, '-');
   // 2) 정확 일치
   let p = products.find((x) => (x?.name || '').toLowerCase() === lower);
   if (p) return p;
