@@ -14,27 +14,31 @@ function getSynth() {
 function pickKoreanFemaleVoice(voices) {
   if (!Array.isArray(voices) || voices.length === 0) return null;
 
-  // 우선순위 1: 한국어 + 여성 키워드
+  // 우선순위 1: 한국어 + 여성 키워드 (확장)
   const preferences = [
-    /heami/i,         // Microsoft Heami (한국어 여성)
-    /sunhi/i,         // Microsoft SunHi (한국어 여성)
-    /female.*ko|ko.*female/i,
+    /heami/i,         // Microsoft Heami
+    /sunhi/i,         // Microsoft SunHi
     /yujin/i,         // Google 한국어
+    /female.*ko|ko.*female/i,
+    /ko.*woman|woman.*ko/i,
   ];
   for (const re of preferences) {
     const match = voices.find((v) => re.test(v.name || ''));
     if (match) return match;
   }
 
-  // 우선순위 2: 한국어 이름 또는 lang ko
-  const korean = voices.filter((v) => /^ko/i.test(v.lang) || /한국|korean/i.test(v.name || ''));
+  // 우선순위 2: 한국어 lang
+  const korean = voices.filter((v) => /^ko/i.test(v.lang || '') || /한국|korean/i.test(v.name || ''));
   if (korean.length > 0) {
-    // 여성으로 추정되는 것 우선 (이름 끝이 i/ah/heami 등)
-    const female = korean.find((v) => /heami|sunhi|female|woman|여성|소리/i.test(v.name || ''));
+    const female = korean.find((v) => /heami|sunhi|female|woman|여성|소리|yujin/i.test(v.name || ''));
     return female || korean[0];
   }
 
-  // 우선순위 3: 첫 voice (fallback)
+  // 우선순위 3: 영어 여성 voice (한국어 텍스트도 영어 voice가 일정 부분 발화 가능 — 자비스 영어 톤)
+  const englishFemale = voices.find((v) => /samantha|zira|female|woman/i.test(v.name || '') && /^en/i.test(v.lang || ''));
+  if (englishFemale) return englishFemale;
+
+  // 우선순위 4: 첫 voice (fallback)
   return voices[0];
 }
 
@@ -79,23 +83,50 @@ export default function useTextToSpeech({ defaultEnabled = false } = {}) {
 
   const speak = useCallback((text, options = {}) => {
     const synth = getSynth();
-    if (!synth || !text || !text.trim()) return;
+    if (!synth) {
+      console.warn('SpeechSynthesis 미지원 브라우저');
+      return false;
+    }
+    if (!text || !text.trim()) {
+      console.warn('TTS: 빈 텍스트');
+      return false;
+    }
     // 이전 발화 중단
     try { synth.cancel(); } catch {}
+
+    // voice 늦게 로드되는 경우 대비
+    let voice = selectedVoice;
+    if (!voice) {
+      const vs = synth.getVoices();
+      if (vs && vs.length > 0) {
+        voice = pickKoreanFemaleVoice(vs);
+        if (voice) setSelectedVoice(voice);
+      }
+    }
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = options.lang || 'ko-KR';
     utter.rate = options.rate ?? 1.0;
-    utter.pitch = options.pitch ?? 1.1; // 약간 상향 — 여성 톤
+    utter.pitch = options.pitch ?? 1.1;
     utter.volume = options.volume ?? 1.0;
-    if (selectedVoice) utter.voice = selectedVoice;
+    if (voice) utter.voice = voice;
 
     utter.onstart = () => setIsSpeaking(true);
     utter.onend = () => { setIsSpeaking(false); currentUtterRef.current = null; };
-    utter.onerror = () => { setIsSpeaking(false); currentUtterRef.current = null; };
+    utter.onerror = (e) => {
+      console.warn('TTS error:', e?.error || e);
+      setIsSpeaking(false);
+      currentUtterRef.current = null;
+    };
 
     currentUtterRef.current = utter;
-    synth.speak(utter);
+    try {
+      synth.speak(utter);
+      return true;
+    } catch (e) {
+      console.warn('TTS speak failed:', e);
+      return false;
+    }
   }, [selectedVoice]);
 
   // 자동 발화 (enabled=true 일 때만)

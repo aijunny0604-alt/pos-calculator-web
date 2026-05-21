@@ -3,6 +3,7 @@ import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChar
 import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
 import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
+import BigBangIntro from '@/components/analytics/BigBangIntro';
 import useAIAnalystChat from '@/hooks/useAIAnalystChat';
 import useVoiceInput from '@/hooks/useVoiceInput';
 import useTextToSpeech from '@/hooks/useTextToSpeech';
@@ -37,6 +38,15 @@ export default function AIAnalytics({
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [customerReturns, setCustomerReturns] = useState([]);
   const [loadingExtra, setLoadingExtra] = useState(true);
+
+  // 빅뱅 진입 애니메이션 (한 번만)
+  const [introDone, setIntroDone] = useState(() => {
+    try { return sessionStorage.getItem('pos_ai_intro_done') === '1'; } catch { return false; }
+  });
+  const handleIntroDone = () => {
+    setIntroDone(true);
+    try { sessionStorage.setItem('pos_ai_intro_done', '1'); } catch {}
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -284,6 +294,8 @@ export default function AIAnalytics({
       className="flex flex-col h-full overflow-hidden relative jarvis-bg-deep jarvis-page-hologram"
       style={{ perspective: 'var(--jarvis-perspective)' }}
     >
+      {/* 빅뱅 진입 애니메이션 (세션당 1회) */}
+      {!introDone && <BigBangIntro onComplete={handleIntroDone} />}
       {/* 그리드 + god rays 배경 (정적) — 미세하게만 */}
       <div className="absolute inset-0 jarvis-bg-grid pointer-events-none" style={{ zIndex: 0, opacity: 0.2 }} />
       <div className="absolute inset-0 jarvis-god-rays pointer-events-none" style={{ zIndex: 0 }} />
@@ -454,6 +466,7 @@ export default function AIAnalytics({
           onCancel={chat.cancel}
           disabled={!dataReady}
           voice={voice}
+          tts={tts}
         />
       </div>
 

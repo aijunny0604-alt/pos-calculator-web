@@ -19,6 +19,7 @@ export default function ChatPanel({
   onCancel,
   disabled,
   voice, // useVoiceInput 훅 결과 { isListening, interim, supported, permissionDenied, start, stop, error }
+  tts,   // useTextToSpeech 훅 결과 { speak, cancel, supported, isSpeaking, ... }
 }) {
   const [text, setText] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -120,7 +121,7 @@ export default function ChatPanel({
         ) : (
           <>
             {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} />
+              <MessageBubble key={m.id} message={m} tts={tts} />
             ))}
             {isLoading && (
               <div className="flex justify-start my-2 animate-jarvis-card-emerge">

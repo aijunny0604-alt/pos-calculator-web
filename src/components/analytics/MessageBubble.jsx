@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, AlertCircle, ChevronDown, ChevronUp, Volume2, Square } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import useTypewriter from '@/hooks/useTypewriter';
 import ResultRenderer from './ResultRenderer';
@@ -65,7 +65,7 @@ function MarkdownLite({ content }) {
   return <div className="leading-relaxed break-keep">{blocks}</div>;
 }
 
-export default function MessageBubble({ message, enableTypewriter = true }) {
+export default function MessageBubble({ message, enableTypewriter = true, tts }) {
   const [showTools, setShowTools] = useState(false);
   if (!message) return null;
   const { role, content, ts, toolCalls, cached } = message;
@@ -139,9 +139,27 @@ export default function MessageBubble({ message, enableTypewriter = true }) {
         {!isUser && (
           <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold opacity-80">
             {isError ? <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> : <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />}
-            <span>{isError ? '오류' : 'AI 어시스턴트'}</span>
+            <span>{isError ? '오류' : 'JARVIS'}</span>
+            {/* TTS 재생 버튼 (assistant 메시지만) */}
+            {isAssistant && tts?.supported && (
+              <button
+                type="button"
+                onClick={() => tts.isSpeaking ? tts.cancel() : tts.speak(content)}
+                className="ml-1 p-1 rounded hover:bg-cyan-500/20 transition-colors flex-shrink-0"
+                title={tts.isSpeaking ? '발화 중지' : '음성으로 듣기 (자비스)'}
+                aria-label="음성 재생"
+              >
+                {tts.isSpeaking
+                  ? <Square className="w-3.5 h-3.5" style={{ color: 'var(--jarvis-cyan)', fill: 'var(--jarvis-cyan)' }} />
+                  : <Volume2 className="w-3.5 h-3.5" style={{ color: 'var(--jarvis-cyan)' }} />}
+              </button>
+            )}
             {cached && (
-              <span className="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/70 text-[var(--muted-foreground)] border border-[var(--border)]"
+              <span className="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{
+                background: 'rgba(0,212,255,0.1)',
+                color: 'var(--jarvis-cyan)',
+                border: '1px solid rgba(0,212,255,0.3)',
+              }}
                     title="5분 이내 동일 질문 캐시">
                 📋 캐시
               </span>
