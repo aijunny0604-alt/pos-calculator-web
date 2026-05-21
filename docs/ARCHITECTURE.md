@@ -14,6 +14,14 @@
 | `src/lib/priceData.js` | 하드코딩 상품 (오프라인 폴백) |
 | `src/lib/utils.js` | `formatPrice` (NaN-safe), `formatDateTime`, `getTodayKST`, `toDateKST`, `matchesSearchQuery`, `normalizeText` |
 | `src/lib/discount.js` | **할인 유틸** — `calcFinalPrice(base, type, value)`, `convertDiscountValue`, `discountLabel`, 3-mode (`percent`/`amount`/`fixed`) |
+| `src/lib/geminiTools.js` | **AI 분석 도구 스키마** — 9개 Function Declaration + `executeTool` 라우터 + `ANALYST_SYSTEM_PROMPT` |
+| `src/lib/geminiAnalyst.js` | **AI 분석 Function Calling 루프** — `askAnalyst(question, context, options)` (최대 5회 반복, 4키 폴백, 503 재시도, 5분 TTL 캐시, FIFO 100건, 중복 차단, Promise.all 병렬, AbortController) |
+| `src/lib/analytics/aggregations.js` | KST 기간 필터/합산/그룹핑/월별·일별 추이/변화율/Recency 계산 |
+| `src/lib/analytics/rfm.js` | RFM 점수 + 5세그먼트 분류 (Champion/Loyal/At-Risk/New/Lost/Regular). 임계값 localStorage `pos_ai_rfm_thresholds_v1` |
+| `src/lib/analytics/customers.js` | `getTopCustomers`/`getCustomerTrend`/`getCustomerSegments`/`getDormantCustomers` (이전 기간 변화율 비교 포함) |
+| `src/lib/analytics/products.js` | `getTopProducts`(제품/카테고리)/`getProductTrend`/`getRepeatPurchaseGap` |
+| `src/lib/analytics/affinity.js` | `getCustomerProductAffinity` — 거래처가 자주 사는 제품/카테고리 |
+| `src/lib/analytics/summary.js` | `getCompositeSummary` — 매출/AOV/활성/신규/반품률/부가항목률 KPI 묶음 |
 | `src/lib/vatHelper.js` | VAT 계산 (`calcVat`), 카테고리 (`DEFAULT_CATEGORIES`, `getCategoryInfo`) |
 | `src/lib/exportExcel.js` | Excel export (주문/페이먼트/고객 리포트) |
 | `src/lib/imageUpload.js` / `storageAdmin.js` | Supabase Storage 이미지 업로드/관리 |
@@ -34,6 +42,7 @@
 | `ShippingLabel.jsx` | `shipping` | 택배 송장 출력/관리 (저장 카트 합치기 지원) |
 | `TextAnalyze.jsx` | `ai-order` | AI 텍스트 주문 인식 → OrderPage 자동 오픈 |
 | `AdminPage.jsx` | `admin` | 관리자 패널 (비번: `4321`) |
+| **`AIAnalytics.jsx`** | `ai-analytics` | **AI 분석 어시스턴트** — 자연어 질문 → Gemini Function Calling → 자연어 답변. 분석 도구 9개 + 5분 TTL 캐시. lazy import (`AIAnalytics-*.js` chunk 41.50KB / gzip 14.62KB) |
 | **`InvoicesPage.jsx`** | `invoices` | 거래명세서 — 미수업체 리스트 + 이월 인라인 + 행 수동 수정 (localStorage) + sticky 헤더 |
 | **`InvoicesContainer.jsx`** | `invoices` 컨테이너 | InvoicesPage + 결제 모달 3종(PaymentRegister/BulkPayment/CustomerDetail) cross-navigation 묶음 |
 | **`PaymentsPage.jsx`** | (CustomerList 탭) | 결제 레코드 목록/필터(미수/부분/완납)/Excel/동기화 |
@@ -59,6 +68,11 @@
 - **`SubPrice.jsx`** — 부가세 표시 헬퍼 (`total`/`layout`/`size`/`showWon` props, NaN-safe)
 - **`QuickItemBar.jsx`** — 부가 항목(택배비/퀵비/수수료) 즉석 추가, 사용자 프리셋 (localStorage `pos_quick_items_v1`)
 
+### AI 분석 컴포넌트 (src/components/analytics/)
+- **`ChatPanel.jsx`** — 채팅 메인 (sticky bottom 입력, 자동 스크롤, 로딩 버블, 취소 버튼, 1000자 카운터)
+- **`MessageBubble.jsx`** — 4종 버블 (user/assistant/error/system) + 마크다운 lite 파서 (`**bold**`/`## h`/`- list`) + 도구 호출 이력 접기 + 캐시 배지
+- **`SuggestedQuestions.jsx`** — 추천 질문 칩 그리드 (1/2/3열 반응형) + 사용 빈도 표시
+
 ### 결제 모달 (src/components/)
 - **`PaymentRegisterModal.jsx`** — 입금 등록 (1/2/3 스텝, 과세/비과세 + 부가 항목, memo 태그 prepend)
 - **`PaymentEditModal.jsx`** — 입금 이력 수정
@@ -72,6 +86,7 @@
 - **`useManualPaid.js`** — 수동 완불 체크. localStorage 캐시 + `supabase.syncOrderPaidRecord` Promise 호출로 DB 자동 동기화 (customersHint로 N+1 회피)
 - **`useCountUp.js`** — 숫자 카운트업 애니메이션 (cubic ease-out 700ms, 직전값 → 새 값 보간)
 - **`useQuickItems.js`** — QuickItemBar 프리셋 관리 (built-in + 사용자 추가, localStorage `pos_quick_items_v1`)
+- **`useAIAnalystChat.js`** — AI 분석 채팅 상태 + 히스토리 50건 FIFO 영속화 (`pos_ai_analytics_history_v1`) + 사용 빈도 기록 (`pos_ai_quick_prompts_usage_v1`) + AbortController + 도구명 한국어 매핑
 
 ---
 

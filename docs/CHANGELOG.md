@@ -4,6 +4,67 @@
 
 ---
 
+### 2026-05-21 작업 내역
+
+#### 🆕 AI 분석 어시스턴트 — 자연어로 거래/제품/VIP 분석 (Phase 1+2+3)
+
+자동차 튜닝 부품 POS에 자연어 질문 → AI 답변 시스템 도입. Gemini Function Calling 기반.
+
+**1. 분석 도구 9종 (Phase 1)** — `src/lib/analytics/`
+- `aggregations.js` — KST 기간 필터 / 합산 / 그룹핑 / 월별·일별 추이 / 변화율 / RFM Recency 계산
+- `rfm.js` — Recency/Frequency/Monetary 점수 + 5세그먼트 분류 (Champion / Loyal / At-Risk / New / Lost / Regular)
+- `customers.js` — `getTopCustomers` / `getCustomerTrend` / `getCustomerSegments` / `getDormantCustomers` (이전 기간 변화율 비교 포함)
+- `products.js` — `getTopProducts` (제품/카테고리 모드) / `getProductTrend` / `getRepeatPurchaseGap`
+- `affinity.js` — `getCustomerProductAffinity` (거래처별 자주 사는 제품/카테고리)
+- `summary.js` — `getCompositeSummary` (매출/AOV/활성 거래처/신규 거래처/반품률/부가항목 사용률 묶음)
+- RFM 임계값은 localStorage `pos_ai_rfm_thresholds_v1`로 조정 가능. 기본값은 자동차 튜닝 재구매 주기 고려 보수 세팅 (Recency 14/30/60/90일, Frequency 1/2/4/7건, Monetary 10만/50만/150만/400만원)
+
+**2. Gemini Function Calling 루프 (Phase 2)** — `src/lib/`
+- `geminiTools.js` — 9개 도구 JSON 스키마 + `executeTool` 라우터 + `ANALYST_SYSTEM_PROMPT` (도메인 컨텍스트, "도구 결과만 인용, 추측 금지" 강제)
+- `geminiAnalyst.js` — `askAnalyst(question, context, options)` 루프 (최대 5회 반복, 4프로젝트 키 폴백, 503 재시도, 5분 TTL 캐시, FIFO 100건 한도, 중복 호출 차단, `Promise.all` 병렬 실행, AbortController 취소). Claude × Codex(GPT-5) 협업으로 구현
+- 기존 TextAnalyze.jsx의 Gemini 폴백 패턴 그대로 보존
+
+**3. 채팅 UI (Phase 3)**
+- `pages/AIAnalytics.jsx` — 메인 페이지 (헤더 + 데이터 부족 경고 + 캐시 초기화 + ChatPanel)
+- `components/analytics/ChatPanel.jsx` — sticky bottom 입력창, 자동 스크롤, 로딩 버블, 취소 버튼, 1000자 카운터
+- `components/analytics/MessageBubble.jsx` — 4종 버블 (user/assistant/error/system), 마크다운 lite 파서 (`**bold**` / `## h` / `- list`), 도구 호출 이력 접기, 캐시 배지
+- `components/analytics/SuggestedQuestions.jsx` — 칩 그리드 (1/2/3열 반응형), 사용 빈도 표시
+- `hooks/useAIAnalystChat.js` — 히스토리 50건 FIFO 영속화 + 사용 빈도 기록 + AbortController + 도구명 한국어 매핑
+- 사이드바: `Sparkles` 아이콘 + `AI 분석` 메뉴 추가 (관리자 위)
+- App.jsx: `AIAnalytics` lazy import + Suspense fallback (`AIAnalytics-*.js` chunk 41.50KB / gzip 14.62KB 분리)
+- MobileNav는 6개 가득 차서 햄버거 메뉴 통해 접근 (모바일 키보드 UX 고려)
+
+**4. 추천 질문 6개 (사용 빈도 기반 자동 정렬)**
+- 이번 달 매출 TOP 5 / VIP 세그먼트 분석 / 인기 제품 TOP 10 / 재주문 유도 추천 액션 / 휴면 거래처 / 이번 달 전체 요약
+
+**5. localStorage 키 신규 (5개)**
+- `pos_ai_analytics_history_v1` — 채팅 히스토리 (FIFO 50건)
+- `pos_ai_cache_v1` — 도구 호출 결과 캐시 (5분 TTL, FIFO 100건)
+- `pos_ai_quick_prompts_usage_v1` — 추천 질문 사용 빈도 (정렬용)
+- `pos_ai_rfm_thresholds_v1` — RFM 점수 임계값 (사용자 조정 가능)
+- `pos_ai_insights_v1` — 인사이트 저장 (Phase 5 예정, 키만 예약)
+
+**6. 격리 전략 (사이드 이펙트 0)**
+- DB 변경 없음 — 신규 테이블/컬럼/RPC 0건
+- 기존 페이지 무영향 — 신규 페이지/컴포넌트만 추가, 라우팅 1줄 + 사이드바 1줄만 수정
+- Gemini API 키 공유 — 신규 키 미발급, 기존 4프로젝트 풀 사용 (5분 캐시로 호출 절감)
+- 환각 방지 — 시스템 프롬프트에 "도구 결과만 인용, 거래처/제품명 새로 만들지 말 것" 강제
+
+**문서**
+- 신규: `docs/01-plan/features/ai-analytics.plan.md` (5/20 작성), `ai-analytics.todo.md` (Phase 1~6 체크리스트 82개)
+- 본 CHANGELOG, ARCHITECTURE, CLAUDE.md 동기화
+
+**잔여 작업 (Phase 4~6 예정)**
+- Phase 4: recharts 기반 결과 자동 시각화 (TOP N 막대 / 월별 라인 / RFM 4분면 파이 / KPI 그리드) — `ResultRenderer` 도입
+- Phase 5: 인사이트 영구 저장 (`InsightsCarousel`) + 추천 질문 빈도 정렬 UI 노출
+- Phase 6: 10개 시나리오 실데이터 검증 + 모바일 360px UX 검증 + 최종 배포 후 Sentry 1시간 모니터링
+
+**검증**
+- `npx vite build` 9.80s 통과 (1976 modules, 에러 0)
+- 빌드 산출물: `AIAnalytics-DVC359lk.js` 41.50KB (gzip 14.62KB), `index.js` +0.62KB만 증가
+
+---
+
 ### 2026-05-15 작업 내역
 
 #### 가격 0원 카트 차단 정책 철회 (운영 버그 핫픽스)

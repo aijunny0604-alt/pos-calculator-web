@@ -1,7 +1,49 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-05-11 (code-review Critical 3건 fix + 5-10 모바일 모달 안정화/번들 최적화 머지)
+> 마지막 업데이트: 2026-05-21 (AI 분석 어시스턴트 Phase 1+2+3 — Gemini Function Calling 기반 자연어 분석)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
+
+자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-05-21 — AI 분석 어시스턴트 (Phase 1+2+3)
+
+자연어로 거래처/제품/VIP/매출 분석 + 전략 도출. Gemini Function Calling 기반 (DB 무영향).
+
+### 💬 자연어 분석 채팅
+- 사이드바 **`✨ AI 분석`** 메뉴 (관리자 위)
+- "이번 달 매출 1위 누구야?" / "VIP 세그먼트 분석" / "WP튠 김해 트렌드" 자연어 질문
+- Gemini 2.5-flash가 9개 분석 도구 중 적절한 것 선택 → 클라이언트 집계 → 자연어 답변 + 추천 액션
+- 추천 질문 6개 + 사용 빈도 기반 자동 재정렬
+
+### 🛠 분석 도구 9종 (`src/lib/analytics/`)
+- 거래처: `getTopCustomers` / `getCustomerTrend` / `getCustomerSegments` (RFM 5세그먼트) / `getDormantCustomers`
+- 제품: `getTopProducts`(제품/카테고리) / `getProductTrend` / `getRepeatPurchaseGap`
+- 어피니티: `getCustomerProductAffinity` (자주 사는 제품/카테고리)
+- 종합: `getCompositeSummary` (매출/AOV/활성/신규/반품률 KPI + 이전 기간 변화율)
+
+### 🎯 RFM 5세그먼트
+- **Champion** (VIP): R≥4 && F≥4 && M≥4
+- **Loyal**: R≥3 && F≥3 (안정 단골)
+- **At-Risk**: R≤2 && (F≥3 || M≥3) (재유도 대상)
+- **New**: R≥4 && F≤2 (신규 정착 유도)
+- **Lost**: R≤1 && F≤2 (휴면)
+- **Regular**: 폴백
+- 임계값 기본: R 14/30/60/90일, F 1/2/4/7건, M 10만/50만/150만/400만원 (자동차 튜닝 재구매 주기 보수 세팅)
+
+### 🚦 격리 전략 (사이드 이펙트 0)
+- DB 변경 없음 — 신규 테이블/컬럼 0건
+- 기존 페이지 무영향 — 신규 페이지/컴포넌트만 추가, App.jsx 라우팅 1줄 + Sidebar 1줄만 수정
+- Gemini API 키 공유 — 신규 키 미발급, 기존 4프로젝트 풀 사용
+- AIAnalytics는 lazy import — `AIAnalytics-*.js` 41.50KB chunk 분리, 기존 index.js +0.62KB만 증가
+
+### 🚨 환각 방지
+- 시스템 프롬프트에 "도구 결과만 인용, 거래처/제품명 새로 만들지 말 것" 강제
+- 도구 결과 빈 결과 → "데이터 부족" 솔직히 답변
+- 단순 통계 나열 금지 → 인사이트 + 추천 액션 1~2개 의무
+
+---
+
+## 🆕 v2026-05-11 — code-review Critical 핫픽스 3건 (이전 변경 이력)
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry.
 
@@ -244,6 +286,11 @@ npx gh-pages -d dist     # GitHub Pages 배포
 - `pos-payments.manual-paid-orders.v1` — 완불체크 캐시 (Supabase ground truth와 동기화)
 - `pos-payments.audit-log.v1` — 완불체크 감사 로그 (FIFO 500건)
 - `pos_quick_items_v1` — QuickItemBar 부가 항목 프리셋 (택배비/퀵비/수수료 + 사용자 추가)
+- `pos_ai_analytics_history_v1` — AI 분석 채팅 히스토리 (FIFO 50건)
+- `pos_ai_cache_v1` — AI 분석 도구 결과 캐시 (5분 TTL, FIFO 100건)
+- `pos_ai_quick_prompts_usage_v1` — AI 추천 질문 사용 빈도 (정렬용)
+- `pos_ai_rfm_thresholds_v1` — RFM 점수 임계값 (사용자 조정 가능)
+- `pos_ai_insights_v1` — AI 분석 인사이트 저장 (Phase 5 예정, 키만 예약)
 
 ## 상세 문서
 
