@@ -172,11 +172,14 @@ export default function JarvisDotSphere({
 
     function draw() {
       const w = canvas.clientWidth, h = canvas.clientHeight;
-      // motion trail: 완전 clear 대신 살짝 fade (잔상)
-      ctx.fillStyle = 'rgba(2, 6, 16, 0.22)';
-      ctx.fillRect(0, 0, w, h);
-
       const cx = w / 2, cy = h / 2;
+      // motion trail: 사각형 fillRect 대신 radial gradient (가장자리만 빠르게 fade, 사각형 단차 X)
+      const trailGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.7);
+      trailGrad.addColorStop(0, 'rgba(2, 6, 16, 0.08)');
+      trailGrad.addColorStop(0.6, 'rgba(2, 6, 16, 0.25)');
+      trailGrad.addColorStop(1, 'rgba(2, 6, 16, 0.85)');
+      ctx.fillStyle = trailGrad;
+      ctx.fillRect(0, 0, w, h);
       const t = performance.now() * 0.001;
       const cfg = STATE_CONFIG[modeRef.current] || STATE_CONFIG.standby;
       const audio = audioRef.current;
@@ -288,40 +291,38 @@ export default function JarvisDotSphere({
         ctx.fill();
       }
 
-      // 6. 강한 빛 입자 (lens flare in sphere)
+      // 6. 강한 빛 입자 (lens flare in sphere) — 절제된 강도
       for (const f of flares) {
         f.pulsePhase += 0.03 * f.pulseSpeed;
         const fPulse = 0.5 + Math.sin(f.pulsePhase) * 0.5;
         const pr = project(f.x, f.y, f.z, cosX, sinX, cosY, sinY, radius, cx, cy);
-        if (pr.depth < 0.3) continue; // 뒤편은 안 보임
-        const fSize = f.size * (0.6 + pr.depth * 1.0) * (0.7 + fPulse * 0.6);
-        const fAlpha = 0.4 + pr.depth * 0.6;
-        // 강한 글로우
-        ctx.globalCompositeOperation = 'lighter';
-        const fgrad = ctx.createRadialGradient(pr.sx, pr.sy, 0, pr.sx, pr.sy, fSize * 12);
-        fgrad.addColorStop(0, `rgba(${cfg.accent[0]}, ${cfg.accent[1]}, ${cfg.accent[2]}, ${fAlpha * 0.6})`);
-        fgrad.addColorStop(0.3, `rgba(${cfg.primary[0]}, ${cfg.primary[1]}, ${cfg.primary[2]}, ${fAlpha * 0.3})`);
+        if (pr.depth < 0.3) continue;
+        const fSize = f.size * (0.5 + pr.depth * 0.8) * (0.7 + fPulse * 0.4);
+        const fAlpha = (0.25 + pr.depth * 0.45) * 0.85;
+        // 부드러운 글로우 (lighter 대신 일반 + alpha 감소)
+        const fgrad = ctx.createRadialGradient(pr.sx, pr.sy, 0, pr.sx, pr.sy, fSize * 8);
+        fgrad.addColorStop(0, `rgba(${cfg.accent[0]}, ${cfg.accent[1]}, ${cfg.accent[2]}, ${fAlpha * 0.5})`);
+        fgrad.addColorStop(0.4, `rgba(${cfg.primary[0]}, ${cfg.primary[1]}, ${cfg.primary[2]}, ${fAlpha * 0.2})`);
         fgrad.addColorStop(1, `rgba(${cfg.primary[0]}, ${cfg.primary[1]}, ${cfg.primary[2]}, 0)`);
         ctx.fillStyle = fgrad;
         ctx.beginPath();
-        ctx.arc(pr.sx, pr.sy, fSize * 12, 0, Math.PI * 2);
+        ctx.arc(pr.sx, pr.sy, fSize * 8, 0, Math.PI * 2);
         ctx.fill();
-        // 코어 하이라이트
-        ctx.fillStyle = `rgba(255, 255, 255, ${fAlpha * fPulse})`;
+        // 코어 (살짝만 흰색)
+        ctx.fillStyle = `rgba(${cfg.accent[0]}, ${cfg.accent[1]}, ${cfg.accent[2]}, ${fAlpha * fPulse})`;
         ctx.beginPath();
-        ctx.arc(pr.sx, pr.sy, fSize * 0.8, 0, Math.PI * 2);
+        ctx.arc(pr.sx, pr.sy, fSize * 0.6, 0, Math.PI * 2);
         ctx.fill();
-        // Cross spike
-        if (fPulse > 0.7) {
-          ctx.strokeStyle = `rgba(${cfg.accent[0]}, ${cfg.accent[1]}, ${cfg.accent[2]}, ${(fPulse - 0.7) * fAlpha * 2})`;
-          ctx.lineWidth = 0.6;
-          const spike = fSize * 8 * fPulse;
+        // Cross spike (subtle)
+        if (fPulse > 0.75) {
+          ctx.strokeStyle = `rgba(${cfg.accent[0]}, ${cfg.accent[1]}, ${cfg.accent[2]}, ${(fPulse - 0.75) * fAlpha * 1.5})`;
+          ctx.lineWidth = 0.5;
+          const spike = fSize * 5 * fPulse;
           ctx.beginPath();
           ctx.moveTo(pr.sx - spike, pr.sy); ctx.lineTo(pr.sx + spike, pr.sy);
           ctx.moveTo(pr.sx, pr.sy - spike); ctx.lineTo(pr.sx, pr.sy + spike);
           ctx.stroke();
         }
-        ctx.globalCompositeOperation = 'source-over';
       }
 
       // 7. 표면 흐름 입자 (sphere 표면 따라 빠르게 이동)
@@ -351,24 +352,22 @@ export default function JarvisDotSphere({
         }
       }
 
-      // 8. 중앙 코어
-      const corePulse = 1 + Math.sin(t * 2) * 0.2 + audio * 0.4;
-      const coreSize = baseRadius * 0.07 * corePulse;
-      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreSize * 6);
-      coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-      coreGrad.addColorStop(0.3, `rgba(${cfg.accent[0]}, ${cfg.accent[1]}, ${cfg.accent[2]}, 0.8)`);
-      coreGrad.addColorStop(0.6, `rgba(${cfg.primary[0]}, ${cfg.primary[1]}, ${cfg.primary[2]}, 0.4)`);
+      // 8. 중앙 코어 (눈부심 ↓ — 강도 절제)
+      const corePulse = 1 + Math.sin(t * 2) * 0.15 + audio * 0.3;
+      const coreSize = baseRadius * 0.035 * corePulse;
+      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreSize * 8);
+      coreGrad.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+      coreGrad.addColorStop(0.2, `rgba(${cfg.accent[0]}, ${cfg.accent[1]}, ${cfg.accent[2]}, 0.4)`);
+      coreGrad.addColorStop(0.5, `rgba(${cfg.primary[0]}, ${cfg.primary[1]}, ${cfg.primary[2]}, 0.2)`);
       coreGrad.addColorStop(1, `rgba(${cfg.primary[0]}, ${cfg.primary[1]}, ${cfg.primary[2]}, 0)`);
-      ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = coreGrad;
       ctx.beginPath();
-      ctx.arc(cx, cy, coreSize * 6, 0, Math.PI * 2);
+      ctx.arc(cx, cy, coreSize * 8, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
       ctx.beginPath();
-      ctx.arc(cx, cy, coreSize * 0.5, 0, Math.PI * 2);
+      ctx.arc(cx, cy, coreSize * 0.45, 0, Math.PI * 2);
       ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
 
       // 9. Ripple wave
       for (const r of ripplesRef.current) {
