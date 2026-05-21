@@ -8,7 +8,7 @@
 //   { id, role: 'user'|'assistant'|'system'|'error', content, ts, toolCalls?, cached? }
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { askAnalyst, clearAnalystCache } from '../lib/geminiAnalyst';
+import { askAI, clearAnalystCache } from '../lib/aiAnalyst';
 
 const HISTORY_KEY = 'pos_ai_analytics_history_v1';
 const USAGE_KEY = 'pos_ai_quick_prompts_usage_v1';
@@ -95,10 +95,14 @@ export default function useAIAnalystChat({ orders = [], customers = [], products
     abortRef.current = controller;
 
     try {
-      const result = await askAnalyst(question, { orders, customers, products }, {
+      const result = await askAI(question, { orders, customers, products }, {
         signal: controller.signal,
         onProgress: (call) => {
-          // call = { name, args } — geminiAnalyst가 전달
+          // 특수 신호: 폴백 시작
+          if (call?.name === '__fallback__') {
+            setLoadingStep('⚡ Gemini 한도 초과 → Groq로 폴백 중...');
+            return;
+          }
           const friendly = friendlyToolName(call?.name) || call?.name || '데이터 조회';
           setLoadingStep(`🔍 ${friendly}...`);
         },
@@ -112,6 +116,7 @@ export default function useAIAnalystChat({ orders = [], customers = [], products
         toolCalls: result.toolCalls,
         cached: result.cached,
         iterations: result.iterations,
+        provider: result.provider, // 'gemini' | 'groq' | 'gemini→groq'
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (e) {

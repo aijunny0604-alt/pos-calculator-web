@@ -516,21 +516,31 @@ ${aiLearningData.slice(0, 50).map(l =>
       if (response?.ok) break;
     }
 
+    let aiText = '';
     if (!response?.ok) {
-      let errorMessage = 'AI 일일 사용량 초과 — 잠시 후 다시 시도하세요';
+      // Gemini 4프로젝트 키 + 2모델 모두 실패 → Groq 폴백 시도
       try {
-        const err = await response.json();
-        const code = err.error?.code;
-        if (code === 429) errorMessage = 'AI 일일 사용량 초과 — 잠시 후(1~2분) 다시 시도하세요';
-        else if (code === 403) errorMessage = 'AI 접근 권한 없음 — API 키를 확인하세요';
-        else if (code === 500 || code === 503) errorMessage = 'AI 서버 일시 장애 — 잠시 후 다시 시도하세요';
-        else errorMessage = err.error?.message?.split('.')[0] || errorMessage;
-      } catch { errorMessage = `AI 서버 오류 (${response?.status || '연결 실패'})`; }
-      throw new Error(errorMessage);
+        const { askGroqChat } = await import('@/lib/groqAnalyst');
+        // Llama 3.3 70B에 JSON 출력 요청 (기존 prompt 그대로 — JSON 형식 안내가 prompt에 포함됨)
+        aiText = await askGroqChat(prompt, { temperature: 0.1, maxTokens: 8192 });
+        if (!aiText || !aiText.trim()) throw new Error('Groq 빈 응답');
+      } catch (groqErr) {
+        let errorMessage = 'AI 일일 사용량 초과 — 잠시 후 다시 시도하세요';
+        try {
+          const err = await response.json();
+          const code = err.error?.code;
+          if (code === 429) errorMessage = 'AI 일일 사용량 초과 — Gemini/Groq 모두 한도 초과 (1~2분 후 재시도)';
+          else if (code === 403) errorMessage = 'AI 접근 권한 없음 — API 키를 확인하세요';
+          else if (code === 500 || code === 503) errorMessage = 'AI 서버 일시 장애 — 잠시 후 다시 시도하세요';
+          else errorMessage = err.error?.message?.split('.')[0] || errorMessage;
+        } catch { errorMessage = `AI 서버 오류 (${response?.status || '연결 실패'}) + Groq 폴백 실패`; }
+        throw new Error(errorMessage);
+      }
+    } else {
+      const data = await response.json();
+      aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     }
 
-    const data = await response.json();
-    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     let jsonStr = aiText;
     const jsonMatch = aiText.match(/```json\s*([\s\S]*?)\s*```/) || aiText.match(/\[[\s\S]*?\]/);
     if (jsonMatch) jsonStr = jsonMatch[1] || jsonMatch[0];
