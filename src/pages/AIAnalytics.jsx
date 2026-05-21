@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2, Volume2, VolumeX, DollarSign, Wallet, PackageX, LayoutGrid, Truck, Undo2, Brain, TrendingUp, Clock } from 'lucide-react';
+import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2, Volume2, VolumeX, DollarSign, Wallet, PackageX, LayoutGrid, Truck, Undo2, Brain, TrendingUp, Clock, AudioLines, MessageSquareOff } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
 import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
