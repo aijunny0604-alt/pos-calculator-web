@@ -173,13 +173,8 @@ export default function JarvisDotSphere({
     function draw() {
       const w = canvas.clientWidth, h = canvas.clientHeight;
       const cx = w / 2, cy = h / 2;
-      // motion trail: 사각형 fillRect 대신 radial gradient (가장자리만 빠르게 fade, 사각형 단차 X)
-      const trailGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.7);
-      trailGrad.addColorStop(0, 'rgba(2, 6, 16, 0.08)');
-      trailGrad.addColorStop(0.6, 'rgba(2, 6, 16, 0.25)');
-      trailGrad.addColorStop(1, 'rgba(2, 6, 16, 0.85)');
-      ctx.fillStyle = trailGrad;
-      ctx.fillRect(0, 0, w, h);
+      // motion trail 완전 제거 — clearRect로 매 frame fully clear (사각형 단차 X)
+      ctx.clearRect(0, 0, w, h);
       const t = performance.now() * 0.001;
       const cfg = STATE_CONFIG[modeRef.current] || STATE_CONFIG.standby;
       const audio = audioRef.current;

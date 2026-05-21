@@ -70,13 +70,13 @@ export default function ChatPanel({
     <div className="flex flex-col h-full min-h-0">
       {/* 헤더 */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-2 flex-shrink-0" style={{
-        background: 'rgba(5, 11, 24, 0.6)',
-        borderBottom: '1px solid rgba(0, 212, 255, 0.2)',
+        background: 'rgba(248, 250, 252, 0.85)',
+        borderBottom: '1px solid rgba(0, 212, 255, 0.25)',
         backdropFilter: 'blur(10px)',
       }}>
         <div className="flex items-center gap-2 min-w-0">
-          <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--jarvis-cyan)', filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.7))' }} />
-          <span className="font-mono text-[11px] uppercase tracking-widest" style={{ color: 'var(--jarvis-text-muted)' }}>NEURAL CHANNEL</span>
+          <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: '#0891b2', filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.4))' }} />
+          <span className="font-mono text-[11px] uppercase tracking-widest" style={{ color: '#64748b' }}>NEURAL CHANNEL</span>
         </div>
         {hasMessages && onClear && (
           <button
@@ -172,10 +172,10 @@ export default function ChatPanel({
 
       {/* 입력 영역 (sticky bottom) */}
       <div className="p-2 sm:p-3 flex-shrink-0 relative z-10" style={{
-        background: 'rgba(5, 11, 24, 0.8)',
-        borderTop: '1px solid rgba(0, 212, 255, 0.25)',
+        background: 'rgba(255, 255, 255, 0.9)',
+        borderTop: '1px solid rgba(0, 212, 255, 0.3)',
         backdropFilter: 'blur(10px)',
-        boxShadow: '0 -8px 24px rgba(0, 212, 255, 0.08)',
+        boxShadow: '0 -4px 16px rgba(0, 212, 255, 0.05)',
       }}>
         {voice?.isListening && (
           <div className="mb-2 flex items-center gap-2 text-xs text-cyan-600 px-2 animate-pulse">
@@ -216,10 +216,10 @@ export default function ChatPanel({
               className="w-full resize-none px-3 py-2.5 pr-14 rounded-xl text-sm break-keep leading-snug min-h-[44px] max-h-32 transition-all focus:outline-none"
               style={{
                 overflow: 'auto',
-                background: voice?.isListening ? 'rgba(0, 212, 255, 0.08)' : 'rgba(15, 23, 41, 0.6)',
-                color: 'var(--jarvis-text)',
-                border: voice?.isListening ? '1px solid rgba(0, 212, 255, 0.7)' : '1px solid rgba(0, 212, 255, 0.3)',
-                boxShadow: voice?.isListening ? '0 0 12px rgba(0,212,255,0.4), inset 0 0 8px rgba(0,212,255,0.1)' : 'inset 0 0 8px rgba(0,212,255,0.05)',
+                background: voice?.isListening ? 'rgba(207, 250, 254, 0.7)' : '#ffffff',
+                color: '#1e293b',
+                border: voice?.isListening ? '1px solid rgba(0, 212, 255, 0.7)' : '1px solid rgba(0, 212, 255, 0.35)',
+                boxShadow: voice?.isListening ? '0 0 12px rgba(0,212,255,0.4)' : 'none',
               }}
             />
             <span className="absolute bottom-1.5 right-2 text-[10px] text-[var(--muted-foreground)] pointer-events-none tabular-nums">

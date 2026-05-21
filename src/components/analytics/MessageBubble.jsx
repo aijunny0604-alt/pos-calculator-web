@@ -98,28 +98,28 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
   const isError = role === 'error';
   const hasCharts = !isUser && !isError && Array.isArray(toolCalls) && toolCalls.length > 0;
 
-  // JARVIS 글래스 스타일
+  // 라이트 톤 글래스 스타일
   const bubbleStyle = isUser
     ? {
-        background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.25), rgba(0, 212, 255, 0.12))',
-        color: '#e8f4fd',
+        background: 'linear-gradient(135deg, #0891b2, #06b6d4)',
+        color: '#ffffff',
         border: '1px solid rgba(0, 212, 255, 0.5)',
-        boxShadow: '0 4px 24px rgba(0, 212, 255, 0.15), inset 0 1px 0 rgba(255,255,255,0.1)',
+        boxShadow: '0 4px 16px rgba(0, 212, 255, 0.25)',
       }
     : isError
       ? {
-          background: 'linear-gradient(135deg, rgba(255, 56, 96, 0.2), rgba(255, 56, 96, 0.08))',
-          color: '#ffb4c0',
-          border: '1px solid rgba(255, 56, 96, 0.5)',
-          boxShadow: '0 4px 24px rgba(255, 56, 96, 0.15)',
+          background: '#fef2f2',
+          color: '#b91c1c',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          boxShadow: '0 4px 16px rgba(239, 68, 68, 0.1)',
         }
       : {
-          background: 'var(--jarvis-bg-card)',
-          color: 'var(--jarvis-text)',
-          border: '1px solid var(--jarvis-border)',
-          backdropFilter: 'blur(12px) saturate(150%)',
-          WebkitBackdropFilter: 'blur(12px) saturate(150%)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 30px rgba(0, 212, 255, 0.04), inset 0 1px 0 rgba(255,255,255,0.06)',
+          background: 'rgba(255, 255, 255, 0.95)',
+          color: '#1e293b',
+          border: '1px solid rgba(0, 212, 255, 0.25)',
+          backdropFilter: 'blur(8px) saturate(120%)',
+          WebkitBackdropFilter: 'blur(8px) saturate(120%)',
+          boxShadow: '0 4px 16px rgba(0, 212, 255, 0.08), inset 0 0 0 1px rgba(255,255,255,0.5)',
         };
   const bubbleClass = '';
 

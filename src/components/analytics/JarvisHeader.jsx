@@ -140,16 +140,16 @@ export default function JarvisHeader({
     <div
       className="relative flex items-center justify-between px-3 sm:px-5 py-2.5 flex-shrink-0 z-20"
       style={{
-        background: 'linear-gradient(180deg, rgba(5, 11, 24, 0.95) 0%, rgba(10, 25, 41, 0.75) 100%)',
-        borderBottom: '1px solid rgba(0, 212, 255, 0.25)',
-        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(0, 212, 255, 0.15)',
+        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+        borderBottom: '1px solid rgba(0, 212, 255, 0.3)',
+        boxShadow: '0 2px 12px rgba(0, 212, 255, 0.08), inset 0 -1px 0 rgba(0, 212, 255, 0.15)',
       }}
     >
       {/* 좌측: nav + arc + title */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           type="button"
-          className="md:hidden p-1.5 rounded hover:bg-cyan-500/10 flex-shrink-0 text-cyan-300"
+          className="md:hidden p-1.5 rounded hover:bg-cyan-500/10 flex-shrink-0 text-cyan-700"
           onClick={onSidebarToggle}
           aria-label="사이드바 열기"
         >
@@ -159,7 +159,7 @@ export default function JarvisHeader({
         </button>
         <button
           type="button"
-          className="hidden md:flex items-center gap-1 px-2 py-1 rounded hover:bg-cyan-500/10 text-cyan-400/80 hover:text-cyan-300 flex-shrink-0 text-xs"
+          className="hidden md:flex items-center gap-1 px-2 py-1 rounded hover:bg-cyan-500/10 text-cyan-700 hover:text-cyan-800 flex-shrink-0 text-xs"
           onClick={onBack}
           aria-label="대시보드로"
         >
@@ -171,14 +171,19 @@ export default function JarvisHeader({
         <ArcReactor size={36} />
         <div className="flex flex-col min-w-0">
           <span
-            className="text-base sm:text-lg font-black tracking-wider jarvis-text-glow jarvis-text-chromatic"
-            style={{ color: '#e8f4fd', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em' }}
+            className="text-base sm:text-lg font-black tracking-wider"
+            style={{
+              color: '#0e7490',
+              fontFamily: 'JetBrains Mono, monospace',
+              letterSpacing: '0.08em',
+              textShadow: '0 0 8px rgba(0,212,255,0.4)',
+            }}
           >
             MOVE INTELLIGENCE
           </span>
-          <span className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--jarvis-text-muted)' }}>
-            <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle animate-jarvis-glow-pulse" style={{ background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
-            QUANTUM AI · ONLINE
+          <span className="text-[10px] uppercase tracking-widest" style={{ color: '#64748b' }}>
+            <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle animate-jarvis-glow-pulse" style={{ background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+            MOVIS QUANTUM AI · ONLINE
           </span>
         </div>
       </div>

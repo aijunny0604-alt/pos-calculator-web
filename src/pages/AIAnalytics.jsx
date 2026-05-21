@@ -286,17 +286,11 @@ export default function AIAnalytics({
 
   return (
     <div
-      className="flex flex-col h-full overflow-hidden relative jarvis-bg-deep jarvis-page-hologram"
+      className="flex flex-col h-full overflow-hidden relative bg-white"
       style={{ perspective: 'var(--jarvis-perspective)' }}
     >
-      {/* 빅뱅 진입 애니메이션 (세션당 1회) */}
+      {/* 빅뱅 진입 애니메이션 (매 진입 시 재생) */}
       {!introDone && <BigBangIntro onComplete={handleIntroDone} />}
-      {/* 그리드 + god rays 배경 (정적) — 미세하게만 */}
-      <div className="absolute inset-0 jarvis-bg-grid pointer-events-none" style={{ zIndex: 0, opacity: 0.2 }} />
-      <div className="absolute inset-0 jarvis-god-rays pointer-events-none" style={{ zIndex: 0 }} />
-
-      {/* 양자 우주 공간 (별 + 성운 + 양자 입자 + lens flare + vignette) */}
-      <QuantumSpaceField />
 
       {/* JARVIS 헤더 */}
       <JarvisHeader
