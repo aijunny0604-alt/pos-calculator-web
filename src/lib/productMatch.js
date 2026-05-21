@@ -103,12 +103,19 @@ export function findProductSmart(query, products, aiLearningData) {
   // 4) 부분 일치
   p = products.find((x) => (x?.name || '').toLowerCase().includes(lower));
   if (p) return p;
-  // 5) 토큰 100% 일치 (stopwords 제거 후 모든 토큰 포함)
+  // 공백 무시 비교 (사용자 "스덴밴딩" vs DB "스덴 밴딩" 매칭 위해)
+  const lowerNoSpace = lower.replace(/\s+/g, '');
+  p = products.find((x) => {
+    const pn = (x?.name || '').toLowerCase().replace(/\s+/g, '');
+    return pn === lowerNoSpace || pn.includes(lowerNoSpace) || lowerNoSpace.includes(pn);
+  });
+  if (p) return p;
+  // 5) 토큰 100% 일치 (stopwords 제거 후, 공백 무시 비교)
   const tokens = tokenize(lower);
   if (tokens.length > 0) {
     p = products.find((x) => {
-      const pn = (x?.name || '').toLowerCase();
-      return tokens.every((t) => pn.includes(t));
+      const pnNoSpace = (x?.name || '').toLowerCase().replace(/\s+/g, '');
+      return tokens.every((t) => pnNoSpace.includes(t.replace(/\s+/g, '')));
     });
     if (p) return p;
   }
@@ -116,11 +123,10 @@ export function findProductSmart(query, products, aiLearningData) {
   if (tokens.length >= 2) {
     const queryNums = tokens.filter((t) => /^\d+$/.test(t));
     const matches = products.filter((x) => {
-      const pn = (x?.name || '').toLowerCase();
-      const hits = tokens.filter((t) => pn.includes(t)).length;
+      const pnNoSpace = (x?.name || '').toLowerCase().replace(/\s+/g, '');
+      const hits = tokens.filter((t) => pnNoSpace.includes(t.replace(/\s+/g, ''))).length;
       const ratio = hits / tokens.length;
-      // 숫자 토큰이 모두 매칭되어야 신뢰
-      const numsAllMatch = queryNums.length === 0 || queryNums.every((n) => pn.includes(n));
+      const numsAllMatch = queryNums.length === 0 || queryNums.every((n) => pnNoSpace.includes(n));
       return ratio >= 0.7 && numsAllMatch;
     });
     if (matches.length === 1) return matches[0];
@@ -141,22 +147,24 @@ export function findProductSmart(query, products, aiLearningData) {
   return null;
 }
 
-// 내부 스코어 계산 (findProductCandidates와 공유)
+// 내부 스코어 계산 (findProductCandidates와 공유). 공백 무시 비교로 더 관대.
 function scoreProducts(query, products) {
   const lower = (query || '').trim().toLowerCase();
+  const lowerNoSpace = lower.replace(/\s+/g, '');
   const tokens = tokenize(lower);
   const queryNums = tokens.filter((t) => /^\d+$/.test(t));
   return products
     .map((p) => {
       const pn = (p?.name || '').toLowerCase();
+      const pnNoSpace = pn.replace(/\s+/g, '');
       let score = 0;
-      if (pn === lower) score += 100;
-      if (pn.includes(lower)) score += 50;
+      if (pnNoSpace === lowerNoSpace) score += 100;
+      if (pnNoSpace.includes(lowerNoSpace) || lowerNoSpace.includes(pnNoSpace)) score += 50;
       for (const t of tokens) {
-        if (pn.includes(t)) score += 10;
+        if (pnNoSpace.includes(t.replace(/\s+/g, ''))) score += 10;
       }
       // 숫자 토큰 모두 매칭 보너스 (54-30 같은 규격 식별자)
-      if (queryNums.length > 0 && queryNums.every((n) => pn.includes(n))) {
+      if (queryNums.length > 0 && queryNums.every((n) => pnNoSpace.includes(n))) {
         score += 25;
       }
       if (matchWithTolerance(query, p.name)) score += 30;
