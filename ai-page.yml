@@ -1,0 +1,157 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "MOVE Motors" [ref=e252]
+      - navigation [ref=e7]:
+        - button "대시보드" [ref=e8] [cursor=pointer]:
+          - img [ref=e9]
+          - text: 대시보드
+        - button "제품 주문" [ref=e14] [cursor=pointer]:
+          - img [ref=e15]
+          - text: 제품 주문
+        - button "주문 내역 1" [ref=e253] [cursor=pointer]:
+          - img [ref=e19]
+          - text: 주문 내역
+          - generic [ref=e254]: "1"
+        - button "저장된 장바구니" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - text: 저장된 장바구니
+        - button "택배 송장 1" [ref=e255] [cursor=pointer]:
+          - img [ref=e28]
+          - text: 택배 송장
+          - generic [ref=e256]: "1"
+        - button "거래처 관리" [ref=e33] [cursor=pointer]:
+          - img [ref=e34]
+          - text: 거래처 관리
+        - button "명세서" [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+          - text: 명세서
+        - button "재고 현황" [ref=e43] [cursor=pointer]:
+          - img [ref=e44]
+          - text: 재고 현황
+        - button "번웨이 다운파이프" [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+          - text: 번웨이 다운파이프
+        - button "AI 주문 인식" [ref=e53] [cursor=pointer]:
+          - img [ref=e54]
+          - text: AI 주문 인식
+        - button "AI 분석" [active] [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+          - text: AI 분석
+        - button "관리자" [ref=e67] [cursor=pointer]:
+          - img [ref=e68]
+          - text: 관리자
+      - generic [ref=e71]:
+        - button "빠른 계산기" [ref=e72] [cursor=pointer]:
+          - img [ref=e73]
+          - text: 빠른 계산기
+        - generic [ref=e78]: 클라우드 연결됨
+  - main [ref=e80]:
+    - generic [ref=e905]:
+      - generic [ref=e906]:
+        - generic [ref=e907]:
+          - button "대시보드로" [ref=e908] [cursor=pointer]:
+            - img [ref=e909]
+            - generic [ref=e911]: 대시보드
+          - generic [ref=e912] [cursor=pointer]:
+            - img [ref=e913]
+            - img [ref=e921]
+            - img [ref=e925]
+          - generic [ref=e927]:
+            - generic [ref=e928]: MOVE INTELLIGENCE
+            - generic [ref=e929]: MOVIS · QUANTUM AI · ONLINE
+        - generic [ref=e931]:
+          - generic [ref=e932]:
+            - generic [ref=e933]:
+              - generic [ref=e934]: "336"
+              - generic [ref=e935]: ORDERS
+            - generic [ref=e936]: ·
+            - generic [ref=e937]:
+              - generic [ref=e938]: "145"
+              - generic [ref=e939]: CLIENTS
+            - generic [ref=e940]: ·
+            - generic [ref=e941]:
+              - generic [ref=e942]: "616"
+              - generic [ref=e943]: STOCK
+            - generic "결제/입금/반품 +3 로드 완료" [ref=e944]: "+3"
+          - button "효과음 끄기" [ref=e945] [cursor=pointer]:
+            - img [ref=e946]
+          - button "TTS 토글" [ref=e950] [cursor=pointer]:
+            - img [ref=e951]
+          - button "AI 설정" [ref=e955] [cursor=pointer]:
+            - img [ref=e956]
+      - generic [ref=e960]:
+        - generic [ref=e962]:
+          - img [ref=e963]
+          - generic [ref=e965]: NEURAL CHANNEL
+        - generic [ref=e967]:
+          - generic [ref=e968]:
+            - generic [ref=e969]:
+              - generic [ref=e970]: ◂ ANALYTICS QUERIES
+              - button "이번 달 전체 요약" [ref=e971] [cursor=pointer]:
+                - img [ref=e972]
+                - generic [ref=e974]: 이번 달 전체 요약
+              - button "이번 달 매출 TOP 5" [ref=e975] [cursor=pointer]:
+                - img [ref=e976]
+                - generic [ref=e978]: 이번 달 매출 TOP 5
+              - button "VIP 세그먼트 분석" [ref=e979] [cursor=pointer]:
+                - img [ref=e980]
+                - generic [ref=e985]: VIP 세그먼트 분석
+              - button "인기 제품 TOP 10" [ref=e986] [cursor=pointer]:
+                - img [ref=e987]
+                - generic [ref=e991]: 인기 제품 TOP 10
+              - button "카테고리별 매출 분석" [ref=e992] [cursor=pointer]:
+                - img [ref=e993]
+                - generic [ref=e998]: 카테고리별 매출 분석
+              - button "최근 3개월 매출 추이" [ref=e999] [cursor=pointer]:
+                - img [ref=e1000]
+                - generic [ref=e1003]: 최근 3개월 매출 추이
+              - button "재주문 유도 추천 액션" [ref=e1004] [cursor=pointer]:
+                - img [ref=e1005]
+                - generic [ref=e1010]: 재주문 유도 추천 액션
+            - generic [ref=e1012]:
+              - generic [ref=e1013]:
+                - generic [ref=e1014]: SYS::ONLINE
+                - generic [ref=e1015]: CPU::43%
+                - generic [ref=e1016]: MEM::2.3GB
+                - generic [ref=e1017]: NET::CONNECTED
+                - generic [ref=e1018]: FLUX::0.48
+              - generic [ref=e1019]:
+                - img [ref=e1021]
+                - generic [ref=e1025]: T+107.40s
+              - generic [ref=e1026]:
+                - heading "M.O.V.E" [level=1] [ref=e1027]
+                - generic [ref=e1028]: PERSONAL · AI · ASSISTANT
+              - generic [ref=e1034]: STANDBY · 입력 대기
+            - generic [ref=e1035]:
+              - generic [ref=e1036]: OPERATIONS QUERIES ▸
+              - button "재고 부족한 제품" [ref=e1037] [cursor=pointer]:
+                - img [ref=e1038]
+                - generic [ref=e1043]: 재고 부족한 제품
+              - button "재주문 추천 (시급도)" [ref=e1044] [cursor=pointer]:
+                - img [ref=e1045]
+                - generic [ref=e1049]: 재주문 추천 (시급도)
+              - button "미수 30일 이상 거래처" [ref=e1050] [cursor=pointer]:
+                - img [ref=e1051]
+                - generic [ref=e1053]: 미수 30일 이상 거래처
+              - button "이번 달 입금 이력" [ref=e1054] [cursor=pointer]:
+                - img [ref=e1055]
+                - generic [ref=e1058]: 이번 달 입금 이력
+              - button "휴면 거래처 알려줘" [ref=e1059] [cursor=pointer]:
+                - img [ref=e1060]
+                - generic [ref=e1063]: 휴면 거래처 알려줘
+              - button "출고 예정 주문" [ref=e1064] [cursor=pointer]:
+                - img [ref=e1065]
+                - generic [ref=e1070]: 출고 예정 주문
+              - button "반품률 분석" [ref=e1071] [cursor=pointer]:
+                - img [ref=e1072]
+                - generic [ref=e1075]: 반품률 분석
+          - paragraph [ref=e1076]: "🎤 음성 입력: Spacebar 길게 누르거나 아래 마이크 버튼 클릭"
+        - generic [ref=e1078]:
+          - button "음성 입력 시작" [ref=e1079] [cursor=pointer]:
+            - img [ref=e1080]
+          - generic [ref=e1083]:
+            - textbox "질문 입력 또는 🎤 음성 (Spacebar 길게)" [ref=e1084]
+            - generic: 0/1000
+          - button "전송" [disabled] [ref=e1085]:
+            - img [ref=e1086]

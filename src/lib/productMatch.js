@@ -12,6 +12,26 @@ export function cleanSearchText(text) {
     .trim();
 }
 
+// 검색 토큰 노이즈 단어 (사이즈/형태 표기 등 매칭 정확도 저하)
+// 예: "스덴 밴딩 54 30도" → "도" 제거 → ["스덴", "밴딩", "54", "30"]만 사용
+const TOKEN_STOPWORDS = new Set([
+  '도', '용', '급', '형', '타입', '정도', '개', '본', '장', '대', '쪽', '면', '겹',
+  '제품', '상품', '재고', '가격', '원', '얼마', '있어', '있니', '있나', '있음',
+  '알려', '알려줘', '확인', '조회', '보여', '보여줘', '주세요', '주실',
+]);
+
+function tokenize(text) {
+  if (!text) return [];
+  return String(text)
+    .toLowerCase()
+    .replace(/[,.\-_/()]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    // 숫자 뒤 한글 단위 정규화: "54도" → "54", "30개" → "30", "5본" → "5"
+    .map((t) => t.replace(/^(\d+)[가-힣]+$/, '$1'))
+    .filter((t) => !TOKEN_STOPWORDS.has(t));
+}
+
 // 숫자 ±1 허용 매칭 (TextAnalyze.jsx에서 추출)
 export function matchWithTolerance(searchName, productName) {
   if (!searchName || !productName) return false;
@@ -67,7 +87,7 @@ export function findProductByLearning(query, products, aiLearningData) {
   );
 }
 
-// 통합 fuzzy 매칭 — 5단계 (학습 → 정확 → tolerance → 부분 → 토큰)
+// 통합 fuzzy 매칭 — 7단계 (학습 → 정확 → tolerance → 부분 → 토큰 100% → 토큰 70% → 압도적 1위)
 export function findProductSmart(query, products, aiLearningData) {
   if (!query || !Array.isArray(products) || products.length === 0) return null;
   // 1) AI 학습 사례 우선
@@ -83,8 +103,8 @@ export function findProductSmart(query, products, aiLearningData) {
   // 4) 부분 일치
   p = products.find((x) => (x?.name || '').toLowerCase().includes(lower));
   if (p) return p;
-  // 5) 토큰 단위 (모든 토큰 포함)
-  const tokens = lower.replace(/[,.\-_/()]/g, ' ').split(/\s+/).filter(Boolean);
+  // 5) 토큰 100% 일치 (stopwords 제거 후 모든 토큰 포함)
+  const tokens = tokenize(lower);
   if (tokens.length > 0) {
     p = products.find((x) => {
       const pn = (x?.name || '').toLowerCase();
@@ -92,15 +112,41 @@ export function findProductSmart(query, products, aiLearningData) {
     });
     if (p) return p;
   }
+  // 6) 토큰 70% 일치 + 숫자 모두 일치 (사용자 입력의 숫자가 핵심 식별자라고 가정)
+  if (tokens.length >= 2) {
+    const queryNums = tokens.filter((t) => /^\d+$/.test(t));
+    const matches = products.filter((x) => {
+      const pn = (x?.name || '').toLowerCase();
+      const hits = tokens.filter((t) => pn.includes(t)).length;
+      const ratio = hits / tokens.length;
+      // 숫자 토큰이 모두 매칭되어야 신뢰
+      const numsAllMatch = queryNums.length === 0 || queryNums.every((n) => pn.includes(n));
+      return ratio >= 0.7 && numsAllMatch;
+    });
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) {
+      // 가장 짧은 이름 선택 (불필요한 부가어 적은 게 더 정확한 매치일 가능성)
+      return matches.sort((a, b) => (a.name?.length || 0) - (b.name?.length || 0))[0];
+    }
+  }
+  // 7) 압도적 1위 후보 자동 선택 (top1 score >= 50 && top1 - top2 >= 15)
+  const scored = scoreProducts(query, products);
+  if (scored.length >= 1 && scored[0].score >= 50) {
+    const top1 = scored[0];
+    const top2 = scored[1];
+    if (!top2 || top1.score - top2.score >= 15) {
+      return products.find((x) => x.name === top1.name) || null;
+    }
+  }
   return null;
 }
 
-// 비슷한 제품 후보 TOP N (매칭 실패 시 사용자에게 제안)
-export function findProductCandidates(query, products, limit = 5) {
-  if (!query || !Array.isArray(products)) return [];
-  const lower = query.trim().toLowerCase();
-  const tokens = lower.replace(/[,.\-_/()]/g, ' ').split(/\s+/).filter(Boolean);
-  const scored = products
+// 내부 스코어 계산 (findProductCandidates와 공유)
+function scoreProducts(query, products) {
+  const lower = (query || '').trim().toLowerCase();
+  const tokens = tokenize(lower);
+  const queryNums = tokens.filter((t) => /^\d+$/.test(t));
+  return products
     .map((p) => {
       const pn = (p?.name || '').toLowerCase();
       let score = 0;
@@ -109,15 +155,21 @@ export function findProductCandidates(query, products, limit = 5) {
       for (const t of tokens) {
         if (pn.includes(t)) score += 10;
       }
-      // tolerance 매칭 보너스
+      // 숫자 토큰 모두 매칭 보너스 (54-30 같은 규격 식별자)
+      if (queryNums.length > 0 && queryNums.every((n) => pn.includes(n))) {
+        score += 25;
+      }
       if (matchWithTolerance(query, p.name)) score += 30;
-      // 짧은 이름 가중치
       if (score > 0) score += Math.max(0, 20 - pn.length);
       return { name: p.name, score };
     })
     .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map((s) => s.name);
-  return scored;
+    .sort((a, b) => b.score - a.score);
+}
+
+// 비슷한 제품 후보 TOP N (매칭 실패 시 사용자에게 제안)
+// findProductSmart 내부 scoreProducts와 동일한 점수 체계 사용
+export function findProductCandidates(query, products, limit = 5) {
+  if (!query || !Array.isArray(products)) return [];
+  return scoreProducts(query, products).slice(0, limit).map((s) => s.name);
 }

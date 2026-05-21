@@ -1,0 +1,615 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "MOVE Motors" [ref=e252]
+      - navigation [ref=e7]:
+        - button "대시보드" [ref=e8] [cursor=pointer]:
+          - img [ref=e9]
+          - text: 대시보드
+        - button "제품 주문" [ref=e14] [cursor=pointer]:
+          - img [ref=e15]
+          - text: 제품 주문
+        - button "주문 내역 1" [ref=e253] [cursor=pointer]:
+          - img [ref=e19]
+          - text: 주문 내역
+          - generic [ref=e254]: "1"
+        - button "저장된 장바구니" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - text: 저장된 장바구니
+        - button "택배 송장 1" [ref=e255] [cursor=pointer]:
+          - img [ref=e28]
+          - text: 택배 송장
+          - generic [ref=e256]: "1"
+        - button "거래처 관리" [ref=e33] [cursor=pointer]:
+          - img [ref=e34]
+          - text: 거래처 관리
+        - button "명세서" [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+          - text: 명세서
+        - button "재고 현황" [ref=e43] [cursor=pointer]:
+          - img [ref=e44]
+          - text: 재고 현황
+        - button "번웨이 다운파이프" [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+          - text: 번웨이 다운파이프
+        - button "AI 주문 인식" [ref=e53] [cursor=pointer]:
+          - img [ref=e54]
+          - text: AI 주문 인식
+        - button "AI 분석" [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+          - text: AI 분석
+        - button "관리자" [ref=e67] [cursor=pointer]:
+          - img [ref=e68]
+          - text: 관리자
+      - generic [ref=e71]:
+        - button "빠른 계산기" [ref=e72] [cursor=pointer]:
+          - img [ref=e73]
+          - text: 빠른 계산기
+        - generic [ref=e78]: 클라우드 연결됨
+  - main [ref=e80]:
+    - generic [ref=e81]:
+      - generic [ref=e82]:
+        - generic [ref=e83]:
+          - heading "대시보드" [level=1] [ref=e84]
+          - paragraph [ref=e85]: 2026년 5월 21일 목요일
+        - 'status "Supabase 클라우드 실시간 연결 · 마지막 동기화: 30초 전" [ref=e903]':
+          - img [ref=e258]
+          - text: ONLINE
+      - generic [ref=e94]:
+        - button "오늘 매출 110,880원 1건 · 평균 110,880원" [ref=e262] [cursor=pointer]:
+          - img [ref=e264]
+          - generic [ref=e267]:
+            - paragraph [ref=e268]: 오늘 매출
+            - paragraph [ref=e269]: 110,880원
+            - paragraph [ref=e270]: 1건 · 평균 110,880원
+        - button "대기 장바구니 0건 전체 0건" [ref=e271] [cursor=pointer]:
+          - img [ref=e273]
+          - generic [ref=e277]:
+            - paragraph [ref=e278]: 대기 장바구니
+            - paragraph [ref=e279]: 0건
+            - paragraph [ref=e280]: 전체 0건
+        - button "거래처 145곳 블랙리스트 7곳" [ref=e281] [cursor=pointer]:
+          - img [ref=e283]
+          - generic [ref=e288]:
+            - paragraph [ref=e289]: 거래처
+            - paragraph [ref=e290]: 145곳
+            - paragraph [ref=e291]: 블랙리스트 7곳
+        - button "재고 부족 48건 확인 필요" [ref=e292] [cursor=pointer]:
+          - img [ref=e294]
+          - generic [ref=e298]:
+            - paragraph [ref=e299]: 재고 부족
+            - paragraph [ref=e300]: 48건
+            - paragraph [ref=e301]: 확인 필요
+      - generic [ref=e135]:
+        - button "오늘 입금 0원 페이먼트 관리 열기" [ref=e302] [cursor=pointer]:
+          - img [ref=e304]
+          - generic [ref=e307]:
+            - paragraph [ref=e308]: 오늘 입금
+            - paragraph [ref=e309]: 0원
+            - paragraph [ref=e310]: 페이먼트 관리 열기
+        - button "이월 미수 92,811,357원 전체 잔금 합계" [ref=e311] [cursor=pointer]:
+          - img [ref=e313]
+          - generic [ref=e316]:
+            - paragraph [ref=e317]: 이월 미수
+            - paragraph [ref=e318]: 92,811,357원
+            - paragraph [ref=e319]: 전체 잔금 합계
+        - button "연체 0건 정상" [ref=e320] [cursor=pointer]:
+          - img [ref=e322]
+          - generic [ref=e325]:
+            - paragraph [ref=e326]: 연체
+            - paragraph [ref=e327]: 0건
+            - paragraph [ref=e328]: 정상
+      - generic [ref=e163]:
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - generic [ref=e166]:
+              - img [ref=e167]
+              - heading "AI 빠른 주문" [level=3] [ref=e177]
+            - generic [ref=e178]:
+              - 'textbox "주문 내용을 붙여넣기 하세요... 예: 플랜지 54 10개, y관 4개" [ref=e179]':
+                - /placeholder: "주문 내용을 붙여넣기 하세요...\n예: 플랜지 54 10개, y관 4개"
+              - button "인식" [ref=e180] [cursor=pointer]:
+                - img [ref=e181]
+                - text: 인식
+          - generic [ref=e191]:
+            - generic [ref=e192]:
+              - heading "최근 주문" [level=2] [ref=e193]
+              - button "전체보기" [ref=e194] [cursor=pointer]:
+                - text: 전체보기
+                - img [ref=e195]
+            - generic [ref=e197]:
+              - button "구 구미 스틸하트 2026. 05. 21. 오후 01:57 · 1종 110,880원" [ref=e329] [cursor=pointer]:
+                - generic [ref=e330]:
+                  - generic [ref=e331]: 구
+                  - generic [ref=e332]:
+                    - paragraph [ref=e333]: 구미 스틸하트
+                    - paragraph [ref=e334]: 2026. 05. 21. 오후 01:57 · 1종
+                - generic [ref=e335]:
+                  - generic [ref=e336]: 110,880원
+                  - img [ref=e337]
+              - button "경 경주 VIP 2026. 05. 20. 오후 02:17 · 2종 660,000원" [ref=e340] [cursor=pointer]:
+                - generic [ref=e341]:
+                  - generic [ref=e342]: 경
+                  - generic [ref=e343]:
+                    - paragraph [ref=e344]: 경주 VIP
+                    - paragraph [ref=e345]: 2026. 05. 20. 오후 02:17 · 2종
+                - generic [ref=e346]:
+                  - generic [ref=e347]: 660,000원
+                  - img [ref=e348]
+              - button "W WP튠 경산 2026. 05. 20. 오후 02:03 · 3종 548,900원" [ref=e351] [cursor=pointer]:
+                - generic [ref=e352]:
+                  - generic [ref=e353]: W
+                  - generic [ref=e354]:
+                    - paragraph [ref=e355]: WP튠 경산
+                    - paragraph [ref=e356]: 2026. 05. 20. 오후 02:03 · 3종
+                - generic [ref=e357]:
+                  - generic [ref=e358]: 548,900원
+                  - img [ref=e359]
+              - button "피 피버 레이싱 2026. 05. 20. 오후 01:41 · 2종 184,800원" [ref=e362] [cursor=pointer]:
+                - generic [ref=e363]:
+                  - generic [ref=e364]: 피
+                  - generic [ref=e365]:
+                    - paragraph [ref=e366]: 피버 레이싱
+                    - paragraph [ref=e367]: 2026. 05. 20. 오후 01:41 · 2종
+                - generic [ref=e368]:
+                  - generic [ref=e369]: 184,800원
+                  - img [ref=e370]
+              - button "대 대구 로얄 모터스 2026. 05. 20. 오후 01:13 · 1종 15,000원" [ref=e373] [cursor=pointer]:
+                - generic [ref=e374]:
+                  - generic [ref=e375]: 대
+                  - generic [ref=e376]:
+                    - paragraph [ref=e377]: 대구 로얄 모터스
+                    - paragraph [ref=e378]: 2026. 05. 20. 오후 01:13 · 1종
+                - generic [ref=e379]:
+                  - generic [ref=e380]: 15,000원
+                  - img [ref=e381]
+              - button "팀 팀퍼비드 2026. 05. 20. 오전 11:57 · 3종 649,440원" [ref=e384] [cursor=pointer]:
+                - generic [ref=e385]:
+                  - generic [ref=e386]: 팀
+                  - generic [ref=e387]:
+                    - paragraph [ref=e388]: 팀퍼비드
+                    - paragraph [ref=e389]: 2026. 05. 20. 오전 11:57 · 3종
+                - generic [ref=e390]:
+                  - generic [ref=e391]: 649,440원
+                  - img [ref=e392]
+              - button "진 진주 스핀휠 2026. 05. 20. 오전 10:48 · 2종 415,800원" [ref=e395] [cursor=pointer]:
+                - generic [ref=e396]:
+                  - generic [ref=e397]: 진
+                  - generic [ref=e398]:
+                    - paragraph [ref=e399]: 진주 스핀휠
+                    - paragraph [ref=e400]: 2026. 05. 20. 오전 10:48 · 2종
+                - generic [ref=e401]:
+                  - generic [ref=e402]: 415,800원
+                  - img [ref=e403]
+              - button "드 드래곤 모터스 2026. 05. 19. 오후 04:30 · 1종 865,000원" [ref=e406] [cursor=pointer]:
+                - generic [ref=e407]:
+                  - generic [ref=e408]: 드
+                  - generic [ref=e409]:
+                    - paragraph [ref=e410]: 드래곤 모터스
+                    - paragraph [ref=e411]: 2026. 05. 19. 오후 04:30 · 1종
+                - generic [ref=e412]:
+                  - generic [ref=e413]: 865,000원
+                  - img [ref=e414]
+              - button "빅 빅스 2026. 05. 19. 오후 03:35 · 2종 267,300원" [ref=e417] [cursor=pointer]:
+                - generic [ref=e418]:
+                  - generic [ref=e419]: 빅
+                  - generic [ref=e420]:
+                    - paragraph [ref=e421]: 빅스
+                    - paragraph [ref=e422]: 2026. 05. 19. 오후 03:35 · 2종
+                - generic [ref=e423]:
+                  - generic [ref=e424]: 267,300원
+                  - img [ref=e425]
+              - button "구 구미 스틸하트 2026. 05. 19. 오후 02:26 · 3종 247,500원" [ref=e428] [cursor=pointer]:
+                - generic [ref=e429]:
+                  - generic [ref=e430]: 구
+                  - generic [ref=e431]:
+                    - paragraph [ref=e432]: 구미 스틸하트
+                    - paragraph [ref=e433]: 2026. 05. 19. 오후 02:26 · 3종
+                - generic [ref=e434]:
+                  - generic [ref=e435]: 247,500원
+                  - img [ref=e436]
+              - button "팀 팀논스톱 2026. 05. 19. 오후 02:20 · 1종 277,200원" [ref=e439] [cursor=pointer]:
+                - generic [ref=e440]:
+                  - generic [ref=e441]: 팀
+                  - generic [ref=e442]:
+                    - paragraph [ref=e443]: 팀논스톱
+                    - paragraph [ref=e444]: 2026. 05. 19. 오후 02:20 · 1종
+                - generic [ref=e445]:
+                  - generic [ref=e446]: 277,200원
+                  - img [ref=e447]
+              - button "명 명성 모터스 2026. 05. 19. 오전 10:22 · 3종 683,760원" [ref=e450] [cursor=pointer]:
+                - generic [ref=e451]:
+                  - generic [ref=e452]: 명
+                  - generic [ref=e453]:
+                    - paragraph [ref=e454]: 명성 모터스
+                    - paragraph [ref=e455]: 2026. 05. 19. 오전 10:22 · 3종
+                - generic [ref=e456]:
+                  - generic [ref=e457]: 683,760원
+                  - img [ref=e458]
+              - button "R RS 레이싱 2026. 05. 19. 오전 10:22 · 1종 132,000원" [ref=e461] [cursor=pointer]:
+                - generic [ref=e462]:
+                  - generic [ref=e463]: R
+                  - generic [ref=e464]:
+                    - paragraph [ref=e465]: RS 레이싱
+                    - paragraph [ref=e466]: 2026. 05. 19. 오전 10:22 · 1종
+                - generic [ref=e467]:
+                  - generic [ref=e468]: 132,000원
+                  - img [ref=e469]
+              - button "드 드리븐 2026. 05. 18. 오후 04:52 · 1종 770,000원" [ref=e472] [cursor=pointer]:
+                - generic [ref=e473]:
+                  - generic [ref=e474]: 드
+                  - generic [ref=e475]:
+                    - paragraph [ref=e476]: 드리븐
+                    - paragraph [ref=e477]: 2026. 05. 18. 오후 04:52 · 1종
+                - generic [ref=e478]:
+                  - generic [ref=e479]: 770,000원
+                  - img [ref=e480]
+              - button "전 전남 J모터스 (드리프트샵 2026. 05. 18. 오후 04:50 · 1종 990,000원" [ref=e483] [cursor=pointer]:
+                - generic [ref=e484]:
+                  - generic [ref=e485]: 전
+                  - generic [ref=e486]:
+                    - paragraph [ref=e487]: 전남 J모터스 (드리프트샵
+                    - paragraph [ref=e488]: 2026. 05. 18. 오후 04:50 · 1종
+                - generic [ref=e489]:
+                  - generic [ref=e490]: 990,000원
+                  - img [ref=e491]
+              - button "팀 팀논스톱 2026. 05. 18. 오후 02:17 · 7종 1,261,520원" [ref=e494] [cursor=pointer]:
+                - generic [ref=e495]:
+                  - generic [ref=e496]: 팀
+                  - generic [ref=e497]:
+                    - paragraph [ref=e498]: 팀논스톱
+                    - paragraph [ref=e499]: 2026. 05. 18. 오후 02:17 · 7종
+                - generic [ref=e500]:
+                  - generic [ref=e501]: 1,261,520원
+                  - img [ref=e502]
+              - button "B BMP 퍼포먼스 (레이싱팀) 2026. 05. 18. 오전 10:29 · 2종 765,000원" [ref=e505] [cursor=pointer]:
+                - generic [ref=e506]:
+                  - generic [ref=e507]: B
+                  - generic [ref=e508]:
+                    - paragraph [ref=e509]: BMP 퍼포먼스 (레이싱팀)
+                    - paragraph [ref=e510]: 2026. 05. 18. 오전 10:29 · 2종
+                - generic [ref=e511]:
+                  - generic [ref=e512]: 765,000원
+                  - img [ref=e513]
+              - button "오 오토심슨 2026. 05. 15. 오후 04:51 · 4종 393,360원" [ref=e516] [cursor=pointer]:
+                - generic [ref=e517]:
+                  - generic [ref=e518]: 오
+                  - generic [ref=e519]:
+                    - paragraph [ref=e520]: 오토심슨
+                    - paragraph [ref=e521]: 2026. 05. 15. 오후 04:51 · 4종
+                - generic [ref=e522]:
+                  - generic [ref=e523]: 393,360원
+                  - img [ref=e524]
+              - button "W WP튠 김해 2026. 05. 15. 오후 03:08 · 4종 548,900원" [ref=e527] [cursor=pointer]:
+                - generic [ref=e528]:
+                  - generic [ref=e529]: W
+                  - generic [ref=e530]:
+                    - paragraph [ref=e531]: WP튠 김해
+                    - paragraph [ref=e532]: 2026. 05. 15. 오후 03:08 · 4종
+                - generic [ref=e533]:
+                  - generic [ref=e534]: 548,900원
+                  - img [ref=e535]
+              - button "제 제이파츠 2026. 05. 15. 오후 02:36 · 9종 542,520원" [ref=e538] [cursor=pointer]:
+                - generic [ref=e539]:
+                  - generic [ref=e540]: 제
+                  - generic [ref=e541]:
+                    - paragraph [ref=e542]: 제이파츠
+                    - paragraph [ref=e543]: 2026. 05. 15. 오후 02:36 · 9종
+                - generic [ref=e544]:
+                  - generic [ref=e545]: 542,520원
+                  - img [ref=e546]
+        - generic [ref=e202]:
+          - generic [ref=e549]:
+            - generic [ref=e550]:
+              - generic [ref=e551]:
+                - img [ref=e552]
+                - heading "미확인 메모" [level=2] [ref=e555]
+                - generic [ref=e556]: "9"
+              - button "전체보기" [ref=e557] [cursor=pointer]:
+                - text: 전체보기
+                - img [ref=e558]
+            - generic [ref=e560]:
+              - generic [ref=e561] [cursor=pointer]:
+                - generic [ref=e562]:
+                  - generic [ref=e563]:
+                    - generic [ref=e564]: 드래곤 모터스
+                    - generic [ref=e565]: 2026. 05. 19. 오후 04:30
+                  - paragraph [ref=e566]: 단가 상승 미고지로 인한 이전 금액으로 출고
+                - button "확인 완료" [ref=e567]:
+                  - img [ref=e568]
+              - generic [ref=e571] [cursor=pointer]:
+                - generic [ref=e572]:
+                  - generic [ref=e573]:
+                    - generic [ref=e574]: JSR 퍼포먼스
+                    - generic [ref=e575]: 2026. 05. 08. 오후 05:49
+                  - paragraph [ref=e576]: 팀본즈 택배 선불 6000원 대리 출고건
+                - button "확인 완료" [ref=e577]:
+                  - img [ref=e578]
+              - generic [ref=e581] [cursor=pointer]:
+                - generic [ref=e582]:
+                  - generic [ref=e583]:
+                    - generic [ref=e584]: 준카
+                    - generic [ref=e585]: 2026. 04. 30. 오전 11:32
+                  - paragraph [ref=e586]: 탁송비 26,000원
+                - button "확인 완료" [ref=e587]:
+                  - img [ref=e588]
+              - generic [ref=e591] [cursor=pointer]:
+                - generic [ref=e592]:
+                  - generic [ref=e593]:
+                    - generic [ref=e594]: N1 레이싱
+                    - generic [ref=e595]: 2026. 04. 30. 오전 09:54
+                  - paragraph [ref=e596]: 지난달 미수 344,880원 까지 해서 1,033,040원 입금완료
+                - button "확인 완료" [ref=e597]:
+                  - img [ref=e598]
+              - generic [ref=e601] [cursor=pointer]:
+                - generic [ref=e602]:
+                  - generic [ref=e603]:
+                    - generic [ref=e604]: 팀논스톱
+                    - generic [ref=e605]: 2026. 04. 17. 오전 10:34
+                  - paragraph [ref=e606]: 이전 주문건 Y관 100파이로 잘못 나간것 같음 100파이 회수 받으면 교환처리하기!
+                - button "확인 완료" [ref=e607]:
+                  - img [ref=e608]
+              - generic [ref=e611] [cursor=pointer]:
+                - generic [ref=e612]:
+                  - generic [ref=e613]:
+                    - generic [ref=e614]: 구미 스틸하트
+                    - generic [ref=e615]: 2026. 04. 14. 오전 10:12
+                  - paragraph [ref=e616]: 탁송비 3만원
+                - button "확인 완료" [ref=e617]:
+                  - img [ref=e618]
+              - generic [ref=e621] [cursor=pointer]:
+                - generic [ref=e622]:
+                  - generic [ref=e623]:
+                    - generic [ref=e624]: 팀 본즈
+                    - generic [ref=e625]: 2026. 04. 10. 오전 11:08
+                  - paragraph [ref=e626]: JSR 본사 선불 택배비 6000원 대리출고
+                - button "확인 완료" [ref=e627]:
+                  - img [ref=e628]
+              - generic [ref=e631] [cursor=pointer]:
+                - generic [ref=e632]:
+                  - generic [ref=e633]:
+                    - generic [ref=e634]: RS 커스텀
+                    - generic [ref=e635]: 2026. 04. 07. 오후 01:23
+                  - paragraph [ref=e636]: JSR 대리 출고건
+                - button "확인 완료" [ref=e637]:
+                  - img [ref=e638]
+              - generic [ref=e641] [cursor=pointer]:
+                - generic [ref=e642]:
+                  - generic [ref=e643]:
+                    - generic [ref=e644]: RS 커스텀
+                    - generic [ref=e645]: 2026. 04. 01. 오후 04:50
+                  - paragraph [ref=e646]: JSR 본사 대리출고건 (본사한테 물건 받기로함)
+                - button "확인 완료" [ref=e647]:
+                  - img [ref=e648]
+          - generic [ref=e651]:
+            - generic [ref=e652]:
+              - img [ref=e653]
+              - heading "재고 부족 알림" [level=2] [ref=e655]
+            - generic [ref=e656]:
+              - generic [ref=e657]:
+                - generic [ref=e658]: 무선 가변 리모컨 A/S + 택배비
+                - generic [ref=e659]: 0개
+              - generic [ref=e660]:
+                - generic [ref=e661]: CH 200 77
+                - generic [ref=e662]: 5개
+              - generic [ref=e663]:
+                - generic [ref=e664]: 벨N 중통 원밴딩 배기라인
+                - generic [ref=e665]: 0개
+              - generic [ref=e666]:
+                - generic [ref=e667]: 듀얼 머플러팁 NPK 80D - T
+                - generic [ref=e668]: 0개
+              - generic [ref=e669]:
+                - generic [ref=e670]: 싱글 머플러팁 NPK 80S - T
+                - generic [ref=e671]: 0개
+              - generic [ref=e672]:
+                - generic [ref=e673]: 용접 안된 TVB 5451 L
+                - generic [ref=e674]: 0개
+              - generic [ref=e675]:
+                - generic [ref=e676]: 용접 안된 TVB 5451 R
+                - generic [ref=e677]: 0개
+              - generic [ref=e678]:
+                - generic [ref=e679]: 용접 안된 TVB 5451 좌, 우 1세트
+                - generic [ref=e680]: 0개
+              - generic [ref=e681]:
+                - generic [ref=e682]: 용접 안된 TVB 6461 L
+                - generic [ref=e683]: 0개
+              - generic [ref=e684]:
+                - generic [ref=e685]: 용접 안된 TVB 6461 R
+                - generic [ref=e686]: 0개
+              - generic [ref=e687]:
+                - generic [ref=e688]: 용접 안된 TVB 6461 좌, 우 1세트
+                - generic [ref=e689]: 0개
+              - generic [ref=e690]:
+                - generic [ref=e691]: 용접 안된 TVB 77 L
+                - generic [ref=e692]: 0개
+              - generic [ref=e693]:
+                - generic [ref=e694]: 용접 안된 TVB 77 R
+                - generic [ref=e695]: 0개
+              - generic [ref=e696]:
+                - generic [ref=e697]: 용접 안된 TVB 77 좌, 우 1세트
+                - generic [ref=e698]: 0개
+              - generic [ref=e699]:
+                - generic [ref=e700]: H64 바디
+                - generic [ref=e701]: 1개
+              - generic [ref=e702]:
+                - generic [ref=e703]: T가변 바디 ?? VT 76 440D 140
+                - generic [ref=e704]: 1개
+              - generic [ref=e705]:
+                - generic [ref=e706]: T가변 바디 ?? VT 76 440D 300
+                - generic [ref=e707]: 1개
+              - generic [ref=e708]:
+                - generic [ref=e709]: T가변 바디 VT 76 370SC
+                - generic [ref=e710]: 0개
+              - generic [ref=e711]:
+                - generic [ref=e712]: T가변 바디 VT 76 612D 480
+                - generic [ref=e713]: 0개
+              - generic [ref=e714]:
+                - generic [ref=e715]: 벨로스터N 중통 원밴딩 라인만
+                - generic [ref=e716]: 0개
+              - generic [ref=e717]:
+                - generic [ref=e718]: 브레이크 호스 세트만
+                - generic [ref=e719]: 0개
+              - generic [ref=e720]:
+                - generic [ref=e721]: 알루미늄 밴딩 파이프 (폴리싱 된거) 60 - 90
+                - generic [ref=e722]: 0개
+              - generic [ref=e723]:
+                - generic [ref=e724]: 져스트 C1 세트 (저음 스피커 대신 고음 스피커)
+                - generic [ref=e725]: 0개
+              - generic [ref=e726]:
+                - generic [ref=e727]: 촉매 100셀 (할인가 적용)
+                - generic [ref=e728]: 0개
+              - generic [ref=e729]:
+                - generic [ref=e730]: 클러치 유격조절
+                - generic [ref=e731]: 2개
+              - generic [ref=e732]:
+                - generic [ref=e733]: 타이로드 엔드볼
+                - generic [ref=e734]: 0개
+              - generic [ref=e735]:
+                - generic [ref=e736]: 사각팁 DSQ2 - B
+                - generic [ref=e737]: 2개
+              - generic [ref=e738]:
+                - generic [ref=e739]: 스팅어 & G70 3.3 촉매 다운파이프
+                - generic [ref=e740]: 0개
+              - generic [ref=e741]:
+                - generic [ref=e742]: 아반떼N 자바라
+                - generic [ref=e743]: 0개
+              - generic [ref=e744]:
+                - generic [ref=e745]: 아반떼N 직관 다운 파이프
+                - generic [ref=e746]: 0개
+              - generic [ref=e747]:
+                - generic [ref=e748]: 아반떼N 촉매 다운파이프
+                - generic [ref=e749]: 0개
+              - generic [ref=e750]:
+                - generic [ref=e751]: 젠퉄
+                - generic [ref=e752]: 0개
+              - generic [ref=e753]:
+                - generic [ref=e754]: 제네시스 쿠페 젠쿱 리어멤버 부싱
+                - generic [ref=e755]: 0개
+              - generic [ref=e756]:
+                - generic [ref=e757]: 45SEL6070
+                - generic [ref=e758]: 0개
+              - generic [ref=e759]:
+                - generic [ref=e760]: 실리콘 직선 호스 SS60
+                - generic [ref=e761]: 0개
+              - generic [ref=e762]:
+                - generic [ref=e763]: (우리가 받는거) 벨로스터N CF 스타일 카본 스포일러
+                - generic [ref=e764]: 0개
+              - generic [ref=e765]:
+                - generic [ref=e766]: (우리가 받는거) 아반떼N CF 스타일 카본 스포일러 (복사)
+                - generic [ref=e767]: 0개
+              - generic [ref=e768]:
+                - generic [ref=e769]: 레조 100 200 64
+                - generic [ref=e770]: 0개
+              - generic [ref=e771]:
+                - generic [ref=e772]: 레조 114 250 64
+                - generic [ref=e773]: 2개
+              - generic [ref=e774]:
+                - generic [ref=e775]: 자바라 SF 64 S 길이 100
+                - generic [ref=e776]: 0개
+              - generic [ref=e777]:
+                - generic [ref=e778]: 제네시스 쿠페 번웨이 X 게버트 덕테일 스포일러
+                - generic [ref=e779]: 5개
+              - generic [ref=e780]:
+                - generic [ref=e781]: 제네시스 쿠페 번웨이 X 게버트 덕테일 스포일러 GEN 1.5 Ver.
+                - generic [ref=e782]: 0개
+              - generic [ref=e783]:
+                - generic [ref=e784]: 제네시스 쿠페 알루미늄 경량 전면 레일 (아노다이징 레드)
+                - generic [ref=e785]: 2개
+              - generic [ref=e786]:
+                - generic [ref=e787]: 제네시스 쿠페 전면 스틸 레일 (레드)
+                - generic [ref=e788]: 3개
+              - generic [ref=e789]:
+                - generic [ref=e790]: 스덴 밴딩 파이프 54 - 75
+                - generic [ref=e791]: 0개
+              - generic [ref=e792]:
+                - generic [ref=e793]: 스덴 밴딩 파이프 76 - 45
+                - generic [ref=e794]: 5개
+              - generic [ref=e795]:
+                - generic [ref=e796]: 스덴 직선 파이프 2m 54파이
+                - generic [ref=e797]: 4개
+              - generic [ref=e798]:
+                - generic [ref=e799]: 플랜지 FL 76
+                - generic [ref=e800]: 0개
+          - generic [ref=e203]:
+            - heading "바로가기" [level=2] [ref=e204]
+            - generic [ref=e205]:
+              - button "제품 주문하기" [ref=e801] [cursor=pointer]:
+                - img [ref=e802]
+                - generic [ref=e804]: 제품 주문하기
+                - img [ref=e805]
+              - button "AI 주문 인식" [ref=e807] [cursor=pointer]:
+                - img [ref=e808]
+                - generic [ref=e818]: AI 주문 인식
+                - img [ref=e819]
+              - button "택배 송장" [ref=e821] [cursor=pointer]:
+                - img [ref=e822]
+                - generic [ref=e827]: 택배 송장
+                - img [ref=e828]
+            - generic [ref=e235]:
+              - link "JSR 단가표" [ref=e236] [cursor=pointer]:
+                - /url: https://docs.google.com/document/d/e/2PACX-1vTfbJ0wRV2bW5D-lJ1na9vFLjpjQzofyxh0MF5kcsrhz6KYydBqJRz7IFCvwrAuYhZeUrAHU0DBeCNj/pub
+                - img [ref=e237]
+                - text: JSR 단가표
+                - img [ref=e240]
+              - link "번웨이 단가표" [ref=e244] [cursor=pointer]:
+                - /url: https://docs.google.com/document/d/e/2PACX-1vQbwis0GO8q03dNHA6p-G-xD1OOoENk9EP6s0PgjGBXY89ziSnP2yVPFmd4JThokUFLgYSepmL3zyPt/pub
+                - img [ref=e245]
+                - text: 번웨이 단가표
+                - img [ref=e248]
+      - generic [ref=e831]:
+        - generic [ref=e832]:
+          - heading "🏢 업체별 미수 TOP 8" [level=2] [ref=e833]
+          - generic [ref=e834]:
+            - button "WP튠 경산 미수 13건 5,027,240원" [ref=e835] [cursor=pointer]:
+              - generic [ref=e836]:
+                - generic [ref=e837]: WP튠 경산
+                - generic [ref=e838]: 미수 13건
+              - generic [ref=e840]: 5,027,240원
+            - button "WP튠 김해 미수 13건 4,942,000원" [ref=e841] [cursor=pointer]:
+              - generic [ref=e842]:
+                - generic [ref=e843]: WP튠 김해
+                - generic [ref=e844]: 미수 13건
+              - generic [ref=e846]: 4,942,000원
+            - button "이니셜D 미수 3건 4,593,000원" [ref=e847] [cursor=pointer]:
+              - generic [ref=e848]:
+                - generic [ref=e849]: 이니셜D
+                - generic [ref=e850]: 미수 3건
+              - generic [ref=e852]: 4,593,000원
+            - button "대구 펄슨 미수 2건 4,410,979원" [ref=e853] [cursor=pointer]:
+              - generic [ref=e854]:
+                - generic [ref=e855]: 대구 펄슨
+                - generic [ref=e856]: 미수 2건
+              - generic [ref=e858]: 4,410,979원
+            - button "빅스 미수 10건 4,273,570원" [ref=e859] [cursor=pointer]:
+              - generic [ref=e860]:
+                - generic [ref=e861]: 빅스
+                - generic [ref=e862]: 미수 10건
+              - generic [ref=e864]: 4,273,570원
+        - generic [ref=e865]:
+          - heading "💵 최근 입금" [level=2] [ref=e866]
+          - generic [ref=e867]:
+            - button "+50,160원 transfer 5/12 15:33" [ref=e868] [cursor=pointer]:
+              - generic [ref=e870]:
+                - generic [ref=e871]: +50,160원
+                - generic [ref=e872]: transfer
+              - generic [ref=e874]: 5/12 15:33
+            - button "+1,515,000원 other 4/30 22:55" [ref=e875] [cursor=pointer]:
+              - generic [ref=e877]:
+                - generic [ref=e878]: +1,515,000원
+                - generic [ref=e879]: other
+              - generic [ref=e881]: 4/30 22:55
+            - button "+688,160원 card 4/30 16:49" [ref=e882] [cursor=pointer]:
+              - generic [ref=e884]:
+                - generic [ref=e885]: +688,160원
+                - generic [ref=e886]: card
+              - generic [ref=e888]: 4/30 16:49
+            - button "+148,500원 transfer 4/30 16:49" [ref=e889] [cursor=pointer]:
+              - generic [ref=e891]:
+                - generic [ref=e892]: +148,500원
+                - generic [ref=e893]: transfer
+              - generic [ref=e895]: 4/30 16:49
+            - button "+22원 계좌이체 4/23 13:00" [ref=e896] [cursor=pointer]:
+              - generic [ref=e898]:
+                - generic [ref=e899]: +22원
+                - generic [ref=e900]: 계좌이체
+              - generic [ref=e902]: 4/23 13:00
