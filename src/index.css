@@ -85,6 +85,58 @@
   100% { stroke-dashoffset: 0; }
 }
 
+/* Hologram HUD: 추가 키프레임 */
+@keyframes jarvis-arc-spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-jarvis-arc-spin-slow { animation: jarvis-arc-spin-slow 24s linear infinite; }
+
+@keyframes jarvis-orbit-1 {
+  to { transform: rotate(360deg); }
+}
+@keyframes jarvis-orbit-2 {
+  to { transform: rotate(-360deg); }
+}
+@keyframes jarvis-orbit-3 {
+  to { transform: rotate(360deg); }
+}
+.animate-jarvis-orbit-1 { animation: jarvis-orbit-1 6s linear infinite; transform-origin: center; }
+.animate-jarvis-orbit-2 { animation: jarvis-orbit-2 9s linear infinite; transform-origin: center; }
+.animate-jarvis-orbit-3 { animation: jarvis-orbit-3 14s linear infinite; transform-origin: center; }
+
+@keyframes jarvis-3d-tumble {
+  0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  50% { transform: rotateX(180deg) rotateY(180deg) rotateZ(45deg); }
+  100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(0deg); }
+}
+.animate-jarvis-3d-tumble { animation: jarvis-3d-tumble 16s ease-in-out infinite; transform-style: preserve-3d; }
+
+@keyframes jarvis-radar-pulse {
+  0% { transform: scale(0.4); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.animate-jarvis-radar-pulse {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: jarvis-radar-pulse 3s ease-out infinite;
+}
+
+@keyframes jarvis-core-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 20px #00d4ff, 0 0 40px rgba(0,212,255,0.7), 0 0 80px rgba(0,212,255,0.4), inset 0 0 8px rgba(255,255,255,0.9); }
+  50% { transform: scale(1.15); box-shadow: 0 0 30px #4dffff, 0 0 60px rgba(77,255,255,0.9), 0 0 120px rgba(0,212,255,0.6), inset 0 0 12px rgba(255,255,255,1); }
+}
+.animate-jarvis-core-pulse { animation: jarvis-core-pulse 2.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-jarvis-arc-spin-slow,
+  .animate-jarvis-orbit-1,
+  .animate-jarvis-orbit-2,
+  .animate-jarvis-orbit-3,
+  .animate-jarvis-3d-tumble,
+  .animate-jarvis-radar-pulse,
+  .animate-jarvis-core-pulse { animation: none !important; }
+}
+
 /* ===== JARVIS Utility Classes ===== */
 .jarvis-bg-deep {
   background: radial-gradient(ellipse at top, #0a1929 0%, #050b18 60%, #020610 100%);

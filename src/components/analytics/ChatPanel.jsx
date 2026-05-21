@@ -3,6 +3,7 @@ import { Send, Sparkles, Trash2, Loader2, X } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import SuggestedQuestions from './SuggestedQuestions';
 import VoiceButton from './VoiceButton';
+import JarvisHologramHUD from './JarvisHologramHUD';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 const MAX_INPUT = 1000;
@@ -97,30 +98,25 @@ export default function ChatPanel({
       >
         {!hasMessages ? (
           <div className="h-full flex flex-col items-center justify-center text-center py-8 relative">
-            {/* Arc reactor 같은 큰 아이콘 */}
-            <div className="relative w-24 h-24 mb-4 flex-shrink-0">
-              <svg className="absolute inset-0 animate-jarvis-arc-spin" viewBox="0 0 100 100" style={{ filter: 'drop-shadow(0 0 10px rgba(0,212,255,0.6))' }}>
-                <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(0,212,255,0.5)" strokeWidth="1.5" strokeDasharray="6 6" />
-              </svg>
-              <svg className="absolute inset-0 animate-jarvis-arc-spin-rev" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="32" fill="none" stroke="rgba(77,255,255,0.55)" strokeWidth="1" strokeDasharray="3 5" />
-              </svg>
-              <div className="absolute inset-0 m-auto rounded-full animate-jarvis-glow-pulse" style={{
-                width: '48%', height: '48%', top: '26%', left: '26%',
-                background: 'radial-gradient(circle, #4dffff 0%, #00d4ff 50%, rgba(0,212,255,0.2) 100%)',
-                boxShadow: '0 0 16px rgba(0,212,255,0.9), inset 0 0 8px rgba(255,255,255,0.7)',
-              }} />
-              <Sparkles className="absolute inset-0 m-auto w-6 h-6" style={{ color: '#fff' }} />
-            </div>
-            <h3 className="text-lg font-black mb-1 jarvis-text-glow tracking-wide" style={{ color: 'var(--jarvis-text)' }}>
+            {/* 3D 자비스 홀로그램 HUD */}
+            <JarvisHologramHUD size="lg" />
+
+            <h3 className="text-xl sm:text-2xl font-black mb-2 jarvis-text-glow jarvis-text-chromatic tracking-wide mt-6" style={{ color: 'var(--jarvis-text)' }}>
               무엇이 궁금하세요?
             </h3>
             <p className="text-xs mb-6 max-w-xs break-keep leading-snug" style={{ color: 'var(--jarvis-text-muted)' }}>
-              자연어로 거래처/제품/매출/VIP 분석을 물어보세요.
-              <br />예: "이번 달 매출 1위 누구야?"
-              {voice?.supported && <><br /><span style={{ color: 'var(--jarvis-cyan)' }}>🎤 음성 입력 가능 (Spacebar 길게)</span></>}
+              자연어로 거래처 / 제품 / 매출 / VIP 분석을 물어보세요.
+              <br />예: <span style={{ color: 'var(--jarvis-cyan-soft)' }}>"이번 달 매출 1위 누구야?"</span>
+              {voice?.supported && (
+                <>
+                  <br />
+                  <span style={{ color: 'var(--jarvis-cyan)', textShadow: '0 0 6px rgba(0,212,255,0.5)' }}>
+                    🎤 음성 입력 가능 · Spacebar 길게
+                  </span>
+                </>
+              )}
             </p>
-            <div className="w-full max-w-2xl">
+            <div className="w-full max-w-3xl">
               <SuggestedQuestions items={suggestedItems} onSelect={handleSelect} />
             </div>
           </div>
