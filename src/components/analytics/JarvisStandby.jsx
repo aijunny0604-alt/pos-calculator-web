@@ -133,15 +133,10 @@ export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted, is
         </div>
       </div>
 
-      {/* Dot Sphere — 깔끔한 단일 컨테이너, 모든 박스 효과 제거 */}
+      {/* Dot Sphere — 깔끔한 단일 컨테이너, sphere만 */}
       <div className="relative flex items-center justify-center my-6 sm:my-8">
         <div className="relative" style={{ width: 'min(480px, 78vw)', height: 'min(480px, 78vw)' }}>
           <JarvisDotSphere pointCount={520} size={480} mode={sphereMode} />
-          {/* 외계 헥사고날 마커 (4방향) — sphere 주위에 떠있는 데이터 노드 */}
-          <HexagonMarker top="-2%" left="50%" translateX="-50%" color={statusColor} delay={0} />
-          <HexagonMarker top="50%" left="100%" translateX="-50%" translateY="-50%" color={statusColor} delay={0.5} />
-          <HexagonMarker top="102%" left="50%" translateX="-50%" translateY="-100%" color={statusColor} delay={1.0} />
-          <HexagonMarker top="50%" left="0%" translateX="-50%" translateY="-50%" color={statusColor} delay={1.5} />
         </div>
       </div>
 
