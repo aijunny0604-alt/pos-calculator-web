@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
+import ResultRenderer from './ResultRenderer';
 
 // 간단 마크다운 → HTML 파서 (의존성 없이 최소 처리)
 function renderInline(text) {
@@ -81,6 +82,7 @@ export default function MessageBubble({ message }) {
 
   const isUser = role === 'user';
   const isError = role === 'error';
+  const hasCharts = !isUser && !isError && Array.isArray(toolCalls) && toolCalls.length > 0;
 
   const bubbleClass = isUser
     ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
@@ -88,9 +90,14 @@ export default function MessageBubble({ message }) {
       ? 'bg-red-50 text-red-700 border border-red-200'
       : 'bg-[var(--accent)] text-[var(--foreground)]';
 
+  // 차트 있는 assistant는 더 넓게 (그래야 표/차트 보기 좋음)
+  const maxWidthClass = hasCharts
+    ? 'max-w-full sm:max-w-[92%]'
+    : 'max-w-[88%] sm:max-w-[78%]';
+
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-2`}>
-      <div className={`max-w-[88%] sm:max-w-[78%] rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 ${bubbleClass} min-w-0 group relative`}
+      <div className={`${maxWidthClass} rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 ${bubbleClass} min-w-0 group relative`}
            title={ts ? formatTime(ts) : ''}>
         {/* 헤더 (assistant/error 만) */}
         {!isUser && (
@@ -115,8 +122,11 @@ export default function MessageBubble({ message }) {
           )}
         </div>
 
+        {/* 차트 자동 렌더링 */}
+        {hasCharts && <ResultRenderer toolCalls={toolCalls} />}
+
         {/* 도구 호출 이력 (assistant only, 1건 이상) */}
-        {!isUser && !isError && Array.isArray(toolCalls) && toolCalls.length > 0 && (
+        {hasCharts && (
           <div className="mt-2 pt-2 border-t border-black/5">
             <button
               type="button"
