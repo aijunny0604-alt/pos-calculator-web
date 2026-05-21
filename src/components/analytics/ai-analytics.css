@@ -8,37 +8,7 @@
   color: #e8f4fd;
 }
 
-/* 미세 격자 (정적, 0.06 — 매우 옅게) */
-.ai-analytics-root::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(0, 212, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-}
-
-/* 페이지 미세 스캔라인 (옵션, 매우 옅음) */
-.ai-analytics-root::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: repeating-linear-gradient(
-    180deg,
-    transparent 0px,
-    transparent 3px,
-    rgba(0, 212, 255, 0.018) 3px,
-    rgba(0, 212, 255, 0.018) 4px
-  );
-  pointer-events: none;
-  z-index: 1;
-  mix-blend-mode: screen;
-}
+/* 격자/스캔라인 모두 제거 — 사각형 잔재 원인 제거 */
 
 /* 통합 헤더 톤 */
 .movis-glass-panel {

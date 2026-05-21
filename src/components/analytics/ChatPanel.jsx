@@ -6,6 +6,32 @@ import VoiceButton from './VoiceButton';
 import JarvisStandby from './JarvisStandby';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
+// 좌/우 사이드 추천 질문 칩 (가로 배치)
+function SideChip({ item, onSelect, align = 'left' }) {
+  const Icon = item.icon;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect?.(item)}
+      className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-xs sm:text-sm transition-all break-keep leading-snug min-w-0 movis-glass-card ${align === 'right' ? 'flex-row-reverse text-right' : 'text-left'}`}
+      style={{ borderRadius: 12 }}
+    >
+      {Icon && (
+        <Icon
+          className="w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110"
+          style={{ color: 'var(--jarvis-cyan)' }}
+        />
+      )}
+      <span className="flex-1 min-w-0" style={{ color: 'var(--jarvis-text-primary)' }}>{item.label}</span>
+      {item.count > 0 && (
+        <span className="text-[10px] flex-shrink-0 font-mono" style={{ color: 'var(--jarvis-accent)' }}>
+          ×{item.count}
+        </span>
+      )}
+    </button>
+  );
+}
+
 const MAX_INPUT = 1000;
 
 export default function ChatPanel({
@@ -101,25 +127,52 @@ export default function ChatPanel({
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {!hasMessages ? (
-          <div className="min-h-full flex flex-col items-center justify-start text-center py-6 relative">
-            {/* 자비스 영화 스타일 스탠바이 화면 — 상태 반응형 */}
-            <JarvisStandby
-              voiceListening={voice?.isListening}
-              isLoading={isLoading}
-              ttsEnabled={false}
-              ttsSpeaking={false}
-              sfxMuted={false}
-            />
+          <div className="min-h-full flex flex-col items-center justify-start py-6 relative">
+            {/* 데스크탑: 좌 7질문 | sphere | 우 7질문 (3컬럼) / 모바일: sphere 위 + 통합 칩 아래 */}
+            <div className="w-full max-w-[1600px] grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4 lg:gap-6 items-center px-4">
+              {/* 좌측 추천 질문 (데스크탑만) */}
+              <div className="hidden lg:flex flex-col gap-2 justify-center max-w-xs ml-auto min-w-0">
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1 text-right" style={{ color: 'var(--jarvis-text-muted)' }}>
+                  ◂ ANALYTICS QUERIES
+                </div>
+                {suggestedItems.filter((p) => p.side === 'left' || !p.side).slice(0, 7).map((item) => (
+                  <SideChip key={item.id} item={item} onSelect={handleSelect} align="right" />
+                ))}
+              </div>
 
-            {/* 추천 질문 */}
-            <div className="w-full max-w-3xl px-4 mt-4 min-w-0">
-              <SuggestedQuestions items={suggestedItems} onSelect={handleSelect} />
-              {voice?.supported && (
-                <p className="text-[11px] mt-4 font-mono tracking-wider" style={{ color: 'var(--jarvis-text-muted)' }}>
-                  🎤 음성 입력: <span style={{ color: 'var(--jarvis-cyan)' }}>Spacebar 길게</span> 누르거나 아래 마이크 버튼 클릭
-                </p>
-              )}
+              {/* 중앙: 자비스 스탠바이 */}
+              <div className="flex flex-col items-center text-center min-w-0">
+                <JarvisStandby
+                  voiceListening={voice?.isListening}
+                  isLoading={isLoading}
+                  ttsEnabled={false}
+                  ttsSpeaking={false}
+                  sfxMuted={false}
+                />
+              </div>
+
+              {/* 우측 추천 질문 (데스크탑만) */}
+              <div className="hidden lg:flex flex-col gap-2 justify-center max-w-xs mr-auto min-w-0">
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1 text-left" style={{ color: 'var(--jarvis-text-muted)' }}>
+                  OPERATIONS QUERIES ▸
+                </div>
+                {suggestedItems.filter((p) => p.side === 'right').slice(0, 7).map((item) => (
+                  <SideChip key={item.id} item={item} onSelect={handleSelect} align="left" />
+                ))}
+              </div>
             </div>
+
+            {/* 모바일/태블릿: 통합 칩 그리드 */}
+            <div className="w-full max-w-3xl px-4 mt-6 lg:hidden min-w-0">
+              <SuggestedQuestions items={suggestedItems} onSelect={handleSelect} />
+            </div>
+
+            {/* 음성 안내 */}
+            {voice?.supported && (
+              <p className="text-[11px] mt-6 font-mono tracking-wider text-center px-4" style={{ color: 'var(--jarvis-text-muted)' }}>
+                🎤 음성 입력: <span style={{ color: 'var(--jarvis-cyan)' }}>Spacebar 길게</span> 누르거나 아래 마이크 버튼 클릭
+              </p>
+            )}
           </div>
         ) : (
           <>

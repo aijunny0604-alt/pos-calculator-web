@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2, Volume2, VolumeX } from 'lucide-react';
+import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2, Volume2, VolumeX, DollarSign, Wallet, PackageX, LayoutGrid, Truck, Undo2, Brain, TrendingUp, Clock } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
 import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
@@ -13,14 +13,24 @@ import { sfxMicOn, sfxMicOff, sfxMessageArrive, sfxAnswerComplete, sfxError, isM
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { supabase } from '@/lib/supabase';
 
-// 기본 추천 질문 (MVP 5개 + 옵션 추가 가능)
+// 추천 질문 14개 (좌7 + 우7 분할)
 const DEFAULT_PROMPTS = [
-  { id: 'topRevenue', label: '이번 달 매출 TOP 5', icon: Crown },
-  { id: 'vipSegments', label: 'VIP 세그먼트 분석', icon: Users },
-  { id: 'topProducts', label: '인기 제품 TOP 10', icon: Package },
-  { id: 'reactivate', label: '재주문 유도 추천 액션', icon: RefreshCw },
-  { id: 'dormant', label: '휴면 거래처 알려줘', icon: TrendingDown },
-  { id: 'summary', label: '이번 달 전체 요약', icon: BarChart3 },
+  // 좌측 7개 — 매출/VIP/제품 중심
+  { id: 'summary', label: '이번 달 전체 요약', icon: BarChart3, side: 'left' },
+  { id: 'topRevenue', label: '이번 달 매출 TOP 5', icon: Crown, side: 'left' },
+  { id: 'vipSegments', label: 'VIP 세그먼트 분석', icon: Users, side: 'left' },
+  { id: 'topProducts', label: '인기 제품 TOP 10', icon: Package, side: 'left' },
+  { id: 'category', label: '카테고리별 매출 분석', icon: LayoutGrid, side: 'left' },
+  { id: 'productTrend', label: '최근 3개월 매출 추이', icon: TrendingUp, side: 'left' },
+  { id: 'reactivate', label: '재주문 유도 추천 액션', icon: RefreshCw, side: 'left' },
+  // 우측 7개 — 운영/위험/재고 중심
+  { id: 'lowStock', label: '재고 부족한 제품', icon: PackageX, side: 'right' },
+  { id: 'restock', label: '재주문 추천 (시급도)', icon: Package, side: 'right' },
+  { id: 'overdue', label: '미수 30일 이상 거래처', icon: DollarSign, side: 'right' },
+  { id: 'paymentInflow', label: '이번 달 입금 이력', icon: Wallet, side: 'right' },
+  { id: 'dormant', label: '휴면 거래처 알려줘', icon: TrendingDown, side: 'right' },
+  { id: 'pending', label: '출고 예정 주문', icon: Truck, side: 'right' },
+  { id: 'returns', label: '반품률 분석', icon: Undo2, side: 'right' },
 ];
 
 export default function AIAnalytics({

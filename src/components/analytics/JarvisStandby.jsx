@@ -133,14 +133,10 @@ export default function JarvisStandby({ voiceListening, ttsEnabled, sfxMuted, is
         </div>
       </div>
 
-      {/* Dot Sphere — 상태별 색상/모양 변화. boxShadow 사각형 잔재 완전 제거 */}
+      {/* Dot Sphere — 깔끔한 단일 컨테이너, 모든 박스 효과 제거 */}
       <div className="relative flex items-center justify-center my-6 sm:my-8">
         <div className="relative" style={{ width: 'min(480px, 78vw)', height: 'min(480px, 78vw)' }}>
           <JarvisDotSphere pointCount={520} size={480} mode={sphereMode} />
-          {/* 외곽 글로우 — 둥근 div만 + radial gradient (사각형 단차 X) */}
-          <div className="absolute inset-0 rounded-full pointer-events-none transition-all duration-700" style={{
-            background: `radial-gradient(circle, transparent 60%, ${statusColor}10 75%, transparent 100%)`,
-          }} />
           {/* 외계 헥사고날 마커 (4방향) — sphere 주위에 떠있는 데이터 노드 */}
           <HexagonMarker top="-2%" left="50%" translateX="-50%" color={statusColor} delay={0} />
           <HexagonMarker top="50%" left="100%" translateX="-50%" translateY="-50%" color={statusColor} delay={0.5} />
