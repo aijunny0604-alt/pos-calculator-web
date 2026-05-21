@@ -1135,6 +1135,7 @@ export default function App() {
               setCustomers={setCustomers}
               setCurrentPage={setCurrentPage}
               showToast={showToast}
+              saveOrder={saveOrder}
             />
           </Suspense>
         );

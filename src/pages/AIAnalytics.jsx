@@ -43,6 +43,7 @@ export default function AIAnalytics({
   setCustomers,
   setCurrentPage,
   showToast,
+  saveOrder: saveOrderProp,
 }) {
   // payment_records / payment_history / customer_returns 는 AIAnalytics 진입 시 lazy load (App state 미보유)
   const [paymentRecords, setPaymentRecords] = useState([]);
@@ -185,6 +186,42 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ "${productName}" 재고 변경 실패`);
           showToast?.('재고 변경 실패', 'error');
         }
+      } else if (pending.action === 'saveOrder') {
+        if (!saveOrderProp) {
+          chat.addSystemMessage(`❌ 주문 저장 함수가 전달되지 않았습니다.`);
+        } else {
+          const { customerName, customerPhone, customerAddress, priceType, items, total, memo } = pending.params;
+          const result = await saveOrderProp({
+            customer_name: customerName,
+            customer_phone: customerPhone,
+            customer_address: customerAddress,
+            price_type: priceType,
+            items,
+            total_amount: total,
+            memo,
+          });
+          if (result) {
+            chat.addSystemMessage(`✅ 주문 등록 완료 — "${customerName}" / ${items.length}건 / ${total.toLocaleString('ko-KR')}원${result.merged ? ' (당일 기존 주문에 병합)' : ''}`);
+            showToast?.(`주문 저장: ${customerName} ${total.toLocaleString('ko-KR')}원`, 'success');
+          } else {
+            chat.addSystemMessage(`❌ 주문 등록 실패`);
+            showToast?.('주문 저장 실패', 'error');
+          }
+        }
+      } else if (pending.action === 'updateCustomer') {
+        const { customerId, customerName, phone, address } = pending.params;
+        const patch = {};
+        if (phone !== undefined) patch.phone = phone;
+        if (address !== undefined) patch.address = address;
+        const updated = await supabase.updateCustomer(customerId, patch);
+        if (updated) {
+          setCustomers?.((prev) => prev.map((c) => c.id === customerId ? { ...c, ...patch } : c));
+          chat.addSystemMessage(`✅ "${customerName}" 정보 변경 완료`);
+          showToast?.(`거래처 수정: ${customerName}`, 'success');
+        } else {
+          chat.addSystemMessage(`❌ "${customerName}" 정보 변경 실패`);
+          showToast?.('거래처 수정 실패', 'error');
+        }
       } else if (pending.action === 'updateProductPrice') {
         const { productId, productName, wholesale, retail } = pending.params;
         const patch = {};
@@ -219,6 +256,8 @@ export default function AIAnalytics({
       addCustomer: `거래처 "${pending.params.name}" 등록`,
       updateProductStock: `"${pending.params.productName}" 재고 변경`,
       updateProductPrice: `"${pending.params.productName}" 가격 변경`,
+      saveOrder: `"${pending.params.customerName}" 주문 등록`,
+      updateCustomer: `"${pending.params.customerName}" 정보 수정`,
     };
     chat.addSystemMessage(`↩️ ${labelMap[pending.action] || pending.action} 취소됨`);
     chat.resolvePendingAction(pending.id);
