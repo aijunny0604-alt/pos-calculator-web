@@ -139,14 +139,14 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
         {!isUser && (
           <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold opacity-80">
             {isError ? <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> : <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />}
-            <span>{isError ? '오류' : 'JARVIS'}</span>
+            <span>{isError ? '오류' : 'MOVIS'}</span>
             {/* TTS 재생 버튼 (assistant 메시지만) */}
             {isAssistant && tts?.supported && (
               <button
                 type="button"
                 onClick={() => tts.isSpeaking ? tts.cancel() : tts.speak(content)}
                 className="ml-1 p-1 rounded hover:bg-cyan-500/20 transition-colors flex-shrink-0"
-                title={tts.isSpeaking ? '발화 중지' : '음성으로 듣기 (자비스)'}
+                title={tts.isSpeaking ? '발화 중지' : '음성으로 듣기 (MOVIS)'}
                 aria-label="음성 재생"
               >
                 {tts.isSpeaking

@@ -39,14 +39,9 @@ export default function AIAnalytics({
   const [customerReturns, setCustomerReturns] = useState([]);
   const [loadingExtra, setLoadingExtra] = useState(true);
 
-  // 빅뱅 진입 애니메이션 (한 번만)
-  const [introDone, setIntroDone] = useState(() => {
-    try { return sessionStorage.getItem('pos_ai_intro_done') === '1'; } catch { return false; }
-  });
-  const handleIntroDone = () => {
-    setIntroDone(true);
-    try { sessionStorage.setItem('pos_ai_intro_done', '1'); } catch {}
-  };
+  // 빅뱅 진입 애니메이션 — 페이지 진입할 때마다 재생 (다른 페이지 갔다 오면 다시 보임)
+  const [introDone, setIntroDone] = useState(false);
+  const handleIntroDone = () => setIntroDone(true);
 
   useEffect(() => {
     let cancelled = false;
