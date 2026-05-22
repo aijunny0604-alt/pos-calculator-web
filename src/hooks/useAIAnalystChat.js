@@ -519,7 +519,22 @@ function generateFollowUpQuestions(question, toolCalls = []) {
     return ['재주문 추천 리스트 줘', '품절 임박 제품들 우선 알려줘', '카테고리별 재고 현황'];
   }
   if (callNames.includes('getOverdueCustomers') || callNames.includes('getPaymentSummary')) {
-    return ['최근 입금 이력 보여줘', '60일 이상 미수만 보여줘', 'TOP 미수 거래처 매출 추이'];
+    return ['미수 회수 액션 플래너 짜줘', '60일 이상 미수만 보여줘', 'TOP 미수 거래처 매출 추이'];
+  }
+  if (callNames.includes('getCollectionPlan')) {
+    return ['1순위 거래처 최근 거래 보여줘', '회수 문구 다른 톤으로 작성', '60일 이상 미수만 보여줘'];
+  }
+  if (callNames.includes('getStockCoverageForecast')) {
+    return ['1위 제품 재주문 추천 수량', '카테고리별 품절 임박 분석', '재고 가치 합계'];
+  }
+  if (callNames.includes('getNextBestOffers')) {
+    return ['이 거래처 자주 같이 사는 제품', '이 거래처 최근 매출 추이', '비슷한 패턴 거래처들'];
+  }
+  if (callNames.includes('getProductBundleSuggestions')) {
+    return ['상위 묶음 제품 재고 확인', '이 묶음 구매 거래처 TOP', '비슷한 카테고리 묶음 추천'];
+  }
+  if (callNames.includes('getMarginLeakage')) {
+    return ['1위 제품 가격 인상 시뮬레이션', '카테고리별 평균 마진 비교', '도매가 이하 판매한 거래처'];
   }
   if (callNames.includes('getReturnAnalysis')) {
     return ['반품 자주 나는 제품 TOP', '반품 많은 거래처', '카테고리별 반품률'];
@@ -585,6 +600,12 @@ function friendlyToolName(name) {
     bulkUpdateProductStock: '재고 일괄 변경 준비',
     bulkUpdateProductPrice: '가격 일괄 변경 준비',
     bulkUpdateCustomer: '거래처 정보 일괄 변경 준비',
+    // Codex 제안 5종
+    getCollectionPlan: '미수 회수 액션 플래너',
+    getStockCoverageForecast: '품절 예상일 분석',
+    getNextBestOffers: '거래처 추천 제품 산출',
+    getProductBundleSuggestions: '묶음 판매 패턴 분석',
+    getMarginLeakage: '마진 누수 점검',
   };
   return map[name] || null;
 }

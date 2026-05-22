@@ -144,9 +144,190 @@ function renderOne(tc) {
     }
     case 'getLearningStats':
       return <LearningStatsCards data={data} />;
+    // === Codex 제안 5종 ===
+    case 'getCollectionPlan':
+      if (!data.results?.length) return null;
+      return <CollectionPlanTable data={data} />;
+    case 'getStockCoverageForecast':
+      if (!data.results?.length) return null;
+      return <StockCoverageTable data={data} />;
+    case 'getNextBestOffers':
+      if (!data.results?.length) return null;
+      return <NextBestOffersCards data={data} />;
+    case 'getProductBundleSuggestions':
+      if (!data.results?.length) return null;
+      return <BundleSuggestionsCards data={data} />;
+    case 'getMarginLeakage':
+      if (!data.results?.length) return null;
+      return <MarginLeakageTable data={data} />;
     default:
       return null;
   }
+}
+
+// === Codex 제안 시각화 컴포넌트 5종 ===
+
+function CollectionPlanTable({ data }) {
+  return (
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
+      <div className="text-sm font-semibold mb-2 break-keep">💸 미수 회수 액션 플래너 ({data.customerCount}곳 · 총 {fmtKRW(data.totalOverdue)}원)</div>
+      <div className="space-y-2">
+        {data.results.map((c) => (
+          <details key={c.rank} className="border border-cyan-400/15 rounded-lg p-2 text-xs">
+            <summary className="cursor-pointer flex items-center gap-2">
+              <span className="font-bold tabular-nums text-[var(--jarvis-cyan)]">#{c.rank}</span>
+              <span className="font-semibold break-keep flex-1">{c.name}</span>
+              <span className="tabular-nums font-bold text-[var(--destructive)]">{fmtKRW(c.totalBalance)}원</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.oldestDays >= 60 ? 'bg-red-500/20 text-red-300' : c.oldestDays >= 30 ? 'bg-amber-500/20 text-amber-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
+                {c.oldestDays}일
+              </span>
+              <span className="text-[10px] opacity-70">[{c.tone}]</span>
+            </summary>
+            <div className="mt-2 pt-2 border-t border-cyan-400/10 break-keep">
+              <div className="text-[var(--jarvis-text-muted)] mb-1">💬 추천 연락 문구:</div>
+              <div className="bg-cyan-500/5 rounded p-2 italic">{c.suggestedMessage}</div>
+              {c.recentRevenue > 0 && (
+                <div className="text-[10px] text-[var(--jarvis-text-muted)] mt-1">최근 30일 매출: {fmtKRW(c.recentRevenue)}원 (관계 활성)</div>
+              )}
+            </div>
+          </details>
+        ))}
+      </div>
+      <div className="text-[10px] text-[var(--jarvis-text-muted)] mt-2 break-keep">💡 우선순위 = 미수금 × 0.6 + 경과일 × 10000 + 최근 매출 × 0.15</div>
+    </div>
+  );
+}
+
+function StockCoverageTable({ data }) {
+  return (
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
+      <div className="text-sm font-semibold mb-2 break-keep">⏳ 품절 임박 제품 ({data.maxDaysLeft}일 이내 · {data.count}건)</div>
+      <table className="w-full text-xs">
+        <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
+          <tr>
+            <th className="text-left py-1.5 pr-2">#</th>
+            <th className="text-left py-1.5 pr-2">제품</th>
+            <th className="text-right py-1.5 pr-2">재고</th>
+            <th className="text-right py-1.5 pr-2 hidden sm:table-cell">일평균</th>
+            <th className="text-right py-1.5 pr-2 font-bold">예상 일수</th>
+            <th className="text-right py-1.5 hidden sm:table-cell">예상일</th>
+            <th className="text-right py-1.5">추천 발주</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.results.map((p) => (
+            <tr key={p.rank} className="border-b border-[var(--border)]/50">
+              <td className="py-1.5 pr-2 tabular-nums font-semibold">{p.rank}</td>
+              <td className="py-1.5 pr-2 break-keep">
+                <div>{p.name}</div>
+                <div className="text-[10px] opacity-60">{p.category}</div>
+              </td>
+              <td className="text-right py-1.5 pr-2 tabular-nums">{p.stock}</td>
+              <td className="text-right py-1.5 pr-2 tabular-nums hidden sm:table-cell">{p.avgDailyQty}</td>
+              <td className={`text-right py-1.5 pr-2 tabular-nums font-bold ${p.daysLeft <= 3 ? 'text-[var(--destructive)]' : p.daysLeft <= 7 ? 'text-amber-500' : ''}`}>
+                {p.daysLeft}일
+              </td>
+              <td className="text-right py-1.5 tabular-nums text-[10px] hidden sm:table-cell">{p.expectedRunoutDate}</td>
+              <td className="text-right py-1.5 tabular-nums font-bold text-[var(--success)]">{p.suggestedRestock}개</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="text-[10px] text-[var(--jarvis-text-muted)] mt-2 break-keep">💡 추천 발주 = 일평균 × 30일치. 빨강 = 3일 내, 주황 = 7일 내.</div>
+    </div>
+  );
+}
+
+function NextBestOffersCards({ data }) {
+  return (
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-2 break-keep">🎯 {data.customerName} 추천 제품 ({data.totalRecommended}건 중 TOP 10)</div>
+      <div className="space-y-1.5">
+        {data.results.map((p) => (
+          <div key={p.rank} className="flex items-center gap-2 text-xs border border-cyan-400/15 rounded-lg p-2">
+            <span className="font-bold tabular-nums text-[var(--jarvis-cyan)] w-6 flex-shrink-0">#{p.rank}</span>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold break-keep">{p.name}</div>
+              <div className="text-[10px] text-[var(--jarvis-text-muted)] break-keep">
+                {p.category} · 과거 {p.historyCount}회 / {p.historyQty}개 · 평균 주기 {p.avgIntervalDays}일 · 마지막 {p.daysSinceLastOrder}일 전
+              </div>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className="text-[10px] opacity-70">재고 {p.stock}</div>
+              <div className="text-[10px] tabular-nums">{fmtKRW(p.retail)}원</div>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 flex-shrink-0">{p.reason}</span>
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] text-[var(--jarvis-text-muted)] mt-2 break-keep">💡 점수 = 친밀도(과거 수량×2) + 재고 적합도 + 재주문 시점 임박도</div>
+    </div>
+  );
+}
+
+function BundleSuggestionsCards({ data }) {
+  return (
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-2 break-keep">🛒 "{data.productName}" 묶음 추천 (기준 주문 {data.baseOrderCount}건)</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {data.results.map((p) => (
+          <div key={p.rank} className="flex items-center gap-2 text-xs border border-cyan-400/15 rounded-lg p-2">
+            <span className="font-bold tabular-nums text-[var(--jarvis-cyan)] flex-shrink-0">#{p.rank}</span>
+            <span className="font-semibold break-keep flex-1 min-w-0">{p.name}</span>
+            <span className="text-[10px] tabular-nums">{p.pairCount}건</span>
+            <span className={`text-[10px] tabular-nums font-bold px-1.5 py-0.5 rounded ${p.confidence >= 50 ? 'bg-green-500/20 text-green-300' : p.confidence >= 25 ? 'bg-amber-500/20 text-amber-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
+              {p.confidence}%
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] text-[var(--jarvis-text-muted)] mt-2 break-keep">💡 신뢰도 = 동시 구매 비율. 50%↑ = 강한 묶음, 25%↑ = 권장.</div>
+    </div>
+  );
+}
+
+function MarginLeakageTable({ data }) {
+  return (
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
+      <div className="text-sm font-semibold mb-2 break-keep">💰 마진 누수 점검 (최근 {data.periodDays}일 · 마진 {data.minMarginRate}% 미만)</div>
+      <table className="w-full text-xs">
+        <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
+          <tr>
+            <th className="text-left py-1.5 pr-2">#</th>
+            <th className="text-left py-1.5 pr-2">제품</th>
+            <th className="text-right py-1.5 pr-2">판매</th>
+            <th className="text-right py-1.5 pr-2 hidden sm:table-cell">매출</th>
+            <th className="text-right py-1.5 pr-2 font-bold">마진율</th>
+            <th className="text-right py-1.5 hidden sm:table-cell">평균가</th>
+            <th className="text-right py-1.5">권장</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.results.map((p) => (
+            <tr key={p.rank} className="border-b border-[var(--border)]/50">
+              <td className="py-1.5 pr-2 tabular-nums font-semibold">{p.rank}</td>
+              <td className="py-1.5 pr-2 break-keep">
+                <div>{p.name}</div>
+                <div className="text-[10px] opacity-60">{p.category}</div>
+              </td>
+              <td className="text-right py-1.5 pr-2 tabular-nums">{p.qty}개</td>
+              <td className="text-right py-1.5 pr-2 tabular-nums hidden sm:table-cell">{fmtKRW(p.revenue)}원</td>
+              <td className={`text-right py-1.5 pr-2 tabular-nums font-bold ${p.marginRate < 0 ? 'text-[var(--destructive)]' : p.marginRate < 5 ? 'text-amber-500' : 'text-amber-400'}`}>
+                {p.marginRate}%
+              </td>
+              <td className="text-right py-1.5 tabular-nums hidden sm:table-cell">{fmtKRW(p.avgPrice)}원</td>
+              <td className="text-right py-1.5 text-[10px]">
+                <span className={`px-1.5 py-0.5 rounded ${p.severity === '손해' ? 'bg-red-500/20 text-red-300' : p.severity === '심각' ? 'bg-red-500/15 text-red-200' : 'bg-amber-500/20 text-amber-300'}`}>
+                  {p.severity}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="text-[10px] text-[var(--jarvis-text-muted)] mt-2 break-keep">💡 손해/심각 등급은 가격 인상 우선 후보. 도매가 대비 평균가 확인.</div>
+    </div>
+  );
 }
 
 const fmtKRW = (n) => Number(n || 0).toLocaleString('ko-KR');

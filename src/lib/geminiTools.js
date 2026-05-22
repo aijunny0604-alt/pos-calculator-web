@@ -16,6 +16,13 @@ import { getReturnAnalysis } from './analytics/returns';
 import { getPendingCarts } from './analytics/carts';
 import { getLearningStats } from './analytics/learning';
 import { findProductSmart, findProductCandidates } from './productMatch';
+import {
+  getCollectionPlan,
+  getStockCoverageForecast,
+  getNextBestOffers,
+  getProductBundleSuggestions,
+  getMarginLeakage,
+} from './analytics/advanced';
 
 // 공통 enum
 const PERIOD_ENUM = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
@@ -223,6 +230,55 @@ export const GEMINI_TOOLS = [
         stockThreshold: { type: 'integer', description: '재고 임계 (기본 5)' },
         salesPeriod: { type: 'string', enum: PERIOD_ENUM, description: '판매량 기준 기간 (기본 1M)' },
         limit: { type: 'integer', description: 'TOP N (기본 20)' },
+      },
+    },
+  },
+  // ===== 🎯 고급 분석 도구 (Codex 제안 5종) =====
+  {
+    name: 'getCollectionPlan',
+    description: '미수 회수 액션 플래너. 거래처별 미수금+경과일+최근 거래 기반 회수 우선순위 + 톤별 연락 문구 자동 생성. "미수 누구부터 회수해야 해?", "회수 계획 짜줘", "연락할 거래처 우선순위" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: { limit: { type: 'integer', description: 'TOP N (기본 15)' } },
+    },
+  },
+  {
+    name: 'getStockCoverageForecast',
+    description: '품절 예상일 + 재고 커버리지 예측. 최근 N일 평균 일일 판매량 기반으로 며칠 뒤 품절될지 예측. "곧 떨어질 제품", "품절 임박", "발주 타이밍", "X일 이내 품절 예상" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: {
+        periodDays: { type: 'integer', description: '판매량 기준 기간 (기본 30일)' },
+        maxDaysLeft: { type: 'integer', description: '며칠 이내 품절 예상까지 보여줄지 (기본 14일)' },
+      },
+    },
+  },
+  {
+    name: 'getNextBestOffers',
+    description: '특정 거래처에게 권할 만한 다음 제품 추천. 과거 구매 패턴 + 재주문 주기 + 현재 재고 기반. "강남오토에 뭐 권할까?", "X 거래처 다음 주문 추천", "이 거래처 자주 사는 거 권유 리스트" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: { customerName: { type: 'string', description: '거래처명' } },
+      required: ['customerName'],
+    },
+  },
+  {
+    name: 'getProductBundleSuggestions',
+    description: '특정 제품과 함께 자주 팔린 부품 추천 (묶음 판매). 동시 구매 패턴 분석. "다운파이프 사면 같이 뭐 팔리지?", "X 제품 묶음 추천", "이 제품 같이 권할 거" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: { productName: { type: 'string', description: '기준 제품명' } },
+      required: ['productName'],
+    },
+  },
+  {
+    name: 'getMarginLeakage',
+    description: '마진 누수 점검. 도매가 이하 판매 또는 마진율 낮은 제품 자동 탐지. "마진 적은 제품", "손해 본 제품", "수익성 안 좋은 거", "가격 수정 필요한 제품" 같은 질문에 사용. 가격 인상 후보 식별에 핵심.',
+    parameters: {
+      type: 'object',
+      properties: {
+        periodDays: { type: 'integer', description: '분석 기간 (기본 30일)' },
+        minMarginRate: { type: 'number', description: '최소 마진율 (기본 0.10 = 10%, 이 미만이 누수)' },
       },
     },
   },
@@ -736,6 +792,17 @@ export function executeTool(name, args = {}, context = {}) {
         return { ok: true, data: getProductsByStockStatus(products, args) };
       case 'getRestockRecommendations':
         return { ok: true, data: getRestockRecommendations(products, orders, args) };
+      // 고급 분석 5종
+      case 'getCollectionPlan':
+        return { ok: true, data: getCollectionPlan(context.paymentRecords || [], customers, orders, args) };
+      case 'getStockCoverageForecast':
+        return { ok: true, data: getStockCoverageForecast(products, orders, args) };
+      case 'getNextBestOffers':
+        return { ok: true, data: getNextBestOffers(args?.customerName, orders, products, args) };
+      case 'getProductBundleSuggestions':
+        return { ok: true, data: getProductBundleSuggestions(args?.productName, orders, args) };
+      case 'getMarginLeakage':
+        return { ok: true, data: getMarginLeakage(orders, products, args) };
       case 'getPaymentSummary':
         return { ok: true, data: getPaymentSummary(context.paymentRecords, context.paymentHistory) };
       case 'getOverdueCustomers':
@@ -1406,7 +1473,15 @@ ${top5Products || '(데이터 없음)'}
 ### 미수금
 - 미수 거래처 ${overdueCount}곳, 미수금 합계 ${Math.round(overdueTotal / 10000).toLocaleString('ko-KR')}만원
 
-## 🛠️ 사용 가능 도구 카탈로그 (26개)
+## 🛠️ 사용 가능 도구 카탈로그 (31개)
+
+### 🎯 고급 분석 (Codex 제안 5종 — 사장님께 실제 가치)
+- getCollectionPlan({limit?}) — 미수 회수 액션 플래너 (우선순위 + 톤별 연락 문구)
+- getStockCoverageForecast({periodDays?, maxDaysLeft?}) — 품절 예상일 (며칠 뒤 떨어질지)
+- getNextBestOffers({customerName}) — 거래처별 권할 만한 다음 제품
+- getProductBundleSuggestions({productName}) — 같이 팔린 부품 (묶음 업셀)
+- getMarginLeakage({periodDays?, minMarginRate?}) — 마진 누수 (가격 인상 후보)
+
 ### 단일 조회
 - getProductInfo({productName}) — 제품 1개 상세 (fuzzy 매칭)
 - getCustomerInfo({customerName}) — 거래처 1곳 상세 (매출/미수/TOP 제품)
