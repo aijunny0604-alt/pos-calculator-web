@@ -160,9 +160,222 @@ function renderOne(tc) {
     case 'getMarginLeakage':
       if (!data.results?.length) return null;
       return <MarginLeakageTable data={data} />;
+    // 시뮬레이션 4종
+    case 'simulatePriceChange':
+      if (data.error) return null;
+      return <PriceSimCard data={data} />;
+    case 'simulateRestock':
+      if (data.error) return null;
+      return <RestockSimCard data={data} />;
+    case 'getRevenueVolatility':
+      return <VolatilityCard data={data} />;
+    case 'getCustomerLifetimeValue':
+      if (!data.results?.length) return null;
+      return <LTVTable data={data} />;
     default:
       return null;
   }
+}
+
+// === 시뮬레이션 + 변수 분석 시각화 4종 ===
+
+function PriceSimCard({ data }) {
+  const cur = data.current, sim = data.simulated, delta = data.delta;
+  return (
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-2 break-keep">🔮 가격 시뮬레이션 — {data.productName}</div>
+      <div className="text-[11px] text-[var(--jarvis-text-muted)] mb-3">탄력성 {data.elasticity} · {data.changePct > 0 ? '+' : ''}{data.changePct}% 변동</div>
+      <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--jarvis-text-muted)] mb-1">현재</div>
+          <div>가격 <span className="font-bold tabular-nums">{fmtKRW(cur.avgPrice)}원</span></div>
+          <div>판매 {cur.qty}개</div>
+          <div>매출 {fmtKRW(cur.revenue)}원</div>
+          <div>마진 {fmtKRW(cur.margin)}원 ({cur.marginRate}%)</div>
+        </div>
+        <div className="border border-cyan-400/30 rounded-lg p-2 bg-cyan-500/5">
+          <div className="text-[var(--jarvis-cyan)] mb-1">시뮬</div>
+          <div>가격 <span className="font-bold tabular-nums">{fmtKRW(sim.newPrice)}원</span></div>
+          <div>판매 {sim.newQty}개</div>
+          <div>매출 {fmtKRW(sim.newRevenue)}원</div>
+          <div>마진 {fmtKRW(sim.newMargin)}원 ({sim.newMarginRate}%)</div>
+        </div>
+      </div>
+      <div className="border-t border-cyan-400/15 pt-2 text-xs grid grid-cols-3 gap-2 text-center">
+        <div>
+          <div className="text-[var(--jarvis-text-muted)]">매출 차이</div>
+          <div className={`font-bold tabular-nums ${delta.revenueDelta >= 0 ? 'text-[var(--success)]' : 'text-[var(--destructive)]'}`}>
+            {delta.revenueDelta >= 0 ? '+' : ''}{fmtKRW(delta.revenueDelta)}원
+          </div>
+        </div>
+        <div>
+          <div className="text-[var(--jarvis-text-muted)]">마진 차이</div>
+          <div className={`font-bold tabular-nums ${delta.marginDelta >= 0 ? 'text-[var(--success)]' : 'text-[var(--destructive)]'}`}>
+            {delta.marginDelta >= 0 ? '+' : ''}{fmtKRW(delta.marginDelta)}원
+          </div>
+        </div>
+        <div>
+          <div className="text-[var(--jarvis-text-muted)]">판매량 변화</div>
+          <div className={`font-bold tabular-nums ${delta.qtyDeltaPct >= 0 ? 'text-[var(--success)]' : 'text-amber-400'}`}>
+            {delta.qtyDeltaPct >= 0 ? '+' : ''}{delta.qtyDeltaPct}%
+          </div>
+        </div>
+      </div>
+      <div className="text-center mt-2 text-sm font-bold">{data.verdict}</div>
+      <div className="text-[10px] text-[var(--jarvis-text-muted)] mt-1 text-center break-keep">{data.note}</div>
+    </div>
+  );
+}
+
+function RestockSimCard({ data }) {
+  const af = data.afterRestock;
+  return (
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-2 break-keep">🚚 발주 시뮬레이션 — {data.productName} ({data.restockQty}개)</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-xs">
+        <div className="border border-[var(--border)] rounded-lg p-2 text-center">
+          <div className="text-[var(--jarvis-text-muted)]">발주 비용</div>
+          <div className="font-bold tabular-nums">{fmtKRW(af.restockCost)}원</div>
+        </div>
+        <div className="border border-cyan-400/20 rounded-lg p-2 text-center bg-cyan-500/5">
+          <div className="text-[var(--jarvis-text-muted)]">예상 매출</div>
+          <div className="font-bold tabular-nums">{fmtKRW(af.expectedRevenue)}원</div>
+        </div>
+        <div className="border border-green-400/20 rounded-lg p-2 text-center bg-green-500/5">
+          <div className="text-[var(--jarvis-text-muted)]">예상 마진</div>
+          <div className="font-bold tabular-nums text-[var(--success)]">{fmtKRW(af.expectedMargin)}원</div>
+        </div>
+        <div className="border border-amber-400/20 rounded-lg p-2 text-center bg-amber-500/5">
+          <div className="text-[var(--jarvis-text-muted)]">ROI</div>
+          <div className="font-bold tabular-nums text-amber-400">{af.expectedROI}%</div>
+        </div>
+      </div>
+      <div className="text-xs grid grid-cols-2 gap-2 border-t border-cyan-400/15 pt-2">
+        <div>
+          <span className="text-[var(--jarvis-text-muted)]">발주 후 재고: </span>
+          <span className="font-bold tabular-nums">{af.totalStock}개</span>
+        </div>
+        <div>
+          <span className="text-[var(--jarvis-text-muted)]">예상 일수: </span>
+          <span className="font-bold tabular-nums">{af.daysOfStock ?? '?'}일</span>
+        </div>
+        <div className="col-span-2">
+          <span className="text-[var(--jarvis-text-muted)]">예상 소진일: </span>
+          <span className="tabular-nums">{af.runoutDate || '-'}</span>
+        </div>
+      </div>
+      <div className="text-center mt-2 text-sm font-bold">{data.verdict}</div>
+    </div>
+  );
+}
+
+function VolatilityCard({ data }) {
+  return (
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4">
+      <div className="text-sm font-semibold mb-2 break-keep">📊 매출 변동성 분석 ({data.periodDays}일)</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-xs text-center">
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--jarvis-text-muted)]">평균/일</div>
+          <div className="font-bold tabular-nums">{fmtKRW(data.mean)}원</div>
+        </div>
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--jarvis-text-muted)]">중앙값</div>
+          <div className="font-bold tabular-nums">{fmtKRW(data.median)}원</div>
+        </div>
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--jarvis-text-muted)]">표준편차</div>
+          <div className="font-bold tabular-nums">{fmtKRW(data.stddev)}원</div>
+        </div>
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--jarvis-text-muted)]">변동계수</div>
+          <div className="font-bold tabular-nums">{data.cv}%</div>
+        </div>
+      </div>
+      <div className="text-xs mb-2 grid grid-cols-2 gap-2">
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--jarvis-text-muted)]">트렌드</div>
+          <div className="font-bold">{data.trend}</div>
+        </div>
+        <div className="border border-[var(--border)] rounded-lg p-2">
+          <div className="text-[var(--jarvis-text-muted)]">전주 대비 (최근 7일)</div>
+          <div className={`font-bold tabular-nums ${data.last7vsPrev7Pct >= 0 ? 'text-[var(--success)]' : 'text-[var(--destructive)]'}`}>
+            {data.last7vsPrev7Pct >= 0 ? '+' : ''}{data.last7vsPrev7Pct}%
+          </div>
+        </div>
+      </div>
+      {/* 요일별 패턴 */}
+      {data.dayPattern?.length > 0 && (
+        <div className="text-xs mb-2">
+          <div className="text-[var(--jarvis-text-muted)] mb-1">요일별 평균</div>
+          <div className="grid grid-cols-7 gap-1">
+            {data.dayPattern.map((d, i) => (
+              <div key={i} className="border border-cyan-400/15 rounded p-1 text-center">
+                <div className="text-[10px] opacity-70">{d.day}</div>
+                <div className="text-[10px] tabular-nums">{Math.round(d.avg / 10000)}만</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {data.outliers.length > 0 && (
+        <div className="text-xs">
+          <div className="text-[var(--jarvis-text-muted)] mb-1">이상치 {data.outliers.length}건 (±2σ):</div>
+          {data.outliers.slice(0, 5).map((o, i) => (
+            <div key={i} className="flex justify-between py-0.5">
+              <span>{o.date}</span>
+              <span className={`tabular-nums font-bold ${o.type === '급증' ? 'text-[var(--success)]' : 'text-[var(--destructive)]'}`}>
+                {o.type} · {fmtKRW(o.revenue)}원 (z={o.zScore})
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="text-[10px] text-[var(--jarvis-text-muted)] mt-2 italic break-keep">💡 {data.insight}</div>
+    </div>
+  );
+}
+
+function LTVTable({ data }) {
+  return (
+    <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
+      <div className="text-sm font-semibold mb-2 break-keep">💎 거래처 LTV TOP {data.results.length} (전체 {data.totalCustomers}곳)</div>
+      <div className="text-[11px] text-[var(--jarvis-text-muted)] mb-2">
+        누적 매출 {fmtKRW(data.totalHistoricalRevenue)}원 · 예상 LTV {fmtKRW(data.totalProjectedLTV)}원
+      </div>
+      <table className="w-full text-xs">
+        <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
+          <tr>
+            <th className="text-left py-1.5 pr-2">#</th>
+            <th className="text-left py-1.5 pr-2">거래처</th>
+            <th className="text-right py-1.5 pr-2">누적</th>
+            <th className="text-right py-1.5 pr-2 hidden sm:table-cell">주문</th>
+            <th className="text-right py-1.5 pr-2 hidden sm:table-cell">월 빈도</th>
+            <th className="text-right py-1.5 pr-2 font-bold">예상 LTV</th>
+            <th className="text-right py-1.5">상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.results.map((c) => (
+            <tr key={c.rank} className="border-b border-[var(--border)]/50">
+              <td className="py-1.5 pr-2 tabular-nums font-semibold">{c.rank}</td>
+              <td className="py-1.5 pr-2 break-keep">{c.name}</td>
+              <td className="text-right py-1.5 pr-2 tabular-nums">{fmtKRW(c.historicalRevenue)}원</td>
+              <td className="text-right py-1.5 pr-2 tabular-nums hidden sm:table-cell">{c.orderCount}</td>
+              <td className="text-right py-1.5 pr-2 tabular-nums hidden sm:table-cell">{c.orderFrequencyMonthly}회</td>
+              <td className={`text-right py-1.5 pr-2 tabular-nums font-bold ${c.projectedLTV > 0 ? 'text-[var(--success)]' : 'text-[var(--jarvis-text-muted)]'}`}>
+                {fmtKRW(c.projectedLTV)}원
+              </td>
+              <td className="text-right py-1.5 text-[10px]">
+                <span className={`px-1.5 py-0.5 rounded ${c.status === '활성' ? 'bg-green-500/20 text-green-300' : c.status === '주의' ? 'bg-amber-500/20 text-amber-300' : c.status === '휴면 위험' ? 'bg-red-500/20 text-red-300' : 'bg-zinc-500/20 text-zinc-300'}`}>
+                  {c.status}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 // === Codex 제안 시각화 컴포넌트 5종 ===

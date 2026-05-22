@@ -23,6 +23,12 @@ import {
   getProductBundleSuggestions,
   getMarginLeakage,
 } from './analytics/advanced';
+import {
+  simulatePriceChange,
+  simulateRestock,
+  getRevenueVolatility,
+  getCustomerLifetimeValue,
+} from './analytics/simulation';
 
 // 공통 enum
 const PERIOD_ENUM = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
@@ -280,6 +286,50 @@ export const GEMINI_TOOLS = [
         periodDays: { type: 'integer', description: '분석 기간 (기본 30일)' },
         minMarginRate: { type: 'number', description: '최소 마진율 (기본 0.10 = 10%, 이 미만이 누수)' },
       },
+    },
+  },
+  // ===== 🔮 시뮬레이션 + 변수 분석 (4종) =====
+  {
+    name: 'simulatePriceChange',
+    description: '특정 제품 가격 변동 시 매출/마진/판매량 시뮬레이션. "X 가격 10% 올리면?", "Y 가격 인상 시뮬", "가격 시나리오" 같은 질문에 사용. 가격 탄력성 기반 예측 + 비추천/추천 판정.',
+    parameters: {
+      type: 'object',
+      properties: {
+        productName: { type: 'string', description: '제품명 (정확)' },
+        changePct: { type: 'number', description: '가격 변동율 % (예: 10 = 10% 인상, -5 = 5% 인하)' },
+        elasticity: { type: 'number', description: '가격 탄력성 (기본 -1.0, 1% 가격↑ → 1% 판매↓)' },
+        periodDays: { type: 'integer', description: '기준 판매 기간 (기본 30일)' },
+      },
+      required: ['productName', 'changePct'],
+    },
+  },
+  {
+    name: 'simulateRestock',
+    description: '특정 제품 발주 시뮬레이션. "X 50개 발주하면?", "Y 100개 들여놓으면 며칠 가?", "발주 시나리오" 같은 질문에 사용. 며칠치 재고 + 비용 + 예상 매출/마진/ROI + 적정성 판정.',
+    parameters: {
+      type: 'object',
+      properties: {
+        productName: { type: 'string', description: '제품명' },
+        restockQty: { type: 'integer', description: '발주 수량' },
+        periodDays: { type: 'integer', description: '판매량 기준 기간 (기본 30일)' },
+      },
+      required: ['productName', 'restockQty'],
+    },
+  },
+  {
+    name: 'getRevenueVolatility',
+    description: '매출 변동성 + 트렌드 + 이상치 분석. "매출 변동성", "매출 안정성", "매출 이상치", "튀는 날 알려줘" 같은 질문에 사용. 표준편차 + 변동계수 + 선형 회귀 트렌드 + ±2σ 이상치.',
+    parameters: {
+      type: 'object',
+      properties: { periodDays: { type: 'integer', description: '분석 기간 (기본 30일)' } },
+    },
+  },
+  {
+    name: 'getCustomerLifetimeValue',
+    description: '거래처 LTV (Lifetime Value) 추정. "거래처 가치 분석", "LTV", "VIP 가치 순위" 같은 질문에 사용. 누적 매출 + 평균 주문가 + 거래 기간 + 미래 12개월 예상 가치.',
+    parameters: {
+      type: 'object',
+      properties: { limit: { type: 'integer', description: 'TOP N (기본 20)' } },
     },
   },
   // ===== 결제/미수 분석 =====
@@ -805,6 +855,15 @@ export function executeTool(name, args = {}, context = {}) {
         return { ok: true, data: getProductBundleSuggestions(args?.productName, orders, args) };
       case 'getMarginLeakage':
         return { ok: true, data: getMarginLeakage(orders, products, args) };
+      // 시뮬레이션 4종
+      case 'simulatePriceChange':
+        return { ok: true, data: simulatePriceChange(args?.productName, orders, products, args) };
+      case 'simulateRestock':
+        return { ok: true, data: simulateRestock(args?.productName, args?.restockQty, orders, products, args) };
+      case 'getRevenueVolatility':
+        return { ok: true, data: getRevenueVolatility(orders, args) };
+      case 'getCustomerLifetimeValue':
+        return { ok: true, data: getCustomerLifetimeValue(orders, args) };
       case 'getPaymentSummary':
         return { ok: true, data: getPaymentSummary(context.paymentRecords, context.paymentHistory) };
       case 'getOverdueCustomers':
@@ -1527,7 +1586,7 @@ ${top5Products || '(데이터 없음)'}
 ### 미수금
 - 미수 거래처 ${overdueCount}곳, 미수금 합계 ${Math.round(overdueTotal / 10000).toLocaleString('ko-KR')}만원
 
-## 🛠️ 사용 가능 도구 카탈로그 (31개)
+## 🛠️ 사용 가능 도구 카탈로그 (35개)
 
 ### 🎯 고급 분석 (Codex 제안 5종 — 사장님께 실제 가치)
 - getCollectionPlan({limit?}) — 미수 회수 액션 플래너 (우선순위 + 톤별 연락 문구)
@@ -1535,6 +1594,12 @@ ${top5Products || '(데이터 없음)'}
 - getNextBestOffers({customerName}) — 거래처별 권할 만한 다음 제품
 - getProductBundleSuggestions({productName}) — 같이 팔린 부품 (묶음 업셀)
 - getMarginLeakage({periodDays?, minMarginRate?}) — 마진 누수 (가격 인상 후보)
+
+### 🔮 시뮬레이션 + 변수 분석 (4종 — What-If 의사 결정)
+- simulatePriceChange({productName, changePct, elasticity?}) — 가격 변동 시 매출/마진 시뮬레이션
+- simulateRestock({productName, restockQty}) — 발주 시 며칠치 재고/비용/예상 매출/ROI
+- getRevenueVolatility({periodDays?}) — 매출 변동성 + 트렌드 + 이상치 자동 탐지
+- getCustomerLifetimeValue({limit?}) — 거래처 LTV 추정 (미래 12개월 예상)
 
 ### 단일 조회
 - getProductInfo({productName}) — 제품 1개 상세 (fuzzy 매칭)

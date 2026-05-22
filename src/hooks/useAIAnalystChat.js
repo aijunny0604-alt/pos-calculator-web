@@ -682,6 +682,11 @@ function friendlyToolName(name) {
     getNextBestOffers: '거래처 추천 제품 산출',
     getProductBundleSuggestions: '묶음 판매 패턴 분석',
     getMarginLeakage: '마진 누수 점검',
+    // 시뮬레이션 4종
+    simulatePriceChange: '가격 변동 시뮬레이션',
+    simulateRestock: '발주 시뮬레이션',
+    getRevenueVolatility: '매출 변동성 분석',
+    getCustomerLifetimeValue: '거래처 LTV 추정',
   };
   return map[name] || null;
 }
