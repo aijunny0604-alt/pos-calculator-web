@@ -87,48 +87,9 @@ export default function AIAnalytics({
   });
   const [executing, setExecuting] = useState(false);
 
-  // ⭐ 자율 인공지능 시스템 - 진입 시 이상 탐지 + 자동 인사이트
-  // 1) 즉시: 데이터 자율 분석 → 이상 신호 발견 시 시스템 메시지로 알림 (LLM 호출 없음)
-  // 2) 4초 후: AI 자동 인사이트 (24h 1회 가드)
-  const autoInsightTriggeredRef = useRef(false);
-  useEffect(() => {
-    if (autoInsightTriggeredRef.current) return;
-    if (loadingExtra) return;
-    if (chat.messages.length > 0) return;
-    if (!orders.length || !products.length) return;
-    autoInsightTriggeredRef.current = true;
-
-    // Step 1: 자율 이상 탐지 (LLM 미사용, 즉시)
-    (async () => {
-      try {
-        const { detectAnomalies, formatAnomalies } = await import('@/lib/analytics/anomalyDetector');
-        const anomalies = detectAnomalies({
-          products, customers, orders,
-          paymentRecords, paymentHistory, customerReturns,
-        });
-        const formatted = formatAnomalies(anomalies);
-        if (formatted) {
-          await new Promise((r) => setTimeout(r, 1500)); // 빅뱅 후 1.5초
-          chat.addSystemMessage(formatted);
-        }
-      } catch (e) {
-        console.warn('자율 이상 탐지 실패:', e);
-      }
-    })();
-
-    // Step 2: AI 자동 인사이트 (24h 1회)
-    const LAST_KEY = 'pos_ai_last_auto_insight';
-    try {
-      const last = Number(localStorage.getItem(LAST_KEY) || 0);
-      const oneDayMs = 24 * 60 * 60 * 1000;
-      if (Date.now() - last < oneDayMs) return;
-    } catch {}
-    const timer = setTimeout(() => {
-      try { localStorage.setItem(LAST_KEY, String(Date.now())); } catch {}
-      chat.send('오늘 매장에서 주목할 점 3가지를 간결하게 알려줘 (인기 제품, 재고 부족, 미수 거래처 위주)');
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [loadingExtra, chat.messages.length, orders.length, products.length, customers.length, paymentRecords.length, paymentHistory.length, customerReturns.length, chat]);
+  // 자율 분석 + 자동 인사이트 = OFF (사용자 요청 — 페이지 진입 시 자동 메시지 안 나오게)
+  // 사용자가 명시적으로 질문 시작하도록 변경. 빅뱅 인트로만 정상 표시.
+  // (이전엔 자동 메시지가 빅뱅과 겹쳐 보여 거슬렸음)
 
   // TTS (한국어 여성 voice)
   const tts = useTextToSpeech();
