@@ -580,17 +580,14 @@ export default function AIAnalytics({
         </div>
       )}
 
-      {/* 메인 UI 컨테이너 — 250ms 지연 후 1100ms 동안 부드럽게 등장 (stagger 시작점)
-          전체 요소가 순차적으로 등장 (헤더 → sphere → 입력창) — CSS movis-fadein 변수 활용 */}
+      {/* 메인 UI 컨테이너 — 단순 opacity + 살짝의 scale (자식 stagger 제거로 충돌 X)
+          800ms cubic-bezier 부드러운 페이드 인 */}
       <div
-        className="flex flex-col h-full overflow-hidden movis-fade-in"
-        data-visible={introVisible || introDone}
+        className="flex flex-col h-full overflow-hidden"
         style={{
-          // 초기 상태 (visible=false)
           opacity: (introVisible || introDone) ? 1 : 0,
-          transform: (introVisible || introDone) ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(12px)',
-          filter: (introVisible || introDone) ? 'blur(0)' : 'blur(8px)',
-          transition: 'opacity 1100ms cubic-bezier(0.16, 1, 0.3, 1), transform 1100ms cubic-bezier(0.16, 1, 0.3, 1), filter 900ms ease-out',
+          transform: (introVisible || introDone) ? 'scale(1)' : 'scale(0.98)',
+          transition: 'opacity 900ms cubic-bezier(0.4, 0, 0.2, 1), transform 900ms cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
 
