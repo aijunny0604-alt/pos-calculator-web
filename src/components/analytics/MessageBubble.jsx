@@ -192,28 +192,38 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
         {/* 차트 자동 렌더링 */}
         {hasCharts && <ResultRenderer toolCalls={toolCalls} />}
 
-        {/* 추천 후속 질문 칩 (assistant only) */}
+        {/* 추천 후속 질문 칩 (assistant only) — 카테고리별 아이콘/색상 */}
         {isAssistant && Array.isArray(followUps) && followUps.length > 0 && onFollowUpClick && (
           <div className="mt-3 pt-2 border-t border-cyan-400/20">
             <div className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: 'var(--jarvis-text-muted)' }}>
-              💡 다음 질문 추천
+              💡 다음 질문 추천 ({followUps.length}개)
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {followUps.map((q, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => onFollowUpClick(q)}
-                  className="text-[11px] px-2.5 py-1.5 rounded-lg transition-all hover:scale-[1.02] break-keep"
-                  style={{
-                    background: 'rgba(0, 212, 255, 0.08)',
-                    color: 'var(--jarvis-cyan)',
-                    border: '1px solid rgba(0, 212, 255, 0.22)',
-                  }}
-                >
-                  {q}
-                </button>
-              ))}
+              {followUps.map((item, i) => {
+                // 문자열 또는 객체 호환
+                const q = typeof item === 'string' ? item : item.text;
+                const cat = typeof item === 'object' ? (item.category || 'analysis') : 'analysis';
+                // 카테고리별 스타일
+                const CAT_STYLES = {
+                  action:   { icon: '⚡', bg: 'rgba(0, 255, 136, 0.08)', color: '#00ff88', border: '1px solid rgba(0, 255, 136, 0.30)' },
+                  analysis: { icon: '🔍', bg: 'rgba(0, 212, 255, 0.08)', color: 'var(--jarvis-cyan)', border: '1px solid rgba(0, 212, 255, 0.22)' },
+                  compare:  { icon: '📊', bg: 'rgba(168, 85, 247, 0.08)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.28)' },
+                  sim:      { icon: '🔮', bg: 'rgba(251, 191, 36, 0.08)', color: '#fbbf24', border: '1px solid rgba(251, 191, 36, 0.28)' },
+                };
+                const s = CAT_STYLES[cat] || CAT_STYLES.analysis;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => onFollowUpClick(q)}
+                    className="text-[11px] px-2.5 py-1.5 rounded-lg transition-all hover:scale-[1.03] hover:brightness-125 break-keep flex items-center gap-1"
+                    style={{ background: s.bg, color: s.color, border: s.border }}
+                  >
+                    <span aria-hidden="true">{s.icon}</span>
+                    <span>{q}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

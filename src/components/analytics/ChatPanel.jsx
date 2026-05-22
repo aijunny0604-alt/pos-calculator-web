@@ -263,7 +263,16 @@ export default function ChatPanel({
                   key={m.id}
                   message={m}
                   tts={tts}
-                  onFollowUpClick={(q) => onSend?.(q)}
+                  onFollowUpClick={(q) => {
+                    // 사용 빈도 기록 (다음번 추천 정렬에 활용)
+                    try {
+                      const key = 'pos_ai_quick_prompts_usage_v1';
+                      const usage = JSON.parse(localStorage.getItem(key) || '{}');
+                      usage[q] = (usage[q] || 0) + 1;
+                      localStorage.setItem(key, JSON.stringify(usage));
+                    } catch {}
+                    onSend?.(q);
+                  }}
                   userQuery={prevUser}
                 />
               );

@@ -581,75 +581,183 @@ function synthesizeOrderFromText(content, messageId) {
   };
 }
 
-// 추천 후속 질문 자동 생성 — 도구 호출 결과 + 질문 패턴 기반
-// 답변 하단에 칩 3개로 표시되어 사용자가 다음 질문 클릭만으로 진행 가능
+// 추천 후속 질문 자동 생성 — 도구 결과 데이터 기반 동적 + 컨텍스트 + 사용 빈도
+// 답변 하단에 칩으로 표시 (category: action/analysis/compare/sim)
+// 반환: [{ text, category, icon? }] 또는 [string] (호환)
+
+// 답변 데이터에서 첫 번째 결과 이름 추출 (거래처/제품)
+function extractFirstName(toolCalls = []) {
+  for (const tc of toolCalls) {
+    const data = tc?.result?.data;
+    if (!data) continue;
+    if (Array.isArray(data.results) && data.results[0]?.name) return data.results[0].name;
+    if (Array.isArray(data.items) && data.items[0]?.name) return data.items[0].name;
+    if (data.name) return data.name;
+    if (data.customerName) return data.customerName;
+    if (data.productName) return data.productName;
+  }
+  return null;
+}
+
+// 답변 데이터에서 상위 N개 이름 추출
+function extractTopNames(toolCalls = [], n = 3) {
+  for (const tc of toolCalls) {
+    const data = tc?.result?.data;
+    if (!data) continue;
+    const arr = data.results || data.items;
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr.slice(0, n).map((r) => r?.name).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+// 사용 빈도 기반 우선 정렬 (자주 쓴 질문 패턴 우선)
+function sortByUsage(suggestions) {
+  try {
+    const usage = JSON.parse(localStorage.getItem(USAGE_KEY) || '{}');
+    return [...suggestions].sort((a, b) => {
+      const at = typeof a === 'string' ? a : a.text;
+      const bt = typeof b === 'string' ? b : b.text;
+      return (usage[bt] || 0) - (usage[at] || 0);
+    });
+  } catch { return suggestions; }
+}
+
 function generateFollowUpQuestions(question, toolCalls = []) {
   const calls = Array.isArray(toolCalls) ? toolCalls : [];
   const callNames = calls.map((c) => c?.name).filter(Boolean);
   const q = String(question || '');
+  const firstName = extractFirstName(calls); // "강남오토" 또는 "스덴 밴딩 파이프 54-30"
+  const topNames = extractTopNames(calls, 3);
 
-  // 도구별 후속 질문 매핑
-  if (callNames.includes('getTopCustomers')) {
-    return ['1위 거래처 최근 주문 추이 보여줘', '휴면 거래처 알려줘', '미수 거래처 TOP 5'];
-  }
-  if (callNames.includes('getTopProducts')) {
-    return ['재고 부족한 인기 제품 알려줘', '재주문 추천 리스트 줘', '카테고리별 매출 비교해줘'];
-  }
-  if (callNames.includes('getCustomerInfo')) {
-    return ['이 거래처 최근 3개월 주문 추이', '이 거래처 자주 사는 제품', '이 거래처 미수금 알려줘'];
-  }
-  if (callNames.includes('getProductInfo')) {
-    return ['이 제품 카테고리 다른 제품들', '이 제품 최근 판매 추이', '이 제품 재주문 추천 수량'];
-  }
-  if (callNames.includes('searchProducts')) {
-    return ['이 중 재고 부족한 것만 보여줘', '카테고리별 매출 TOP', '재주문 추천 리스트'];
-  }
-  if (callNames.includes('searchCustomers')) {
-    return ['이 중 휴면 위험 거래처', '이 중 미수 있는 거래처', '매출 TOP 3 알려줘'];
-  }
-  if (callNames.includes('getCustomerSegments')) {
-    return ['VIP 거래처 자주 사는 제품', '신규 거래처 추이', '휴면 거래처 컴백 전략'];
-  }
-  if (callNames.includes('getLowStockProducts') || callNames.includes('getStockSummary')) {
-    return ['재주문 추천 리스트 줘', '품절 임박 제품들 우선 알려줘', '카테고리별 재고 현황'];
-  }
-  if (callNames.includes('getOverdueCustomers') || callNames.includes('getPaymentSummary')) {
-    return ['미수 회수 액션 플래너 짜줘', '60일 이상 미수만 보여줘', 'TOP 미수 거래처 매출 추이'];
-  }
-  if (callNames.includes('getCollectionPlan')) {
-    return ['1순위 거래처 최근 거래 보여줘', '회수 문구 다른 톤으로 작성', '60일 이상 미수만 보여줘'];
-  }
-  if (callNames.includes('getStockCoverageForecast')) {
-    return ['1위 제품 재주문 추천 수량', '카테고리별 품절 임박 분석', '재고 가치 합계'];
-  }
-  if (callNames.includes('getNextBestOffers')) {
-    return ['이 거래처 자주 같이 사는 제품', '이 거래처 최근 매출 추이', '비슷한 패턴 거래처들'];
-  }
-  if (callNames.includes('getProductBundleSuggestions')) {
-    return ['상위 묶음 제품 재고 확인', '이 묶음 구매 거래처 TOP', '비슷한 카테고리 묶음 추천'];
-  }
-  if (callNames.includes('getMarginLeakage')) {
-    return ['1위 제품 가격 인상 시뮬레이션', '카테고리별 평균 마진 비교', '도매가 이하 판매한 거래처'];
-  }
-  if (callNames.includes('getReturnAnalysis')) {
-    return ['반품 자주 나는 제품 TOP', '반품 많은 거래처', '카테고리별 반품률'];
-  }
-  if (callNames.includes('getCompositeSummary')) {
-    return ['이번 달 매출 TOP 거래처', '재고 부족한 인기 제품', '미수금 현황'];
+  // 시간대 기반 (오전/오후/저녁)
+  const hour = new Date().getHours();
+  const timeContext = hour < 11 ? 'morning' : hour < 17 ? 'day' : 'evening';
+
+  // 카테고리 분류: action(액션) / analysis(분석) / compare(비교) / sim(시뮬레이션)
+  const A = (text) => ({ text, category: 'action' });   // 즉시 행동
+  const N = (text) => ({ text, category: 'analysis' }); // deep dive 분석
+  const C = (text) => ({ text, category: 'compare' });  // 비교
+  const S = (text) => ({ text, category: 'sim' });      // What-if
+
+  let suggestions = [];
+
+  // ✅ 1. 도구 결과 데이터 기반 동적 추천 (실제 이름 활용)
+  if (callNames.includes('getTopCustomers') && firstName) {
+    suggestions.push(N(`${firstName} 최근 3개월 추이`));
+    suggestions.push(N(`${firstName} 자주 사는 제품 TOP 5`));
+    suggestions.push(A(`${firstName} 다음 판매 제안`));
+    suggestions.push(N(`TOP ${topNames.length}곳 매출 비교`));
+  } else if (callNames.includes('getTopProducts') && firstName) {
+    suggestions.push(N(`${firstName} 판매 추이`));
+    suggestions.push(A(`${firstName} 재주문 추천 수량`));
+    suggestions.push(S(`${firstName} 가격 10% 올리면?`));
+    suggestions.push(A(`${firstName} 묶음 판매 추천`));
+  } else if (callNames.includes('getCustomerInfo') && firstName) {
+    suggestions.push(N(`${firstName} 3개월 매출 추이`));
+    suggestions.push(A(`${firstName} 권할 제품 (Next Best Offer)`));
+    suggestions.push(N(`${firstName} 자주 같이 사는 제품 묶음`));
+    suggestions.push(C(`${firstName} vs 동급 거래처 매출 비교`));
+  } else if (callNames.includes('getProductInfo') && firstName) {
+    suggestions.push(N(`${firstName} 판매 추이 6개월`));
+    suggestions.push(A(`${firstName} 재주문 50개 시뮬`));
+    suggestions.push(S(`${firstName} 가격 인상 시뮬`));
+    suggestions.push(N(`${firstName} 같이 팔린 부품`));
+  } else if (callNames.includes('searchProducts')) {
+    suggestions.push(A('이 중 재고 부족한 것만'));
+    suggestions.push(N('카테고리별 매출 TOP'));
+    suggestions.push(A('재주문 추천 리스트'));
+    suggestions.push(S('1위 제품 가격 시뮬'));
+  } else if (callNames.includes('searchCustomers')) {
+    suggestions.push(N('이 중 휴면 위험 거래처'));
+    suggestions.push(A('이 중 미수 있는 거래처'));
+    suggestions.push(N('LTV 추정 TOP 5'));
+  } else if (callNames.includes('getCustomerSegments')) {
+    suggestions.push(A('VIP 자주 사는 제품 분석'));
+    suggestions.push(A('휴면 거래처 컴백 전략'));
+    suggestions.push(N('신규 거래처 정착률'));
+  } else if (callNames.includes('getLowStockProducts') || callNames.includes('getStockSummary') || callNames.includes('getStockCoverageForecast')) {
+    suggestions.push(A('재주문 추천 리스트'));
+    if (firstName) suggestions.push(S(`${firstName} 100개 발주 시뮬`));
+    suggestions.push(N('품절 인기 제품 우선순위'));
+    suggestions.push(N('카테고리별 재고 가치'));
+  } else if (callNames.includes('getOverdueCustomers') || callNames.includes('getPaymentSummary')) {
+    suggestions.push(A('💸 미수 회수 액션 플래너'));
+    suggestions.push(N('60일 이상 지연만 보기'));
+    if (firstName) suggestions.push(N(`${firstName} 매출 추이`));
+    suggestions.push(N('최근 입금 이력'));
+  } else if (callNames.includes('getCollectionPlan')) {
+    if (firstName) suggestions.push(N(`${firstName} 최근 거래 보기`));
+    suggestions.push(A('회수 문구 다른 톤으로'));
+    suggestions.push(N('60일 이상 미수만'));
+    suggestions.push(N('미수 거래처 LTV 분석'));
+  } else if (callNames.includes('getNextBestOffers') && firstName) {
+    suggestions.push(N('이 거래처 같이 사는 제품 묶음'));
+    suggestions.push(N('비슷한 구매 패턴 거래처'));
+    suggestions.push(A(`${firstName} 주문 등록`));
+  } else if (callNames.includes('getProductBundleSuggestions') && firstName) {
+    suggestions.push(A('상위 묶음 제품 재고 확인'));
+    suggestions.push(N(`${firstName} 구매 거래처 TOP`));
+    suggestions.push(N('카테고리별 묶음 패턴'));
+  } else if (callNames.includes('getMarginLeakage')) {
+    if (firstName) suggestions.push(S(`${firstName} 가격 15% 인상 시뮬`));
+    suggestions.push(C('카테고리별 마진 비교'));
+    suggestions.push(N('도매가 이하 판매한 거래처'));
+  } else if (callNames.includes('simulatePriceChange')) {
+    suggestions.push(S('변동률 -5% / +20%도 시뮬'));
+    if (firstName) suggestions.push(S(`${firstName} 발주 100개 시뮬`));
+    suggestions.push(N('비슷한 마진 다른 제품'));
+  } else if (callNames.includes('simulateRestock')) {
+    if (firstName) suggestions.push(S(`${firstName} 가격 시뮬`));
+    suggestions.push(N('같은 카테고리 재고 커버리지'));
+    suggestions.push(A('재주문 추천 전체 리스트'));
+  } else if (callNames.includes('getRevenueVolatility')) {
+    suggestions.push(N('이상치 날짜 거래처 분석'));
+    suggestions.push(C('이번 달 vs 지난달 매출'));
+    suggestions.push(N('요일별 매출 패턴 상세'));
+  } else if (callNames.includes('getCustomerLifetimeValue')) {
+    if (firstName) suggestions.push(N(`${firstName} 다음 판매 제안`));
+    suggestions.push(N('휴면 위험 거래처만 LTV'));
+    suggestions.push(A('VIP 컴백 전략'));
+  } else if (callNames.includes('getReturnAnalysis')) {
+    suggestions.push(N('반품 자주 나는 제품 TOP'));
+    suggestions.push(N('반품 많은 거래처'));
+    suggestions.push(N('카테고리별 반품률'));
+  } else if (callNames.includes('getCompositeSummary')) {
+    suggestions.push(A('💸 미수 회수 액션 플래너'));
+    suggestions.push(N('재고 부족한 인기 제품'));
+    suggestions.push(N('이번 달 매출 TOP 5'));
   }
 
-  // 패턴 기반 fallback
-  if (/매출|판매|수익/.test(q)) {
-    return ['거래처 TOP 5', '인기 제품 TOP 10', '카테고리별 매출 비교'];
+  // ✅ 2. 패턴 기반 fallback (도구 결과 없거나 매칭 안 되면)
+  if (suggestions.length === 0) {
+    if (/매출|판매|수익/.test(q)) {
+      suggestions = [N('거래처 TOP 5'), N('인기 제품 TOP 10'), C('카테고리별 매출 비교'), N('매출 변동성 분석')];
+    } else if (/재고|입고|품절/.test(q)) {
+      suggestions = [A('재주문 추천 리스트'), N('재고 부족 제품'), S('주요 제품 발주 시뮬'), N('품절 예상일 예측')];
+    } else if (/거래처|고객/.test(q)) {
+      suggestions = [A('💎 LTV TOP 분석'), N('VIP 거래처'), N('휴면 거래처'), A('미수 회수 플래너')];
+    } else if (/가격|마진/.test(q)) {
+      suggestions = [N('마진 누수 점검'), S('TOP 제품 가격 시뮬'), C('카테고리별 마진 비교')];
+    } else {
+      // 시간대 기반 기본 추천
+      if (timeContext === 'morning') {
+        suggestions = [N('📊 오늘 주목할 점 3가지'), N('어제 매출 정리'), A('재고 부족 알려줘')];
+      } else if (timeContext === 'evening') {
+        suggestions = [N('오늘 매출 마감'), N('내일 발주할 거'), A('미수 거래처 정리')];
+      } else {
+        suggestions = [N('이번 달 매출 TOP 5'), A('재고 부족 알려줘'), A('미수 거래처')];
+      }
+    }
   }
-  if (/재고|입고|품절/.test(q)) {
-    return ['재고 부족 제품 알려줘', '재주문 추천 리스트', '품절 제품 목록'];
-  }
-  if (/거래처|고객/.test(q)) {
-    return ['VIP 거래처 알려줘', '휴면 거래처 알려줘', '미수금 있는 거래처'];
-  }
-  // 기본
-  return ['이번 달 매출 TOP 5', '재고 부족 제품 알려줘', '미수 거래처 알려줘'];
+
+  // ✅ 3. 사용 빈도 정렬
+  suggestions = sortByUsage(suggestions);
+
+  // ✅ 4. 동적 개수 (단일 조회 3개 / 복합 분석 4~5개)
+  const maxCount = callNames.length >= 2 ? 5 : 3;
+  return suggestions.slice(0, maxCount);
 }
 
 // 도구 이름 → 사용자 친화 한국어 라벨
