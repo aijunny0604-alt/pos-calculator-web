@@ -1,36 +1,57 @@
 // 제품 매칭 유틸 — TextAnalyze.jsx의 matchWithTolerance 추출 + ai_learning 우선 매칭
 // 사용: saveOrder / updateProductStock / updateProductPrice 등 쓰기 도구에서 공유
 
-// 동의어 맵 (자동차 부품 도메인) — TextAnalyze에서 추출 + 보강
+// 동의어 정규화 맵 (TextAnalyze.jsx에서 이식 + 보강)
+// 입력 → 정규화: 사용자가 쓴 표현을 표준 표현으로 통일
 const SYNONYMS = {
-  '스덴': ['stainless', 'sts', 'sus'],
-  'sts': ['스덴', 'stainless'],
-  '다파': ['다운파이프', 'down pipe', 'downpipe', 'dp'],
-  '다운파이프': ['다파', 'dp'],
-  '머플러': ['muffler', '소음기'],
-  '엘보': ['elbow', 'l관'],
-  '플랜지': ['flange'],
-  '밴드': ['band'],
-  '밴딩': ['banding'],
-  '파이프': ['pipe'],
-  '가스켓': ['gasket'],
-  '클램프': ['clamp'],
-  'BMW': ['bmw', 'b m w'],
+  // 재질
+  '스텐': '스덴', '스테인': '스덴', '스테인레스': '스덴', 'sus': '스덴', 'sts': '스덴', 'stainless': '스덴',
+  // 부품
+  '밴드': '밴딩', '벤딩': '밴딩', '벤드': '밴딩', 'band': '밴딩', 'banding': '밴딩',
+  '후렌지': '플랜지', '후란지': '플랜지', 'flange': '플랜지',
+  '엘보우': '엘보', 'elbow': '엘보',
+  '레듀서': '레듀샤', '리듀서': '레듀샤', 'reducer': '레듀샤',
+  '니쁠': '니플', 'nipple': '니플',
+  '쏘켓': '소켓', 'socket': '소켓',
+  '유니언': '유니온', 'union': '유니온',
+  '붓싱': '부싱', 'bushing': '부싱',
+  '커플링': '카플링', 'coupling': '카플링',
+  '겐또': '게이트', 'gate': '게이트',
+  '볼벨브': '볼밸브',
+  '첵크': '체크', 'check': '체크',
+  // 통칭 → 코드
+  '직관레조': 'CH', '직관 레조': 'CH', '공갈레조': 'CH', '뻥레조': 'CH',
+  '가변소음기': 'TVB', '가변': 'TVB', '진공가변': 'TVB',
+  // 약어
+  '다파': '다운파이프', 'dp': '다운파이프', 'downpipe': '다운파이프', 'down pipe': '다운파이프',
+  '머플러': '머플러', 'muffler': '머플러', '소음기': '머플러',
+  'pipe': '파이프',
 };
 
-// 동의어 적용 (양방향)
 function applySynonyms(text) {
   if (!text) return text;
   let result = String(text).toLowerCase();
-  Object.entries(SYNONYMS).forEach(([key, vals]) => {
-    vals.forEach((v) => {
-      if (result.includes(v.toLowerCase())) result += ' ' + key.toLowerCase();
-    });
-    if (result.includes(key.toLowerCase())) {
-      vals.forEach((v) => { result += ' ' + v.toLowerCase(); });
-    }
+  Object.entries(SYNONYMS).forEach(([key, value]) => {
+    result = result.replace(new RegExp(key.toLowerCase(), 'gi'), value);
   });
   return result;
+}
+
+// 숫자+단위 추출 (파이/mm/cm/인치/A/B/호) — TextAnalyze에서 이식
+function extractNumberUnits(text) {
+  if (!text) return [];
+  const patterns = [
+    /(\d+(?:\.\d+)?)\s*(파이|pai|phi|mm|cm|m|인치|inch|")/gi,
+    /(\d+(?:\.\d+)?)\s*(A|B|호)/gi,
+  ];
+  const units = [];
+  patterns.forEach((p) => {
+    let m;
+    while ((m = p.exec(text)) !== null) {
+      units.push({ number: parseFloat(m[1]), unit: m[2].toLowerCase() });
+    }
+  });
+  return units;
 }
 
 // 초성 추출 — "스덴밴딩" → "ㅅㄷㅂㄷ"
@@ -227,7 +248,8 @@ export function findProductSmart(query, products, aiLearningData) {
   return null;
 }
 
-// 내부 스코어 계산 (findProductCandidates와 공유). 공백 무시 + 동의어 + 초성 + Levenshtein.
+// 내부 스코어 계산 — TextAnalyze.jsx calculateMatchScore 완전 이식 + 보강
+// 1000점 만점 시스템 (정확 일치 = 1000)
 function scoreProducts(query, products) {
   const lower = (query || '').trim().toLowerCase();
   const lowerNoSpace = lower.replace(/\s+/g, '');
@@ -235,36 +257,103 @@ function scoreProducts(query, products) {
   const queryNums = tokens.filter((t) => /^\d+$/.test(t));
   const queryWithSyn = applySynonyms(lower);
   const queryChoseong = getChoseong(lowerNoSpace);
+  const queryUnits = extractNumberUnits(query);
   return products
     .map((p) => {
       const pn = (p?.name || '').toLowerCase();
       const pnNoSpace = pn.replace(/\s+/g, '');
       const pnWithSyn = applySynonyms(pn);
       const pnChoseong = getChoseong(pnNoSpace);
+      const productUnits = extractNumberUnits(p?.name || '');
       let score = 0;
-      // 기본 매칭
-      if (pnNoSpace === lowerNoSpace) score += 100;
-      if (pnNoSpace.includes(lowerNoSpace) || lowerNoSpace.includes(pnNoSpace)) score += 50;
+
+      // 정확 일치 = 압도적 (이전 100 → 1000)
+      if (pnNoSpace === lowerNoSpace) return { name: p.name, score: 1000 };
+
+      // 부분 일치 가산
+      if (pnNoSpace.includes(lowerNoSpace)) score += 100 + lowerNoSpace.length * 5;
+      // 동의어 적용 후 부분 일치
+      if (pnWithSyn.replace(/\s+/g, '').includes(queryWithSyn.replace(/\s+/g, ''))) score += 80 + lowerNoSpace.length * 4;
+
+      // 토큰 매칭
       for (const t of tokens) {
         if (pnNoSpace.includes(t.replace(/\s+/g, ''))) score += 10;
       }
-      // 동의어 매칭 보너스 ("다파" ↔ "다운파이프")
-      if (pnWithSyn !== pn && (pnWithSyn.includes(lowerNoSpace) || queryWithSyn.includes(pnNoSpace))) {
-        score += 20;
+
+      // 숫자+단위 매칭 (파이/mm/인치 등) — TextAnalyze 핵심 알고리즘
+      queryUnits.forEach((su) => {
+        productUnits.forEach((pu) => {
+          const diff = Math.abs(su.number - pu.number);
+          if (diff === 0) {
+            score += 50;
+            if (su.unit === pu.unit || (su.unit === '파이' && pu.unit === 'mm')) score += 30;
+          } else if (diff <= 1) {
+            score += 35;
+            if (su.unit === pu.unit) score += 20;
+          }
+        });
+      });
+
+      // 파트 순서 보너스 (한글/영문/숫자 순서대로 등장)
+      const searchParts = lower.match(/[가-힣a-z]+|\d+/gi) || [];
+      if (searchParts.length > 0) {
+        let lastIndex = -1, sequentialMatches = 0;
+        searchParts.forEach((part) => {
+          const foundIndex = pn.indexOf(part, lastIndex + 1);
+          if (foundIndex > lastIndex) {
+            sequentialMatches++;
+            lastIndex = foundIndex + part.length - 1;
+            score += part.length * 3;
+          }
+        });
+        if (sequentialMatches === searchParts.length && searchParts.length > 1) score += 40;
       }
+
+      // 단어별 매칭 + fuzzy
+      const searchWords = lower.split(/[\s\-_]+/).filter((w) => w.length > 0);
+      const productWords = pn.split(/[\s\-_]+/).filter((w) => w.length > 0);
+      let matchedWords = 0;
+      searchWords.forEach((word) => {
+        const synonymWord = applySynonyms(word);
+        if (pnNoSpace.includes(word) || pnWithSyn.includes(synonymWord)) {
+          matchedWords++;
+          score += word.length * 2;
+        } else if (word.length >= 2) {
+          let bestSim = 0;
+          productWords.forEach((pw) => {
+            if (pw.length >= 2) {
+              const sim = getSimilarity(word, pw);
+              if (sim > bestSim) bestSim = sim;
+            }
+          });
+          if (bestSim >= 0.7) {
+            matchedWords++;
+            score += Math.floor(word.length * bestSim * 1.5);
+          }
+        }
+      });
+      if (matchedWords === searchWords.length && searchWords.length > 1) score += 30;
+
       // 초성 매칭 ("ㅅㄷㅂㄷ" → "스덴밴딩")
-      if (queryChoseong.length >= 2 && pnChoseong.includes(queryChoseong)) {
-        score += 15;
+      if (queryChoseong.length >= 2 && pnChoseong.includes(queryChoseong)) score += 20;
+
+      // 매칭 비율 보너스 (짧은 쿼리가 긴 제품명에 잘 포함될 때)
+      if (score > 0) {
+        const matchRatio = lowerNoSpace.length / Math.max(1, pnNoSpace.length);
+        if (matchRatio > 0.5) score += Math.floor(matchRatio * 20);
       }
-      // Levenshtein 유사도 (편집 거리) — 오타 강인
-      const similarity = getSimilarity(lowerNoSpace, pnNoSpace);
-      if (similarity >= 0.7) score += Math.round(similarity * 30);
+
+      // 전체 유사도 (Levenshtein)
+      const overallSim = getSimilarity(lowerNoSpace, pnNoSpace);
+      if (overallSim >= 0.6) score += Math.floor(overallSim * 30);
+
       // 숫자 토큰 모두 매칭 (54-30 같은 규격 식별자)
       if (queryNums.length > 0 && queryNums.every((n) => pnNoSpace.includes(n))) {
         score += 25;
       }
+
       if (matchWithTolerance(query, p.name)) score += 30;
-      if (score > 0) score += Math.max(0, 20 - pn.length);
+
       return { name: p.name, score };
     })
     .filter((s) => s.score > 0)
