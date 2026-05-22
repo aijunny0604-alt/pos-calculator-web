@@ -160,12 +160,17 @@ export default function useAIAnalystChat({
         await new Promise((r) => setTimeout(r, MIN_THINKING_MS - elapsed));
       }
 
-      // 빈 응답이면 친절한 안내 메시지로 대체
-      const emptyResponseMsg = '⚠️ AI가 응답을 주지 않았어요. 잠시 후 다시 시도해주세요. '
-        + '계속 같은 증상이면 ⚙️ 설정에서 "AI 캐시 비우기"를 누른 뒤 다시 질문해주세요.';
-      const content = result.answer && result.answer.trim()
-        ? result.answer
-        : emptyResponseMsg;
+      // 빈 응답 시 자동 폴백 — 질문 키워드로 직접 검색해서 후보 제시 (AI 도구 호출 실패 보완)
+      let content = result.answer && result.answer.trim() ? result.answer : '';
+      if (!content) {
+        const fallback = autoFallbackSearch(question, { products, customers });
+        if (fallback) {
+          content = fallback;
+        } else {
+          content = '⚠️ MOVIS가 답변을 만들지 못했어요. 조금 더 구체적으로 질문해주세요. '
+            + '예: "스덴밴딩 종류 보여줘", "강남오토 매출 얼마야?", "재고 부족한 거 알려줘"';
+        }
+      }
       const assistantMsg = {
         id: newId(),
         role: result.error || !result.answer ? 'error' : 'assistant',
@@ -249,6 +254,56 @@ export default function useAIAnalystChat({
   };
 }
 
+// 빈 응답 자동 폴백 — 질문에서 키워드 추출 후 제품/거래처 부분 검색해서 markdown 생성
+// AI가 도구 호출 실패하거나 답변 못 만들 때 코드 레벨에서 직접 검색
+function autoFallbackSearch(question, { products = [], customers = [] }) {
+  if (!question) return null;
+  // 키워드 추출: 노이즈 단어 제거 + 1자 이상 토큰
+  const NOISE = /^(있어|있니|있나|있음|좀|좀더|어때|어떄|뭐|뭐가|뭐있|뭐있어|뭔가|얼마|얼마야|몇개|몇\s*개|개|개수|종류|종류는|제품|제품들|상품|상품들|좀|보여|보여줘|알려|알려줘|확인|조회|어떤|어떤거|뭐가|있을까|있을까요|들|들은|이|가|을|를|은|는|의|에|와|과|로|으로|및|또는|및|혹은|아니면|또|만|밖에)$/i;
+  const kw = String(question)
+    .replace(/[?.,!~]/g, ' ')
+    .split(/\s+/)
+    .map((t) => t.trim().replace(/ㅡ/g, '-'))
+    .filter((t) => t.length >= 2 && !NOISE.test(t));
+  if (kw.length === 0) return null;
+  // 가장 긴 키워드 우선 (구체적)
+  const primary = kw.sort((a, b) => b.length - a.length)[0];
+  const kwNoSpace = primary.toLowerCase().replace(/\s+/g, '');
+
+  // 제품 검색
+  const productHits = (products || []).filter((p) => {
+    const name = String(p?.name || '').toLowerCase().replace(/\s+/g, '');
+    const cat = String(p?.category || '').toLowerCase().replace(/\s+/g, '');
+    return name.includes(kwNoSpace) || cat.includes(kwNoSpace);
+  });
+  // 거래처 검색
+  const customerHits = (customers || []).filter((c) => {
+    const name = String(c?.name || '').toLowerCase().replace(/\s+/g, '');
+    return name.includes(kwNoSpace);
+  });
+
+  if (productHits.length === 0 && customerHits.length === 0) return null;
+
+  let md = `🔍 "${primary}" 검색 결과 (자동 폴백)\n\n`;
+  if (productHits.length > 0) {
+    md += `**제품 ${productHits.length}건**\n`;
+    productHits.slice(0, 15).forEach((p) => {
+      md += `- ${p.name} (${p.category || '미분류'}) · 재고 ${p.stock || 0}개 · 도매 ${Number(p.wholesale || 0).toLocaleString('ko-KR')}원\n`;
+    });
+    if (productHits.length > 15) md += `- ... 외 ${productHits.length - 15}건\n`;
+    md += '\n';
+  }
+  if (customerHits.length > 0) {
+    md += `**거래처 ${customerHits.length}건**\n`;
+    customerHits.slice(0, 10).forEach((c) => {
+      md += `- ${c.name}${c.phone ? ` (${c.phone})` : ''}\n`;
+    });
+    if (customerHits.length > 10) md += `- ... 외 ${customerHits.length - 10}건\n`;
+  }
+  md += '\n💡 더 구체적으로 알고 싶은 항목이 있으면 말씀해주세요.';
+  return md;
+}
+
 // 도구 이름 → 사용자 친화 한국어 라벨
 function friendlyToolName(name) {
   const map = {
@@ -265,6 +320,8 @@ function friendlyToolName(name) {
     getInventoryStatus: '재고 현황 분석',
     getProductInfo: '제품 정보 조회',
     getCustomerInfo: '거래처 정보 조회',
+    searchProducts: '제품 키워드 검색',
+    searchCustomers: '거래처 키워드 검색',
     getStockSummary: '재고 요약 집계',
     getProductsByStockStatus: '재고 상태별 조회',
     getRestockRecommendations: '재주문 추천 분석',
