@@ -87,28 +87,48 @@ export default function AIAnalytics({
   });
   const [executing, setExecuting] = useState(false);
 
-  // ⭐ 자동 인사이트 — 빈 대화 + 데이터 준비 완료 시 1회 자동 질문 (오늘의 핵심 3가지)
-  // localStorage로 24시간 1회만 자동 실행 (사용자 피로도 방지)
+  // ⭐ 자율 인공지능 시스템 - 진입 시 이상 탐지 + 자동 인사이트
+  // 1) 즉시: 데이터 자율 분석 → 이상 신호 발견 시 시스템 메시지로 알림 (LLM 호출 없음)
+  // 2) 4초 후: AI 자동 인사이트 (24h 1회 가드)
   const autoInsightTriggeredRef = useRef(false);
   useEffect(() => {
     if (autoInsightTriggeredRef.current) return;
-    if (loadingExtra) return; // 데이터 로딩 중
-    if (chat.messages.length > 0) return; // 이미 대화 있음
-    if (!orders.length || !products.length) return; // DB 비어있음
+    if (loadingExtra) return;
+    if (chat.messages.length > 0) return;
+    if (!orders.length || !products.length) return;
+    autoInsightTriggeredRef.current = true;
+
+    // Step 1: 자율 이상 탐지 (LLM 미사용, 즉시)
+    (async () => {
+      try {
+        const { detectAnomalies, formatAnomalies } = await import('@/lib/analytics/anomalyDetector');
+        const anomalies = detectAnomalies({
+          products, customers, orders,
+          paymentRecords, paymentHistory, customerReturns,
+        });
+        const formatted = formatAnomalies(anomalies);
+        if (formatted) {
+          await new Promise((r) => setTimeout(r, 1500)); // 빅뱅 후 1.5초
+          chat.addSystemMessage(formatted);
+        }
+      } catch (e) {
+        console.warn('자율 이상 탐지 실패:', e);
+      }
+    })();
+
+    // Step 2: AI 자동 인사이트 (24h 1회)
     const LAST_KEY = 'pos_ai_last_auto_insight';
     try {
       const last = Number(localStorage.getItem(LAST_KEY) || 0);
       const oneDayMs = 24 * 60 * 60 * 1000;
-      if (Date.now() - last < oneDayMs) return; // 24h 내 이미 실행
+      if (Date.now() - last < oneDayMs) return;
     } catch {}
-    autoInsightTriggeredRef.current = true;
-    // 빅뱅 끝난 후 1.2초 지연 (UX)
     const timer = setTimeout(() => {
       try { localStorage.setItem(LAST_KEY, String(Date.now())); } catch {}
       chat.send('오늘 매장에서 주목할 점 3가지를 간결하게 알려줘 (인기 제품, 재고 부족, 미수 거래처 위주)');
-    }, 2200);
+    }, 4000);
     return () => clearTimeout(timer);
-  }, [loadingExtra, chat.messages.length, orders.length, products.length, chat.send]);
+  }, [loadingExtra, chat.messages.length, orders.length, products.length, customers.length, paymentRecords.length, paymentHistory.length, customerReturns.length, chat]);
 
   // TTS (한국어 여성 voice)
   const tts = useTextToSpeech();

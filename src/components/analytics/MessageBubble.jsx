@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import MessageActions from './MessageActions';
 import { Sparkles, AlertCircle, ChevronDown, ChevronUp, Volume2, Square } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import useTypewriter from '@/hooks/useTypewriter';
@@ -65,8 +66,9 @@ function MarkdownLite({ content }) {
   return <div className="leading-relaxed break-keep">{blocks}</div>;
 }
 
-export default function MessageBubble({ message, enableTypewriter = true, tts, onFollowUpClick }) {
+export default function MessageBubble({ message, enableTypewriter = true, tts, onFollowUpClick, userQuery }) {
   const [showTools, setShowTools] = useState(false);
+  const bubbleRef = useRef(null);
   if (!message) return null;
   const { role, content, ts, toolCalls, cached, followUps, fallback } = message;
 
@@ -132,6 +134,7 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-2 animate-jarvis-card-emerge`}>
       <div
+        ref={bubbleRef}
         className={`${maxWidthClass} rounded-2xl px-3 sm:px-4 py-2 min-w-0 group relative`}
         title={ts ? formatTime(ts) : ''}
         style={bubbleStyle}
@@ -156,7 +159,7 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
               </button>
             )}
             {cached && (
-              <span className="ml-auto text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0" style={{
+              <span className="text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0" style={{
                 background: 'rgba(0,212,255,0.1)',
                 color: 'var(--jarvis-cyan)',
                 border: '1px solid rgba(0,212,255,0.22)',
@@ -164,6 +167,10 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
                     title="5분 이내 동일 질문 캐시">
                 📋 캐시
               </span>
+            )}
+            {/* 메시지 액션 (즐겨찾기/복사/이미지/엑셀) — assistant 메시지만 */}
+            {isAssistant && (
+              <MessageActions message={message} userQuery={userQuery} bubbleRef={bubbleRef} />
             )}
           </div>
         )}

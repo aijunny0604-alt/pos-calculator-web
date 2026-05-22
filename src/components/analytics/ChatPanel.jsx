@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Sparkles, Trash2, Loader2, X } from 'lucide-react';
+import { Send, Sparkles, Trash2, Loader2, X, Star } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import SuggestedQuestions from './SuggestedQuestions';
 import VoiceButton from './VoiceButton';
 import JarvisStandby from './JarvisStandby';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { getPinnedQueries, togglePin } from './MessageActions';
 
 // MOVIS "생각중" 칩 — 단일 라인 컴팩트 (양자 코어 + 도구명 + 진동막대 + X)
 function ThinkingChip({ step, onCancel }) {
@@ -115,9 +116,19 @@ export default function ChatPanel({
 }) {
   const [text, setText] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [pinnedQueries, setPinnedQueries] = useState([]);
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // 즐겨찾기 동기화 (localStorage 갱신 감지)
+  useEffect(() => {
+    setPinnedQueries(getPinnedQueries());
+    const onStorage = () => setPinnedQueries(getPinnedQueries());
+    window.addEventListener('storage', onStorage);
+    // 메시지 변경 시 (즐겨찾기 토글 후) 재로드
+    return () => window.removeEventListener('storage', onStorage);
+  }, [messages.length]);
 
   // 음성 인식 interim → textarea 실시간 반영
   useEffect(() => {
@@ -242,19 +253,59 @@ export default function ChatPanel({
           </div>
         ) : (
           <>
-            {messages.map((m) => (
-              <MessageBubble
-                key={m.id}
-                message={m}
-                tts={tts}
-                onFollowUpClick={(q) => onSend?.(q)}
-              />
-            ))}
+            {messages.map((m, idx) => {
+              // assistant 메시지인 경우 직전 user 메시지를 userQuery로 전달 (즐겨찾기 핀 용)
+              const prevUser = m.role === 'assistant'
+                ? [...messages.slice(0, idx)].reverse().find((x) => x.role === 'user')?.content
+                : null;
+              return (
+                <MessageBubble
+                  key={m.id}
+                  message={m}
+                  tts={tts}
+                  onFollowUpClick={(q) => onSend?.(q)}
+                  userQuery={prevUser}
+                />
+              );
+            })}
             {isLoading && <ThinkingChip step={loadingStep} onCancel={onCancel} />}
             <div ref={bottomRef} />
           </>
         )}
       </div>
+
+      {/* 즐겨찾기 핀 (입력창 위) */}
+      {pinnedQueries.length > 0 && (
+        <div className="flex-shrink-0 px-2 sm:px-3 py-1.5 relative z-10 flex items-center gap-1.5 overflow-x-auto" style={{
+          background: 'rgba(8, 16, 30, 0.45)',
+          borderTop: '1px solid rgba(0, 212, 255, 0.12)',
+        }}>
+          <Star className="w-3 h-3 flex-shrink-0" style={{ color: '#fbbf24', fill: '#fbbf24' }} />
+          <span className="text-[10px] font-mono uppercase tracking-widest flex-shrink-0" style={{ color: 'var(--jarvis-text-muted)' }}>핀</span>
+          {pinnedQueries.slice(0, 8).map((q, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => !isLoading && !disabled && onSend?.(q)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                togglePin(q);
+                setPinnedQueries(getPinnedQueries());
+              }}
+              className="text-[11px] px-2 py-1 rounded-md transition-all flex-shrink-0 hover:scale-[1.02] truncate max-w-[180px]"
+              title={`${q}\n(우클릭: 핀 해제)`}
+              disabled={isLoading || disabled}
+              style={{
+                background: 'rgba(251,191,36,0.08)',
+                color: 'var(--jarvis-text-primary)',
+                border: '1px solid rgba(251,191,36,0.25)',
+              }}
+            >
+              {q.length > 22 ? q.slice(0, 20) + '...' : q}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 입력 영역 (sticky bottom) */}
       <div className="p-2 sm:p-3 flex-shrink-0 relative z-10" style={{
