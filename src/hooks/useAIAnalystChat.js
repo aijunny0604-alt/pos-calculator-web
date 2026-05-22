@@ -161,25 +161,36 @@ export default function useAIAnalystChat({
       }
 
       // 빈 응답 시 자동 폴백 — 질문 키워드로 직접 검색해서 후보 제시 (AI 도구 호출 실패 보완)
-      let content = result.answer && result.answer.trim() ? result.answer : '';
+      const hasAnswer = !!(result.answer && result.answer.trim());
+      let content = hasAnswer ? result.answer : '';
+      let fallbackUsed = false;
       if (!content) {
-        const fallback = autoFallbackSearch(question, { products, customers });
+        const fallback = autoFallbackSearch(question, { products, customers, orders });
         if (fallback) {
           content = fallback;
+          fallbackUsed = true;
         } else {
           content = '⚠️ MOVIS가 답변을 만들지 못했어요. 조금 더 구체적으로 질문해주세요. '
             + '예: "스덴밴딩 종류 보여줘", "강남오토 매출 얼마야?", "재고 부족한 거 알려줘"';
         }
       }
+      // role 결정: AI 에러 있어도 폴백 성공이면 assistant로 표시 (사용자에게 유용한 결과)
+      // 정말 못 만든 경우(폴백도 실패)만 'error'
+      const role = (result.error && !fallbackUsed && !hasAnswer)
+        ? 'error'
+        : (!hasAnswer && !fallbackUsed)
+          ? 'error'
+          : 'assistant';
       const assistantMsg = {
         id: newId(),
-        role: result.error || !result.answer ? 'error' : 'assistant',
+        role,
         content,
         ts: Date.now(),
         toolCalls: result.toolCalls,
         cached: result.cached,
         iterations: result.iterations,
         provider: result.provider, // 'gemini' | 'groq' | 'gemini→groq'
+        fallback: fallbackUsed,
       };
       setMessages((prev) => [...prev, assistantMsg]);
 
@@ -254,51 +265,111 @@ export default function useAIAnalystChat({
   };
 }
 
-// 빈 응답 자동 폴백 — 질문에서 키워드 추출 후 제품/거래처 부분 검색해서 markdown 생성
-// AI가 도구 호출 실패하거나 답변 못 만들 때 코드 레벨에서 직접 검색
-function autoFallbackSearch(question, { products = [], customers = [] }) {
+// 빈 응답 자동 폴백 — 질문 키워드 추출 후 제품/거래처/주문 교차 검색해서 markdown 생성
+// 거래처+제품 키워드 둘 다 있으면 orders 교차 검색까지 (예: "WP튠 포천 FL63 주문한적?")
+function autoFallbackSearch(question, { products = [], customers = [], orders = [] }) {
   if (!question) return null;
-  // 키워드 추출: 노이즈 단어 제거 + 1자 이상 토큰
-  const NOISE = /^(있어|있니|있나|있음|좀|좀더|어때|어떄|뭐|뭐가|뭐있|뭐있어|뭔가|얼마|얼마야|몇개|몇\s*개|개|개수|종류|종류는|제품|제품들|상품|상품들|좀|보여|보여줘|알려|알려줘|확인|조회|어떤|어떤거|뭐가|있을까|있을까요|들|들은|이|가|을|를|은|는|의|에|와|과|로|으로|및|또는|및|혹은|아니면|또|만|밖에)$/i;
+  const NOISE = /^(있어|있니|있나|있음|좀|좀더|어때|어떄|뭐|뭐가|뭐있|뭐있어|뭔가|얼마|얼마야|몇개|몇\s*개|개|개수|종류|종류는|제품|제품들|상품|상품들|좀|보여|보여줘|알려|알려줘|확인|조회|어떤|어떤거|뭐가|있을까|있을까요|들|들은|이|가|을|를|은|는|의|에|와|과|로|으로|및|또는|혹은|아니면|또|만|밖에|최근|최근에|주문|주문한|주문한적|적|있어|있어요|적이|적이있)$/i;
   const kw = String(question)
     .replace(/[?.,!~]/g, ' ')
     .split(/\s+/)
     .map((t) => t.trim().replace(/ㅡ/g, '-'))
     .filter((t) => t.length >= 2 && !NOISE.test(t));
   if (kw.length === 0) return null;
-  // 가장 긴 키워드 우선 (구체적)
+
+  // 각 키워드로 제품/거래처 매칭
+  const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, '');
+  const productMatchesByKw = {};
+  const customerMatchesByKw = {};
+  kw.forEach((k) => {
+    const kn = norm(k);
+    productMatchesByKw[k] = (products || []).filter((p) =>
+      norm(p?.name).includes(kn) || norm(p?.category).includes(kn));
+    customerMatchesByKw[k] = (customers || []).filter((c) =>
+      norm(c?.name).includes(kn));
+  });
+
+  // 매칭된 키워드 분류
+  const matchedProductKws = kw.filter((k) => productMatchesByKw[k].length > 0);
+  const matchedCustomerKws = kw.filter((k) => customerMatchesByKw[k].length > 0);
+
+  // ⭐ 거래처+제품 키워드 둘 다 매칭 → orders 교차 검색 ("WP튠 포천 FL63 주문한적?")
+  if (matchedCustomerKws.length > 0 && matchedProductKws.length > 0) {
+    const targetCustomers = new Set();
+    matchedCustomerKws.forEach((k) => customerMatchesByKw[k].forEach((c) => targetCustomers.add(c.name)));
+    const targetProductNames = new Set();
+    matchedProductKws.forEach((k) => productMatchesByKw[k].forEach((p) => targetProductNames.add(p.name)));
+
+    // 해당 거래처 + 해당 제품 포함 주문 찾기
+    const cutoff90 = new Date(); cutoff90.setDate(cutoff90.getDate() - 90);
+    const matchedOrders = (orders || []).filter((o) => {
+      if (!targetCustomers.has(o?.customerName)) return false;
+      const items = o?.items || [];
+      return items.some((it) => targetProductNames.has(it?.name || it?.productName));
+    });
+
+    let md = `🔍 "${matchedCustomerKws.join(', ')}" 거래처의 "${matchedProductKws.join(', ')}" 제품 주문 이력\n\n`;
+    if (matchedOrders.length === 0) {
+      md += `해당 거래처가 검색된 제품을 주문한 이력을 찾지 못했어요.\n\n`;
+      md += `**검색된 거래처**: ${[...targetCustomers].join(', ')}\n`;
+      md += `**검색된 제품**: ${[...targetProductNames].slice(0, 10).join(', ')}${targetProductNames.size > 10 ? ` 외 ${targetProductNames.size - 10}건` : ''}\n`;
+    } else {
+      md += `**주문 ${matchedOrders.length}건 발견**\n`;
+      matchedOrders
+        .sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
+        .slice(0, 20)
+        .forEach((o) => {
+          const date = String(o.orderDate || '').slice(0, 10);
+          const items = (o.items || [])
+            .filter((it) => targetProductNames.has(it?.name || it?.productName))
+            .map((it) => `${it.name || it.productName} ${it.quantity || 0}개`)
+            .join(', ');
+          md += `- ${date} · ${o.customerName} · ${items} · ${Number(o.total || 0).toLocaleString('ko-KR')}원\n`;
+        });
+      if (matchedOrders.length > 20) md += `- ... 외 ${matchedOrders.length - 20}건\n`;
+    }
+    md += '\n💡 더 구체적인 분석이 필요하면 알려주세요.';
+    return md;
+  }
+
+  // 단일 키워드 검색 (제품/거래처)
   const primary = kw.sort((a, b) => b.length - a.length)[0];
-  const kwNoSpace = primary.toLowerCase().replace(/\s+/g, '');
+  const productHits = productMatchesByKw[primary] || [];
+  const customerHits = customerMatchesByKw[primary] || [];
+  if (productHits.length === 0 && customerHits.length === 0) {
+    // 모든 키워드로 한 번 더 검색
+    const allProductHits = [...new Set(matchedProductKws.flatMap((k) => productMatchesByKw[k]))];
+    const allCustomerHits = [...new Set(matchedCustomerKws.flatMap((k) => customerMatchesByKw[k]))];
+    if (allProductHits.length === 0 && allCustomerHits.length === 0) return null;
+    return formatList(primary, allProductHits, allCustomerHits, orders);
+  }
+  return formatList(primary, productHits, customerHits, orders);
+}
 
-  // 제품 검색
-  const productHits = (products || []).filter((p) => {
-    const name = String(p?.name || '').toLowerCase().replace(/\s+/g, '');
-    const cat = String(p?.category || '').toLowerCase().replace(/\s+/g, '');
-    return name.includes(kwNoSpace) || cat.includes(kwNoSpace);
-  });
-  // 거래처 검색
-  const customerHits = (customers || []).filter((c) => {
-    const name = String(c?.name || '').toLowerCase().replace(/\s+/g, '');
-    return name.includes(kwNoSpace);
-  });
-
-  if (productHits.length === 0 && customerHits.length === 0) return null;
-
-  let md = `🔍 "${primary}" 검색 결과 (자동 폴백)\n\n`;
+// 검색 결과 마크다운 포맷 (제품 30 + 거래처 30 + 거래처별 최근 주문 1건)
+function formatList(keyword, productHits, customerHits, orders) {
+  let md = `🔍 "${keyword}" 검색 결과 (자동 폴백)\n\n`;
   if (productHits.length > 0) {
     md += `**제품 ${productHits.length}건**\n`;
-    productHits.slice(0, 15).forEach((p) => {
+    productHits.slice(0, 30).forEach((p) => {
       md += `- ${p.name} (${p.category || '미분류'}) · 재고 ${p.stock || 0}개 · 도매 ${Number(p.wholesale || 0).toLocaleString('ko-KR')}원\n`;
     });
-    if (productHits.length > 15) md += `- ... 외 ${productHits.length - 15}건\n`;
+    if (productHits.length > 30) md += `- ... 외 ${productHits.length - 30}건 (전체 보려면 "${keyword} 전체 보여줘"라고 질문)\n`;
     md += '\n';
   }
   if (customerHits.length > 0) {
     md += `**거래처 ${customerHits.length}건**\n`;
-    customerHits.slice(0, 10).forEach((c) => {
-      md += `- ${c.name}${c.phone ? ` (${c.phone})` : ''}\n`;
+    customerHits.slice(0, 30).forEach((c) => {
+      // 최근 주문 1건 요약
+      const recent = (orders || [])
+        .filter((o) => o.customerName === c.name || o.customerId === c.id)
+        .sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))[0];
+      const recentTxt = recent
+        ? ` · 최근 주문 ${String(recent.orderDate || '').slice(0, 10)} (${Number(recent.total || 0).toLocaleString('ko-KR')}원)`
+        : ' · 주문 이력 없음';
+      md += `- ${c.name}${c.phone ? ` (${c.phone})` : ''}${recentTxt}\n`;
     });
-    if (customerHits.length > 10) md += `- ... 외 ${customerHits.length - 10}건\n`;
+    if (customerHits.length > 30) md += `- ... 외 ${customerHits.length - 30}건\n`;
   }
   md += '\n💡 더 구체적으로 알고 싶은 항목이 있으면 말씀해주세요.';
   return md;
