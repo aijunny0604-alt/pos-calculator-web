@@ -214,6 +214,25 @@ export default function useAIAnalystChat({
         }));
       if (pending.length > 0) {
         setPendingActions((prev) => [...prev, ...pending]);
+      } else {
+        // 🔧 폴백: AI가 답변에 쓰기 미리보기를 텍스트로만 작성하고 functionCall 누락한 경우 감지
+        // (예: "🛒 주문 추가 / 거래처: X / 합계: ₩N" 같은 표는 만들었지만 saveOrder 호출 X)
+        const WRITE_PREVIEW_PATTERNS = [
+          /🛒\s*주문\s*추가/, /📦\s*제품\s*등록/, /📦\s*재고\s*변경/, /💵\s*가격\s*변경/,
+          /거래처\s*정보\s*수정/, /거래처\s*등록/,
+        ];
+        const looksLikeWriteIntent = WRITE_PREVIEW_PATTERNS.some((re) => re.test(content));
+        if (looksLikeWriteIntent) {
+          // 시스템 메시지로 사용자에게 안내 (Confirm 모달 누락 알림)
+          setTimeout(() => {
+            setMessages((prev) => [...prev, {
+              id: newId(),
+              role: 'system',
+              content: '⚠️ 실행 버튼이 안 떴어요. 더 명확히 다시 말씀해주세요. 예: "명성에 실리콘 엘보 90SEL60 2개 주문 추가해줘" — 거래처명+제품명+수량+동사를 한 문장에.',
+              ts: Date.now(),
+            }]);
+          }, 100);
+        }
       }
     } catch (e) {
       if (e?.name !== 'AbortError') {
