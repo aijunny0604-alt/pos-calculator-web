@@ -918,10 +918,10 @@ export default function OrderDetail({
               style={{ background: 'var(--secondary)', color: 'var(--muted-foreground)' }}
             >
               <div className="col-span-1 text-center">No.</div>
-              <div className="col-span-3">제품명</div>
-              <div className="col-span-3 text-center">단가</div>
-              <div className={`${isEditing ? 'col-span-1' : 'col-span-2'} text-center`}>수량</div>
-              <div className="col-span-3 text-center">금액</div>
+              <div className={`${isEditing ? 'col-span-3' : 'col-span-3'}`}>제품명</div>
+              <div className={`${isEditing ? 'col-span-2' : 'col-span-3'} text-center`}>단가</div>
+              <div className={`${isEditing ? 'col-span-2' : 'col-span-2'} text-center`}>수량</div>
+              <div className={`${isEditing ? 'col-span-3' : 'col-span-3'} text-center`}>금액</div>
               {isEditing && <div className="col-span-1" />}
             </div>
 
@@ -1300,7 +1300,7 @@ export default function OrderDetail({
                             </button>
                           )}
                         </div>
-                        <div className="col-span-3 text-center" style={{ color: 'var(--muted-foreground)' }}>
+                        <div className={`${isEditing ? 'col-span-2' : 'col-span-3'} text-center`} style={{ color: 'var(--muted-foreground)' }}>
                           {isDiscounted && (
                             <div className="text-[12px] line-through tabular-nums">{formatPrice(baseUnit)}원</div>
                           )}
@@ -1313,7 +1313,7 @@ export default function OrderDetail({
                               readOnly={isDiscounted}
                               title={isDiscounted ? '할인 적용 중 — 직접 수정하려면 [해제] 버튼을 눌러주세요' : undefined}
                               placeholder="0"
-                              className={`w-full px-2 py-1.5 text-base font-bold tabular-nums text-center border rounded focus:outline-none ${
+                              className={`w-full h-11 px-2 py-1.5 text-base font-bold tabular-nums text-center border rounded focus:outline-none ${
                                 isDiscounted
                                   ? 'bg-[var(--secondary)] border-[var(--border)] cursor-not-allowed opacity-80'
                                   : 'bg-[var(--background)] border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)]/40'
@@ -1325,19 +1325,20 @@ export default function OrderDetail({
                           )}
                           <div className="text-[13px] opacity-80 leading-tight mt-0.5 tabular-nums">공급가 {formatPrice(calcExVat(unit))}원</div>
                         </div>
-                        <div className={`${isEditing ? 'col-span-1' : 'col-span-2'} text-center`}>
+                        <div className={`${isEditing ? 'col-span-2' : 'col-span-2'} text-center`}>
                           {isEditing ? (
-                            <div className="flex items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-1.5">
                               <button
                                 onClick={() => handleQuantityChange(index, -1)}
-                                className="w-7 h-7 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors"
+                                className="w-11 h-11 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors active:scale-95"
                                 style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
+                                aria-label="수량 감소"
                               >
-                                <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                                <Minus className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
                               </button>
                               <input
                                 type="number"
-                                className="w-10 text-center font-bold text-sm border rounded-lg"
+                                className="w-16 h-11 text-center font-bold text-base border rounded-lg"
                                 style={{ color: 'var(--foreground)', background: 'var(--background)', borderColor: 'var(--border)' }}
                                 value={item.quantity}
                                 onChange={(e) => {
@@ -1352,10 +1353,11 @@ export default function OrderDetail({
                               />
                               <button
                                 onClick={() => handleQuantityChange(index, 1)}
-                                className="w-7 h-7 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors"
+                                className="w-11 h-11 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors active:scale-95"
                                 style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
+                                aria-label="수량 증가"
                               >
-                                <Plus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                                <Plus className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
                               </button>
                             </div>
                           ) : (
