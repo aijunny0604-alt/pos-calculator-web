@@ -5,7 +5,7 @@ import JarvisHeader from '@/components/analytics/JarvisHeader';
 import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
 import BigBangIntro from '@/components/analytics/BigBangIntro';
 import '@/components/analytics/ai-analytics.css';
-import useAIAnalystChat from '@/hooks/useAIAnalystChat';
+import useAIAnalystChat, { writeContextSnapshot } from '@/hooks/useAIAnalystChat';
 import useVoiceInput from '@/hooks/useVoiceInput';
 import useTextToSpeech from '@/hooks/useTextToSpeech';
 import { hasGroqKey, saveGroqKey, getGroqKey, getProviderPreference, setProviderPreference } from '@/lib/aiAnalyst';
@@ -90,6 +90,13 @@ export default function AIAnalytics({
   // 자율 분석 + 자동 인사이트 = OFF (사용자 요청 — 페이지 진입 시 자동 메시지 안 나오게)
   // 사용자가 명시적으로 질문 시작하도록 변경. 빅뱅 인트로만 정상 표시.
   // (이전엔 자동 메시지가 빅뱅과 겹쳐 보여 거슬렸음)
+
+  // 매장 상태 스냅샷 저장 (추천 질문 컨텍스트 추천에 활용 — 미수/재고/품절 임계)
+  useEffect(() => {
+    if (loadingExtra) return;
+    if (!products.length) return;
+    writeContextSnapshot({ products, paymentRecords, orders });
+  }, [loadingExtra, products.length, paymentRecords.length, orders.length]);
 
   // TTS (한국어 여성 voice)
   const tts = useTextToSpeech();

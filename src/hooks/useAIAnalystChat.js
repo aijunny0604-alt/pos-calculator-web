@@ -752,12 +752,69 @@ function generateFollowUpQuestions(question, toolCalls = []) {
     }
   }
 
-  // ✅ 3. 사용 빈도 정렬
+  // ✅ 3. 데이터 상태 기반 우선 칩 (Codex CONTEXT-AWARE)
+  // 매장 상황별 긴급 추천 — 미수 많을 때 / 재고 부족 많을 때 / 매출 급감 시
+  try {
+    const contextData = readContextSnapshot();
+    if (contextData) {
+      const urgentChips = [];
+      if (contextData.overdueCount >= 5) {
+        urgentChips.push(A('💸 미수 회수 액션 플래너'));
+      }
+      if (contextData.lowStockCount >= 10) {
+        urgentChips.push(A('🚚 재주문 추천 리스트'));
+      }
+      if (contextData.popularOutOfStock >= 3) {
+        urgentChips.push(A('📦 품절 인기 제품 우선'));
+      }
+      // 긴급 칩이 있고 이미 suggestions에 없으면 최상위로
+      urgentChips.forEach((urgent) => {
+        const exists = suggestions.some((s) => (typeof s === 'string' ? s : s.text) === urgent.text);
+        if (!exists) suggestions.unshift(urgent);
+      });
+    }
+  } catch {}
+
+  // ✅ 4. 사용 빈도 정렬
   suggestions = sortByUsage(suggestions);
 
-  // ✅ 4. 동적 개수 (단일 조회 3개 / 복합 분석 4~5개)
+  // ✅ 5. 동적 개수 (단일 조회 3개 / 복합 분석 4~5개)
   const maxCount = callNames.length >= 2 ? 5 : 3;
   return suggestions.slice(0, maxCount);
+}
+
+// 매장 상태 스냅샷 (localStorage 캐시 — 매번 계산 안 하도록)
+const CONTEXT_SNAPSHOT_KEY = 'pos_ai_context_snapshot_v1';
+function readContextSnapshot() {
+  try {
+    const raw = localStorage.getItem(CONTEXT_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    // 5분 이내 데이터만 신뢰
+    if (Date.now() - (data.ts || 0) > 5 * 60 * 1000) return null;
+    return data;
+  } catch { return null; }
+}
+export function writeContextSnapshot({ products = [], paymentRecords = [], orders = [] }) {
+  try {
+    const overdueCount = paymentRecords.filter((r) => Number(r?.balance || 0) > 0).length;
+    const lowStockCount = products.filter((p) => {
+      const s = Number(p?.stock || 0);
+      return s > 0 && s <= 5;
+    }).length;
+    // 품절 인기 제품 (재고 0 + 최근 30일 판매)
+    const cutoff30 = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const popularOutOfStock = products.filter((p) => {
+      if (Number(p?.stock || 0) > 0) return false;
+      return orders.some((o) => {
+        if (!o?.orderDate || new Date(o.orderDate).getTime() < cutoff30) return false;
+        return (o.items || []).some((it) => (it?.name || it?.productName) === p?.name);
+      });
+    }).length;
+    localStorage.setItem(CONTEXT_SNAPSHOT_KEY, JSON.stringify({
+      overdueCount, lowStockCount, popularOutOfStock, ts: Date.now(),
+    }));
+  } catch {}
 }
 
 // 도구 이름 → 사용자 친화 한국어 라벨
