@@ -184,6 +184,64 @@ export function findProductByLearning(query, products, aiLearningData) {
   );
 }
 
+// 🧠 비동기 벡터 검색 (pgvector + Gemini Embedding) — 0단계
+// Codex 권장 threshold: 0.75 즉시 / 0.52 후보
+// 한영 혼용 (스덴/STS/Stainless)에서 유사도 0.6~0.65 → 0.75 임계가 적정
+export async function findProductSmartAsync(query, products, aiLearningData) {
+  try {
+    const trimmed = String(query || '').trim();
+    if (trimmed.length >= 2) {
+      const { embedQuery } = await import('./embedding');
+      const { supabase } = await import('./supabase');
+      // 입력 텍스트도 동의어 확장 후 임베딩 (한국어 표기 비표준화 보정)
+      const expanded = applySynonyms(trimmed);
+      const vec = await embedQuery(expanded);
+      if (vec) {
+        const matches = await supabase.searchProductsByVector(vec, { threshold: 0.52, limit: 5 });
+        if (matches && matches.length > 0 && matches[0].similarity >= 0.75) {
+          // 강한 매칭 → 즉시 반환
+          const top = matches[0];
+          return (products || []).find((p) => p.id === top.id) || top;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Vector search fallback:', e?.message);
+  }
+  // 기존 7단계 fuzzy fallback
+  return findProductSmart(query, products, aiLearningData);
+}
+
+// 제품 임베딩 텍스트 구성 (Codex 권장 — name + 동의어 2~3개 + spec)
+// 예: "스덴 / 스덴 밴딩 파이프 38-45 (스텐/STS/벤딩)"
+export function buildProductEmbeddingText(product) {
+  if (!product) return '';
+  const name = String(product.name || '').trim();
+  const category = String(product.category || '').trim();
+  // 동의어 자동 확장 (제품명/카테고리에서 키워드 발견 시)
+  const found = new Set();
+  const lower = `${name} ${category}`.toLowerCase();
+  Object.entries(SYNONYMS).forEach(([key, value]) => {
+    if (lower.includes(value.toLowerCase()) || lower.includes(key.toLowerCase())) {
+      found.add(key);
+      found.add(value);
+    }
+  });
+  // 본인은 제외
+  const synonymList = [...found].filter((s) => !lower.includes(s.toLowerCase())).slice(0, 3);
+  const parts = [];
+  if (category) parts.push(category);
+  parts.push(name);
+  if (synonymList.length > 0) parts.push(`(${synonymList.join('/')})`);
+  return parts.join(' / ');
+}
+
+// 거래처 임베딩 텍스트
+export function buildCustomerEmbeddingText(customer) {
+  if (!customer) return '';
+  return [customer.name, customer.address].filter(Boolean).join(' / ');
+}
+
 // 통합 fuzzy 매칭 — 7단계 (학습 → 정확 → tolerance → 부분 → 토큰 100% → 토큰 70% → 압도적 1위)
 export function findProductSmart(query, products, aiLearningData) {
   if (!query || !Array.isArray(products) || products.length === 0) return null;

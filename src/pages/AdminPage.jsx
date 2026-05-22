@@ -11,6 +11,7 @@ import useModalFullscreen from '@/hooks/useModalFullscreen';
 import ProductImageModal from '@/components/ProductImageModal';
 import StorageMonitor from '@/components/StorageMonitor';
 import PaymentSettingsTab from '@/components/admin/PaymentSettingsTab';
+import VectorIndexer from '@/components/admin/VectorIndexer';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -2752,10 +2753,13 @@ function AILearningTab({ products, showToast, supabase, aiLearningData = [], set
     <div className="space-y-4">
       {/* 헤더 */}
       <div className={sc}>
+        {/* 🧠 벡터 인덱서 — Phase 2: 의미 기반 매칭 */}
+        <VectorIndexer />
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-bold text-[var(--foreground)]">AI 학습 데이터 관리</h3>
-            <p className="text-sm text-[var(--foreground)]/60 mt-1">총 {aiLearningData.length}건 | 인식 수정 시 자동 학습됩니다</p>
+            <h3 className="text-lg font-bold text-[var(--foreground)]">AI 학습 데이터 관리 (룩업)</h3>
+            <p className="text-sm text-[var(--foreground)]/60 mt-1">총 {aiLearningData.length}건 | 인식 수정 시 자동 학습됩니다 (Phase 1)</p>
           </div>
           <div className="flex gap-2">
             <button onClick={handleExport} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1">

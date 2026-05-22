@@ -101,6 +101,69 @@ export const supabase = {
     } catch (e) { console.error('deleteProduct:', e); return false; }
   },
 
+  // ===== 🧠 pgvector 의미 검색 (제품) =====
+  async updateProductEmbedding(id, embedding) {
+    try {
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/products?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn,
+        body: JSON.stringify({ embedding, embedding_updated_at: new Date().toISOString() }),
+      });
+      return Array.isArray(data) ? data[0] : data;
+    } catch (e) { console.error('updateProductEmbedding:', e); return null; }
+  },
+  async getProductsWithoutEmbedding() {
+    try {
+      // embedding_updated_at이 NULL이거나 updated_at보다 오래된 제품
+      return await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/products?embedding_updated_at=is.null&select=id,name,category&limit=5000`,
+        { headers }
+      );
+    } catch (e) { console.error('getProductsWithoutEmbedding:', e); return []; }
+  },
+  async searchProductsByVector(queryEmbedding, { threshold = 0.5, limit = 10 } = {}) {
+    try {
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/rpc/search_products_by_vector`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query_embedding: queryEmbedding,
+          match_threshold: threshold,
+          match_limit: limit,
+        }),
+      });
+      return Array.isArray(data) ? data : [];
+    } catch (e) { console.error('searchProductsByVector:', e); return []; }
+  },
+  async updateCustomerEmbedding(id, embedding) {
+    try {
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/customers?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn,
+        body: JSON.stringify({ embedding, embedding_updated_at: new Date().toISOString() }),
+      });
+      return Array.isArray(data) ? data[0] : data;
+    } catch (e) { console.error('updateCustomerEmbedding:', e); return null; }
+  },
+  async getCustomersWithoutEmbedding() {
+    try {
+      return await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/customers?embedding_updated_at=is.null&select=id,name,address&limit=5000`,
+        { headers }
+      );
+    } catch (e) { console.error('getCustomersWithoutEmbedding:', e); return []; }
+  },
+  async searchCustomersByVector(queryEmbedding, { threshold = 0.5, limit = 10 } = {}) {
+    try {
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/rpc/search_customers_by_vector`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query_embedding: queryEmbedding,
+          match_threshold: threshold,
+          match_limit: limit,
+        }),
+      });
+      return Array.isArray(data) ? data : [];
+    } catch (e) { console.error('searchCustomersByVector:', e); return []; }
+  },
+
   // ===== 거래처 =====
   async getCustomers() {
     try {
