@@ -78,8 +78,13 @@ export default function AIAnalytics({
   const [loadingExtra, setLoadingExtra] = useState(true);
 
   // 빅뱅 진입 애니메이션 — 페이지 진입할 때마다 재생
+  // 2단계 전환: introFading (메인 UI fade-in 시작) → introDone (BigBang unmount)
   const [introDone, setIntroDone] = useState(false);
-  const handleIntroDone = () => setIntroDone(true);
+  const [introFading, setIntroFading] = useState(false);
+  const handleIntroDone = () => {
+    setIntroFading(true);  // 즉시 메인 UI 페이드 인 시작 (오버랩 트랜지션)
+    setTimeout(() => setIntroDone(true), 700); // 700ms 후 BigBang 완전 unmount
+  };
   // 매 mount 시 강제 재생 (HMR/캐시로 인한 누락 방지)
   useEffect(() => {
     setIntroDone(false);
@@ -558,8 +563,25 @@ export default function AIAnalytics({
       className="ai-analytics-root flex flex-col h-full overflow-hidden relative"
       style={{ perspective: 'var(--jarvis-perspective)' }}
     >
-      {/* 빅뱅 진입 애니메이션 (매 진입 시 재생) */}
-      {!introDone && <BigBangIntro onComplete={handleIntroDone} />}
+      {/* 빅뱅 진입 애니메이션 (매 진입 시 재생) — fade-out 트랜지션 (700ms) */}
+      {!introDone && (
+        <div
+          className="fixed inset-0 z-[100] pointer-events-none transition-opacity duration-700 ease-out"
+          style={{ opacity: introFading ? 0 : 1 }}
+        >
+          <BigBangIntro onComplete={handleIntroDone} />
+        </div>
+      )}
+
+      {/* 메인 UI 컨테이너 — introFading 시작과 동시에 fade-in scale + 0.7초 부드럽게 등장 */}
+      <div
+        className="flex flex-col h-full overflow-hidden transition-all duration-700 ease-out"
+        style={{
+          opacity: introFading || introDone ? 1 : 0,
+          transform: introFading || introDone ? 'scale(1)' : 'scale(0.92)',
+          filter: introFading || introDone ? 'blur(0)' : 'blur(4px)',
+        }}
+      >
 
       {/* 우주 배경 제거 — 사용자 요청: 스페이스 블랙 + 양자 sphere만 */}
 
@@ -792,6 +814,7 @@ export default function AIAnalytics({
           </div>
         );
       })()}
+      </div>{/* /메인 UI fade-in wrapper */}
     </div>
   );
 }
