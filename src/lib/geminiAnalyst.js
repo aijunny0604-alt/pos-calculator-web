@@ -102,7 +102,24 @@ const getErrorMessage = (status, fallback) => {
   return fallback || `AI 서버 오류 (${status || '연결 실패'})`;
 };
 
-const postGemini = async (contents, { signal, systemPrompt } = {}) => {
+// 쓰기 의도 감지 키워드 → 매칭 시 Gemini에 functionCall 강제 + 허용 도구 제한
+const WRITE_INTENT_PATTERNS = [
+  { re: /주문\s*(추가|넣|등록|해줘|좀)|배송|배달|주문\s*해/, tools: ['saveOrder'] },
+  { re: /제품\s*(등록|추가|새로|신규)/, tools: ['addProduct', 'bulkAddProduct'] },
+  { re: /거래처\s*(등록|추가|신규)/, tools: ['addCustomer', 'bulkAddCustomer'] },
+  { re: /거래처.*(수정|변경|바꿔|업데이트)|전화\s*(바꿔|변경)/, tools: ['updateCustomer', 'bulkUpdateCustomer'] },
+  { re: /재고\s*(변경|수정|바꿔|입고|출고|업데이트|로\s*해줘)/, tools: ['updateProductStock', 'bulkUpdateProductStock'] },
+  { re: /가격\s*(변경|수정|바꿔|올려|내려|업데이트|인상|인하)/, tools: ['updateProductPrice', 'bulkUpdateProductPrice'] },
+];
+function detectWriteIntent(question) {
+  if (!question) return null;
+  for (const { re, tools } of WRITE_INTENT_PATTERNS) {
+    if (re.test(question)) return tools;
+  }
+  return null;
+}
+
+const postGemini = async (contents, { signal, systemPrompt, forcedTools } = {}) => {
   const keys = getGeminiKeys();
   let lastStatus = null;
   let lastMessage = '';
@@ -120,8 +137,11 @@ const postGemini = async (contents, { signal, systemPrompt } = {}) => {
               system_instruction: { parts: [{ text: systemPrompt }] },
               contents,
               tools: [{ function_declarations: GEMINI_TOOLS }],
-              // Gemini v1beta REST API는 camelCase. tool_code 회귀 방지는 시스템 프롬프트로 충분.
-              toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
+              // 쓰기 의도 감지 시 mode='ANY' + 허용 도구 제한 → functionCall 강제
+              // (Gemini가 텍스트로 답하는 경로 차단, 모달 누락 방지)
+              toolConfig: forcedTools && forcedTools.length > 0
+                ? { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: forcedTools } }
+                : { functionCallingConfig: { mode: 'AUTO' } },
               generationConfig: { temperature: 0.15, maxOutputTokens: 4096 },
             }),
           }
@@ -191,9 +211,13 @@ export async function askAnalyst(question, context, options = {}) {
     const seenCalls = new Set();
     // 시스템 프롬프트 동적 생성 (DB 메타 컨텍스트 주입 — 카테고리/거래처/최근 활동)
     const systemPrompt = buildSystemPrompt(context);
+    // 쓰기 의도 감지 → 첫 iteration에서만 functionCall 강제 (이후 후속 분석은 AUTO)
+    const writeIntent = detectWriteIntent(question);
 
     while (iterations < maxIterations) {
-      const data = await postGemini(contents, { signal, systemPrompt });
+      // iteration 0 + 쓰기 의도일 때만 mode=ANY로 강제
+      const forcedTools = (iterations === 0 && writeIntent) ? writeIntent : null;
+      const data = await postGemini(contents, { signal, systemPrompt, forcedTools });
       const parts = data.candidates?.[0]?.content?.parts || [];
       const functionCalls = parts
         .filter(part => part.functionCall)

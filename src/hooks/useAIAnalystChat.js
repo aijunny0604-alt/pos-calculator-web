@@ -215,23 +215,27 @@ export default function useAIAnalystChat({
       if (pending.length > 0) {
         setPendingActions((prev) => [...prev, ...pending]);
       } else {
-        // 🔧 폴백: AI가 답변에 쓰기 미리보기를 텍스트로만 작성하고 functionCall 누락한 경우 감지
-        // (예: "🛒 주문 추가 / 거래처: X / 합계: ₩N" 같은 표는 만들었지만 saveOrder 호출 X)
-        const WRITE_PREVIEW_PATTERNS = [
-          /🛒\s*주문\s*추가/, /📦\s*제품\s*등록/, /📦\s*재고\s*변경/, /💵\s*가격\s*변경/,
-          /거래처\s*정보\s*수정/, /거래처\s*등록/,
-        ];
-        const looksLikeWriteIntent = WRITE_PREVIEW_PATTERNS.some((re) => re.test(content));
-        if (looksLikeWriteIntent) {
-          // 시스템 메시지로 사용자에게 안내 (Confirm 모달 누락 알림)
-          setTimeout(() => {
-            setMessages((prev) => [...prev, {
-              id: newId(),
-              role: 'system',
-              content: '⚠️ 실행 버튼이 안 떴어요. 더 명확히 다시 말씀해주세요. 예: "명성에 실리콘 엘보 90SEL60 2개 주문 추가해줘" — 거래처명+제품명+수량+동사를 한 문장에.',
-              ts: Date.now(),
-            }]);
-          }, 100);
+        // 🔧 폴백: AI가 답변에 쓰기 미리보기를 텍스트로만 작성하고 functionCall 누락한 경우
+        // 텍스트에서 거래처/제품/수량 파싱 → saveOrder pendingAction 합성 (Codex 권장)
+        const synthesized = synthesizeOrderFromText(content, assistantMsg.id);
+        if (synthesized) {
+          setPendingActions((prev) => [...prev, synthesized]);
+        } else {
+          // 합성도 실패 시 사용자에게 안내
+          const WRITE_PREVIEW_PATTERNS = [
+            /🛒\s*주문\s*추가/, /📦\s*제품\s*등록/, /📦\s*재고\s*변경/, /💵\s*가격\s*변경/,
+            /거래처\s*정보\s*수정/, /거래처\s*등록/,
+          ];
+          if (WRITE_PREVIEW_PATTERNS.some((re) => re.test(content))) {
+            setTimeout(() => {
+              setMessages((prev) => [...prev, {
+                id: newId(),
+                role: 'system',
+                content: '⚠️ 실행 버튼이 안 떴어요. 더 명확히 다시 말씀해주세요. 예: "명성에 실리콘 엘보 90SEL60 2개 주문 추가해줘" — 거래처명+제품명+수량+동사를 한 문장에.',
+                ts: Date.now(),
+              }]);
+            }, 100);
+          }
         }
       }
     } catch (e) {
@@ -503,6 +507,59 @@ export function buildFallbackToolCalls(question, { products = [], customers = []
   }
 
   return calls;
+}
+
+// 🔧 텍스트 파싱 폴백 — AI가 functionCall 누락 시 답변 텍스트에서 주문 정보 추출
+// "🛒 주문 추가 / 거래처: X / 항목: A 2개, B 3개 / 합계: ₩N" 같은 markdown 미리보기 파싱
+function synthesizeOrderFromText(content, messageId) {
+  if (!content) return null;
+  if (!/주문\s*(추가|등록)|🛒|saveOrder/i.test(content)) return null;
+
+  // 거래처명 추출
+  const customerMatch = content.match(/거래처\s*[:：]\s*([^\n(\r]+)/);
+  const customerName = customerMatch?.[1]?.trim().replace(/\*+$/, '').trim();
+
+  // 가격 모드
+  const priceTypeMatch = content.match(/(도매가?|소비자가?|소매가?)/);
+  const priceType = priceTypeMatch?.[1]?.includes('소비자') || priceTypeMatch?.[1]?.includes('소매')
+    ? 'retail' : 'wholesale';
+
+  // 항목 파싱: "- 제품명 N개" 또는 "- 제품명 × N = ₩금액" 또는 "• 제품명 2개"
+  const itemPatterns = [
+    /[-•*]\s*(.+?)\s*[x×]\s*(\d+)/g,           // "- 제품 × 2"
+    /[-•*]\s*(.+?)\s+(\d+)\s*개/g,             // "- 제품 2개"
+  ];
+  const itemsMap = new Map();
+  for (const re of itemPatterns) {
+    let m;
+    while ((m = re.exec(content)) !== null) {
+      const name = m[1].trim().replace(/[*`]+/g, '').replace(/\s+/g, ' ');
+      const qty = Number(m[2]);
+      if (name && qty > 0 && !itemsMap.has(name)) {
+        itemsMap.set(name, qty);
+      }
+    }
+  }
+  const items = [...itemsMap.entries()].map(([name, quantity]) => ({ name, quantity }));
+
+  if (!customerName || items.length === 0) return null;
+
+  // 합계 추출 (선택)
+  const totalMatch = content.match(/합계\s*[:：]?\s*[₩\\₩]?\s*([\d,]+)/);
+  const total = totalMatch ? Number(totalMatch[1].replace(/,/g, '')) : 0;
+
+  return {
+    id: newId(),
+    messageId,
+    action: 'saveOrder',
+    params: {
+      customerName,
+      priceType,
+      items: items.map((i) => ({ productName: i.name, quantity: i.quantity })),
+    },
+    preview: `🛒 주문 등록 (AI 텍스트 폴백)\n• 거래처: ${customerName}\n• 가격: ${priceType === 'retail' ? '소비자' : '도매'}\n• 항목 ${items.length}개:\n${items.map((i) => `  - ${i.name} × ${i.quantity}`).join('\n')}${total > 0 ? `\n• 합계: ${total.toLocaleString('ko-KR')}원 (VAT 포함)` : ''}`,
+    warnings: ['⚠️ functionCall 누락으로 AI 답변 텍스트에서 복원함. 정보가 맞는지 확인 후 실행해주세요.'],
+  };
 }
 
 // 추천 후속 질문 자동 생성 — 도구 호출 결과 + 질문 패턴 기반
