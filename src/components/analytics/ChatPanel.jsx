@@ -273,17 +273,19 @@ export default function ChatPanel({
         {voice?.error && (
           <div className="mb-2 text-xs text-[var(--destructive)] px-2 break-keep">{voice.error}</div>
         )}
-        <div className="flex items-end gap-2">
+        <div className="flex items-stretch gap-2">
           {voice && (
-            <VoiceButton
-              isListening={voice.isListening}
-              supported={voice.supported}
-              permissionDenied={voice.permissionDenied}
-              interim={voice.interim}
-              onStart={voice.start}
-              onStop={voice.stop}
-              size="md"
-            />
+            <div className="flex-shrink-0 flex items-center">
+              <VoiceButton
+                isListening={voice.isListening}
+                supported={voice.supported}
+                permissionDenied={voice.permissionDenied}
+                interim={voice.interim}
+                onStart={voice.start}
+                onStop={voice.stop}
+                size="md"
+              />
+            </div>
           )}
           <div className="flex-1 min-w-0 relative">
             <textarea
@@ -291,10 +293,10 @@ export default function ChatPanel({
               value={text}
               onChange={(e) => setText(e.target.value.slice(0, MAX_INPUT))}
               onKeyDown={handleKeyDown}
-              placeholder={disabled ? '데이터 로딩 중...' : voice?.supported ? '질문 입력 또는 🎤 음성 (Spacebar 길게)' : '질문을 입력하세요 (Enter=전송)'}
+              placeholder={disabled ? '데이터 로딩 중...' : voice?.supported ? '질문 입력 또는 🎤 음성 (Spacebar 길게)\n여러 줄 입력 가능 (Shift+Enter=줄바꿈, Enter=전송)' : '질문을 입력하세요 (Enter=전송, Shift+Enter=줄바꿈)'}
               disabled={disabled}
-              rows={1}
-              className="w-full resize-none px-3 py-2.5 pr-14 rounded-xl text-sm break-keep leading-snug min-h-[44px] max-h-32 transition-all focus:outline-none"
+              rows={2}
+              className="w-full resize-none px-3 py-3 pr-14 rounded-xl text-sm sm:text-[15px] break-keep leading-relaxed min-h-[60px] sm:min-h-[72px] max-h-48 sm:max-h-64 transition-all focus:outline-none"
               style={{
                 overflow: 'auto',
                 background: voice?.isListening ? 'rgba(0, 212, 255, 0.08)' : 'rgba(15, 26, 45, 0.65)',
@@ -303,7 +305,7 @@ export default function ChatPanel({
                 boxShadow: voice?.isListening ? '0 0 14px rgba(0,212,255,0.22), inset 0 0 10px rgba(0,212,255,0.06)' : 'inset 0 0 8px rgba(0,212,255,0.04)',
               }}
             />
-            <span className="absolute bottom-1.5 right-2 text-[10px] text-[var(--muted-foreground)] pointer-events-none tabular-nums">
+            <span className="absolute bottom-2 right-2 text-[10px] text-[var(--muted-foreground)] pointer-events-none tabular-nums bg-[rgba(8,16,30,0.75)] px-1.5 py-0.5 rounded">
               {text.length}/{MAX_INPUT}
             </span>
           </div>
@@ -312,7 +314,7 @@ export default function ChatPanel({
             onClick={submit}
             disabled={!text.trim() || isLoading || disabled}
             aria-label="전송"
-            className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex-shrink-0 w-11 h-11 sm:w-12 sm:h-[72px] rounded-xl flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed"
             style={{
               background: !text.trim() || isLoading || disabled
                 ? 'rgba(0, 212, 255, 0.2)'
