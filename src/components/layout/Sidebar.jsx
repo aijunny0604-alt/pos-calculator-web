@@ -13,7 +13,7 @@ const navItems = [
   { id: 'stock', label: '재고 현황', icon: Package },
   { id: 'burnway-stock', label: '번웨이 다운파이프', icon: Package },
   { id: 'ai-order', label: 'AI 주문 인식', icon: Brain },
-  { id: 'ai-analytics', label: 'AI 분석', icon: Sparkles },
+  { id: 'ai-analytics', label: 'MOVIS', icon: Sparkles, premium: true, sublabel: 'Quantum AI' },
   { id: 'admin', label: '관리자', icon: Settings },
 ];
 
@@ -53,9 +53,78 @@ export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount 
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {navItems.map(({ id, label, icon: Icon }) => {
+        {navItems.map(({ id, label, icon: Icon, premium, sublabel }) => {
           const isActive = currentPage === id;
           const badgeCount = badgeMap[id] || 0;
+
+          // 🌟 Premium 메뉴 (MOVIS) — 사이안 그라데이션 + 펄스 + 별 회전
+          if (premium) {
+            return (
+              <button
+                key={id}
+                onClick={() => onNavigate(id)}
+                className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-bold transition-all overflow-hidden ${
+                  isActive ? 'shadow-lg shadow-cyan-500/30' : 'hover:shadow-md hover:shadow-cyan-500/20'
+                }`}
+                style={{
+                  background: isActive
+                    ? 'linear-gradient(135deg, #00d4ff 0%, #4dffff 50%, #a855f7 100%)'
+                    : 'linear-gradient(135deg, rgba(0,212,255,0.10) 0%, rgba(77,255,255,0.06) 50%, rgba(168,85,247,0.10) 100%)',
+                  color: isActive ? '#050b18' : 'var(--foreground)',
+                  border: '1px solid rgba(0,212,255,0.35)',
+                }}
+              >
+                {/* 배경 광채 펄스 (호버 시) */}
+                <span
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                  style={{
+                    background: 'radial-gradient(circle at 30% 50%, rgba(0,212,255,0.25), transparent 60%)',
+                  }}
+                />
+                {/* 회전 별 아이콘 */}
+                <Icon
+                  className="w-5 h-5 flex-shrink-0 relative z-10"
+                  style={{
+                    color: isActive ? '#050b18' : '#00d4ff',
+                    filter: isActive ? 'none' : 'drop-shadow(0 0 6px rgba(0,212,255,0.7))',
+                    animation: isActive ? 'spin 8s linear infinite' : 'jarvis-glow-pulse 2.5s ease-in-out infinite',
+                  }}
+                />
+                <div className="relative z-10 flex flex-col items-start leading-tight">
+                  <span
+                    className="font-bold tracking-wider"
+                    style={{
+                      letterSpacing: '0.12em',
+                      fontFamily: 'JetBrains Mono, monospace',
+                      textShadow: isActive ? 'none' : '0 0 8px rgba(0,212,255,0.45)',
+                    }}
+                  >
+                    {label}
+                  </span>
+                  {sublabel && (
+                    <span
+                      className="text-[9px] font-mono uppercase tracking-widest opacity-80"
+                      style={{ color: isActive ? '#050b18' : 'var(--jarvis-text-muted, #6b7c93)' }}
+                    >
+                      {sublabel}
+                    </span>
+                  )}
+                </div>
+                {/* 우측 라이브 도트 (온라인 상태) */}
+                <span className="ml-auto relative z-10 flex items-center gap-1">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full animate-pulse"
+                    style={{
+                      background: '#00ff88',
+                      boxShadow: '0 0 6px #00ff88',
+                    }}
+                  />
+                </span>
+                <CountBadge count={badgeCount} isActive={isActive} />
+              </button>
+            );
+          }
+
           return (
             <button
               key={id}
