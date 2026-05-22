@@ -6,6 +6,18 @@ import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
 import BigBangIntro from '@/components/analytics/BigBangIntro';
 import '@/components/analytics/ai-analytics.css';
 import useAIAnalystChat, { writeContextSnapshot } from '@/hooks/useAIAnalystChat';
+
+// 🧠 AI 학습 저장 전 개인정보 마스킹 + 길이 제한 (Codex 주의사항 #4)
+function sanitizeForLearning(text) {
+  if (!text || typeof text !== 'string') return '';
+  return text
+    .replace(/\d{3}-?\d{3,4}-?\d{4}/g, '[전화]')       // 전화번호
+    .replace(/\d{2,3}[가-힣]\s?\d{4}/g, '[차량]')      // 차량번호
+    .replace(/\d{6}-?[1-4]\d{6}/g, '[주민]')           // 주민번호
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200);                                     // 최대 200자
+}
 import useVoiceInput from '@/hooks/useVoiceInput';
 import useTextToSpeech from '@/hooks/useTextToSpeech';
 import { hasGroqKey, saveGroqKey, getGroqKey, getProviderPreference, setProviderPreference } from '@/lib/aiAnalyst';
@@ -249,6 +261,23 @@ export default function AIAnalytics({
             const map = new Map(okList.map((r) => [r.update.productId, r.update.newStock]));
             return prev.map((p) => (map.has(p.id) ? { ...p, stock: map.get(p.id) } : p));
           });
+          // 🧠 AI 자가 학습 (bulk = 30+ 라인 한번에) — ROI 최고
+          okList.forEach(({ update: u }) => {
+            if (!u?.inputName || !u?.productId) return;
+            const original = sanitizeForLearning(u.inputName);
+            if (!original) return;
+            const normalized = original.toLowerCase().replace(/\s+/g, '').replace(/ㅡ/g, '-');
+            // 자동 매칭이었거나 입력≠매칭 결과 다른 경우만 학습
+            const matchedProduct = products.find((p) => p.id === u.productId);
+            if (matchedProduct && matchedProduct.name !== u.inputName) {
+              supabase.upsertAiLearning(
+                original, normalized,
+                u.productId, matchedProduct.name,
+                u.newStock || 1,
+                'bulkUpdateProductStock confirm 학습',
+              ).catch((e) => console.warn('AI 학습 저장 실패:', e));
+            }
+          });
         }
         const summary = `✅ 재고 ${okList.length}건 변경 완료${failList.length > 0 ? ` (실패 ${failList.length}건)` : ''}`;
         chat.addSystemMessage(summary);
@@ -270,6 +299,22 @@ export default function AIAnalytics({
           if (result) {
             chat.addSystemMessage(`✅ 주문 등록 완료 — "${customerName}" / ${items.length}건 / ${total.toLocaleString('ko-KR')}원${result.merged ? ' (당일 기존 주문에 병합)' : ''}`);
             showToast?.(`주문 저장: ${customerName} ${total.toLocaleString('ko-KR')}원`, 'success');
+            // 🧠 AI 자가 학습: 매칭된 제품들을 ai_learning에 자동 저장
+            // → 다음 번 같은 입력 시 1단계 학습 매칭으로 즉시 정확
+            items.forEach((it) => {
+              if (!it?.originalInput || !it?.id) return; // autoMatched만 학습 (정답 강한 신호)
+              const original = sanitizeForLearning(it.originalInput);
+              if (!original) return;
+              const normalized = original.toLowerCase().replace(/\s+/g, '').replace(/ㅡ/g, '-');
+              supabase.upsertAiLearning(
+                original,
+                normalized,
+                it.id,
+                it.name,
+                it.quantity || 1,
+                'saveOrder confirm 자동 학습',
+              ).catch((e) => console.warn('AI 학습 저장 실패:', e));
+            });
           } else {
             chat.addSystemMessage(`❌ 주문 등록 실패`);
             showToast?.('주문 저장 실패', 'error');
