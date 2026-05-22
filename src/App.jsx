@@ -816,12 +816,22 @@ export default function App() {
     [showToast]
   );
 
-  // ─── AI 학습 데이터 저장 ──────────────────────────────────────
+  // ─── AI 학습 데이터 저장 (Codex PII 마스킹 적용) ─────────────
   const handleSaveLearning = useCallback(async (learningItems) => {
+    // PII 마스킹 (전화/주민/사업자/이메일/카드/차량)
+    const PII = [
+      { re: /\b(?:01[016789]|0[2-6][1-5]?)-?\d{3,4}-?\d{4}\b/g, label: '[전화]' },
+      { re: /\b\d{6}-?[1-4]\d{6}\b/g, label: '[주민번호]' },
+      { re: /\b\d{3}-?\d{2}-?\d{5}\b/g, label: '[사업자번호]' },
+      { re: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, label: '[이메일]' },
+      { re: /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/g, label: '[카드번호]' },
+      { re: /\d{2,3}[가-힣]\s?\d{4}/g, label: '[차량]' },
+    ];
+    const mask = (t) => PII.reduce((s, { re, label }) => s.replace(re, label), String(t || '')).slice(0, 200);
     let successCount = 0;
     for (const item of learningItems) {
       const result = await supabase.upsertAiLearning(
-        item.originalText, item.normalizedText, item.productId, item.productName, item.quantity, item.reason || ''
+        mask(item.originalText), mask(item.normalizedText), item.productId, item.productName, item.quantity, item.reason || ''
       );
       if (result) {
         successCount++;
