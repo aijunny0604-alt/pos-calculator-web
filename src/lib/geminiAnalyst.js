@@ -1,4 +1,4 @@
-import { GEMINI_TOOLS, executeTool, ANALYST_SYSTEM_PROMPT } from './geminiTools';
+import { GEMINI_TOOLS, executeTool, buildSystemPrompt } from './geminiTools';
 import { getTodayKST } from './utils';
 
 const CACHE_KEY = 'pos_ai_cache_v2'; // v1 → v2 (시스템 프롬프트 변경 시 옛 캐시 자동 무효화)
@@ -102,7 +102,7 @@ const getErrorMessage = (status, fallback) => {
   return fallback || `AI 서버 오류 (${status || '연결 실패'})`;
 };
 
-const postGemini = async (contents, { signal } = {}) => {
+const postGemini = async (contents, { signal, systemPrompt } = {}) => {
   const keys = getGeminiKeys();
   let lastStatus = null;
   let lastMessage = '';
@@ -117,7 +117,7 @@ const postGemini = async (contents, { signal } = {}) => {
             headers: { 'Content-Type': 'application/json' },
             signal,
             body: JSON.stringify({
-              system_instruction: { parts: [{ text: ANALYST_SYSTEM_PROMPT }] },
+              system_instruction: { parts: [{ text: systemPrompt }] },
               contents,
               tools: [{ function_declarations: GEMINI_TOOLS }],
               // Gemini v1beta REST API는 camelCase. tool_code 회귀 방지는 시스템 프롬프트로 충분.
@@ -189,9 +189,11 @@ export async function askAnalyst(question, context, options = {}) {
     contents.push({ role: 'user', parts: [{ text: question }] });
     // WHY: 같은 함수와 같은 인자를 반복 호출하면 모델 루프가 길어지고 비용이 늘어 중복 실행을 막는다.
     const seenCalls = new Set();
+    // 시스템 프롬프트 동적 생성 (DB 메타 컨텍스트 주입 — 카테고리/거래처/최근 활동)
+    const systemPrompt = buildSystemPrompt(context);
 
     while (iterations < maxIterations) {
-      const data = await postGemini(contents, { signal });
+      const data = await postGemini(contents, { signal, systemPrompt });
       const parts = data.candidates?.[0]?.content?.parts || [];
       const functionCalls = parts
         .filter(part => part.functionCall)

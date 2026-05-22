@@ -1271,6 +1271,200 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
   return { ok: false, error: `Unknown write tool: ${name}` };
 }
 
+// === DB 메타 컨텍스트 생성 (AI 정확도 ↑) ===
+// 시스템 프롬프트에 동적 주입되어 AI가 큰 그림을 파악한 상태에서 도구 호출
+export function buildContextMeta(context = {}) {
+  const {
+    products = [], customers = [], orders = [],
+    paymentRecords = [], paymentHistory = [],
+    customerReturns = [], savedCarts = [], aiLearningData = [],
+  } = context;
+
+  // 카테고리별 제품 수 (전체)
+  const catCount = {};
+  products.forEach((p) => {
+    const c = p?.category || '미분류';
+    catCount[c] = (catCount[c] || 0) + 1;
+  });
+  const categories = Object.entries(catCount)
+    .sort(([, a], [, b]) => b - a)
+    .map(([cat, n]) => `${cat}(${n})`)
+    .join(', ');
+
+  // 카테고리별 대표 제품 (각 카테고리 첫 3개)
+  const catSamples = {};
+  Object.keys(catCount).forEach((cat) => {
+    catSamples[cat] = products
+      .filter((p) => (p?.category || '미분류') === cat)
+      .slice(0, 3)
+      .map((p) => p.name)
+      .join(' / ');
+  });
+  const catSampleLines = Object.entries(catSamples)
+    .slice(0, 10)
+    .map(([cat, sample]) => `  • ${cat}: ${sample}`)
+    .join('\n');
+
+  // 거래처 매출 집계
+  const customerRevenue = {};
+  const customerOrderCount = {};
+  orders.forEach((o) => {
+    const k = o?.customerName || (customers.find((c) => c.id === o?.customerId)?.name);
+    if (k) {
+      customerRevenue[k] = (customerRevenue[k] || 0) + Number(o.total || 0);
+      customerOrderCount[k] = (customerOrderCount[k] || 0) + 1;
+    }
+  });
+  // 매출 TOP 100 거래처
+  const topCustomers = Object.entries(customerRevenue)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 100)
+    .map(([n]) => n)
+    .join(', ');
+
+  // 최근 7일/30일 활동
+  const now = new Date();
+  const cutoff7 = new Date(now); cutoff7.setDate(cutoff7.getDate() - 7);
+  const cutoff30 = new Date(now); cutoff30.setDate(cutoff30.getDate() - 30);
+  const recent7 = orders.filter((o) => o?.orderDate && new Date(o.orderDate) >= cutoff7);
+  const recent30 = orders.filter((o) => o?.orderDate && new Date(o.orderDate) >= cutoff30);
+  const recent7Revenue = recent7.reduce((s, o) => s + Number(o.total || 0), 0);
+  const recent30Revenue = recent30.reduce((s, o) => s + Number(o.total || 0), 0);
+  const recent7Customers = new Set(recent7.map((o) => o?.customerName || o?.customerId).filter(Boolean)).size;
+
+  // 재고 상태
+  const outOfStock = products.filter((p) => Number(p?.stock || 0) === 0).length;
+  const lowStock = products.filter((p) => {
+    const s = Number(p?.stock || 0);
+    return s > 0 && s <= 5;
+  }).length;
+  const incomingStock = products.filter((p) => Number(p?.stock || 0) < 0).length;
+  const totalStockValue = products.reduce((s, p) => s + Number(p?.wholesale || 0) * Math.max(0, Number(p?.stock || 0)), 0);
+
+  // 미수금 합계
+  const overdueTotal = paymentRecords.reduce((s, r) => s + Math.max(0, Number(r?.balance || 0)), 0);
+  const overdueCount = paymentRecords.filter((r) => Number(r?.balance || 0) > 0).length;
+
+  // 반품 최근 30일
+  const recentReturns = customerReturns.filter((r) => {
+    const d = r?.returnDate || r?.created_at;
+    return d && new Date(d) >= cutoff30;
+  }).length;
+
+  // TOP 5 매출 거래처 (간단 요약용)
+  const top5 = Object.entries(customerRevenue)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([n, r]) => `${n}(${Math.round(r / 10000)}만)`)
+    .join(', ');
+
+  // TOP 5 인기 제품 (수량 기준)
+  const productQty = {};
+  orders.forEach((o) => {
+    (o?.items || []).forEach((it) => {
+      const k = it?.name || it?.productName;
+      if (k) productQty[k] = (productQty[k] || 0) + Number(it.quantity || 0);
+    });
+  });
+  const top5Products = Object.entries(productQty)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([n, q]) => `${n}(${q}개)`)
+    .join(', ');
+
+  return `\n\n## 📊 현재 DB 메타 (질문 답변 시 반드시 참고)
+
+### 규모 요약
+- 제품 ${products.length}개 · 거래처 ${customers.length}곳 · 주문 ${orders.length}건
+- 저장 장바구니 ${savedCarts.length}건 · 반품(전체) ${customerReturns.length}건 · AI 학습 ${aiLearningData.length}건
+- 결제 기록 ${paymentRecords.length}건 · 입금 이력 ${paymentHistory.length}건
+
+### 제품 카테고리 (전체 ${Object.keys(catCount).length}종)
+${categories || '(없음)'}
+
+### 카테고리별 대표 제품 (각 3건)
+${catSampleLines || '(없음)'}
+
+### 거래처 (매출 TOP 100)
+${topCustomers || '(데이터 없음)'}
+
+### TOP 5 매출 거래처
+${top5 || '(데이터 없음)'}
+
+### TOP 5 인기 제품 (수량)
+${top5Products || '(데이터 없음)'}
+
+### 재고 상태
+- 정상 ${products.length - outOfStock - lowStock - incomingStock}건 · 부족(≤5) ${lowStock}건 · 품절 ${outOfStock}건 · 입고대기 ${incomingStock}건
+- 총 재고 가치 (도매가 기준): ${Math.round(totalStockValue / 10000).toLocaleString('ko-KR')}만원
+
+### 최근 활동
+- 최근 7일: 주문 ${recent7.length}건, 매출 ${Math.round(recent7Revenue / 10000).toLocaleString('ko-KR')}만원, 활동 거래처 ${recent7Customers}곳
+- 최근 30일: 주문 ${recent30.length}건, 매출 ${Math.round(recent30Revenue / 10000).toLocaleString('ko-KR')}만원
+- 최근 30일 반품 ${recentReturns}건
+
+### 미수금
+- 미수 거래처 ${overdueCount}곳, 미수금 합계 ${Math.round(overdueTotal / 10000).toLocaleString('ko-KR')}만원
+
+## 🛠️ 사용 가능 도구 카탈로그 (26개)
+### 단일 조회
+- getProductInfo({productName}) — 제품 1개 상세 (fuzzy 매칭)
+- getCustomerInfo({customerName}) — 거래처 1곳 상세 (매출/미수/TOP 제품)
+
+### 키워드 검색 (복수)
+- searchProducts({keyword, limit?}) — 제품 부분 검색 ("X들/X 종류")
+- searchCustomers({keyword, limit?}) — 거래처 부분 검색
+
+### 거래처 분석
+- getTopCustomers({period, limit?}) — 매출 TOP N
+- getCustomerTrend({customerName, period}) — 시간 추이
+- getCustomerSegments({period}) — VIP/일반/신규 RFM
+- getDormantCustomers({days}) — 휴면 거래처
+- getCustomerProductAffinity({customerName?}) — 구매 패턴
+
+### 제품 분석
+- getTopProducts({period, limit?}) — 인기 제품
+- getProductTrend({productName, period}) — 시간 추이
+- getRepeatPurchaseGap({productName?}) — 재주문 주기
+
+### 재고 분석
+- getLowStockProducts({threshold?}) — 부족 제품
+- getStockSummary({lowThreshold?}) — 전체 요약
+- getProductsByStockStatus({status}) — incoming/out/normal
+- getRestockRecommendations({stockThreshold?, salesPeriod?}) — 재주문 추천
+
+### 결제/미수
+- getPaymentSummary() — 완납/부분/미수 카운트
+- getOverdueCustomers({minDays?, minBalance?}) — 미수 거래처 TOP
+- getPaymentInflow({period}) — 입금 이력
+
+### 반품/장바구니/학습
+- getReturnAnalysis({period}) — 반품 통계
+- getPendingCarts({}) — 저장 장바구니
+- getLearningStats({}) — AI 학습 통계
+
+### 종합
+- getCompositeSummary({period}) — 종합 KPI
+
+### 쓰기 (Confirm 모달 표시)
+- addProduct / addCustomer / updateProductStock / updateProductPrice / updateCustomer / saveOrder
+- bulkAddProduct / bulkAddCustomer / bulkUpdateProductStock / bulkUpdateProductPrice / bulkUpdateCustomer
+
+## ⚠️ 활용 규칙 (필독)
+1. **메타에 있는 카테고리/거래처/제품은 확실히 존재** → 정확한 도구로 호출
+2. **메타에 없는 이름이면** → "DB에 [이름]은 없는 것 같아요. 혹시 [유사 카테고리/거래처]?" 식으로 되묻기
+3. **추측 금지** — 메타에 없는 데이터를 만들어내지 말 것
+4. **단수 vs 복수**: "X" → getProductInfo / "X들·X 종류·X 뭐있어" → searchProducts
+5. **숫자 규격 보존**: "54-30", "38-45" 같은 규격은 productName에 그대로 (수량 아님)
+6. **빈 응답 금지** — 도구 결과가 비어도 메타를 활용해 친절히 답변
+7. **답변엔 도구 카탈로그 노출 금지** — 위 카탈로그는 내부 참고용`;
+}
+
+// 시스템 프롬프트 빌더 (메타 컨텍스트 동적 주입)
+export function buildSystemPrompt(context = {}) {
+  return ANALYST_SYSTEM_PROMPT + buildContextMeta(context);
+}
+
 // 시스템 프롬프트 — Gemini에 전달되는 도메인 컨텍스트
 export const ANALYST_SYSTEM_PROMPT = `당신의 이름은 "MOVIS"(무비스)입니다. Move Motors의 양자 AI 어시스턴트로, 영화 자비스 같은 친근하고 전문적인 톤을 유지합니다.
 자동차 튜닝 부품 POS의 분석을 담당합니다.

@@ -7,7 +7,7 @@
 // 키 저장: localStorage 'groqApiKey' (사용자가 직접 발급)
 // 미설정 시 askGroq는 throw → dispatcher가 catch해서 Gemini 사용
 
-import { GEMINI_TOOLS, executeTool, ANALYST_SYSTEM_PROMPT } from './geminiTools';
+import { GEMINI_TOOLS, executeTool, buildSystemPrompt } from './geminiTools';
 
 const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile'];
 const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
@@ -163,8 +163,9 @@ export async function askGroq(question, context, options = {}) {
         }))
     : [];
 
+  // 시스템 프롬프트 동적 생성 (DB 메타 주입)
   const messages = [
-    { role: 'system', content: ANALYST_SYSTEM_PROMPT },
+    { role: 'system', content: buildSystemPrompt(context) },
     ...historyMsgs,
     { role: 'user', content: question },
   ];
