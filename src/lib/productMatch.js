@@ -1,6 +1,81 @@
 // 제품 매칭 유틸 — TextAnalyze.jsx의 matchWithTolerance 추출 + ai_learning 우선 매칭
 // 사용: saveOrder / updateProductStock / updateProductPrice 등 쓰기 도구에서 공유
 
+// 동의어 맵 (자동차 부품 도메인) — TextAnalyze에서 추출 + 보강
+const SYNONYMS = {
+  '스덴': ['stainless', 'sts', 'sus'],
+  'sts': ['스덴', 'stainless'],
+  '다파': ['다운파이프', 'down pipe', 'downpipe', 'dp'],
+  '다운파이프': ['다파', 'dp'],
+  '머플러': ['muffler', '소음기'],
+  '엘보': ['elbow', 'l관'],
+  '플랜지': ['flange'],
+  '밴드': ['band'],
+  '밴딩': ['banding'],
+  '파이프': ['pipe'],
+  '가스켓': ['gasket'],
+  '클램프': ['clamp'],
+  'BMW': ['bmw', 'b m w'],
+};
+
+// 동의어 적용 (양방향)
+function applySynonyms(text) {
+  if (!text) return text;
+  let result = String(text).toLowerCase();
+  Object.entries(SYNONYMS).forEach(([key, vals]) => {
+    vals.forEach((v) => {
+      if (result.includes(v.toLowerCase())) result += ' ' + key.toLowerCase();
+    });
+    if (result.includes(key.toLowerCase())) {
+      vals.forEach((v) => { result += ' ' + v.toLowerCase(); });
+    }
+  });
+  return result;
+}
+
+// 초성 추출 — "스덴밴딩" → "ㅅㄷㅂㄷ"
+const CHOSEONG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+function getChoseong(text) {
+  if (!text) return '';
+  let result = '';
+  for (const ch of String(text)) {
+    const code = ch.charCodeAt(0);
+    if (code >= 0xAC00 && code <= 0xD7A3) {
+      const idx = Math.floor((code - 0xAC00) / 588);
+      result += CHOSEONG[idx];
+    } else if (CHOSEONG.includes(ch)) {
+      result += ch;
+    }
+  }
+  return result;
+}
+
+// Levenshtein 거리 (편집 거리)
+function levenshteinDistance(a, b) {
+  if (!a || !b) return Math.max(a?.length || 0, b?.length || 0);
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]) + 1;
+    }
+  }
+  return dp[m][n];
+}
+
+function getSimilarity(a, b) {
+  if (!a || !b) return 0;
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshteinDistance(a, b) / maxLen;
+}
+
 // 검색 텍스트 정리 (수량/단위 제거 + 한글 자판 오타 ㅡ → - 변환)
 export function cleanSearchText(text) {
   if (!text) return '';
@@ -152,23 +227,39 @@ export function findProductSmart(query, products, aiLearningData) {
   return null;
 }
 
-// 내부 스코어 계산 (findProductCandidates와 공유). 공백 무시 비교로 더 관대.
+// 내부 스코어 계산 (findProductCandidates와 공유). 공백 무시 + 동의어 + 초성 + Levenshtein.
 function scoreProducts(query, products) {
   const lower = (query || '').trim().toLowerCase();
   const lowerNoSpace = lower.replace(/\s+/g, '');
   const tokens = tokenize(lower);
   const queryNums = tokens.filter((t) => /^\d+$/.test(t));
+  const queryWithSyn = applySynonyms(lower);
+  const queryChoseong = getChoseong(lowerNoSpace);
   return products
     .map((p) => {
       const pn = (p?.name || '').toLowerCase();
       const pnNoSpace = pn.replace(/\s+/g, '');
+      const pnWithSyn = applySynonyms(pn);
+      const pnChoseong = getChoseong(pnNoSpace);
       let score = 0;
+      // 기본 매칭
       if (pnNoSpace === lowerNoSpace) score += 100;
       if (pnNoSpace.includes(lowerNoSpace) || lowerNoSpace.includes(pnNoSpace)) score += 50;
       for (const t of tokens) {
         if (pnNoSpace.includes(t.replace(/\s+/g, ''))) score += 10;
       }
-      // 숫자 토큰 모두 매칭 보너스 (54-30 같은 규격 식별자)
+      // 동의어 매칭 보너스 ("다파" ↔ "다운파이프")
+      if (pnWithSyn !== pn && (pnWithSyn.includes(lowerNoSpace) || queryWithSyn.includes(pnNoSpace))) {
+        score += 20;
+      }
+      // 초성 매칭 ("ㅅㄷㅂㄷ" → "스덴밴딩")
+      if (queryChoseong.length >= 2 && pnChoseong.includes(queryChoseong)) {
+        score += 15;
+      }
+      // Levenshtein 유사도 (편집 거리) — 오타 강인
+      const similarity = getSimilarity(lowerNoSpace, pnNoSpace);
+      if (similarity >= 0.7) score += Math.round(similarity * 30);
+      // 숫자 토큰 모두 매칭 (54-30 같은 규격 식별자)
       if (queryNums.length > 0 && queryNums.every((n) => pnNoSpace.includes(n))) {
         score += 25;
       }
