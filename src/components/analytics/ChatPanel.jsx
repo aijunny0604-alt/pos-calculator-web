@@ -243,7 +243,12 @@ export default function ChatPanel({
         ) : (
           <>
             {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} tts={tts} />
+              <MessageBubble
+                key={m.id}
+                message={m}
+                tts={tts}
+                onFollowUpClick={(q) => onSend?.(q)}
+              />
             ))}
             {isLoading && <ThinkingChip step={loadingStep} onCancel={onCancel} />}
             <div ref={bottomRef} />

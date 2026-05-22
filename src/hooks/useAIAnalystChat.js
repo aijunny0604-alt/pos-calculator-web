@@ -164,11 +164,14 @@ export default function useAIAnalystChat({
       const hasAnswer = !!(result.answer && result.answer.trim());
       let content = hasAnswer ? result.answer : '';
       let fallbackUsed = false;
+      let fallbackToolCalls = null;
       if (!content) {
         const fallback = autoFallbackSearch(question, { products, customers, orders });
         if (fallback) {
           content = fallback;
           fallbackUsed = true;
+          // 폴백 시 차트도 자동 생성 (toolCalls 모방 → ResultRenderer 자동 렌더)
+          fallbackToolCalls = buildFallbackToolCalls(question, { products, customers, orders });
         } else {
           content = '⚠️ MOVIS가 답변을 만들지 못했어요. 조금 더 구체적으로 질문해주세요. '
             + '예: "스덴밴딩 종류 보여줘", "강남오토 매출 얼마야?", "재고 부족한 거 알려줘"';
@@ -181,16 +184,20 @@ export default function useAIAnalystChat({
         : (!hasAnswer && !fallbackUsed)
           ? 'error'
           : 'assistant';
+      // 추천 후속 질문 자동 생성 (도구 호출 결과 + 질문 기반)
+      const followUps = generateFollowUpQuestions(question, result.toolCalls || fallbackToolCalls);
       const assistantMsg = {
         id: newId(),
         role,
         content,
         ts: Date.now(),
-        toolCalls: result.toolCalls,
+        // 폴백 시 모방 toolCalls를 사용 → ResultRenderer가 자동 차트 렌더
+        toolCalls: result.toolCalls?.length > 0 ? result.toolCalls : (fallbackToolCalls || []),
         cached: result.cached,
         iterations: result.iterations,
         provider: result.provider, // 'gemini' | 'groq' | 'gemini→groq'
         fallback: fallbackUsed,
+        followUps,
       };
       setMessages((prev) => [...prev, assistantMsg]);
 
@@ -373,6 +380,166 @@ function formatList(keyword, productHits, customerHits, orders) {
   }
   md += '\n💡 더 구체적으로 알고 싶은 항목이 있으면 말씀해주세요.';
   return md;
+}
+
+// 폴백 결과에 차트 추가 — toolCalls 모방으로 ResultRenderer 자동 차트 렌더
+// 제품 카테고리별 분포 / 거래처 매출 TOP / 주문 추이 자동 생성
+export function buildFallbackToolCalls(question, { products = [], customers = [], orders = [] }) {
+  if (!question) return [];
+  const NOISE = /^(있어|있니|있나|있음|좀|좀더|어때|어떄|뭐|뭐가|뭐있|뭐있어|뭔가|얼마|얼마야|몇개|몇\s*개|개|개수|종류|종류는|제품|제품들|상품|상품들|보여|보여줘|알려|알려줘|확인|조회|어떤|어떤거|있을까|있을까요|들|들은|이|가|을|를|은|는|의|에|와|과|로|으로|및|또는|혹은|아니면|또|만|밖에|최근|주문|주문한|주문한적|적|있어요|적이|적이있)$/i;
+  const kw = String(question)
+    .replace(/[?.,!~]/g, ' ')
+    .split(/\s+/)
+    .map((t) => t.trim().replace(/ㅡ/g, '-'))
+    .filter((t) => t.length >= 2 && !NOISE.test(t));
+  if (kw.length === 0) return [];
+
+  const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, '');
+  const productMatchesByKw = {};
+  const customerMatchesByKw = {};
+  kw.forEach((k) => {
+    const kn = norm(k);
+    productMatchesByKw[k] = (products || []).filter((p) =>
+      norm(p?.name).includes(kn) || norm(p?.category).includes(kn));
+    customerMatchesByKw[k] = (customers || []).filter((c) =>
+      norm(c?.name).includes(kn));
+  });
+  const matchedProductKws = kw.filter((k) => productMatchesByKw[k].length > 0);
+  const matchedCustomerKws = kw.filter((k) => customerMatchesByKw[k].length > 0);
+  const calls = [];
+
+  // ⭐ Case 1: 거래처+제품 교차 → 거래처별 매출 막대
+  if (matchedCustomerKws.length > 0 && matchedProductKws.length > 0) {
+    const targetCustomers = new Set();
+    matchedCustomerKws.forEach((k) => customerMatchesByKw[k].forEach((c) => targetCustomers.add(c.name)));
+    const targetProductNames = new Set();
+    matchedProductKws.forEach((k) => productMatchesByKw[k].forEach((p) => targetProductNames.add(p.name)));
+    const matchedOrders = (orders || []).filter((o) => {
+      if (!targetCustomers.has(o?.customerName)) return false;
+      return (o?.items || []).some((it) => targetProductNames.has(it?.name || it?.productName));
+    });
+    if (matchedOrders.length > 0) {
+      // 거래처별 매출 집계
+      const byCustomer = {};
+      matchedOrders.forEach((o) => {
+        byCustomer[o.customerName] = (byCustomer[o.customerName] || 0) + Number(o.total || 0);
+      });
+      const results = Object.entries(byCustomer)
+        .sort(([, a], [, b]) => b - a)
+        .map(([name, revenue], i) => ({ rank: i + 1, name, revenue, count: matchedOrders.filter((o) => o.customerName === name).length }));
+      calls.push({
+        name: 'getTopCustomers',
+        args: { period: '검색 범위', sortBy: 'revenue' },
+        result: { ok: true, data: { results, sortBy: 'revenue', period: `${[...targetProductNames].slice(0, 2).join('/')} 주문` } },
+      });
+    }
+    return calls;
+  }
+
+  // Case 2: 제품 키워드만 → 카테고리별 분포
+  if (matchedProductKws.length > 0) {
+    const allProducts = [...new Set(matchedProductKws.flatMap((k) => productMatchesByKw[k]))];
+    if (allProducts.length >= 3) {
+      const catCount = {};
+      allProducts.forEach((p) => {
+        const c = p.category || '미분류';
+        catCount[c] = (catCount[c] || 0) + 1;
+      });
+      if (Object.keys(catCount).length >= 2) {
+        const results = Object.entries(catCount)
+          .sort(([, a], [, b]) => b - a)
+          .map(([category, quantity], i) => ({ rank: i + 1, category, quantity, revenue: quantity }));
+        calls.push({
+          name: 'getTopProducts',
+          args: { byCategory: true, sortBy: 'quantity' },
+          result: { ok: true, data: { results, byCategory: true, sortBy: 'quantity', period: `"${kw.join(' ')}" 검색 ${allProducts.length}건` } },
+        });
+      }
+    }
+  }
+
+  // Case 3: 거래처 키워드만 → 거래처별 매출 막대
+  if (matchedCustomerKws.length > 0) {
+    const allCustomers = [...new Set(matchedCustomerKws.flatMap((k) => customerMatchesByKw[k]))];
+    if (allCustomers.length >= 2) {
+      const byCustomer = {};
+      const countByCustomer = {};
+      allCustomers.forEach((c) => {
+        const my = (orders || []).filter((o) => o.customerName === c.name || o.customerId === c.id);
+        byCustomer[c.name] = my.reduce((s, o) => s + Number(o.total || 0), 0);
+        countByCustomer[c.name] = my.length;
+      });
+      const results = Object.entries(byCustomer)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 15)
+        .map(([name, revenue], i) => ({ rank: i + 1, name, revenue, count: countByCustomer[name] }));
+      if (results.length > 0) {
+        calls.push({
+          name: 'getTopCustomers',
+          args: { period: '전체', sortBy: 'revenue' },
+          result: { ok: true, data: { results, sortBy: 'revenue', period: `"${kw.join(' ')}" 검색 ${allCustomers.length}곳` } },
+        });
+      }
+    }
+  }
+
+  return calls;
+}
+
+// 추천 후속 질문 자동 생성 — 도구 호출 결과 + 질문 패턴 기반
+// 답변 하단에 칩 3개로 표시되어 사용자가 다음 질문 클릭만으로 진행 가능
+function generateFollowUpQuestions(question, toolCalls = []) {
+  const calls = Array.isArray(toolCalls) ? toolCalls : [];
+  const callNames = calls.map((c) => c?.name).filter(Boolean);
+  const q = String(question || '');
+
+  // 도구별 후속 질문 매핑
+  if (callNames.includes('getTopCustomers')) {
+    return ['1위 거래처 최근 주문 추이 보여줘', '휴면 거래처 알려줘', '미수 거래처 TOP 5'];
+  }
+  if (callNames.includes('getTopProducts')) {
+    return ['재고 부족한 인기 제품 알려줘', '재주문 추천 리스트 줘', '카테고리별 매출 비교해줘'];
+  }
+  if (callNames.includes('getCustomerInfo')) {
+    return ['이 거래처 최근 3개월 주문 추이', '이 거래처 자주 사는 제품', '이 거래처 미수금 알려줘'];
+  }
+  if (callNames.includes('getProductInfo')) {
+    return ['이 제품 카테고리 다른 제품들', '이 제품 최근 판매 추이', '이 제품 재주문 추천 수량'];
+  }
+  if (callNames.includes('searchProducts')) {
+    return ['이 중 재고 부족한 것만 보여줘', '카테고리별 매출 TOP', '재주문 추천 리스트'];
+  }
+  if (callNames.includes('searchCustomers')) {
+    return ['이 중 휴면 위험 거래처', '이 중 미수 있는 거래처', '매출 TOP 3 알려줘'];
+  }
+  if (callNames.includes('getCustomerSegments')) {
+    return ['VIP 거래처 자주 사는 제품', '신규 거래처 추이', '휴면 거래처 컴백 전략'];
+  }
+  if (callNames.includes('getLowStockProducts') || callNames.includes('getStockSummary')) {
+    return ['재주문 추천 리스트 줘', '품절 임박 제품들 우선 알려줘', '카테고리별 재고 현황'];
+  }
+  if (callNames.includes('getOverdueCustomers') || callNames.includes('getPaymentSummary')) {
+    return ['최근 입금 이력 보여줘', '60일 이상 미수만 보여줘', 'TOP 미수 거래처 매출 추이'];
+  }
+  if (callNames.includes('getReturnAnalysis')) {
+    return ['반품 자주 나는 제품 TOP', '반품 많은 거래처', '카테고리별 반품률'];
+  }
+  if (callNames.includes('getCompositeSummary')) {
+    return ['이번 달 매출 TOP 거래처', '재고 부족한 인기 제품', '미수금 현황'];
+  }
+
+  // 패턴 기반 fallback
+  if (/매출|판매|수익/.test(q)) {
+    return ['거래처 TOP 5', '인기 제품 TOP 10', '카테고리별 매출 비교'];
+  }
+  if (/재고|입고|품절/.test(q)) {
+    return ['재고 부족 제품 알려줘', '재주문 추천 리스트', '품절 제품 목록'];
+  }
+  if (/거래처|고객/.test(q)) {
+    return ['VIP 거래처 알려줘', '휴면 거래처 알려줘', '미수금 있는 거래처'];
+  }
+  // 기본
+  return ['이번 달 매출 TOP 5', '재고 부족 제품 알려줘', '미수 거래처 알려줘'];
 }
 
 // 도구 이름 → 사용자 친화 한국어 라벨

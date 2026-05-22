@@ -87,6 +87,29 @@ export default function AIAnalytics({
   });
   const [executing, setExecuting] = useState(false);
 
+  // ⭐ 자동 인사이트 — 빈 대화 + 데이터 준비 완료 시 1회 자동 질문 (오늘의 핵심 3가지)
+  // localStorage로 24시간 1회만 자동 실행 (사용자 피로도 방지)
+  const autoInsightTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (autoInsightTriggeredRef.current) return;
+    if (loadingExtra) return; // 데이터 로딩 중
+    if (chat.messages.length > 0) return; // 이미 대화 있음
+    if (!orders.length || !products.length) return; // DB 비어있음
+    const LAST_KEY = 'pos_ai_last_auto_insight';
+    try {
+      const last = Number(localStorage.getItem(LAST_KEY) || 0);
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      if (Date.now() - last < oneDayMs) return; // 24h 내 이미 실행
+    } catch {}
+    autoInsightTriggeredRef.current = true;
+    // 빅뱅 끝난 후 1.2초 지연 (UX)
+    const timer = setTimeout(() => {
+      try { localStorage.setItem(LAST_KEY, String(Date.now())); } catch {}
+      chat.send('오늘 매장에서 주목할 점 3가지를 간결하게 알려줘 (인기 제품, 재고 부족, 미수 거래처 위주)');
+    }, 2200);
+    return () => clearTimeout(timer);
+  }, [loadingExtra, chat.messages.length, orders.length, products.length, chat.send]);
+
   // TTS (한국어 여성 voice)
   const tts = useTextToSpeech();
 

@@ -65,10 +65,10 @@ function MarkdownLite({ content }) {
   return <div className="leading-relaxed break-keep">{blocks}</div>;
 }
 
-export default function MessageBubble({ message, enableTypewriter = true, tts }) {
+export default function MessageBubble({ message, enableTypewriter = true, tts, onFollowUpClick }) {
   const [showTools, setShowTools] = useState(false);
   if (!message) return null;
-  const { role, content, ts, toolCalls, cached } = message;
+  const { role, content, ts, toolCalls, cached, followUps, fallback } = message;
 
   // assistant 메시지에만 타이프라이터 효과 (캐시된 답변은 즉시)
   const isAssistant = role === 'assistant';
@@ -184,6 +184,39 @@ export default function MessageBubble({ message, enableTypewriter = true, tts })
 
         {/* 차트 자동 렌더링 */}
         {hasCharts && <ResultRenderer toolCalls={toolCalls} />}
+
+        {/* 추천 후속 질문 칩 (assistant only) */}
+        {isAssistant && Array.isArray(followUps) && followUps.length > 0 && onFollowUpClick && (
+          <div className="mt-3 pt-2 border-t border-cyan-400/20">
+            <div className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: 'var(--jarvis-text-muted)' }}>
+              💡 다음 질문 추천
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {followUps.map((q, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onFollowUpClick(q)}
+                  className="text-[11px] px-2.5 py-1.5 rounded-lg transition-all hover:scale-[1.02] break-keep"
+                  style={{
+                    background: 'rgba(0, 212, 255, 0.08)',
+                    color: 'var(--jarvis-cyan)',
+                    border: '1px solid rgba(0, 212, 255, 0.22)',
+                  }}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 폴백 마커 (자동 검색 결과 표시) */}
+        {fallback && (
+          <div className="mt-2 text-[10px] font-mono italic" style={{ color: 'var(--jarvis-text-muted)' }}>
+            ⚡ 자동 검색 모드 (AI 도구 호출 실패 → 코드 직접 검색)
+          </div>
+        )}
 
         {/* 도구 호출 이력 (assistant only, 1건 이상) */}
         {hasCharts && (
