@@ -24,12 +24,31 @@ const NEGATIVE_HISTORY_PATTERNS = [
   /바로\s*알려드릴 수\s*있는 기능/,
 ];
 
+// 옛 자동 메시지 패턴 (자율 분석/자동 인사이트) — loadHistory 시 자동 정리
+const AUTO_MESSAGE_PATTERNS = [
+  /MOVIS\s*자율\s*분석/,
+  /오늘\s*매장에서\s*주목할\s*점/,
+  /자동\s*검색\s*모드/,
+];
+
 function loadHistory() {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // 옛 자동 메시지 (자율 분석/자동 인사이트 시스템 메시지 + 그 답변) 필터링
+    const cleaned = parsed.filter((m) => {
+      if (!m) return false;
+      if (m.role === 'system' && AUTO_MESSAGE_PATTERNS.some((re) => re.test(m.content || ''))) return false;
+      if (m.role === 'user' && /^오늘\s*매장에서\s*주목할\s*점/.test(m.content || '')) return false;
+      return true;
+    });
+    // 정리된 결과 다시 저장
+    if (cleaned.length !== parsed.length) {
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(cleaned)); } catch {}
+    }
+    return cleaned;
   } catch {
     return [];
   }

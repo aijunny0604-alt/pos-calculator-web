@@ -13,8 +13,9 @@ const navItems = [
   { id: 'stock', label: '재고 현황', icon: Package },
   { id: 'burnway-stock', label: '번웨이 다운파이프', icon: Package },
   { id: 'ai-order', label: 'AI 주문 인식', icon: Brain },
-  { id: 'ai-analytics', label: 'MOVIS', icon: Sparkles, premium: true, sublabel: 'Quantum AI' },
   { id: 'admin', label: '관리자', icon: Settings },
+  // 🌟 MOVIS — 항상 맨 아래 (사용자 시선 끝점에 배치)
+  { id: 'ai-analytics', label: 'MOVIS', icon: Sparkles, premium: true, sublabel: 'Quantum AI' },
 ];
 
 function CountBadge({ count, isActive }) {
@@ -57,14 +58,14 @@ export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount 
           const isActive = currentPage === id;
           const badgeCount = badgeMap[id] || 0;
 
-          // 🌟 Premium 메뉴 (MOVIS) — 사이안 그라데이션 + 펄스 + 별 회전
+          // 🌟 Premium 메뉴 (MOVIS) — shimmer + scan-line + glow ring + 별 회전
           if (premium) {
             return (
               <button
                 key={id}
                 onClick={() => onNavigate(id)}
-                className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-bold transition-all overflow-hidden ${
-                  isActive ? 'shadow-lg shadow-cyan-500/30' : 'hover:shadow-md hover:shadow-cyan-500/20'
+                className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-bold transition-all overflow-hidden movis-menu motion-reduce:!animate-none ${
+                  isActive ? 'shadow-lg shadow-cyan-500/40' : 'hover:shadow-md hover:shadow-cyan-500/30'
                 }`}
                 style={{
                   background: isActive
@@ -74,11 +75,34 @@ export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount 
                   border: '1px solid rgba(0,212,255,0.35)',
                 }}
               >
+                {/* 🌊 Shimmer (그라데이션 좌→우 흐름) */}
+                <span
+                  className="absolute inset-0 pointer-events-none movis-shimmer"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%)',
+                    transform: 'translateX(-100%)',
+                  }}
+                />
+                {/* ✨ Scan-line (상→하 빛 스캔) */}
+                <span
+                  className="absolute left-0 right-0 h-[2px] pointer-events-none movis-scan"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent, #4dffff, transparent)',
+                    boxShadow: '0 0 8px #4dffff',
+                  }}
+                />
+                {/* 🔆 Glow ring (외곽 펄스) */}
+                <span
+                  className="absolute inset-0 pointer-events-none rounded-lg movis-ring"
+                  style={{
+                    boxShadow: 'inset 0 0 0 1px rgba(0,212,255,0.5)',
+                  }}
+                />
                 {/* 배경 광채 펄스 (호버 시) */}
                 <span
                   className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
                   style={{
-                    background: 'radial-gradient(circle at 30% 50%, rgba(0,212,255,0.25), transparent 60%)',
+                    background: 'radial-gradient(circle at 30% 50%, rgba(0,212,255,0.35), transparent 60%)',
                   }}
                 />
                 {/* 회전 별 아이콘 */}
