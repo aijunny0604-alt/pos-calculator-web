@@ -29,6 +29,7 @@ import {
   getRevenueVolatility,
   getCustomerLifetimeValue,
 } from './analytics/simulation';
+import { detectAnomalies } from './analytics/anomalyDetector';
 
 // 공통 enum
 const PERIOD_ENUM = ['1W', '1M', '3M', '6M', '1Y', 'ALL'];
@@ -391,6 +392,15 @@ export const GEMINI_TOOLS = [
     parameters: {
       type: 'object',
       properties: { limit: { type: 'integer', description: 'TOP N (기본 20)' } },
+    },
+  },
+  // ===== 🤖 자율 이상 탐지 =====
+  {
+    name: 'detectAnomalies',
+    description: '매장 전체 이상 징후 자동 탐지. 매출 급감/급증, 미수금 임계 초과, 품절 인기 제품, 휴면 위험 거래처, 반품률 급증, 대량 출고 등 6가지 신호 자동 감지. "매장 상태 어때?", "이상 없어?", "주목할 거 알려줘", "경고 알려줘", "문제 있어?" 같은 질문에 사용.',
+    parameters: {
+      type: 'object',
+      properties: {},
     },
   },
   // ===== 쓰기 도구 (사용자 confirm 필수) =====
@@ -876,6 +886,32 @@ export function executeTool(name, args = {}, context = {}) {
         return { ok: true, data: getPendingCarts(context.savedCarts, args) };
       case 'getLearningStats':
         return { ok: true, data: getLearningStats(context.aiLearningData, args) };
+      case 'detectAnomalies': {
+        const anomalies = detectAnomalies({
+          products, customers, orders,
+          paymentRecords: context.paymentRecords || [],
+          customerReturns: context.customerReturns || [],
+        });
+        return {
+          ok: true,
+          data: {
+            count: anomalies.length,
+            criticalCount: anomalies.filter(a => a.level === 'critical').length,
+            warningCount: anomalies.filter(a => a.level === 'warning').length,
+            infoCount: anomalies.filter(a => a.level === 'info').length,
+            anomalies: anomalies.map(a => ({
+              level: a.level,
+              icon: a.icon,
+              title: a.title,
+              detail: a.detail,
+              suggestion: a.suggestion,
+            })),
+            message: anomalies.length === 0
+              ? '현재 이상 징후 없음 — 매장 상태 정상입니다.'
+              : `${anomalies.length}건 이상 신호 감지됨.`,
+          },
+        };
+      }
       default:
         return { ok: false, error: `Unknown tool: ${name}` };
     }

@@ -8,6 +8,8 @@ import { formatPrice, formatDateTime, getTodayKST, toDateKST } from '@/lib/utils
 import { supabase } from '@/lib/supabase';
 import PaymentDashboardSection from '@/components/dashboard/PaymentDashboardSection';
 import ConnectionBanner from '@/components/dashboard/ConnectionBanner';
+import SmartAlertFeed from '@/components/dashboard/SmartAlertFeed';
+import useSmartAlerts from '@/hooks/useSmartAlerts';
 
 export default function Dashboard({
   orders = [],
@@ -71,6 +73,9 @@ export default function Dashboard({
       .filter(o => !!o.memo && !o.memoChecked)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [orders]);
+
+  // ===== 스마트 알림 (이상 징후 자동 탐지) =====
+  const { alerts: smartAlerts, meta: alertMeta, loading: alertsLoading, refresh: refreshAlerts } = useSmartAlerts({ orders, products, customers });
 
   const StatCard = ({ icon: Icon, label, value, sub, color, onClick }) => (
     <button
@@ -149,6 +154,15 @@ export default function Dashboard({
           onClick={() => setCurrentPage('stock')}
         />
       </div>
+
+      {/* MOVIS 자율 분석 — 이상 징후 알림 피드 */}
+      <SmartAlertFeed
+        alerts={smartAlerts}
+        loading={alertsLoading}
+        meta={alertMeta}
+        onRefresh={refreshAlerts}
+        setCurrentPage={setCurrentPage}
+      />
 
       {/* 결제 현황 (pos-payments 통합) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
