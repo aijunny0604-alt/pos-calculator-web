@@ -1,9 +1,31 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-05-21 (AI 분석 어시스턴트 Phase 1+2+3 — Gemini Function Calling 기반 자연어 분석)
+> 마지막 업데이트: 2026-05-25 (MOVIS 자율 분석 — 대시보드 이상 징후 알림 피드)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-05-25 — MOVIS 자율 분석 (대시보드 스마트 알림)
+
+대시보드 진입 시 AI가 자동으로 매장 상태를 분석하여 이상 징후를 알림 카드로 표시. 기존에 구현된 고급 분석 함수를 실제 화면에 연결한 첫 번째 스마트 업그레이드.
+
+### 🤖 자율 이상 징후 탐지 (Dashboard)
+- **useSmartAlerts 훅** ([src/hooks/useSmartAlerts.js](src/hooks/useSmartAlerts.js)): 대시보드 데이터 로드 후 자동 실행
+  - `detectAnomalies` — 매출 급감/급증, 미수 임계 초과, 품절 인기 제품, 휴면 위험 거래처, 반품률 급증, 대량 출고
+  - `getStockCoverageForecast` — 14일 이내 품절 예상 제품 자동 표시
+  - `getMarginLeakage` — 도매가 이하 판매/마진율 10% 미만 자동 탐지
+  - **30분 TTL localStorage 캐시** (`pos_smart_alerts_v1`), dynamic import로 메인 번들 +0KB
+  - paymentRecords + customerReturns는 hook 내부에서 비동기 fetch (Dashboard prop 불필요)
+- **SmartAlertFeed 컴포넌트** ([src/components/dashboard/SmartAlertFeed.jsx](src/components/dashboard/SmartAlertFeed.jsx)):
+  - 심각도별 배지 (긴급=빨강 glow / 주의=노랑 / 정보=파랑)
+  - 접기/펼치기 + 더보기 + 새로고침 + "AI에게 자세히 물어보기" → AI Analytics 딥링크
+  - 0건이면 "이상 징후 없음 — 매장 상태 정상" 초록 카드
+- **detectAnomalies Gemini 도구 추가** — AI 채팅에서 "매장 상태 어때?", "이상 없어?", "경고 알려줘" 질문 가능
+
+### 📦 localStorage 키 추가
+- `pos_smart_alerts_v1` — 대시보드 스마트 알림 캐시 (30분 TTL)
+
+---
 
 ## 🆕 v2026-05-21 — AI 분석 어시스턴트 (Phase 1+2+3)
 
