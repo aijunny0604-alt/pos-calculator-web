@@ -259,11 +259,18 @@ export default function OrderHistory({
 
   return (
     <div style={{ background: 'var(--background)' }}>
-      {/* 미확인 메모 알림 토스트 */}
+      {/* 미확인 메모 알림 토스트
+          주의: modal-slide-up 같은 transform 사용 키프레임을 쓰면 animation-fill-mode:both
+          종료 상태(transform: translateY(0) scale(1))가 Tailwind -translate-x-1/2를 덮어씀.
+          토스트는 transform 위치 보존이 필수라 inline transform + opacity-only 페이드만 사용. */}
       {memoAlert && (
         <div
-          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 cursor-pointer whitespace-nowrap"
-          style={{ background: 'var(--destructive)', color: 'white', animation: 'modal-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both' }}
+          className="fixed bottom-20 z-50 px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 cursor-pointer whitespace-nowrap"
+          style={{
+            background: 'var(--destructive)', color: 'white',
+            left: '50%', transform: 'translateX(-50%)',
+            animation: 'page-fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both',
+          }}
           onClick={() => {
             setMemoAlert(false);
             setMemoFilter('unchecked');
