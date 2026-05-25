@@ -20,7 +20,10 @@ export default function BigBangIntro({ onComplete }) {
   useEffect(() => {
     // 1초 이내 재마운트 → 이전 인스턴스가 아직 그리는 중이라고 가정 → 스킵
     const now = performance.now();
-    if (now - lastBigBangStartTime < 1000) {
+    if (now - lastBigBangStartTime < 100) {
+      // StrictMode 중복 마운트가 아닌 빠른 재진입: onComplete 호출해 부모 상태 해제
+      completedRef.current = true;
+      Promise.resolve().then(() => onComplete?.());
       return;
     }
     lastBigBangStartTime = now;

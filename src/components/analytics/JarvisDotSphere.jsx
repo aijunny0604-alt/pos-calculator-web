@@ -1,4 +1,4 @@
-// 인터랙티브 자비스 dot sphere — 살아있는 양자 구체
+﻿// 인터랙티브 자비스 dot sphere — 살아있는 양자 구체
 // - Fibonacci sphere + 빠른 회전 (지구처럼)
 // - 5-8개 강한 빛 입자 (sphere 표면에 떠있는 큰 별)
 // - 가끔 quantum burst (입자가 갑자기 강한 빛 → 1.5s fade)
@@ -16,7 +16,7 @@ const STATE_CONFIG = {
   standby: {
     primary: [0, 212, 255],
     accent: [77, 255, 255],
-    spinSpeed: 0.010,   // 명확한 자전 속도
+    spinSpeed: 0.0025,   // 자전 속도 (천천히 도는 행성)
     tilt: EARTH_TILT,
     pulseSpeed: 1.5,
     radiusOscillation: 0.015,
@@ -25,7 +25,7 @@ const STATE_CONFIG = {
   listening: {
     primary: [255, 170, 0],
     accent: [255, 56, 96],
-    spinSpeed: 0.020,
+    spinSpeed: 0.005,
     tilt: EARTH_TILT,
     pulseSpeed: 4.0,
     radiusOscillation: 0.08,
@@ -34,7 +34,7 @@ const STATE_CONFIG = {
   analyzing: {
     primary: [168, 85, 247],
     accent: [0, 212, 255],
-    spinSpeed: 0.035,
+    spinSpeed: 0.009,
     tilt: EARTH_TILT,
     pulseSpeed: 3.0,
     radiusOscillation: 0.04,
@@ -43,7 +43,7 @@ const STATE_CONFIG = {
   responding: {
     primary: [0, 255, 136],
     accent: [77, 255, 255],
-    spinSpeed: 0.012,
+    spinSpeed: 0.003,
     tilt: EARTH_TILT,
     pulseSpeed: 2.0,
     radiusOscillation: 0.03,
