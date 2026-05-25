@@ -92,9 +92,12 @@ export default function SmartAlertFeed({ alerts = [], loading, meta, onRefresh, 
       style={{ background: 'var(--card)', borderColor: criticalCount > 0 ? 'color-mix(in srgb, var(--destructive) 30%, var(--border))' : 'var(--border)' }}
     >
       {/* Header */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--accent)] transition-colors"
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded); }}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--accent)] transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4" style={{ color: 'var(--primary)' }} />
@@ -152,7 +155,7 @@ export default function SmartAlertFeed({ alerts = [], loading, meta, onRefresh, 
             <ChevronDown className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
           )}
         </div>
-      </button>
+      </div>
 
       {/* Alert Items */}
       {expanded && (

@@ -68,6 +68,10 @@ export default function MainPOS({
   const [showAiModal, setShowAiModal] = useState(false);
   const { isFullscreen: isCartFullscreen, toggleFullscreen: toggleCartFullscreen } = useModalFullscreen();
   const { isFullscreen: isAiFullscreen, toggleFullscreen: toggleAiFullscreen } = useModalFullscreen();
+
+  // products를 hook 호출 전에 정의 (TDZ 방지 — Critical fix)
+  const products = externalProducts.length > 0 ? externalProducts : priceData;
+
   // 음성 주문 — addToCart를 직접 넘기지 않고 ref 경유 (hook 순서 안전)
   const addToCartRef = useRef(null);
   const voiceOrder = useVoiceOrder({ products, addToCart: (...args) => addToCartRef.current?.(...args), showToast });
@@ -87,8 +91,6 @@ export default function MainPOS({
       onOrderConfirmAutoOpened?.();
     }
   }, [autoOpenOrderConfirm, cart.length, onOrderConfirmAutoOpened]);
-
-  const products = externalProducts.length > 0 ? externalProducts : priceData;
 
   const dynamicCategories = useMemo(() => {
     return [...new Set(products.map(item => item.category))];
