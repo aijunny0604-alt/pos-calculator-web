@@ -563,12 +563,16 @@ export default function AIAnalytics({
   );
 
   return (
-    <>
-      {/* 빅뱅 진입 애니메이션 — perspective 부모 밖에서 렌더해야 fixed가 viewport 기준이 됨
-          (perspective/transform/filter 부모는 자식 fixed의 containing block을 바꿔서 모바일에서 중앙 정렬이 깨짐) */}
+    <div
+      className="ai-analytics-root flex flex-col h-full overflow-hidden relative"
+      style={{ perspective: 'var(--jarvis-perspective)' }}
+    >
+      {/* 빅뱅 진입 애니메이션 — absolute로 ai-analytics-root(relative) 안에 가둠.
+          데스크탑 사이드바 빼고 main 영역에만 표시, 모바일은 사이드바 없으니 viewport와 동일.
+          BigBangIntro 컴포넌트 자체도 absolute라 wrapper의 positioned 영향을 받음. */}
       {!introDone && (
         <div
-          className="fixed inset-0 z-[100] pointer-events-none"
+          className="absolute inset-0 z-[100] pointer-events-none"
           style={{
             opacity: introFading ? 0 : 1,
             transition: 'opacity 900ms cubic-bezier(0.4, 0, 0.2, 1)',
@@ -577,11 +581,6 @@ export default function AIAnalytics({
           <BigBangIntro onComplete={handleIntroDone} />
         </div>
       )}
-
-      <div
-        className="ai-analytics-root flex flex-col h-full overflow-hidden relative"
-        style={{ perspective: 'var(--jarvis-perspective)' }}
-      >
 
       {/* 메인 UI 컨테이너 — 단순 opacity + 살짝의 scale (자식 stagger 제거로 충돌 X)
           800ms cubic-bezier 부드러운 페이드 인 */}
@@ -826,7 +825,6 @@ export default function AIAnalytics({
         );
       })()}
       </div>{/* /메인 UI fade-in wrapper */}
-      </div>{/* /ai-analytics-root */}
-    </>
+    </div>
   );
 }

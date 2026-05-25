@@ -234,7 +234,9 @@ export default function BigBangIntro({ onComplete }) {
   }, [onComplete]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none" style={{
+    // absolute로 두면 nearest positioned ancestor(ai-analytics-root) 안에 갇혀서
+    // 데스크탑 사이드바 제외 main 영역에 정확히 맞춰짐. 모바일은 사이드바 없으니 viewport와 동일.
+    <div className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none" style={{
       background: '#000000',
     }}>
       <canvas ref={canvasRef} className="w-full h-full" aria-hidden="true" />
