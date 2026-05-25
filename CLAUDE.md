@@ -1,9 +1,24 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-05-25 (MOVIS 자율 분석 — 대시보드 이상 징후 알림 피드)
+> 마지막 업데이트: 2026-05-25 (MOVIS UI 핫픽스 + 자율 분석)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-05-25 (2차) — Containing-block 함정 4건 핫픽스
+
+CSS `transform`/`perspective`가 자식 `position: fixed`의 containing block을 viewport에서 부모로 바꾸는 spec 함정에 4가지 증상이 동시에 걸려있었음.
+
+### 🐛 증상 → 원인 → 픽스
+1. **모바일+PC MOVIS 빅뱅 인트로가 화면 아래로 밀림** — `AIAnalytics.jsx`의 `perspective: 1200px` 부모 div가 자식 BigBangIntro의 `fixed inset-0`을 가둠 → return문을 Fragment 구조로 바꿔 BigBangIntro를 perspective 부모 **밖**으로 hoist ([src/pages/AIAnalytics.jsx](src/pages/AIAnalytics.jsx))
+2. **MOVIS 페이지 재진입 시 검은 화면에서 안 끝남** — `BigBangIntro`의 모듈 레벨 `lastBigBangStartTime` 1000ms 가드가 페이지 재진입에 걸려서 `onComplete` 안 호출 → 부모 `introDone=false` 영원히 → 가드 100ms로 축소(StrictMode 더블 마운트는 <16ms이므로 충분) + 가드 트립 시 `completedRef=true` + `Promise.resolve().then(() => onComplete?.())` 마이크로태스크 보장 ([src/components/analytics/BigBangIntro.jsx](src/components/analytics/BigBangIntro.jsx))
+3. **미확인 메모 토스트가 사이드바 빼고 main 중앙으로 밀림** — AppLayout의 `.animate-page-in` wrapper가 `transform: translateY(6px → 0)` + `fill-mode: both`로 transform이 영구 적용된 상태 → 자식 fixed 토스트가 main 영역 기준 → 키프레임을 opacity-only로 변경 ([src/index.css](src/index.css) `@keyframes page-fade-in`)
+4. **MOVIS 메인화면 양자 sphere 회전이 너무 빠름** — `JarvisDotSphere` 4개 상태의 `spinSpeed`를 원본 대비 1/4로 추가 감속 (standby 0.0025 / listening 0.005 / analyzing 0.009 / responding 0.003) ([src/components/analytics/JarvisDotSphere.jsx](src/components/analytics/JarvisDotSphere.jsx))
+
+### 🎓 규칙 추가 (containing-block 함정)
+**자식 `position: fixed`가 viewport 기준이 되어야 하는 곳에는 부모 체인에 `transform` / `translate` / `perspective` / `filter` / `will-change: transform` 금지**. 페이지 전환/모달 진입 애니메이션은 opacity-only로 작성 (또는 fixed 자식을 portal로 body에 렌더). 새로운 transform-bearing wrapper 추가 시 fixed 자식이 안에 있는지 반드시 확인.
+
+---
 
 ## 🆕 v2026-05-25 — MOVIS 자율 분석 (대시보드 스마트 알림)
 
