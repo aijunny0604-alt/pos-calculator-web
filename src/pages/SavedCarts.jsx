@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   ArrowLeft, Menu, Save, Search, ShoppingCart, Trash2, Check, RefreshCw,
   ChevronDown, ChevronUp, Package, Clock, Download, FileText, Edit3, X, Plus,
-  Minus, ShoppingBag, Calculator, AlertTriangle, Receipt, Maximize2, Minimize2, Copy, Percent, Tag
+  Minus, ShoppingBag, Calculator, AlertTriangle, Receipt, Maximize2, Minimize2, Copy, Percent, Tag, Share2
 } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import SubPrice from '@/components/ui/SubPrice';
@@ -81,6 +81,20 @@ export default function SavedCarts({
       if (showToast) showToast('견적서가 복사되었습니다', 'success');
     } catch (err) {
       if (showToast) showToast('복사 실패', 'error');
+    }
+  };
+
+  const handleShareCart = async (cart) => {
+    const target = cart || editedDetailCart || detailCart;
+    const text = generateCartOrderText(target);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `주문서 — ${target?.name || '주문'}`, text });
+      } catch (e) {
+        if (e.name !== 'AbortError') handleCopyCart(cart);
+      }
+    } else {
+      handleCopyCart(cart);
     }
   };
   const [isEditingDetail, setIsEditingDetail] = useState(false);
@@ -1087,6 +1101,19 @@ export default function SavedCarts({
                   aria-label="견적서 복사"
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => handleShareCart(currentCart)}
+                  className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-semibold flex items-center justify-center transition-all border flex-shrink-0"
+                  style={{
+                    background: 'var(--background)',
+                    color: 'var(--foreground)',
+                    borderColor: 'var(--border)',
+                  }}
+                  title="공유"
+                  aria-label="견적서 공유"
+                >
+                  <Share2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => {

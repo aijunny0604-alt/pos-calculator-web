@@ -1,6 +1,7 @@
 // 대시보드 스마트 알림 피드 — 이상 징후 자동 탐지 결과 표시
-import { useState } from 'react';
-import { RefreshCw, ChevronDown, ChevronUp, Sparkles, ArrowRight } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { RefreshCw, ChevronDown, ChevronUp, Sparkles, ArrowRight, Volume2, VolumeX } from 'lucide-react';
+import { speak, stopSpeaking } from '@/lib/tts';
 
 const LEVEL_STYLE = {
   critical: {
@@ -32,6 +33,22 @@ const LEVEL_STYLE = {
 export default function SmartAlertFeed({ alerts = [], loading, meta, onRefresh, setCurrentPage }) {
   const [expanded, setExpanded] = useState(true);
   const [showAll, setShowAll] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const spokenRef = useRef(false);
+
+  // TTS: 알림 로드 완료 시 자동 브리핑 (토글 ON일 때만)
+  useEffect(() => {
+    if (!ttsEnabled || !alerts || alerts.length === 0 || spokenRef.current) return;
+    spokenRef.current = true;
+    const critical = alerts.filter(a => a.level === 'critical');
+    const warning = alerts.filter(a => a.level === 'warning');
+    let msg = `MOVIS 분석 결과, `;
+    if (critical.length > 0) msg += `긴급 알림 ${critical.length}건, `;
+    if (warning.length > 0) msg += `주의 알림 ${warning.length}건이 있습니다. `;
+    if (critical.length > 0) msg += critical[0].title + '. ';
+    else if (warning.length > 0) msg += warning[0].title + '. ';
+    speak(msg);
+  }, [alerts, ttsEnabled]);
 
   if (loading) {
     return (
@@ -106,6 +123,22 @@ export default function SmartAlertFeed({ alerts = [], loading, meta, onRefresh, 
               {new Date(meta.lastUpdated).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const next = !ttsEnabled;
+              setTtsEnabled(next);
+              if (!next) stopSpeaking();
+              else if (alerts.length > 0) { spokenRef.current = false; }
+            }}
+            className="p-1 rounded hover:bg-black/10 transition-colors"
+            title={ttsEnabled ? '음성 끄기' : '음성 브리핑'}
+          >
+            {ttsEnabled
+              ? <Volume2 className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
+              : <VolumeX className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
+            }
+          </button>
           <button
             onClick={(e) => { e.stopPropagation(); onRefresh?.(); }}
             className="p-1 rounded hover:bg-black/10 transition-colors"

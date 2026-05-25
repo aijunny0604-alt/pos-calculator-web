@@ -24,6 +24,7 @@ export default function OrderHistory({
   onRefresh,
   isLoading,
   onSaveToCart,
+  onReorder,
   isDetailModalOpen = false,
   customers = [],
   onUpdateOrder,
@@ -31,6 +32,7 @@ export default function OrderHistory({
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('today');
   const [customDate, setCustomDate] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -165,6 +167,10 @@ export default function OrderHistory({
 
   const filteredOrders = orders
     .filter(filterByDate)
+    .filter(order => {
+      if (!customerFilter) return true;
+      return (order.customerName || '').toLowerCase().replace(/\s/g, '') === customerFilter.toLowerCase().replace(/\s/g, '');
+    })
     .filter(order => {
       const search = searchTerm.toLowerCase().replace(/\s/g, '');
       if (!search) return true;
@@ -655,24 +661,43 @@ export default function OrderHistory({
               </button>
             </div>
 
-            {/* Search input */}
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                style={{ color: 'var(--muted-foreground)' }}
-              />
-              <input
-                type="text"
-                placeholder="주문번호, 고객명, 연락처, 메모 검색..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2"
-                style={{
-                  background: 'var(--background)',
-                  borderColor: 'var(--border)',
-                  color: 'var(--foreground)',
-                }}
-              />
+            {/* Search + Customer filter */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                  style={{ color: 'var(--muted-foreground)' }}
+                />
+                <input
+                  type="text"
+                  placeholder="주문번호, 고객명, 연락처, 메모 검색..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2"
+                  style={{
+                    background: 'var(--background)',
+                    borderColor: 'var(--border)',
+                    color: 'var(--foreground)',
+                  }}
+                />
+              </div>
+              {customers.length > 0 && (
+                <select
+                  value={customerFilter}
+                  onChange={(e) => { setCustomerFilter(e.target.value); setSelectedOrders([]); }}
+                  className="px-2 py-2.5 rounded-lg border text-xs font-medium focus:outline-none focus:ring-2 max-w-[140px]"
+                  style={{
+                    background: customerFilter ? 'var(--primary)' : 'var(--background)',
+                    borderColor: customerFilter ? 'var(--primary)' : 'var(--border)',
+                    color: customerFilter ? 'var(--primary-foreground)' : 'var(--foreground)',
+                  }}
+                >
+                  <option value="">전체 거래처</option>
+                  {customers.map(c => (
+                    <option key={c.id || c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Select all row */}
@@ -1088,6 +1113,16 @@ export default function OrderHistory({
                       </button>
                     )}
 
+                    {onReorder && (
+                      <button
+                        onClick={() => onReorder(order)}
+                        className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border"
+                        style={{ borderColor: 'var(--primary)', color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        재주문
+                      </button>
+                    )}
                     {onSaveToCart && (
                       <button
                         onClick={() => onSaveToCart(order)}

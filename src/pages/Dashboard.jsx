@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import PaymentDashboardSection from '@/components/dashboard/PaymentDashboardSection';
 import ConnectionBanner from '@/components/dashboard/ConnectionBanner';
 import SmartAlertFeed from '@/components/dashboard/SmartAlertFeed';
+import MorningBriefing from '@/components/dashboard/MorningBriefing';
 import useSmartAlerts from '@/hooks/useSmartAlerts';
 
 export default function Dashboard({
@@ -154,6 +155,15 @@ export default function Dashboard({
           onClick={() => setCurrentPage('stock')}
         />
       </div>
+
+      {/* 모닝 브리핑 — 오늘 할 일 자동 요약 */}
+      <MorningBriefing
+        orders={orders}
+        savedCarts={savedCarts}
+        products={products}
+        customers={customers}
+        setCurrentPage={setCurrentPage}
+      />
 
       {/* MOVIS 자율 분석 — 이상 징후 알림 피드 */}
       <SmartAlertFeed

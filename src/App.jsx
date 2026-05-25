@@ -16,6 +16,7 @@ import AdminPage from '@/pages/AdminPage';
 import SaveCartModal from '@/pages/SaveCartModal';
 import QuickCalculator from '@/pages/QuickCalculator';
 import NotificationSettings from '@/pages/NotificationSettings';
+import CommandBar from '@/components/CommandBar';
 
 // 결제 관련 페이지는 lazy load (exceljs + html-to-image 포함된 무거운 chunk)
 const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
@@ -90,6 +91,7 @@ export default function App() {
   const [showSaveCartModal, setShowSaveCartModal] = useState(false);
   const [saveCartCustomerOverride, setSaveCartCustomerOverride] = useState(null);
   const [showQuickCalc, setShowQuickCalc] = useState(false);
+  const [showCommandBar, setShowCommandBar] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savingStep, setSavingStep] = useState('');
@@ -119,9 +121,14 @@ export default function App() {
     localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
   }, [notificationSettings]);
 
-  // ─── Ctrl+Z Global Undo ─────────────────────────────────────
+  // ─── Ctrl+K Command Bar + Ctrl+Z Global Undo ────────────────
   useEffect(() => {
     const handleKeyDown = async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowCommandBar(prev => !prev);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         const tag = document.activeElement?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) {
@@ -917,6 +924,7 @@ export default function App() {
             isSaving={isSaving}
             savingStep={savingStep}
             customers={customers}
+            orders={orders}
             onSaveCartModal={(customerInfo) => {
               if (customerInfo) setSaveCartCustomerOverride(customerInfo);
               setShowSaveCartModal(true);
@@ -939,6 +947,23 @@ export default function App() {
             onViewOrder={(order) => setSelectedOrder(order)}
             onRefresh={refreshOrders}
             isLoading={false}
+            onReorder={(order) => {
+              const items = (order.items || []).map(it => ({
+                ...it,
+                quantity: it.quantity || 1,
+                wholesale: it.wholesale || it.price || 0,
+                retail: it.retail || it.price || 0,
+              }));
+              setCartWithHistory(items);
+              setPriceType(order.priceType || 'wholesale');
+              setLoadedCustomer({
+                name: order.customerName || '',
+                phone: order.customerPhone || '',
+                address: order.customerAddress || '',
+              });
+              setCurrentPage('pos');
+              showToast('재주문 — POS에 담았습니다', 'success');
+            }}
             onSaveToCart={async (order) => {
               const customerName = order.customerName || order.customer_name || '';
               const normalizedName = customerName ? customerName.toLowerCase().replace(/\s/g, '') : '';
@@ -1288,6 +1313,27 @@ export default function App() {
       {showQuickCalc && (
         <QuickCalculator onClose={() => setShowQuickCalc(false)} />
       )}
+
+      {/* ⌘K 스마트 커맨드바 */}
+      <CommandBar
+        open={showCommandBar}
+        onClose={() => setShowCommandBar(false)}
+        products={products}
+        customers={customers}
+        orders={orders}
+        onNavigate={(page) => { setCurrentPage(page); setShowCommandBar(false); }}
+        onAddToCart={(product) => {
+          setCartWithHistory(prev => {
+            const existing = prev.find(it => it.id === product.id);
+            if (existing) return prev.map(it => it.id === product.id ? { ...it, quantity: it.quantity + 1 } : it);
+            return [...prev, { ...product, quantity: 1 }];
+          });
+          setCurrentPage('pos');
+        }}
+        onViewOrder={(order) => { setSelectedOrder(order); setShowCommandBar(false); }}
+        onViewCustomer={(customer) => { setCurrentPage('customers'); setShowCommandBar(false); }}
+        showToast={showToast}
+      />
 
       {/* Notification settings */}
       {showNotificationSettings && (

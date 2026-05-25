@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search, ShoppingCart, Plus, Minus, X, ChevronDown, ChevronUp,
-  Package, Calculator, Maximize2, Minimize2, RotateCcw, Zap, ArrowLeft
+  Package, Calculator, Maximize2, Minimize2, RotateCcw, Zap, ArrowLeft, Mic, MicOff
 } from 'lucide-react';
 import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calculateDiscount } from '@/lib/utils';
 import { isImageDemoMode, getSampleImage } from '@/lib/sampleProductImages';
@@ -9,6 +9,7 @@ import ProductGalleryModal from '@/components/ProductGalleryModal';
 import OrderPage from './OrderPage';
 import TextAnalyze from './TextAnalyze';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
+import useVoiceOrder from '@/hooks/useVoiceOrder';
 
 // Static fallback price data (478 products)
 const priceData = [
@@ -49,6 +50,7 @@ export default function MainPOS({
   onBack,
   loadedCustomer,
   onClearLoadedCustomer,
+  orders = [],
   autoOpenOrderConfirm = false,
   onOrderConfirmAutoOpened,
 }) {
@@ -66,6 +68,9 @@ export default function MainPOS({
   const [showAiModal, setShowAiModal] = useState(false);
   const { isFullscreen: isCartFullscreen, toggleFullscreen: toggleCartFullscreen } = useModalFullscreen();
   const { isFullscreen: isAiFullscreen, toggleFullscreen: toggleAiFullscreen } = useModalFullscreen();
+  // 음성 주문 — addToCart를 직접 넘기지 않고 ref 경유 (hook 순서 안전)
+  const addToCartRef = useRef(null);
+  const voiceOrder = useVoiceOrder({ products, addToCart: (...args) => addToCartRef.current?.(...args), showToast });
 
   // 장바구니가 비워지면 주문확인 모달도 자동 닫기 (장바구니 저장 후 초기화 시)
   useEffect(() => {
@@ -147,6 +152,54 @@ export default function MainPOS({
     return cart.reduce((sum, item) => sum + item.quantity, 0);
   }, [cart]);
 
+  // 거래처 자주 구매 제품 추천 (loadedCustomer 선택 시)
+  const customerSuggestedProducts = useMemo(() => {
+    if (!loadedCustomer?.name || orders.length === 0) return [];
+    const custName = loadedCustomer.name.toLowerCase().replace(/\s/g, '');
+    const custOrders = orders.filter(o =>
+      (o.customerName || '').toLowerCase().replace(/\s/g, '') === custName
+    );
+    if (custOrders.length === 0) return [];
+    const freqMap = {};
+    custOrders.forEach(o => (o.items || []).forEach(it => {
+      const key = String(it.id || it.name);
+      freqMap[key] = (freqMap[key] || 0) + (it.quantity || 1);
+    }));
+    return Object.entries(freqMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([key, qty]) => {
+        const p = products.find(pr => String(pr.id) === key || pr.name === key);
+        return p ? { ...p, _freq: qty } : null;
+      })
+      .filter(Boolean);
+  }, [loadedCustomer, orders, products]);
+
+  // 번들 추천 — 카트에 담긴 제품과 함께 자주 주문된 제품
+  const bundleSuggestions = useMemo(() => {
+    if (cart.length === 0 || orders.length === 0) return [];
+    const cartIds = new Set(cart.map(c => String(c.id)));
+    const coMap = {};
+    orders.forEach(o => {
+      const ids = (o.items || []).map(it => String(it.id || it.name));
+      const overlap = ids.filter(id => cartIds.has(id));
+      if (overlap.length === 0) return;
+      ids.forEach(id => {
+        if (cartIds.has(id)) return;
+        coMap[id] = (coMap[id] || 0) + 1;
+      });
+    });
+    return Object.entries(coMap)
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([key, count]) => {
+        const p = products.find(pr => String(pr.id) === key || pr.name === key);
+        return p ? { ...p, _coCount: count } : null;
+      })
+      .filter(Boolean);
+  }, [cart, orders, products]);
+
   const addToCart = (product) => {
     const baseStock = product.stock !== undefined ? product.stock : 50;
     const existingItem = cartMap.get(product.id);
@@ -175,6 +228,8 @@ export default function MainPOS({
       setCart(prev => [...prev, { ...product, quantity: 1 }]);
     }
   };
+
+  addToCartRef.current = addToCart;
 
   const removeFromCart = (productId) => setCart(prev => prev.filter(item => item.id !== productId));
 
@@ -332,6 +387,20 @@ export default function MainPOS({
                 </button>
               )}
             </div>
+            {voiceOrder.supported && (
+              <button
+                onClick={() => voiceOrder.listening ? voiceOrder.stop() : voiceOrder.start()}
+                className={`flex-shrink-0 p-3 rounded-xl transition-all flex items-center justify-center ${voiceOrder.listening ? 'animate-pulse' : ''}`}
+                style={{
+                  background: voiceOrder.listening ? 'var(--destructive)' : 'color-mix(in srgb, var(--primary) 15%, var(--card))',
+                  color: voiceOrder.listening ? 'white' : 'var(--primary)',
+                  border: voiceOrder.listening ? 'none' : '1px solid var(--border)',
+                }}
+                title={voiceOrder.listening ? '음성 인식 중...' : '음성 주문'}
+              >
+                {voiceOrder.listening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              </button>
+            )}
             <button
               onClick={() => setShowAiModal(true)}
               className="flex-shrink-0 p-3 rounded-xl transition-colors hover:opacity-80 flex items-center justify-center"
@@ -394,6 +463,37 @@ export default function MainPOS({
 
         {/* Product Grid */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-24 lg:pb-4">
+          {/* 거래처 자주 구매 제품 추천 */}
+          {customerSuggestedProducts.length > 0 && cart.length === 0 && (
+            <div
+              className="mb-4 rounded-xl border p-3"
+              style={{ background: 'color-mix(in srgb, var(--primary) 5%, var(--card))', borderColor: 'color-mix(in srgb, var(--primary) 20%, var(--border))' }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">🧠</span>
+                <span className="text-xs font-bold" style={{ color: 'var(--primary)' }}>
+                  {loadedCustomer?.name} 자주 구매
+                </span>
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {customerSuggestedProducts.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => addToCart(p)}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all hover:shadow-sm active:scale-95"
+                    style={{
+                      background: 'var(--card)',
+                      borderColor: 'var(--border)',
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    {p.name}
+                    <span className="ml-1 opacity-50">x{p._freq}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {Object.keys(groupedProducts).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Package className="w-12 h-12 mb-3" style={{ color: 'var(--muted-foreground)' }} />
@@ -798,6 +898,27 @@ export default function MainPOS({
             </div>
           )}
         </div>
+
+        {/* 번들 추천 — 함께 자주 주문되는 제품 */}
+        {bundleSuggestions.length > 0 && (
+          <div className="px-3 py-2 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+            <p className="text-[10px] font-bold mb-1.5" style={{ color: 'var(--muted-foreground)' }}>
+              🔗 함께 주문하면 좋은 제품
+            </p>
+            <div className="flex gap-1 flex-wrap">
+              {bundleSuggestions.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => addToCart(p)}
+                  className="px-2 py-1 rounded text-[10px] font-medium border transition-all hover:shadow-sm active:scale-95"
+                  style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                >
+                  + {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Cart Footer */}
         {cart.length > 0 && (
