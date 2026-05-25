@@ -5,18 +5,24 @@
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
 
-## 🆕 v2026-05-25 (2차) — Containing-block 함정 4건 핫픽스
+## 🆕 v2026-05-25 (2차) — Containing-block 함정 6건 핫픽스
 
-CSS `transform`/`perspective`가 자식 `position: fixed`의 containing block을 viewport에서 부모로 바꾸는 spec 함정에 4가지 증상이 동시에 걸려있었음.
+CSS `transform`/`perspective`가 자식 `position: fixed`의 containing block을 viewport에서 부모로 바꾸는 spec 함정 + Tailwind transform 클래스가 animation 종료 transform에 덮어써지는 함정. Playwright 검증으로 모두 PASS (offset 0, sidebar 제외 main 영역 정확히 맞춤).
 
 ### 🐛 증상 → 원인 → 픽스
-1. **모바일+PC MOVIS 빅뱅 인트로가 화면 아래로 밀림** — `AIAnalytics.jsx`의 `perspective: 1200px` 부모 div가 자식 BigBangIntro의 `fixed inset-0`을 가둠 → return문을 Fragment 구조로 바꿔 BigBangIntro를 perspective 부모 **밖**으로 hoist ([src/pages/AIAnalytics.jsx](src/pages/AIAnalytics.jsx))
+1. **모바일 MOVIS 빅뱅 인트로가 화면 아래로 밀림** — `AIAnalytics.jsx`의 `perspective: 1200px` 부모 div가 자식 BigBangIntro의 `fixed inset-0`을 가둠.
+   - **최종 fix**: BigBangIntro 컴포넌트 자체를 `fixed inset-0` → `absolute inset-0`으로 변경 + AIAnalytics에서 `ai-analytics-root` (relative + perspective) 안에 다시 넣음. `absolute`는 nearest positioned ancestor 기준이라 ai-analytics-root 영역 안에 정확히 갇힘 = **데스크탑 사이드바 제외 main 영역, 모바일은 viewport 전체** ([src/pages/AIAnalytics.jsx](src/pages/AIAnalytics.jsx), [src/components/analytics/BigBangIntro.jsx](src/components/analytics/BigBangIntro.jsx))
+   - 중간 시도 (Fragment로 perspective 부모 밖 hoist)는 viewport 전체 렌더라 데스크탑 사이드바를 가리는 부작용 발견 → 위 absolute 방식으로 정정
 2. **MOVIS 페이지 재진입 시 검은 화면에서 안 끝남** — `BigBangIntro`의 모듈 레벨 `lastBigBangStartTime` 1000ms 가드가 페이지 재진입에 걸려서 `onComplete` 안 호출 → 부모 `introDone=false` 영원히 → 가드 100ms로 축소(StrictMode 더블 마운트는 <16ms이므로 충분) + 가드 트립 시 `completedRef=true` + `Promise.resolve().then(() => onComplete?.())` 마이크로태스크 보장 ([src/components/analytics/BigBangIntro.jsx](src/components/analytics/BigBangIntro.jsx))
-3. **미확인 메모 토스트가 사이드바 빼고 main 중앙으로 밀림** — AppLayout의 `.animate-page-in` wrapper가 `transform: translateY(6px → 0)` + `fill-mode: both`로 transform이 영구 적용된 상태 → 자식 fixed 토스트가 main 영역 기준 → 키프레임을 opacity-only로 변경 ([src/index.css](src/index.css) `@keyframes page-fade-in`)
+3. **미확인 메모 토스트가 사이드바 빼고 main 중앙으로 밀림 (1차 원인)** — AppLayout의 `.animate-page-in` wrapper가 `transform: translateY(6px → 0)` + `fill-mode: both`로 transform이 영구 적용된 상태 → 자식 fixed 토스트가 main 영역 기준 → 키프레임을 opacity-only로 변경 ([src/index.css](src/index.css) `@keyframes page-fade-in`)
 4. **MOVIS 메인화면 양자 sphere 회전이 너무 빠름** — `JarvisDotSphere` 4개 상태의 `spinSpeed`를 원본 대비 1/4로 추가 감속 (standby 0.0025 / listening 0.005 / analyzing 0.009 / responding 0.003) ([src/components/analytics/JarvisDotSphere.jsx](src/components/analytics/JarvisDotSphere.jsx))
+5. **미확인 메모 토스트가 +124px 오프셋으로 밀림 (2차 원인, Playwright 검증 중 발견)** — 토스트 inline `animation: 'modal-slide-up 0.35s ... both'` 키프레임의 `to { transform: translateY(0) scale(1) }`(identity matrix)가 `animation-fill-mode: both`로 영구 적용 → Tailwind `-translate-x-1/2`를 **덮어씀** → 토스트가 left:50%에서 자기 width 절반만큼 왼쪽 이동 안 함. **토스트는 위치 보존이 필수**라 Tailwind 클래스 의존 없애고 inline `transform: translateX(-50%)` + `animation: page-fade-in`(opacity-only)로 변경 ([src/pages/OrderHistory.jsx](src/pages/OrderHistory.jsx))
+6. **PC 빅뱅이 viewport 전체 렌더로 좌측 사이드바를 가림 (사용자 의도 명확화 후 발견)** — 1번 항목 중간 fix(Fragment hoist)의 부작용. 위 1번의 최종 `absolute` 방식으로 자동 해결
 
 ### 🎓 규칙 추가 (containing-block 함정)
-**자식 `position: fixed`가 viewport 기준이 되어야 하는 곳에는 부모 체인에 `transform` / `translate` / `perspective` / `filter` / `will-change: transform` 금지**. 페이지 전환/모달 진입 애니메이션은 opacity-only로 작성 (또는 fixed 자식을 portal로 body에 렌더). 새로운 transform-bearing wrapper 추가 시 fixed 자식이 안에 있는지 반드시 확인.
+- **자식 `position: fixed`가 viewport 기준이 되어야 하는 곳에는 부모 체인에 `transform` / `translate` / `perspective` / `filter` / `will-change: transform` 금지**. 페이지 전환/모달 진입 애니메이션은 opacity-only로 작성 (또는 fixed 자식을 `createPortal(document.body)`로 빼내기). 새로운 transform-bearing wrapper 추가 시 fixed 자식이 안에 있는지 반드시 확인.
+- **반대로 자식을 특정 컨테이너(예: 사이드바 제외 main 영역) 안에 가둬야 할 때는 `fixed` 대신 `absolute` + 컨테이너에 `relative` 부여** — `absolute`는 nearest positioned ancestor 기준이라 자동으로 영역 제한됨. `perspective` 같은 transform-bearing 부모도 `absolute`의 containing block을 정상적으로 잡음.
+- **Tailwind `-translate-x-1/2 left-1/2` 패턴 + inline `animation: ... both`** 조합 주의: animation 키프레임이 transform property를 정의하면 종료 transform이 Tailwind transform을 덮어쓴다. 위치 보존이 필수면 inline transform + opacity-only 키프레임 사용. 동일 패턴 사용 중인 미수정 파일: [JarvisHologramHUD.jsx:168](src/components/analytics/JarvisHologramHUD.jsx#L168), [InvoiceModal.jsx:200](src/components/InvoiceModal.jsx#L200), [InvoicesPage.jsx:772](src/pages/InvoicesPage.jsx#L772) — modal-slide-up animation 사용 여부 확인 필요.
 
 ---
 
