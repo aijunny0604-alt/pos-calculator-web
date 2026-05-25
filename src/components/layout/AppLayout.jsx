@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import MobileNav from './MobileNav';
@@ -9,6 +9,22 @@ const fullScreenPages = ['pos', 'orders', 'customers', 'saved-carts', 'stock', '
 export default function AppLayout({ children, currentPage, onNavigate, isOnline, orderCount = 0, savedCartCount = 0, shippingCount = 0 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isFullScreen = fullScreenPages.includes(currentPage);
+
+  // 페이지 전환 페이드인 애니메이션
+  const [fadeKey, setFadeKey] = useState(currentPage);
+  const [fading, setFading] = useState(false);
+  const prevPage = useRef(currentPage);
+  useEffect(() => {
+    if (currentPage !== prevPage.current) {
+      prevPage.current = currentPage;
+      setFading(true);
+      const t = requestAnimationFrame(() => {
+        setFadeKey(currentPage);
+        setFading(false);
+      });
+      return () => cancelAnimationFrame(t);
+    }
+  }, [currentPage]);
 
   // Listen for 'toggle-sidebar' custom events from fullscreen pages
   useEffect(() => {
@@ -60,7 +76,13 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
             ? 'pb-16 md:pb-0'
             : 'p-2 sm:p-4 md:p-6 pb-20 md:pb-6'
         }`} style={{ WebkitOverflowScrolling: 'touch' }}>
-          {children}
+          <div
+            key={fadeKey}
+            className="animate-page-in"
+            style={{ animationDuration: '280ms' }}
+          >
+            {children}
+          </div>
         </main>
       </div>
 
