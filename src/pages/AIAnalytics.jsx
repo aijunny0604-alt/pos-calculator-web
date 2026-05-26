@@ -184,7 +184,9 @@ export default function AIAnalytics({
     setExecuting(true);
     try {
       if (pending.action === 'addProduct') {
-        const created = await supabase.addProduct(pending.params);
+        const maxId = (products || []).reduce((max, p) => Math.max(max, p.id || 0), 0);
+        const payload = { ...pending.params, id: maxId + 1 };
+        const created = await supabase.addProduct(payload);
         if (created) {
           setProducts?.((prev) => [...prev, created]);
           chat.addSystemMessage(`✅ 제품 "${pending.params.name}" 등록 완료 (id: ${created.id})`);
@@ -195,8 +197,10 @@ export default function AIAnalytics({
         }
       } else if (pending.action === 'bulkAddProduct') {
         const { products: productRows } = pending.params;
+        let nextId = (products || []).reduce((max, p) => Math.max(max, p.id || 0), 0);
+        const productsWithId = productRows.map((p) => ({ ...p, id: ++nextId }));
         const results = await Promise.all(
-          productRows.map((product) =>
+          productsWithId.map((product) =>
             supabase.addProduct(product)
               .then((created) => ({ ok: Boolean(created), created, product }))
               .catch(() => ({ ok: false, created: null, product }))
