@@ -184,8 +184,7 @@ export default function AIAnalytics({
     setExecuting(true);
     try {
       if (pending.action === 'addProduct') {
-        const maxId = (products || []).reduce((max, p) => Math.max(max, p.id || 0), 0);
-        const payload = { ...pending.params, id: maxId + 1 };
+        const payload = { ...pending.params };
         const created = await supabase.addProduct(payload);
         if (created) {
           setProducts?.((prev) => [...prev, created]);
@@ -197,10 +196,8 @@ export default function AIAnalytics({
         }
       } else if (pending.action === 'bulkAddProduct') {
         const { products: productRows } = pending.params;
-        let nextId = (products || []).reduce((max, p) => Math.max(max, p.id || 0), 0);
-        const productsWithId = productRows.map((p) => ({ ...p, id: ++nextId }));
         const results = await Promise.all(
-          productsWithId.map((product) =>
+          productRows.map((product) =>
             supabase.addProduct(product)
               .then((created) => ({ ok: Boolean(created), created, product }))
               .catch(() => ({ ok: false, created: null, product }))

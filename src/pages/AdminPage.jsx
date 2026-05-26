@@ -445,10 +445,6 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
       if (formData.stock !== '') payload.stock = Number(formData.stock);
       if (formData.min_stock !== '') payload.min_stock = Number(formData.min_stock);
       const isNew = !editTarget?.id;
-      if (isNew) {
-        const maxId = displayProducts.reduce((max, p) => Math.max(max, p.id || 0), 0);
-        payload.id = maxId + 1;
-      }
       if (supabaseConnected && supabase) {
         const saved = isNew
           ? await supabase.addProduct(payload)
@@ -583,9 +579,7 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
   };
 
   const handleDuplicate = async (product) => {
-    const maxId = products.reduce((max, p) => Math.max(max, p.id || 0), 0);
     const newProduct = {
-      id: maxId + 1,
       name: product.name + ' (복사)',
       category: product.category,
       wholesale: product.wholesale,
