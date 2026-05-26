@@ -78,7 +78,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
         }`} style={{ WebkitOverflowScrolling: 'touch' }}>
           <div
             key={fadeKey}
-            className={`animate-page-in ${isFullScreen ? 'h-full min-h-0' : ''}`}
+            className={`animate-page-in ${isFullScreen ? 'h-full min-h-0' : 'min-h-full'}`}
             style={{ animationDuration: '280ms' }}
           >
             {children}
