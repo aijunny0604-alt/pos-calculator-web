@@ -56,7 +56,7 @@ export const GEMINI_TOOLS = [
       type: 'object',
       properties: {
         customerName: { type: 'string', description: '거래처 이름 (정확히 일치)' },
-        customerId: { type: 'integer', description: '거래처 ID (이름 모를 때)' },
+        customerId: { type: 'string', description: '거래처 ID (이름 모를 때)' },
         months: { type: 'integer', description: '과거 몇 개월. 기본 6' },
       },
     },
@@ -119,7 +119,7 @@ export const GEMINI_TOOLS = [
       properties: {
         productId: { type: 'integer', description: '제품 ID (제품 모드)' },
         customerName: { type: 'string', description: '거래처 이름 (거래처 모드)' },
-        customerId: { type: 'integer', description: '거래처 ID (거래처 모드)' },
+        customerId: { type: 'string', description: '거래처 ID (거래처 모드)' },
       },
     },
   },
@@ -130,7 +130,7 @@ export const GEMINI_TOOLS = [
       type: 'object',
       properties: {
         customerName: { type: 'string', description: '거래처 이름' },
-        customerId: { type: 'integer', description: '거래처 ID' },
+        customerId: { type: 'string', description: '거래처 ID' },
         limit: { type: 'integer', description: 'TOP N. 기본 10' },
       },
     },
@@ -586,7 +586,7 @@ export const GEMINI_TOOLS = [
       type: 'object',
       properties: {
         customerName: { type: 'string', description: '거래처 이름 (정확히 또는 일부)' },
-        customerId: { type: 'integer', description: '거래처 ID (선택)' },
+        customerId: { type: 'string', description: '거래처 ID (선택)' },
         phone: { type: 'string', description: '새 전화번호 (선택)' },
         address: { type: 'string', description: '새 주소 (선택)' },
       },
@@ -605,7 +605,7 @@ export const GEMINI_TOOLS = [
             type: 'object',
             properties: {
               customerName: { type: 'string', description: '거래처 이름 (정확히 또는 일부)' },
-              customerId: { type: 'integer', description: '거래처 ID (선택)' },
+              customerId: { type: 'string', description: '거래처 ID (선택)' },
               phone: { type: 'string', description: '새 전화번호 (선택)' },
               address: { type: 'string', description: '새 주소 (선택)' },
             },
