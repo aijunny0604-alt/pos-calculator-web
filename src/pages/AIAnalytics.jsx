@@ -3,7 +3,6 @@ import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChar
 import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
 import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
-import BigBangIntro from '@/components/analytics/BigBangIntro';
 import '@/components/analytics/ai-analytics.css';
 import useAIAnalystChat, { writeContextSnapshot } from '@/hooks/useAIAnalystChat';
 
@@ -76,23 +75,6 @@ export default function AIAnalytics({
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [customerReturns, setCustomerReturns] = useState([]);
   const [loadingExtra, setLoadingExtra] = useState(true);
-
-  // 빅뱅 진입 애니메이션 — 페이지 진입할 때마다 재생
-  // 3단계 고급 전환: introFading → introVisible (메인 등장) → introDone (BigBang unmount)
-  const [introDone, setIntroDone] = useState(false);
-  const [introFading, setIntroFading] = useState(false);
-  const [introVisible, setIntroVisible] = useState(false);
-  const handleIntroDone = () => {
-    setIntroFading(true);  // BigBang 페이드 아웃 시작 (즉시)
-    // 250ms 지연 후 메인 UI fade-in (BigBang이 절반 정도 흐려진 시점)
-    setTimeout(() => setIntroVisible(true), 250);
-    // 1400ms 후 BigBang 완전 unmount
-    setTimeout(() => setIntroDone(true), 1400);
-  };
-  // 매 mount 시 강제 재생 (HMR/캐시로 인한 누락 방지)
-  useEffect(() => {
-    setIntroDone(false);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -567,30 +549,8 @@ export default function AIAnalytics({
       className="ai-analytics-root flex flex-col h-full overflow-hidden relative"
       style={{ perspective: 'var(--jarvis-perspective)' }}
     >
-      {/* 빅뱅 진입 애니메이션 — absolute로 ai-analytics-root(relative) 안에 가둠.
-          데스크탑 사이드바 빼고 main 영역에만 표시, 모바일은 사이드바 없으니 viewport와 동일.
-          BigBangIntro 컴포넌트 자체도 absolute라 wrapper의 positioned 영향을 받음. */}
-      {!introDone && (
-        <div
-          className="absolute inset-0 z-[100] pointer-events-none"
-          style={{
-            opacity: introFading ? 0 : 1,
-            transition: 'opacity 900ms cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-        >
-          <BigBangIntro onComplete={handleIntroDone} />
-        </div>
-      )}
-
-      {/* 메인 UI 컨테이너 — 단순 opacity + 살짝의 scale (자식 stagger 제거로 충돌 X)
-          800ms cubic-bezier 부드러운 페이드 인 */}
       <div
-        className="flex flex-col h-full overflow-hidden"
-        style={{
-          opacity: (introVisible || introDone) ? 1 : 0,
-          transform: (introVisible || introDone) ? 'scale(1)' : 'scale(0.98)',
-          transition: 'opacity 900ms cubic-bezier(0.4, 0, 0.2, 1), transform 900ms cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
+        className="ai-analytics-main-enter flex flex-col h-full overflow-hidden"
       >
 
       {/* 우주 배경 제거 — 사용자 요청: 스페이스 블랙 + 양자 sphere만 */}
@@ -824,7 +784,7 @@ export default function AIAnalytics({
           </div>
         );
       })()}
-      </div>{/* /메인 UI fade-in wrapper */}
+      </div>
     </div>
   );
 }

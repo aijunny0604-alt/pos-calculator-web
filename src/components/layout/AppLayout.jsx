@@ -39,7 +39,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--background)]">
+    <div className="flex h-[100dvh] overflow-hidden bg-[var(--background)]">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r border-[var(--border)] bg-[var(--card)]">
         <Sidebar currentPage={currentPage} onNavigate={onNavigate} isOnline={isOnline} orderCount={orderCount} savedCartCount={savedCartCount} shippingCount={shippingCount} />
@@ -63,7 +63,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
       )}
 
       {/* Main Content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex h-full flex-1 flex-col overflow-hidden">
         {!isFullScreen && (
           // 데스크탑에서 헤더 숨김 — 페이지 내부 큰 h1로 통일 (2026-05-12 사용자 요청)
           // 모바일은 햄버거 메뉴 위해 유지
@@ -71,14 +71,14 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
             <Header onMenuClick={() => setSidebarOpen(prev => !prev)} currentPage={currentPage} isOnline={isOnline} />
           </div>
         )}
-        <main className={`flex-1 min-h-0 overflow-y-auto scroll-smooth ${
+        <main className={`flex-1 min-h-0 h-full overflow-y-auto scroll-smooth ${
           isFullScreen
             ? 'pb-16 md:pb-0'
             : 'p-2 sm:p-4 md:p-6 pb-20 md:pb-6'
         }`} style={{ WebkitOverflowScrolling: 'touch' }}>
           <div
             key={fadeKey}
-            className="animate-page-in"
+            className={`animate-page-in ${isFullScreen ? 'h-full min-h-0' : ''}`}
             style={{ animationDuration: '280ms' }}
           >
             {children}

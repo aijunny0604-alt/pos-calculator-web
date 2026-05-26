@@ -1070,7 +1070,7 @@ export default function SavedCarts({
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 <button
                   onClick={() => { onLoad(currentCart); onBack(); }}
-                  className="flex-1 min-w-[7rem] flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 hover:opacity-90 text-white rounded-lg text-sm sm:text-base font-semibold transition-opacity"
+                  className="flex-1 min-w-[7rem] flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 hover:opacity-90 text-white rounded-lg text-sm sm:text-base font-semibold whitespace-nowrap transition-opacity"
                   style={{ background: 'var(--success)' }}
                 >
                   <Download className="w-4 h-4 flex-shrink-0" />
@@ -1083,7 +1083,7 @@ export default function SavedCarts({
                       setDetailCart(null);
                       setDetailIndex(null);
                     }}
-                    className="flex-1 min-w-[7rem] flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-sm sm:text-base font-semibold transition-opacity"
+                    className="flex-1 min-w-[7rem] flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-sm sm:text-base font-semibold whitespace-nowrap transition-opacity"
                   >
                     <FileText className="w-4 h-4 flex-shrink-0" />
                     <span>주문확인</span>
@@ -1297,7 +1297,7 @@ export default function SavedCarts({
                 <button
                   key={key}
                   onClick={() => { setDateFilter(key); setSelectedItems([]); }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                     dateFilter === key
                       ? 'bg-[var(--primary)] text-white'
                       : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'
@@ -1357,7 +1357,7 @@ export default function SavedCarts({
                   <button
                     key={key}
                     onClick={() => { setDateFilter(key); setSelectedItems([]); }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                       dateFilter === key
                         ? 'bg-[var(--primary)] text-white'
                         : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'
@@ -1398,7 +1398,7 @@ export default function SavedCarts({
                   <button
                     key={key}
                     onClick={() => { setDeliveryFilter(key); setSelectedItems([]); }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                       deliveryFilter === key
                         ? ''
                         : 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'
@@ -1565,7 +1565,7 @@ export default function SavedCarts({
                           <div className="flex gap-2">
                             <button
                               onClick={(e) => { e.stopPropagation(); onLoad(cart); onBack(); }}
-                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 hover:opacity-90 text-white rounded-lg text-xs font-medium transition-opacity"
+                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 hover:opacity-90 text-white rounded-lg text-xs font-medium whitespace-nowrap transition-opacity"
                               style={{ background: 'var(--success)' }}
                             >
                               <Download className="w-3.5 h-3.5" />
@@ -1574,7 +1574,7 @@ export default function SavedCarts({
                             {onOrder && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); onOrder(cart); }}
-                                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-xs font-medium transition-opacity"
+                                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-xs font-medium whitespace-nowrap transition-opacity"
                               >
                                 <FileText className="w-3.5 h-3.5" />
                                 주문확인

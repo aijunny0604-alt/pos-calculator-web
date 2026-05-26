@@ -878,7 +878,10 @@ ${aiLearningData.slice(0, 50).map(l =>
   const inputStyle = { backgroundColor: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' };
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--background)' }}>
+    <div
+      className={`flex flex-col min-h-0 ${onClose ? 'h-full' : 'h-[100dvh]'}`}
+      style={{ background: 'var(--background)' }}
+    >
       {/* Header - clean white style matching other pages */}
       <div
         className="sticky top-0 z-40 flex items-center h-12 px-3 border-b flex-shrink-0"
@@ -1107,7 +1110,10 @@ ${aiLearningData.slice(0, 50).map(l =>
       </div>
 
       {/* Results Section */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+      <div
+        className="flex-1 min-h-0 overflow-y-auto px-4 pb-4"
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', overscrollBehavior: 'contain' }}
+      >
         {analyzedItems.length > 0 && (
           <>
             {/* Results header */}

@@ -1079,7 +1079,7 @@ export default function OrderHistory({
                   <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => onViewOrder(order)}
-                      className="flex-1 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--accent)] border"
+                      className="flex-1 py-2 rounded-lg text-xs font-medium whitespace-nowrap flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--accent)] border"
                       style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -1091,7 +1091,7 @@ export default function OrderHistory({
                       <>
                         <button
                           onClick={() => setMethodPickerId(isPickerOpen ? null : (order.id || order.orderNumber))}
-                          className="py-2 px-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1 border"
+                          className="py-2 px-2.5 rounded-lg text-xs font-medium whitespace-nowrap flex items-center justify-center gap-1 border"
                           style={{
                             borderColor: 'color-mix(in srgb, #10b981 40%, var(--border))',
                             color: '#059669',
@@ -1102,7 +1102,7 @@ export default function OrderHistory({
                         </button>
                         <button
                           onClick={() => clearPaid(order.id || order.orderNumber)}
-                          className="py-2 px-2 rounded-lg text-xs font-medium border hover:bg-[var(--accent)]"
+                          className="py-2 px-2 rounded-lg text-xs font-medium whitespace-nowrap border hover:bg-[var(--accent)]"
                           style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
                           title="완불 해제"
                         >
@@ -1112,7 +1112,7 @@ export default function OrderHistory({
                     ) : (
                       <button
                         onClick={() => setMethodPickerId(isPickerOpen ? null : (order.id || order.orderNumber))}
-                        className="py-2 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 border transition-colors hover:bg-emerald-500/10"
+                        className="py-2 px-2.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center justify-center gap-1 border transition-colors hover:bg-emerald-500/10"
                         style={{ borderColor: '#10b981', color: '#10b981' }}
                       >
                         <CircleDollarSign className="w-3.5 h-3.5" />
@@ -1123,7 +1123,7 @@ export default function OrderHistory({
                     {onReorder && (
                       <button
                         onClick={() => onReorder(order)}
-                        className="py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border"
+                        className="py-2 px-2.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center justify-center gap-1.5 transition-colors border"
                         style={{ borderColor: 'var(--primary)', color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 8%, transparent)' }}
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
@@ -1133,7 +1133,7 @@ export default function OrderHistory({
                     {onSaveToCart && (
                       <button
                         onClick={() => onSaveToCart(order)}
-                        className="py-2 px-3 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                        className="py-2 px-2.5 rounded-lg text-xs font-medium whitespace-nowrap flex items-center justify-center gap-1.5 transition-colors"
                         style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
                       >
                         <ShoppingCart className="w-3.5 h-3.5" />

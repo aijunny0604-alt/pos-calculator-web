@@ -428,7 +428,7 @@ export default function CustomerList({
                   <button
                     key={key}
                     onClick={() => setBlacklistFilter(key)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                       blacklistFilter === key
                         ? key === 'all'
                           ? 'bg-[var(--primary)] text-white'
@@ -450,7 +450,7 @@ export default function CustomerList({
                 {/* 미수 필터 */}
                 <button
                   onClick={() => setOutstandingFilter((v) => !v)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${
                     outstandingFilter
                       ? 'text-white'
                       : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]'
@@ -464,7 +464,7 @@ export default function CustomerList({
                 {/* 정렬 토글 */}
                 <button
                   onClick={() => setSortBy((v) => v === 'name' ? 'outstanding' : 'name')}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--accent)]"
                   title="정렬 기준 변경"
                 >
                   정렬: {sortBy === 'outstanding' ? '미수 많은 순' : '이름순'}
@@ -513,7 +513,7 @@ export default function CustomerList({
                         navigator.clipboard.writeText(info);
                         showToast?.('배송 정보 복사됨', 'success');
                       }}
-                      className="flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--accent)] flex-shrink-0"
+                      className="flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors hover:bg-[var(--accent)] flex-shrink-0"
                       style={{ color: 'var(--primary)', border: '1px solid var(--border)' }}
                     >
                       <Copy className="w-3.5 h-3.5" />

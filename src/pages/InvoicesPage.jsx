@@ -566,7 +566,7 @@ export default function InvoicesPage({
                     <button
                       key={p.key}
                       onClick={() => setDatePreset(p.key)}
-                      className="px-3 py-1.5 rounded-md text-[13px] font-semibold transition-all border"
+                      className="px-2.5 py-1.5 rounded-md text-[13px] font-semibold whitespace-nowrap transition-all border"
                       style={{
                         background: datePreset === p.key ? 'var(--primary)' : 'var(--card)',
                         color: datePreset === p.key ? 'var(--primary-foreground)' : 'var(--foreground)',
@@ -595,7 +595,7 @@ export default function InvoicesPage({
                         <button
                           key={cid}
                           onClick={() => toggleCustomer(cid)}
-                          className="px-3 py-1.5 rounded-md text-[13px] font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1.5"
+                          className="px-2.5 py-1.5 rounded-md text-[13px] font-medium whitespace-nowrap bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1.5"
                         >
                           <span>{name}</span>
                           <XIcon className="w-3.5 h-3.5" />
@@ -609,7 +609,7 @@ export default function InvoicesPage({
                     )}
                     <button
                       onClick={clearAllCustomers}
-                      className="px-2 py-1 rounded-md text-[11px] font-medium text-gray-500 hover:text-red-600 underline"
+                      className="px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap text-gray-500 hover:text-red-600 underline"
                     >
                       전체 해제
                     </button>
@@ -721,7 +721,7 @@ export default function InvoicesPage({
                           {onOpenPayment && hasOpenBalance && (
                             <button
                               onClick={() => onOpenPayment(inv.id, null)}
-                              className="px-3 py-1.5 rounded-md text-[12px] font-bold bg-green-600 text-white hover:bg-green-500 shadow-sm flex items-center gap-1"
+                              className="px-2.5 py-1.5 rounded-md text-[12px] font-bold whitespace-nowrap bg-green-600 text-white hover:bg-green-500 shadow-sm flex items-center gap-1"
                               title="이 업체에 단일 건 입금 등록"
                             >
                               💵 입금 등록
@@ -730,7 +730,7 @@ export default function InvoicesPage({
                           {onOpenBulkPay && hasOpenBalance && (
                             <button
                               onClick={() => onOpenBulkPay(inv.id)}
-                              className="px-3 py-1.5 rounded-md text-[12px] font-bold bg-emerald-700 text-white hover:bg-emerald-600 shadow-sm flex items-center gap-1"
+                              className="px-2.5 py-1.5 rounded-md text-[12px] font-bold whitespace-nowrap bg-emerald-700 text-white hover:bg-emerald-600 shadow-sm flex items-center gap-1"
                               title="미수 전체에 일괄 입금 (오래된 순으로 자동 배분)"
                             >
                               💰 일괄 입금
@@ -739,7 +739,7 @@ export default function InvoicesPage({
                           {onOpenCustomerDetail && (
                             <button
                               onClick={() => onOpenCustomerDetail(inv.id)}
-                              className="px-3 py-1.5 rounded-md text-[12px] font-bold border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--secondary)] flex items-center gap-1"
+                              className="px-2.5 py-1.5 rounded-md text-[12px] font-bold whitespace-nowrap border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--secondary)] flex items-center gap-1"
                               title="업체 상세 보기 (주문·결제 이력)"
                             >
                               👁 업체 상세
@@ -1406,7 +1406,7 @@ function TraditionalInvoice({ settings, customerLabel, customerKey, issueDate, l
               {customNotice && (
                 <button
                   onClick={clearOverride}
-                  className="px-2 py-1 rounded text-[11px] bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  className="px-2 py-1 rounded text-[11px] whitespace-nowrap bg-gray-100 text-gray-600 hover:bg-gray-200"
                   title="이 업체의 개별 설정 제거 (전체 기본으로 복귀)"
                 >
                   개별 해제
@@ -1414,13 +1414,13 @@ function TraditionalInvoice({ settings, customerLabel, customerKey, issueDate, l
               )}
               <button
                 onClick={cancelEdit}
-                className="px-2 py-1 rounded text-[11px] border border-gray-300 text-gray-600 hover:bg-gray-100"
+                className="px-2 py-1 rounded text-[11px] whitespace-nowrap border border-gray-300 text-gray-600 hover:bg-gray-100"
               >
                 취소
               </button>
               <button
                 onClick={saveNotice}
-                className="px-3 py-1 rounded text-[11px] font-bold bg-amber-500 text-white hover:bg-amber-600"
+                className="px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap bg-amber-500 text-white hover:bg-amber-600"
               >
                 저장
               </button>

@@ -333,14 +333,14 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
             <button
               onClick={handleExport}
               disabled={exporting}
-              className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-bold disabled:opacity-50 no-print hover:bg-[var(--secondary)] hover:border-[var(--primary)]/40 hover:shadow-md transition-all"
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-bold whitespace-nowrap disabled:opacity-50 no-print hover:bg-[var(--secondary)] hover:border-[var(--primary)]/40 hover:shadow-md transition-all"
             >
               <FileSpreadsheet className="w-4 h-4" />
               {exporting ? '생성중...' : '엑셀 다운로드'}
             </button>
             <button
               onClick={handlePrint}
-              className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-bold no-print hover:bg-[var(--secondary)] hover:border-[var(--primary)]/40 hover:shadow-md transition-all"
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-bold whitespace-nowrap no-print hover:bg-[var(--secondary)] hover:border-[var(--primary)]/40 hover:shadow-md transition-all"
             >
               <Printer className="w-4 h-4" />
               인쇄
@@ -360,7 +360,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
             {onAddPayment && (
               <button
                 onClick={() => onAddPayment(customer, null)}
-                className="py-3 rounded-xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-2 border-[var(--primary)]/50 text-[var(--primary)] text-sm font-black hover:from-blue-500/30 hover:to-purple-500/30 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5"
+                className="py-3 rounded-xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-2 border-[var(--primary)]/50 text-[var(--primary)] text-sm font-black whitespace-nowrap hover:from-blue-500/30 hover:to-purple-500/30 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5"
               >
                 💵 {customer.name || '업체'}에서 입금 받기
               </button>
@@ -368,7 +368,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
             {onViewInvoice && (
               <button
                 onClick={() => onViewInvoice(customer.id)}
-                className="py-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-yellow-500/15 border-2 border-amber-500/40 text-amber-600 text-sm font-black hover:from-amber-500/25 hover:to-yellow-500/25 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5"
+                className="py-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-yellow-500/15 border-2 border-amber-500/40 text-amber-600 text-sm font-black whitespace-nowrap hover:from-amber-500/25 hover:to-yellow-500/25 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5"
                 title="이 업체의 거래명세서 페이지로 이동"
               >
                 📄 명세서 발행
@@ -384,7 +384,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
               </summary>
               <button
                 onClick={() => onBulkPay(customer, outstandingRecords)}
-                className="mt-1.5 w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] font-bold hover:bg-red-500/15 transition-all"
+                className="mt-1.5 w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] font-bold whitespace-nowrap hover:bg-red-500/15 transition-all"
                 title="오래된 미수부터 자동으로 배분해서 입금 처리 (한 업체가 잔금 전액 지불 시 유용)"
               >
                 💳 일괄 입금 · {fmt(outstandingTotal)}원 자동 배분
@@ -483,7 +483,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                           });
                           setRecords((prev) => prev.map((x) => x.id === r.id ? { ...x, invoice_issued: newVal } : x));
                         }}
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-bold whitespace-nowrap ${
                           r.invoice_issued ? 'bg-green-500/20 text-green-300' : 'bg-orange-500/15 text-orange-300'
                         }`}
                         title="세금계산서 발행 토글"
@@ -506,14 +506,14 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                     <div className="mt-1.5 grid grid-cols-2 gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={(e) => { e.stopPropagation(); onQuickPay(r, Number(r.balance)); }}
-                        className="py-1.5 rounded-md bg-green-500/15 border border-green-500/40 text-green-400 text-[10px] font-bold"
+                        className="py-1.5 rounded-md bg-green-500/15 border border-green-500/40 text-green-400 text-[10px] font-bold whitespace-nowrap"
                       >
                         ⚡ 잔액 전액 {fmt(r.balance)}
                       </button>
                       {onAddPayment && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onAddPayment(customer, r); }}
-                          className="py-1.5 rounded-md bg-[var(--secondary)] border border-[var(--border)] text-[var(--muted-foreground)] text-[10px] font-bold"
+                          className="py-1.5 rounded-md bg-[var(--secondary)] border border-[var(--border)] text-[var(--muted-foreground)] text-[10px] font-bold whitespace-nowrap"
                         >
                           ✏️ 직접 입력
                         </button>

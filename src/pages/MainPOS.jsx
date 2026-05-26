@@ -51,8 +51,7 @@ export default function MainPOS({
   loadedCustomer,
   onClearLoadedCustomer,
   orders = [],
-  autoOpenOrderConfirm = false,
-  onOrderConfirmAutoOpened,
+  autoOpenOrderConfirmNonce = 0,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
@@ -74,6 +73,7 @@ export default function MainPOS({
 
   // 음성 주문 — addToCart를 직접 넘기지 않고 ref 경유 (hook 순서 안전)
   const addToCartRef = useRef(null);
+  const lastNonceRef = useRef(0);
   const voiceOrder = useVoiceOrder({ products, addToCart: (...args) => addToCartRef.current?.(...args), showToast });
 
   // 장바구니가 비워지면 주문확인 모달도 자동 닫기 (장바구니 저장 후 초기화 시)
@@ -86,11 +86,15 @@ export default function MainPOS({
 
   // AI 주문 인식 → 담기 → 주문서 자동 오픈 (App에서 신호 전달)
   useEffect(() => {
-    if (autoOpenOrderConfirm && cart.length > 0) {
+    if (
+      autoOpenOrderConfirmNonce &&
+      autoOpenOrderConfirmNonce !== lastNonceRef.current &&
+      cart.length > 0
+    ) {
+      lastNonceRef.current = autoOpenOrderConfirmNonce;
       setShowOrderConfirm(true);
-      onOrderConfirmAutoOpened?.();
     }
-  }, [autoOpenOrderConfirm, cart.length, onOrderConfirmAutoOpened]);
+  }, [autoOpenOrderConfirmNonce, cart.length]);
 
   const dynamicCategories = useMemo(() => {
     return [...new Set(products.map(item => item.category))];

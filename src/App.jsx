@@ -862,7 +862,7 @@ export default function App() {
 
   // ─── Add items from TextAnalyze to cart ───────────────────────
   // 절차 간소화: AI 인식 → 담기 → 메인 안 거치고 곧바로 주문서(OrderPage) 자동 오픈
-  const [autoOpenOrderConfirm, setAutoOpenOrderConfirm] = useState(false);
+  const [autoOpenOrderConfirmNonce, setAutoOpenOrderConfirmNonce] = useState(0);
   const handleAddToCart = useCallback(
     (newItems) => {
       setCartWithHistory((prev) => {
@@ -884,7 +884,7 @@ export default function App() {
       });
       setCurrentPage('pos');
       // MainPOS가 mount된 후 OrderPage(주문서)를 자동으로 띄우도록 신호
-      setAutoOpenOrderConfirm(true);
+      setAutoOpenOrderConfirmNonce(Date.now());
       showToast('주문 확인 — 주문서를 띄웠습니다', 'success');
     },
     [showToast]
@@ -932,8 +932,7 @@ export default function App() {
             onBack={() => setCurrentPage('dashboard')}
             loadedCustomer={loadedCustomer}
             onClearLoadedCustomer={() => setLoadedCustomer(null)}
-            autoOpenOrderConfirm={autoOpenOrderConfirm}
-            onOrderConfirmAutoOpened={() => setAutoOpenOrderConfirm(false)}
+            autoOpenOrderConfirmNonce={autoOpenOrderConfirmNonce}
           />
         );
 
