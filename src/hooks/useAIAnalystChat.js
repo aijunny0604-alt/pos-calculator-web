@@ -14,6 +14,17 @@ const HISTORY_KEY = 'pos_ai_analytics_history_v1';
 const USAGE_KEY = 'pos_ai_quick_prompts_usage_v1';
 const MAX_HISTORY = 50;
 
+const GREETING_PATTERNS = [
+  /^(안녕|안녕하세요|하이|hi|hello|헬로|ㅎㅇ|반가워|고마워|감사|땡큐|thanks|thank you)[\s!?.~]*$/i,
+  /^(좋은\s*(아침|점심|저녁)|수고|수고해|수고했어|잘\s*지내)[\s!?.~]*$/i,
+  /^(뭐해|누구야|너는\s*누구|도움말|도와줘)[\s!?.~]*$/i,
+];
+
+function isGreeting(text) {
+  const normalized = String(text || '').trim();
+  return GREETING_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 // AI에 전달할 history에서 제외할 부정 답변 패턴
 // (이게 컨텍스트에 들어가면 모델이 "기능 없다"는 인식을 강화함)
 const NEGATIVE_HISTORY_PATTERNS = [
@@ -185,22 +196,31 @@ export default function useAIAnalystChat({
       let fallbackUsed = false;
       let fallbackToolCalls = null;
       if (!content) {
-        const fallback = autoFallbackSearch(question, { products, customers, orders });
-        if (fallback) {
-          content = fallback;
-          fallbackUsed = true;
-          // 폴백 시 차트도 자동 생성 (toolCalls 모방 → ResultRenderer 자동 렌더)
-          fallbackToolCalls = buildFallbackToolCalls(question, { products, customers, orders });
+        if (isGreeting(question)) {
+          content = '안녕하세요! MOVIS AI입니다. 매출, 재고, 거래처, 미수금, 주문 내역처럼 매장 데이터에 대해 편하게 물어보세요.';
         } else {
-          content = '⚠️ MOVIS가 답변을 만들지 못했어요. 조금 더 구체적으로 질문해주세요. '
-            + '예: "스덴밴딩 종류 보여줘", "강남오토 매출 얼마야?", "재고 부족한 거 알려줘"';
+          const fallback = autoFallbackSearch(question, { products, customers, orders });
+          if (fallback) {
+            content = fallback;
+            fallbackUsed = true;
+            // 폴백 시 차트도 자동 생성 (toolCalls 모방 → ResultRenderer 자동 렌더)
+            fallbackToolCalls = buildFallbackToolCalls(question, { products, customers, orders });
+          } else {
+            const errorMessage = typeof result.error === 'string'
+              ? result.error
+              : result.error?.message;
+            content = errorMessage
+              ? `⚠️ MOVIS가 답변을 만들지 못했어요.\n\n오류: ${errorMessage}\n\n잠시 후 다시 시도하거나 조금 더 구체적으로 질문해주세요.`
+              : '⚠️ MOVIS가 답변을 만들지 못했어요. 조금 더 구체적으로 질문해주세요. '
+                + '예: "스덴밴딩 종류 보여줘", "강남오토 매출 얼마야?", "재고 부족한 거 알려줘"';
+          }
         }
       }
       // role 결정: AI 에러 있어도 폴백 성공이면 assistant로 표시 (사용자에게 유용한 결과)
       // 정말 못 만든 경우(폴백도 실패)만 'error'
-      const role = (result.error && !fallbackUsed && !hasAnswer)
+      const role = (result.error && !fallbackUsed && !hasAnswer && !content)
         ? 'error'
-        : (!hasAnswer && !fallbackUsed)
+        : (!content)
           ? 'error'
           : 'assistant';
       // 추천 후속 질문 자동 생성 (도구 호출 결과 + 질문 기반)
