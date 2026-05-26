@@ -550,7 +550,7 @@ export default function AIAnalytics({
       style={{ perspective: 'var(--jarvis-perspective)' }}
     >
       <div
-        className="ai-analytics-main-enter flex flex-col h-full overflow-hidden"
+        className="flex flex-col h-full overflow-hidden"
       >
 
       {/* 우주 배경 제거 — 사용자 요청: 스페이스 블랙 + 양자 sphere만 */}

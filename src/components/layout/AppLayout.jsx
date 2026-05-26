@@ -14,6 +14,13 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
   const [fadeKey, setFadeKey] = useState(currentPage);
   const [fading, setFading] = useState(false);
   const prevPage = useRef(currentPage);
+  const pageAnimationStyle = currentPage === 'ai-analytics'
+    ? {
+        animationDuration: '1100ms',
+        animationTimingFunction: 'cubic-bezier(0.4,0,0.2,1)',
+      }
+    : { animationDuration: '280ms' };
+
   useEffect(() => {
     if (currentPage !== prevPage.current) {
       prevPage.current = currentPage;
@@ -79,7 +86,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
           <div
             key={fadeKey}
             className={`animate-page-in ${isFullScreen ? 'h-full min-h-0' : 'min-h-full'}`}
-            style={{ animationDuration: '280ms' }}
+            style={pageAnimationStyle}
           >
             {children}
           </div>
