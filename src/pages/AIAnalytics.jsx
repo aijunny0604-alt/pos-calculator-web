@@ -4,6 +4,7 @@ import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
 import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
 import ApiUsageGauge from '@/components/analytics/ApiUsageGauge';
+import OrderConfirmEditable from '@/components/analytics/OrderConfirmEditable';
 import '@/components/analytics/ai-analytics.css';
 import useAIAnalystChat, { writeContextSnapshot } from '@/hooks/useAIAnalystChat';
 
@@ -294,6 +295,15 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ 주문 저장 함수가 전달되지 않았습니다.`);
         } else {
           const { customerName, customerPhone, customerAddress, priceType, items, total, memo } = pending.params;
+          // 추가 가드: 0원 단가 항목 차단 (Codex 위험 분석)
+          const zeroItems = (items || []).filter((it) => Number(it.price || 0) <= 0);
+          if (zeroItems.length > 0) {
+            chat.addSystemMessage(`❌ 단가 0원 항목이 있어 저장 차단됨: ${zeroItems.map((i) => i.name).join(', ')}`);
+            showToast?.('단가 0원 항목 차단', 'error');
+            chat.resolvePendingAction(pending.id);
+            setExecuting(false);
+            return;
+          }
           const result = await saveOrderProp({
             customer_name: customerName,
             customer_phone: customerPhone,
@@ -725,8 +735,18 @@ export default function AIAnalytics({
         />
       </div>
 
-      {/* 쓰기 액션 Confirm 모달 (큐 처리 — 첫 번째 pending만 표시) */}
-      {chat.pendingActions.length > 0 && (() => {
+      {/* 쓰기 액션 Confirm 모달 — saveOrder는 편집 가능 모달 분기, 나머지는 기존 */}
+      {chat.pendingActions.length > 0 && chat.pendingActions[0].action === 'saveOrder' && (
+        <OrderConfirmEditable
+          pending={chat.pendingActions[0]}
+          executing={executing}
+          customers={customers}
+          products={products}
+          onConfirm={handleExecuteAction}
+          onCancel={handleCancelAction}
+        />
+      )}
+      {chat.pendingActions.length > 0 && chat.pendingActions[0].action !== 'saveOrder' && (() => {
         const pending = chat.pendingActions[0];
         const titleMap = {
           addProduct: { title: '제품 등록 확인', Icon: Package },

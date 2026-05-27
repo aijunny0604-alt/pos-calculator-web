@@ -16,6 +16,7 @@ import { getReturnAnalysis } from './analytics/returns';
 import { getPendingCarts } from './analytics/carts';
 import { getLearningStats } from './analytics/learning';
 import { findProductSmart, findProductCandidates } from './productMatch';
+import { matchCustomer } from './fuzzyMatch';
 import {
   getCollectionPlan,
   getStockCoverageForecast,
@@ -1090,17 +1091,17 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
     if (!Array.isArray(items) || items.length === 0) {
       return { ok: false, error: '주문 항목이 1개 이상 필요합니다.' };
     }
-    // 거래처 찾기 (정확 → 부분 → 토큰 단위)
-    const customerLower = customerName.trim().toLowerCase();
-    let customer = (customers || []).find((c) => (c?.name || '').toLowerCase() === customerLower);
-    if (!customer) customer = (customers || []).find((c) => (c?.name || '').toLowerCase().includes(customerLower));
-    if (!customer) {
-      const tokens = customerLower.split(/\s+/).filter(Boolean);
-      customer = (customers || []).find((c) => {
-        const cn = (c?.name || '').toLowerCase();
-        return tokens.length > 0 && tokens.every((t) => cn.includes(t));
-      });
-    }
+    // 거래처 매칭 — Codex 위험 분석 반영: 정확 매칭만 통과, 유사 후보는 사용자 확인 필수
+    const customerMatch = matchCustomer(customerName, customers, { maxCandidates: 3, threshold: 0.6 });
+    const customer = customerMatch.status === 'exact' ? customerMatch.exact : null;
+    const customerCandidates = customerMatch.candidates.map((c) => ({
+      id: c.item.id,
+      name: c.item.name,
+      phone: c.item.phone || '',
+      address: c.item.address || '',
+      score: Number(c.score.toFixed(2)),
+      reason: c.reason,
+    }));
     const customerLabel = customer ? customer.name : customerName.trim();
 
     // 각 라인 제품 매칭 (AI 학습 사례 우선 + tolerance + fuzzy + candidates top1 자동 매칭)
@@ -1124,6 +1125,7 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
       let product = findProductSmart(pname, searchPool, aiLearningData);
       let autoMatched = false;
       let originalInput = null;
+      let alternatives = []; // 자동 매칭됐을 때 다른 후보 (모달 dropdown용)
       if (!product) {
         // 🎯 candidates top1 자동 매칭 (정확도 boost)
         const candidates = findProductCandidates(pname, searchPool);
@@ -1144,7 +1146,8 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
           if (product) {
             autoMatched = true;
             originalInput = pname;
-            autoMatchedDetails.push({ input: pname, matched: product.name, alternatives: candidates.filter((c) => c !== pickName).slice(0, 3) });
+            alternatives = candidates.filter((c) => c !== pickName).slice(0, 3);
+            autoMatchedDetails.push({ input: pname, matched: product.name, alternatives });
           }
         }
         if (!product) {
@@ -1162,6 +1165,8 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
         quantity: qty,
         autoMatched,
         originalInput,
+        alternatives, // 모달에서 dropdown으로 변경 가능
+        zeroPrice: unitPrice <= 0, // 단가 0원 플래그 (모달에서 강조)
       });
     }
     if (missingDetails.length > 0 && resolved.length === 0) {
@@ -1177,21 +1182,52 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
     }
     const total = resolved.reduce((acc, r) => acc + r.price * r.quantity, 0);
     const warnings = [];
-    if (!customer) warnings.push(`⚠️ "${customerName}" 거래처가 DB에 없습니다. 주문 저장 시 자동 신규 등록됩니다.`);
-    if (resolved.some((r) => r.price <= 0)) warnings.push('⚠️ 일부 라인의 단가가 0원입니다.');
-    // 🎯 자동 매칭된 항목 경고 (사용자가 확인하도록)
-    autoMatchedDetails.forEach((d) => {
+    const issues = []; // 모달에서 확인 필요한 항목 구조화 (UI에서 활용)
+
+    // 거래처 미확정 — 자동 신규 등록 금지, 사용자 명시 클릭 필요
+    if (!customer) {
+      if (customerCandidates.length > 0) {
+        const names = customerCandidates.map((c) => `"${c.name}"`).join(' / ');
+        warnings.push(`❓ "${customerName}" 거래처가 DB에 정확히 없어요. 혹시 ${names}?`);
+        issues.push({ field: 'customer', kind: 'candidate', input: customerName, candidates: customerCandidates });
+      } else {
+        warnings.push(`❌ "${customerName}" 거래처가 DB에 없습니다. 신규 등록하시려면 [수정] 버튼에서 명시적으로 등록해주세요.`);
+        issues.push({ field: 'customer', kind: 'missing', input: customerName });
+      }
+    }
+
+    // 단가 0원 — 강한 경고
+    const zeroPriceItems = resolved.filter((r) => r.zeroPrice);
+    if (zeroPriceItems.length > 0) {
+      const names = zeroPriceItems.map((r) => `"${r.name}"`).join(', ');
+      warnings.push(`⚠️ 단가 0원 항목: ${names} — 수정 모달에서 단가를 입력해주세요.`);
+      zeroPriceItems.forEach((r) => {
+        issues.push({ field: 'item-price', kind: 'zero-price', productId: r.id, productName: r.name });
+      });
+    }
+
+    // 자동 매칭된 항목 — 확인 필요
+    autoMatchedDetails.forEach((d, idx) => {
       const alt = d.alternatives.length > 0 ? ` · 다른 후보: ${d.alternatives.join(' / ')}` : '';
       warnings.push(`🔄 "${d.input}" → "${d.matched}"로 자동 매칭됨${alt}`);
+      issues.push({ field: 'item-product', kind: 'auto-matched', input: d.input, matchedName: d.matched, alternatives: d.alternatives });
     });
+
+    // 매칭 실패 라인 (제외됨)
     if (missingDetails.length > 0) {
       const lines = missingDetails.map((m) => `"${m.name}"${m.candidates.length > 0 ? ` (후보: ${m.candidates.slice(0, 2).join(', ')})` : ''}`).join(', ');
-      warnings.push(`⚠️ 매칭 실패 ${missingDetails.length}건: ${lines} — 이 항목은 제외됩니다.`);
+      warnings.push(`❌ 매칭 실패 ${missingDetails.length}건: ${lines} — 자동 제외됨.`);
+      missingDetails.forEach((m) => {
+        issues.push({ field: 'item-missing', kind: 'missing', input: m.name, candidates: m.candidates });
+      });
     }
+
     const lines = resolved.map((r) => {
       const mark = r.autoMatched ? ' 🔄' : '';
-      return `  • ${r.name}${mark} × ${r.quantity} = ${(r.price * r.quantity).toLocaleString('ko-KR')}원 (단가 ${r.price.toLocaleString('ko-KR')})${r.originalInput ? ` [입력: "${r.originalInput}"]` : ''}`;
+      const priceMark = r.zeroPrice ? ' ⚠️0원' : '';
+      return `  • ${r.name}${mark}${priceMark} × ${r.quantity} = ${(r.price * r.quantity).toLocaleString('ko-KR')}원 (단가 ${r.price.toLocaleString('ko-KR')})${r.originalInput ? ` [입력: "${r.originalInput}"]` : ''}`;
     }).join('\n');
+
     return {
       ok: true,
       data: {
@@ -1199,16 +1235,21 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
         action: 'saveOrder',
         params: {
           customerName: customerLabel,
+          customerId: customer?.id || null,
           customerExists: Boolean(customer),
           customerPhone: customer?.phone || '',
           customerAddress: customer?.address || '',
+          customerCandidates, // 모달 dropdown 후보 (id, name, phone, address, score)
           priceType,
           items: resolved,
           total,
           memo: memo || null,
+          needsConfirmation: !customer || zeroPriceItems.length > 0 || autoMatchedDetails.length > 0 || missingDetails.length > 0,
         },
         warnings,
-        preview: `🛒 주문 등록\n• 거래처: ${customerLabel}${customer ? '' : ' (신규 자동 등록)'}\n• 가격: ${priceType === 'retail' ? '소비자가' : '도매가'} 기준\n• 항목 ${resolved.length}건:\n${lines}\n\n💰 합계: ${total.toLocaleString('ko-KR')}원 (VAT 포함)`,
+        // issues: 향후 확장용 — UI에서 issue별 inline indicator/액션 버튼 매핑 가능 (현재는 warnings 텍스트만 표시)
+        issues,
+        preview: `🛒 주문 등록\n• 거래처: ${customerLabel}${customer ? '' : ' ❓미확정'}\n• 가격: ${priceType === 'retail' ? '소비자가' : '도매가'} 기준\n• 항목 ${resolved.length}건:\n${lines}\n\n💰 합계: ${total.toLocaleString('ko-KR')}원 (VAT 포함)`,
       },
     };
   }
