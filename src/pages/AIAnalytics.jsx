@@ -308,8 +308,8 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ 주문 저장 함수가 전달되지 않았습니다.`);
         } else {
           const { customerName, customerPhone, customerAddress, priceType, items, total, memo } = pending.params;
-          // 추가 가드: 0원 단가 항목 차단 (Codex 위험 분석)
-          const zeroItems = (items || []).filter((it) => Number(it.price || 0) <= 0);
+          // 추가 가드: 0원 단가 항목 차단 (Codex 위험 분석) — surcharge 라인은 제외
+          const zeroItems = (items || []).filter((it) => !it.isSurcharge && Number(it.price || 0) <= 0);
           if (zeroItems.length > 0) {
             chat.addSystemMessage(`❌ 단가 0원 항목이 있어 저장 차단됨: ${zeroItems.map((i) => i.name).join(', ')}`);
             showToast?.('단가 0원 항목 차단', 'error');

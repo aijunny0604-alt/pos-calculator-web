@@ -2,9 +2,10 @@
 // pendingAction.action === 'saveOrder' 일 때만 사용. 다른 액션은 기존 모달.
 
 import { useState, useEffect, useMemo } from 'react';
-import { Truck, Check, X, AlertTriangle, Edit3, Search, UserPlus, MessageSquare } from 'lucide-react';
+import { Truck, Check, X, AlertTriangle, Edit3, Search, UserPlus, MessageSquare, Plus, Package, Zap } from 'lucide-react';
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
+import useQuickItems from '@/hooks/useQuickItems';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
 
@@ -30,6 +31,27 @@ export default function OrderConfirmEditable({
   const [priceType, setPriceType] = useState(initialParams.priceType || 'wholesale');
   const [memo, setMemo] = useState(initialParams.memo || '');
 
+  // 추가 비용 (택배비/퀵비/수수료 등) — useQuickItems preset 활용
+  const { items: quickPresets } = useQuickItems();
+  const [customSurchargeLabel, setCustomSurchargeLabel] = useState('');
+  const [customSurchargePrice, setCustomSurchargePrice] = useState('');
+
+  const addSurcharge = (label, price) => {
+    const p = Math.max(0, parseInt(price, 10) || 0);
+    if (!label || !label.trim() || p <= 0) return;
+    setItems((prev) => [...prev, {
+      id: `surcharge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, // 제품 ID와 충돌 방지 (재고 차감도 자동 skip)
+      name: label.trim(),
+      price: p,
+      quantity: 1,
+      wholesale: p,
+      retail: p,
+      isSurcharge: true,
+    }]);
+    setCustomSurchargeLabel('');
+    setCustomSurchargePrice('');
+  };
+
   // 거래처 검색 (수정 모드에서 dropdown)
   const [customerQuery, setCustomerQuery] = useState('');
   const customerSearchResult = useMemo(() => {
@@ -47,8 +69,10 @@ export default function OrderConfirmEditable({
   }, [productSearchIdx, productQuery, products]);
 
   const isCustomerOK = Boolean(customerId) || allowNewCustomer;
-  const hasZeroPrice = items.some((it) => Number(it.price || 0) <= 0);
-  const canConfirm = isCustomerOK && !hasZeroPrice && items.length > 0;
+  // surcharge 라인은 zeroPrice 차단에서 제외 — 일반 제품만 0원 금지
+  const hasZeroPrice = items.some((it) => !it.isSurcharge && Number(it.price || 0) <= 0);
+  const productItemsCount = items.filter((it) => !it.isSurcharge).length;
+  const canConfirm = isCustomerOK && !hasZeroPrice && productItemsCount > 0;
 
   const total = items.reduce((acc, it) => acc + Number(it.price || 0) * Number(it.quantity || 0), 0);
 
@@ -88,6 +112,7 @@ export default function OrderConfirmEditable({
         customerPhone,
         customerAddress,
         priceType,
+        // surcharge도 그대로 포함 (id가 'surcharge-' 접두사라 재고 차감 자동 skip)
         items: items.filter((it) => it.id && Number(it.price || 0) > 0),
         total,
         memo: memo || null,
@@ -242,13 +267,14 @@ export default function OrderConfirmEditable({
             {items.map((it, idx) => (
               <div key={idx} className="text-sm">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0 truncate text-base" style={{ color: it.zeroPrice ? '#ff4d6d' : '#e8f4fd' }}>
-                    {it.autoMatched && <span className="text-amber-400 mr-1">🔄</span>}
-                    {it.zeroPrice && <span className="text-rose-400 mr-1">⚠️</span>}
+                  <div className="flex-1 min-w-0 truncate text-base" style={{ color: it.isSurcharge ? '#4dffff' : (it.zeroPrice ? '#ff4d6d' : '#e8f4fd') }}>
+                    {it.isSurcharge && <span className="mr-1">💸</span>}
+                    {!it.isSurcharge && it.autoMatched && <span className="text-amber-400 mr-1">🔄</span>}
+                    {!it.isSurcharge && it.zeroPrice && <span className="text-rose-400 mr-1">⚠️</span>}
                     {it.name}
-                    {it.originalInput && <span className="opacity-50 ml-1 text-xs">["{it.originalInput}"]</span>}
+                    {!it.isSurcharge && it.originalInput && <span className="opacity-50 ml-1 text-xs">["{it.originalInput}"]</span>}
                   </div>
-                  {editMode && (
+                  {editMode && !it.isSurcharge && (
                     <button
                       onClick={() => { setProductSearchIdx(productSearchIdx === idx ? null : idx); setProductQuery(it.name); }}
                       className="text-sm opacity-80 hover:opacity-100 px-2 py-0.5 rounded"
@@ -342,6 +368,68 @@ export default function OrderConfirmEditable({
             <span className="font-bold text-xl" style={{ color: '#4dffff' }}>{fmtNum(total)}원</span>
           </div>
         </div>
+
+        {/* === 추가 비용 (택배비/퀵비/수수료) — 수정 모드에서 추가 가능 === */}
+        {editMode && (
+          <div className="mb-4 p-4 rounded-lg" style={{ background: 'rgba(15,26,45,0.5)', border: '1px solid rgba(0,212,255,0.2)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Truck className="w-4 h-4" style={{ color: '#4dffff' }} />
+              <span className="text-xs font-mono uppercase tracking-wider" style={{ color: 'var(--jarvis-text-muted)' }}>추가 비용 (택배비/퀵비/수수료)</span>
+            </div>
+
+            {/* Preset 빠른 추가 */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {quickPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => addSurcharge(preset.name, preset.defaultPrice || 0)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-cyan-500/15"
+                  style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.25)', color: '#e8f4fd' }}
+                  disabled={!preset.defaultPrice}
+                  title={!preset.defaultPrice ? '기본가가 0이라 직접 입력 사용' : `${preset.name} ${fmtNum(preset.defaultPrice)}원 추가`}
+                >
+                  <Plus className="w-3 h-3" />
+                  {preset.name}
+                  {preset.defaultPrice ? <span className="opacity-70 text-xs">· {fmtNum(preset.defaultPrice)}원</span> : null}
+                </button>
+              ))}
+            </div>
+
+            {/* 직접 입력 */}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={customSurchargeLabel}
+                onChange={(e) => setCustomSurchargeLabel(e.target.value)}
+                placeholder="비용 이름 (예: 포장비)"
+                className="flex-1 min-w-0 px-3 py-2 rounded-lg text-sm"
+                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.3)', color: '#e8f4fd' }}
+              />
+              <input
+                type="number"
+                min="0"
+                value={customSurchargePrice}
+                onChange={(e) => setCustomSurchargePrice(e.target.value)}
+                placeholder="금액"
+                className="w-28 px-3 py-2 rounded-lg text-sm font-mono"
+                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.3)', color: '#e8f4fd' }}
+                onKeyDown={(e) => { if (e.key === 'Enter') addSurcharge(customSurchargeLabel, customSurchargePrice); }}
+              />
+              <button
+                onClick={() => addSurcharge(customSurchargeLabel, customSurchargePrice)}
+                disabled={!customSurchargeLabel.trim() || !customSurchargePrice}
+                className="px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
+                style={{ background: 'rgba(0,212,255,0.2)', color: '#4dffff', border: '1px solid rgba(0,212,255,0.4)' }}
+              >
+                추가
+              </button>
+            </div>
+
+            <div className="text-xs opacity-60 mt-2">
+              💡 추가된 비용은 위 [주문 항목] 목록에 합쳐져 합계에 자동 포함됩니다. 재고는 차감되지 않아요.
+            </div>
+          </div>
+        )}
 
         {/* === 추가 지시사항 (자연어 메모) === */}
         {editMode && (
