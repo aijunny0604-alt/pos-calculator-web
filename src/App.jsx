@@ -1183,6 +1183,7 @@ export default function App() {
               customers={customers}
               showToast={showToast}
               saveOrder={saveOrder}
+              setCurrentPage={setCurrentPage}
             />
           </Suspense>
         );

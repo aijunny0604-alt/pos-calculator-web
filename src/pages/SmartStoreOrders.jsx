@@ -5,10 +5,11 @@
 // - Mock 데이터 주입 (Phase 1 — API 키 받기 전 테스트용)
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer } from 'lucide-react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
+import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
 const fmtDate = (s) => {
@@ -54,7 +55,50 @@ export default function SmartStoreOrders({
   customers = [],
   showToast,
   saveOrder: saveOrderProp,
+  setCurrentPage,
 }) {
+  // 착불/선불 정규화 (네이버 → ShippingLabel 형식)
+  const normalizeDeliveryPayType = (policy) => {
+    if (!policy) return '선불';
+    if (typeof policy === 'string') {
+      const p = policy.toLowerCase();
+      if (p.includes('cash') || p.includes('착불')) return '착불';
+    }
+    return '선불';
+  };
+
+  // 택배 송장 생성 — ShippingLabel localStorage에 prefill
+  const handleCreateShippingLabel = (order) => {
+    const items = itemsByOrder[order.id] || [];
+    const productNames = items.map((i) => i.matched_product_name || i.provider_product_name).filter(Boolean).join(', ');
+    const totalAmount = items.reduce((s, i) => s + (Number(i.unit_price || 0) * Number(i.quantity || 0)), 0);
+
+    const newEntry = {
+      id: `naver-${order.provider_order_id}-${Date.now()}`,
+      name: order.receiver_name || order.buyer_name || '구매자',
+      phone: order.buyer_phone || '',
+      address: order.buyer_address || '',
+      product: productNames || '네이버 주문',
+      amount: String(totalAmount),
+      packaging: '박스1',
+      paymentType: normalizeDeliveryPayType(order.delivery_policy_type),
+      sender: '무브모터스',
+      note: `[네이버 ${order.provider_order_id}]`,
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem('shippingCustomEntries') || '[]');
+      // 중복 방지: 같은 provider_order_id 기존 항목 제거
+      const filtered = existing.filter((e) => !e.id?.startsWith(`naver-${order.provider_order_id}`));
+      filtered.unshift(newEntry);
+      localStorage.setItem('shippingCustomEntries', JSON.stringify(filtered));
+      showToast?.('택배 송장에 추가됨 (이동 중...)', 'success');
+      if (setCurrentPage) {
+        setTimeout(() => setCurrentPage('shipping'), 500);
+      }
+    } catch (e) {
+      showToast?.(`택배 송장 추가 실패: ${e.message}`, 'error');
+    }
+  };
   const [orders, setOrders] = useState([]);
   const [itemsByOrder, setItemsByOrder] = useState({}); // { orderId: [items] }
   const [loading, setLoading] = useState(true);
@@ -312,6 +356,17 @@ export default function SmartStoreOrders({
       <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
         <ShoppingBag className="w-5 h-5" style={{ color: 'var(--primary)' }} />
         <h1 className="text-lg sm:text-xl font-bold flex-1" style={{ color: 'var(--foreground)' }}>스마트스토어 주문</h1>
+        <a
+          href="https://sell.smartstore.naver.com/#/home/dashboard"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+          style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a', border: '1px solid rgba(3,199,90,0.3)' }}
+          title="네이버 스마트스토어 관리자 페이지 (새 탭)"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">네이버 관리자</span>
+        </a>
         <button
           onClick={() => setSoundOn((v) => !v)}
           className="p-2 rounded hover:bg-[var(--muted)]"
@@ -336,8 +391,13 @@ export default function SmartStoreOrders({
         </button>
       </div>
 
+      {/* Sync 모니터링 위젯 */}
+      <div className="px-3 sm:px-4 pt-3">
+        <SyncMonitorWidget showToast={showToast} />
+      </div>
+
       {/* KPI 카드 */}
-      <div className="grid grid-cols-4 gap-2 p-3 sm:p-4">
+      <div className="grid grid-cols-4 gap-2 px-3 sm:px-4 pb-3">
         <KpiCard label="전체" value={stats.total} />
         <KpiCard label="오늘" value={stats.todayCount} accent="#4dffff" />
         <KpiCard label="대기" value={stats.pending} accent="#ffaa00" />
@@ -408,6 +468,25 @@ export default function SmartStoreOrders({
                     <div>📍 {order.buyer_address || '-'}</div>
                     <div>📅 {fmtDate(order.order_date)}</div>
                   </div>
+                  {/* 착불/선불 + 배송비 표시 */}
+                  {(order.delivery_policy_type || order.delivery_fee_amount > 0) && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="px-2 py-0.5 rounded font-semibold"
+                        style={{
+                          background: order.delivery_policy_type === '착불' || /cash/i.test(order.delivery_policy_type || '')
+                            ? 'rgba(255,170,0,0.15)'
+                            : 'rgba(0,255,136,0.15)',
+                          color: order.delivery_policy_type === '착불' || /cash/i.test(order.delivery_policy_type || '')
+                            ? '#ffaa00'
+                            : '#00ff88',
+                        }}>
+                        {order.delivery_policy_type === '착불' || /cash/i.test(order.delivery_policy_type || '') ? '🚚 착불' : '💰 선불'}
+                      </span>
+                      {order.delivery_fee_amount > 0 && (
+                        <span className="opacity-70">배송비 {fmtNum(order.delivery_fee_amount)}원</span>
+                      )}
+                    </div>
+                  )}
                   {items.map((it) => {
                     const matched = it.match_status === 'matched';
                     const candidate = it.match_status === 'manual';
@@ -494,6 +573,15 @@ export default function SmartStoreOrders({
                         <Truck className="w-4 h-4" />발송 처리
                       </button>
                     )}
+                    {/* 택배 송장 만들기 — 택배 송장 페이지로 이동 + prefill */}
+                    <button
+                      onClick={() => handleCreateShippingLabel(order)}
+                      className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
+                      style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)' }}
+                      title="택배 송장 페이지로 자동 이동 + 구매자 정보 prefill"
+                    >
+                      <Printer className="w-4 h-4" />택배 송장
+                    </button>
                     {order.order_status === 'shipped' && (
                       <div className="flex-1 py-2 text-center text-xs" style={{ color: '#00ff88' }}>
                         ✓ 발송 완료
