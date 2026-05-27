@@ -49,6 +49,7 @@ export async function askGroqChat(prompt, { signal, temperature = 0.1, maxTokens
       };
       if (jsonMode) body.response_format = { type: 'json_object' };
 
+      const startedAt = Date.now();
       const response = await fetch(ENDPOINT, {
         method: 'POST',
         signal,
@@ -58,11 +59,28 @@ export async function askGroqChat(prompt, { signal, temperature = 0.1, maxTokens
         },
         body: JSON.stringify(body),
       });
+      const durationMs = Date.now() - startedAt;
 
       if (response.ok) {
         const data = await response.json();
+        const usage = data.usage || {};
+        recordApiCall({
+          model,
+          promptTokens: usage.prompt_tokens || 0,
+          candidatesTokens: usage.completion_tokens || 0,
+          totalTokens: usage.total_tokens || 0,
+          ok: true, status: response.status, durationMs,
+        });
+        if (usage.prompt_tokens) setContextTokens(usage.prompt_tokens);
         return data?.choices?.[0]?.message?.content || '';
       }
+
+      // 실패 기록
+      recordApiCall({
+        model, promptTokens: 0, candidatesTokens: 0, totalTokens: 0,
+        ok: false, status: response.status, durationMs,
+      });
+
       if ((response.status === 429 || response.status === 503) && retry < 2) {
         await sleep(2000);
         continue;

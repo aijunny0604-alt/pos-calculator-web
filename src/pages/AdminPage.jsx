@@ -17,6 +17,7 @@ import ConfirmDialog from '../components/ui/ConfirmDialog';
 import StatusBadge from '../components/ui/StatusBadge';
 import { formatPrice, matchesSearchQuery, handleSearchFocus, normalizeText } from '../lib/utils';
 import { priceData } from '../lib/priceData';
+import { recordApiCall, setContextTokens } from '../lib/apiUsageTracker';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -2329,12 +2330,30 @@ ${inputText}
       for (const key of geminiKeys) {
         for (const model of models) {
           for (let retry = 0; retry < 3; retry++) {
+            const startedAt = Date.now();
             const resp = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
               { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096 } }) }
             );
-            if (resp.ok) { data = await resp.json(); break; }
+            const durationMs = Date.now() - startedAt;
+            if (resp.ok) {
+              data = await resp.json();
+              const usage = data.usageMetadata || {};
+              recordApiCall({
+                model,
+                promptTokens: usage.promptTokenCount || 0,
+                candidatesTokens: usage.candidatesTokenCount || 0,
+                totalTokens: usage.totalTokenCount || 0,
+                ok: true, status: resp.status, durationMs,
+              });
+              if (usage.promptTokenCount) setContextTokens(usage.promptTokenCount);
+              break;
+            }
+            recordApiCall({
+              model, promptTokens: 0, candidatesTokens: 0, totalTokens: 0,
+              ok: false, status: resp.status, durationMs,
+            });
             if (resp.status === 503) { await new Promise(r => setTimeout(r, 2000)); continue; } // 서버 과부하 → 2초 후 재시도
             break; // 다른 에러(429/403)면 다음 키로
           }

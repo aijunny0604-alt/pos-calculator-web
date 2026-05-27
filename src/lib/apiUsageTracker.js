@@ -12,12 +12,16 @@ const FLUSH_INTERVAL_MS = 3000; // 3초마다 localStorage flush
 // 모델별 가격 (USD per 1M token) — 2025 기준
 // https://ai.google.dev/pricing, https://groq.com/pricing
 const MODEL_PRICING = {
-  // Gemini
+  // Gemini (generative)
   'gemini-2.5-flash': { in: 0.075, out: 0.30, contextWindow: 1_000_000 },
   'gemini-2.0-flash': { in: 0.10, out: 0.40, contextWindow: 1_000_000 },
   'gemini-1.5-flash': { in: 0.075, out: 0.30, contextWindow: 1_000_000 },
+  // Gemini (embedding — 무료티어 무제한 / 유료 input only)
+  'text-embedding-004': { in: 0.0, out: 0.0, contextWindow: 2_048 },
+  'gemini-embedding-001': { in: 0.0, out: 0.0, contextWindow: 2_048 },
   // Groq
   'llama-3.3-70b-versatile': { in: 0.59, out: 0.79, contextWindow: 128_000 },
+  'llama-3.1-70b-versatile': { in: 0.59, out: 0.79, contextWindow: 128_000 },
   'llama-3.1-8b-instant': { in: 0.05, out: 0.08, contextWindow: 128_000 },
   'mixtral-8x7b-32768': { in: 0.24, out: 0.24, contextWindow: 32_768 },
 };

@@ -2,6 +2,7 @@
 // Gemini + Groq 듀얼 추적, 1초 단위 갱신, JARVIS 테마
 
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Activity, ChevronDown, ChevronUp, Zap, Brain, Flame, Cpu } from 'lucide-react';
 import { getUsageStats } from '@/lib/apiUsageTracker';
 
@@ -75,7 +76,10 @@ function GaugeRow({ icon: Icon, label, value, sub, pct, accent }) {
 export default function ApiUsageGauge({ defaultExpanded = false, compact = false }) {
   const [stats, setStats] = useState(() => getUsageStats());
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [chipRect, setChipRect] = useState(null);
   const wrapRef = useRef(null);
+  const chipRef = useRef(null);
+  const popoverRef = useRef(null);
 
   // 1초마다 통계 갱신
   useEffect(() => {
@@ -85,13 +89,28 @@ export default function ApiUsageGauge({ defaultExpanded = false, compact = false
     return () => clearInterval(id);
   }, []);
 
-  // 펼침 상태에서 바깥 클릭 시 닫기
+  // 펼침 시 chip 위치 측정 (Portal Popover 위치 계산용)
+  useEffect(() => {
+    if (!expanded) return;
+    const update = () => {
+      if (chipRef.current) setChipRect(chipRef.current.getBoundingClientRect());
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [expanded]);
+
+  // 펼침 상태에서 바깥 클릭 시 닫기 (chip + popover 둘 다 검사)
   useEffect(() => {
     if (!expanded) return;
     const onDocClick = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
-        setExpanded(false);
-      }
+      const inChip = chipRef.current && chipRef.current.contains(e.target);
+      const inPopover = popoverRef.current && popoverRef.current.contains(e.target);
+      if (!inChip && !inPopover) setExpanded(false);
     };
     const onKey = (e) => {
       if (e.key === 'Escape') setExpanded(false);
@@ -115,6 +134,7 @@ export default function ApiUsageGauge({ defaultExpanded = false, compact = false
     <div className="relative inline-flex" ref={wrapRef}>
       {/* 항상 표시되는 칩 */}
       <button
+        ref={chipRef}
         type="button"
         onClick={() => setExpanded((v) => !v)}
         className="group flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-mono text-[10px] sm:text-[11px] transition-all hover:scale-[1.02]"
@@ -159,22 +179,40 @@ export default function ApiUsageGauge({ defaultExpanded = false, compact = false
           : <ChevronDown className="w-3 h-3 opacity-50 group-hover:opacity-100" />}
       </button>
 
-      {/* 펼침: 칩 아래 absolute 팝오버 */}
-      {expanded && (
+      {/* 펼침: Portal로 document.body에 mount → 부모 stacking context 회피 */}
+      {expanded && typeof document !== 'undefined' && createPortal(
         <PopoverCard
           stats={stats}
+          chipRect={chipRect}
+          popoverRef={popoverRef}
           onClose={() => setExpanded(false)}
-        />
+        />,
+        document.body
       )}
     </div>
   );
 }
 
-function PopoverCard({ stats, onClose }) {
-  // 모바일(sm 미만)은 fixed 전폭 + 12px gap, 데스크탑은 chip 우측 정렬 absolute 340px
+function PopoverCard({ stats, chipRect, popoverRef, onClose }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
+  // 데스크탑: chip 우측 정렬 + chip 바로 아래
+  // 모바일: viewport 전폭 (좌우 12px gap), top 56px
+  const desktopPos = chipRect && !isMobile
+    ? {
+        top: chipRect.bottom + 8,
+        right: Math.max(8, window.innerWidth - chipRect.right),
+        width: 340,
+      }
+    : null;
+
   return (
     <div
-      className="fixed left-3 right-3 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[340px] z-[60] font-mono"
+      ref={popoverRef}
+      className={`fixed z-[80] font-mono ${
+        isMobile ? 'left-3 right-3 top-14' : ''
+      }`}
+      style={desktopPos || undefined}
       role="dialog"
       aria-label="API 사용량 상세"
     >

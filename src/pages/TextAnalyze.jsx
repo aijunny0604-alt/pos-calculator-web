@@ -6,6 +6,8 @@ import {
   Menu, Maximize2, Minimize2,
 } from 'lucide-react';
 import { matchesSearchQuery, normalizeText } from '@/lib/utils';
+import { recordApiCall, setContextTokens } from '@/lib/apiUsageTracker';
+import ApiUsageGauge from '@/components/analytics/ApiUsageGauge';
 
 export default function TextAnalyze({
   products = [],
@@ -493,9 +495,12 @@ ${aiLearningData.slice(0, 50).map(l =>
     const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
     const keys = getGeminiKeys();
     let response = null;
+    let lastModel = models[0];
+    let parsedJson = null;
     for (const key of keys) {
       for (const model of models) {
         for (let retry = 0; retry < 3; retry++) {
+          const startedAt = Date.now();
           response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
             {
@@ -507,7 +512,27 @@ ${aiLearningData.slice(0, 50).map(l =>
               }),
             }
           );
-          if (response.ok) break;
+          const durationMs = Date.now() - startedAt;
+          lastModel = model;
+          if (response.ok) {
+            // 응답을 한 번만 읽고 보관 — usageMetadata 추출
+            parsedJson = await response.json();
+            const usage = parsedJson.usageMetadata || {};
+            recordApiCall({
+              model,
+              promptTokens: usage.promptTokenCount || 0,
+              candidatesTokens: usage.candidatesTokenCount || 0,
+              totalTokens: usage.totalTokenCount || 0,
+              ok: true, status: response.status, durationMs,
+            });
+            if (usage.promptTokenCount) setContextTokens(usage.promptTokenCount);
+            break;
+          }
+          // 실패 기록
+          recordApiCall({
+            model, promptTokens: 0, candidatesTokens: 0, totalTokens: 0,
+            ok: false, status: response.status, durationMs,
+          });
           if (response.status === 503) { await new Promise(r => setTimeout(r, 2000)); continue; }
           break;
         }
@@ -537,8 +562,8 @@ ${aiLearningData.slice(0, 50).map(l =>
         throw new Error(errorMessage);
       }
     } else {
-      const data = await response.json();
-      aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      // parsedJson은 이미 성공 분기에서 한 번 읽음 (계측 위해)
+      aiText = parsedJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     }
 
     let jsonStr = aiText;
@@ -923,6 +948,7 @@ ${aiLearningData.slice(0, 50).map(l =>
               {selectedCount}
             </span>
           )}
+          <ApiUsageGauge />
           <button
             onClick={() => { setTempApiKey(geminiApiKey); setShowApiSettings(true); }}
             className="p-1.5 rounded-lg transition-colors hover:bg-[var(--muted)] active:scale-90"

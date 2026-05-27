@@ -8,6 +8,8 @@
 // 설정:
 //   localStorage 'geminiApiKey' (또는 내장 키 4개 자동 사용)
 
+import { recordApiCall } from './apiUsageTracker';
+
 const EMBED_MODEL = 'text-embedding-004'; // Gemini 무료 임베딩
 const EMBED_DIM = 768;
 const BATCH_SIZE = 100; // 일괄 처리 단위
@@ -39,6 +41,7 @@ export async function embedText(text, { taskType = 'RETRIEVAL_DOCUMENT' } = {}) 
   for (const key of keys) {
     for (let retry = 0; retry < 3; retry++) {
       try {
+        const startedAt = Date.now();
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent?key=${key}`,
           {
@@ -50,10 +53,25 @@ export async function embedText(text, { taskType = 'RETRIEVAL_DOCUMENT' } = {}) 
             }),
           }
         );
+        const durationMs = Date.now() - startedAt;
         if (response.ok) {
           const data = await response.json();
+          // 임베딩은 응답에 토큰 카운트 없음 → 텍스트 길이 기반 추정 (1 token ≈ 4 chars)
+          const estimatedTokens = Math.ceil((text.length || 0) / 4);
+          recordApiCall({
+            model: EMBED_MODEL,
+            promptTokens: estimatedTokens,
+            candidatesTokens: 0,
+            totalTokens: estimatedTokens,
+            ok: true, status: response.status, durationMs,
+          });
           return data?.embedding?.values || null;
         }
+        recordApiCall({
+          model: EMBED_MODEL,
+          promptTokens: 0, candidatesTokens: 0, totalTokens: 0,
+          ok: false, status: response.status, durationMs,
+        });
         if (response.status === 429 || response.status === 503) {
           await sleep(1500);
           continue;
