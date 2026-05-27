@@ -1,5 +1,6 @@
 import { GEMINI_TOOLS, executeTool, buildSystemPrompt } from './geminiTools';
 import { getTodayKST } from './utils';
+import { recordApiCall, setContextTokens } from './apiUsageTracker';
 
 const CACHE_KEY = 'pos_ai_cache_v2'; // v1 → v2 (시스템 프롬프트 변경 시 옛 캐시 자동 무효화)
 const CACHE_TTL = 300000;
@@ -127,6 +128,7 @@ const postGemini = async (contents, { signal, systemPrompt, forcedTools } = {}) 
   for (const model of MODELS) {
     for (const key of keys) {
       for (let retry = 0; retry < 3; retry++) {
+        const startedAt = Date.now();
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
           {
@@ -147,7 +149,25 @@ const postGemini = async (contents, { signal, systemPrompt, forcedTools } = {}) 
           }
         );
 
-        if (response.ok) return response.json();
+        const durationMs = Date.now() - startedAt;
+
+        if (response.ok) {
+          const json = await response.json();
+          // 사용량 트래커 기록 (Gemini usageMetadata)
+          const usage = json.usageMetadata || {};
+          recordApiCall({
+            model,
+            promptTokens: usage.promptTokenCount || 0,
+            candidatesTokens: usage.candidatesTokenCount || 0,
+            totalTokens: usage.totalTokenCount || 0,
+            ok: true,
+            status: response.status,
+            durationMs,
+          });
+          // 컨텍스트 길이 = 입력 토큰만 (출력 제외). 다음 호출의 prompt 크기 추정
+          if (usage.promptTokenCount) setContextTokens(usage.promptTokenCount);
+          return json;
+        }
 
         lastStatus = response.status;
         try {
@@ -156,6 +176,17 @@ const postGemini = async (contents, { signal, systemPrompt, forcedTools } = {}) 
         } catch {
           lastMessage = '';
         }
+
+        // 실패도 기록 (호출 횟수 카운트 — 429 한도 추적용)
+        recordApiCall({
+          model,
+          promptTokens: 0,
+          candidatesTokens: 0,
+          totalTokens: 0,
+          ok: false,
+          status: response.status,
+          durationMs,
+        });
 
         if (response.status === 503 && retry < 2) {
           await sleep(2000);

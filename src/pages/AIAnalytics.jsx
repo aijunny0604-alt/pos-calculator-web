@@ -3,6 +3,7 @@ import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChar
 import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
 import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
+import ApiUsageGauge from '@/components/analytics/ApiUsageGauge';
 import '@/components/analytics/ai-analytics.css';
 import useAIAnalystChat, { writeContextSnapshot } from '@/hooks/useAIAnalystChat';
 
@@ -497,6 +498,7 @@ export default function AIAnalytics({
   // 헤더 우측 액션 버튼 묶음
   const rightActions = (
     <>
+      <ApiUsageGauge />
       {groqEnabled && (
         <span className="hidden sm:inline px-2 py-1 rounded text-[10px] font-mono font-semibold uppercase tracking-wider" style={{
           background: 'rgba(0, 255, 136, 0.15)',

@@ -8,6 +8,7 @@
 // 미설정 시 askGroq는 throw → dispatcher가 catch해서 Gemini 사용
 
 import { GEMINI_TOOLS, executeTool, buildSystemPrompt } from './geminiTools';
+import { recordApiCall, setContextTokens } from './apiUsageTracker';
 
 const MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile'];
 const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
@@ -95,6 +96,7 @@ async function postGroq(messages, { signal } = {}) {
 
   for (const model of MODELS) {
     for (let retry = 0; retry < 3; retry++) {
+      const startedAt = Date.now();
       const response = await fetch(ENDPOINT, {
         method: 'POST',
         signal,
@@ -112,7 +114,24 @@ async function postGroq(messages, { signal } = {}) {
         }),
       });
 
-      if (response.ok) return response.json();
+      const durationMs = Date.now() - startedAt;
+
+      if (response.ok) {
+        const json = await response.json();
+        const usage = json.usage || {};
+        recordApiCall({
+          model,
+          promptTokens: usage.prompt_tokens || 0,
+          candidatesTokens: usage.completion_tokens || 0,
+          totalTokens: usage.total_tokens || 0,
+          ok: true,
+          status: response.status,
+          durationMs,
+        });
+        // 컨텍스트 길이 = 입력 토큰만 (출력 제외). 다음 호출의 prompt 크기 추정
+        if (usage.prompt_tokens) setContextTokens(usage.prompt_tokens);
+        return json;
+      }
 
       lastStatus = response.status;
       try {
@@ -121,6 +140,17 @@ async function postGroq(messages, { signal } = {}) {
       } catch {
         lastMessage = '';
       }
+
+      // 실패 기록
+      recordApiCall({
+        model,
+        promptTokens: 0,
+        candidatesTokens: 0,
+        totalTokens: 0,
+        ok: false,
+        status: response.status,
+        durationMs,
+      });
 
       // 429 (한도) / 503 (서버) 재시도, 그 외는 다음 모델
       if ((response.status === 429 || response.status === 503) && retry < 2) {
