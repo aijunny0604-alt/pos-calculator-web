@@ -171,13 +171,10 @@ export default function ApiUsageGauge({ defaultExpanded = false, compact = false
 }
 
 function PopoverCard({ stats, onClose }) {
+  // 모바일(sm 미만)은 fixed 전폭 + 12px gap, 데스크탑은 chip 우측 정렬 absolute 340px
   return (
     <div
-      className="absolute right-0 top-full mt-2 z-[60] font-mono"
-      style={{
-        width: 'min(340px, calc(100vw - 24px))',
-        maxWidth: '92vw',
-      }}
+      className="fixed left-3 right-3 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[340px] z-[60] font-mono"
       role="dialog"
       aria-label="API 사용량 상세"
     >
