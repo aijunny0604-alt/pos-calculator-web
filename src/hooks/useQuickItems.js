@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'pos_quick_items_v1';
+const MIGRATION_KEY = 'pos_quick_items_migration_v2'; // 2026-05: 택배비 5000 → 7300 마이그레이션 플래그
 
 const DEFAULT_PRESETS = [
-  { id: 'shipping', name: '택배비', defaultPrice: 5000, builtin: true },
+  { id: 'shipping', name: '택배비', defaultPrice: 7300, builtin: true },
   { id: 'quick', name: '퀵비', defaultPrice: 30000, builtin: true },
   { id: 'fee', name: '수수료', defaultPrice: 0, builtin: true },
 ];
@@ -14,6 +15,27 @@ function load() {
     if (!raw) return DEFAULT_PRESETS;
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_PRESETS;
+
+    // 일회성 마이그레이션 — 기존 사용자의 builtin 택배비가 5000이면 7300으로 갱신
+    // (사용자가 직접 수정한 금액은 건드리지 않음 — defaultPrice가 5000일 때만)
+    try {
+      if (!localStorage.getItem(MIGRATION_KEY)) {
+        let migrated = false;
+        const next = parsed.map((it) => {
+          if (it?.id === 'shipping' && it?.builtin && Number(it?.defaultPrice) === 5000) {
+            migrated = true;
+            return { ...it, defaultPrice: 7300 };
+          }
+          return it;
+        });
+        localStorage.setItem(MIGRATION_KEY, '1');
+        if (migrated) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          return next;
+        }
+      }
+    } catch {}
+
     return parsed;
   } catch {
     return DEFAULT_PRESETS;
