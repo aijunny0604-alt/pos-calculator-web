@@ -99,10 +99,13 @@ export default function OrderConfirmEditable({
   const showCandidatesInline = !customerId && initialParams.customerCandidates?.length > 0 && !customerQuery;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 sm:py-10 backdrop-blur-sm overflow-y-auto">
       <div
-        className="movis-glass-card w-full max-w-2xl p-5 sm:p-6 my-8 min-w-0"
-        style={{ background: 'rgba(10, 25, 41, 0.96)' }}
+        className="movis-glass-card w-full max-w-2xl p-5 sm:p-6 my-6 sm:my-10 min-w-0 flex flex-col"
+        style={{
+          background: 'rgba(10, 25, 41, 0.96)',
+          maxHeight: 'calc(100vh - 80px)', // 모바일/PC 모두 위아래 40px gap 보장
+        }}
       >
         {/* 헤더 */}
         <div className="flex items-center gap-2 mb-4 movis-text-primary">
@@ -122,6 +125,9 @@ export default function OrderConfirmEditable({
             <Edit3 className="w-4 h-4" />{editMode ? '수정 중' : '수정'}
           </button>
         </div>
+
+        {/* 스크롤 영역 시작 (헤더/액션 버튼은 고정, 가운데만 스크롤) */}
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1" style={{ scrollbarGutter: 'stable' }}>
 
         {/* 경고/이슈 영역 */}
         {pending.warnings.length > 0 && (
@@ -354,17 +360,20 @@ export default function OrderConfirmEditable({
           </div>
         )}
 
-        {/* 안내 */}
+        </div>
+        {/* 스크롤 영역 종료 */}
+
+        {/* 안내 (스크롤 밖, 항상 보임) */}
         {!canConfirm && (
-          <div className="text-sm mb-3 px-3 py-2 rounded-lg" style={{ background: 'rgba(255,77,109,0.1)', color: '#ff4d6d', border: '1px solid rgba(255,77,109,0.3)' }}>
+          <div className="text-sm mt-3 mb-2 px-3 py-2 rounded-lg" style={{ background: 'rgba(255,77,109,0.1)', color: '#ff4d6d', border: '1px solid rgba(255,77,109,0.3)' }}>
             {!isCustomerOK && '⚠ 거래처를 확정해주세요. '}
             {hasZeroPrice && '⚠ 단가 0원 항목이 있어요. '}
             {items.length === 0 && '⚠ 항목이 없습니다.'}
           </div>
         )}
 
-        {/* 액션 버튼 */}
-        <div className="flex gap-2 mt-4">
+        {/* 액션 버튼 (스크롤 밖, 고정) */}
+        <div className="flex gap-2 mt-4 pt-3" style={{ borderTop: canConfirm ? 'none' : '1px solid rgba(0,212,255,0.15)' }}>
           <button
             onClick={handleConfirm}
             disabled={executing || !canConfirm}

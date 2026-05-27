@@ -1,9 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import legacy from '@vitejs/plugin-legacy'
 
 export default defineConfig({
   base: '/pos-calculator-web/',
-  plugins: [react()],
+  plugins: [
+    react(),
+    // 구형 Samsung Internet / Android Chrome 호환 — 흰 화면 버그 fix
+    // 모던 빌드는 그대로 + 레거시 빌드(SystemJS) 폴리필 자동 주입
+    legacy({
+      targets: ['defaults', 'Samsung >= 8', 'Android >= 7', 'iOS >= 11'],
+      modernPolyfills: true, // 모던 브라우저도 동적 import 안정성 ↑
+      renderLegacyChunks: true,
+    }),
+  ],
   resolve: {
     alias: { '@': '/src' }
   },

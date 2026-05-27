@@ -78,6 +78,19 @@ export default function AIAnalytics({
   const [customerReturns, setCustomerReturns] = useState([]);
   const [loadingExtra, setLoadingExtra] = useState(true);
 
+  // 컴포넌트 자체 마운트 페이드인 (AppLayout wrapper의 페이드인이 Suspense swap에 의해 무력화되는 문제 fix)
+  // PC: chunk가 너무 빨리 로드되어 wrapper 페이드인보다 swap이 빠름 → 페이드인 안 보임
+  // iPhone: chunk 로드 느려서 페이드인 시간 동안 swap → 정상 보임
+  const [mountFadeIn, setMountFadeIn] = useState(false);
+  useEffect(() => {
+    // requestAnimationFrame 2번으로 mount → paint → opacity 트랜지션 보장
+    const id1 = requestAnimationFrame(() => {
+      const id2 = requestAnimationFrame(() => setMountFadeIn(true));
+      return () => cancelAnimationFrame(id2);
+    });
+    return () => cancelAnimationFrame(id1);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -560,7 +573,11 @@ export default function AIAnalytics({
   return (
     <div
       className="ai-analytics-root flex flex-col h-full overflow-hidden relative"
-      style={{ perspective: 'var(--jarvis-perspective)' }}
+      style={{
+        perspective: 'var(--jarvis-perspective)',
+        opacity: mountFadeIn ? 1 : 0,
+        transition: 'opacity 1100ms cubic-bezier(0.4, 0, 0.2, 1)',
+      }}
     >
       <div
         className="flex flex-col h-full overflow-hidden"
