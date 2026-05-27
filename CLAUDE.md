@@ -1,9 +1,145 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-05-25 (MOVIS UI 핫픽스 + 자율 분석)
+> 마지막 업데이트: 2026-05-27 (네이버 스마트스토어 연동 + API 사용량 게이지 + MOVIS 매칭 강화)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-05-27 — 네이버 스마트스토어 실시간 연동 + API 사용량 게이지 + MOVIS 매칭 강화
+
+오늘 누적 23 커밋. 핵심 기능 5가지 추가 + 다수 fix.
+
+### 🛍 네이버 스마트스토어 주문 실시간 연동 (Phase 1+2)
+
+**아키텍처:**
+- **DB**: `external_orders` + `external_order_items` (provider, raw_payload JSONB, 매칭/발주확인/발송처리/배송비/착불선불 컬럼)
+- **DB 추가**: `external_oauth_tokens` (토큰 캐시), `external_sync_cursors` (cursor), `external_sync_logs` (실행 로그)
+- **Edge Functions** ([Supabase Dashboard → Edge Functions](https://supabase.com/dashboard/project/jubzppndcclhnvgbvrxr/functions)):
+  - `naver-webhook` — Phase 1 mock 수신 (x-webhook-token 인증)
+  - `naver-order-action` — 발주확인 + 발송처리 (OAuth + 실제 네이버 API 호출)
+  - `naver-sync-orders` — 변경 주문 polling (DEBUG MODE)
+- **매장 PC sync bridge** (`C:\Users\MOVEAM_PC\naver-sync-bridge\`):
+  - 네이버 IP 화이트리스트(`115.22.7.219`) 우회용 매장 PC polling
+  - Node 스크립트 + Windows 작업 스케줄러 (1분 주기)
+  - bcryptjs OAuth + DB 토큰 캐시 + 401 fallback
+  - 변경 주문 polling + 상세 일괄 fetch (batch query API, 7일 skip)
+  - 자동 매칭: 제품 fuzzyMatch + 고객 전화번호 정확일치 우선
+- **Supabase Secrets** (사장님이 Dashboard에 직접 등록):
+  - `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`, `NAVER_WEBHOOK_SECRET`
+- **`.env`** (매장 PC만): 위 3개 + `SUPABASE_SERVICE_ROLE_KEY` + `SUPABASE_URL` + `SYNC_INTERVAL_SECONDS=60`
+
+**UI** ([src/pages/SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx)):
+- Realtime 구독 (`supabaseClient.channel`) → 새 주문 즉시 토스트
+- **SyncMonitorWidget** ([src/components/SyncMonitorWidget.jsx](src/components/SyncMonitorWidget.jsx)) — LIVE/STALE 배지, 마지막 sync, 24h 성공률, [지금 동기화] 버튼 (RPC `request_naver_sync_now()` 호출)
+- 헤더 [네이버 관리자] 외부 링크 (https://sell.smartstore.naver.com/#/home/dashboard)
+- 주문 카드: 🚚 착불 / 💰 선불 배지 + 배송비 표시
+- 액션 버튼: [발주확인] / [내부주문 전환] / [발송처리 모달] / [📦 택배 송장]
+- 택배 송장 연동: localStorage `shippingCustomEntries`에 prefill 후 ShippingLabel 페이지 자동 이동
+- 매칭 시도 dropdown (수동 확정 필수)
+
+**라우팅**: 사이드바 메뉴 `스마트스토어 주문` (Store 아이콘, AI 주문인식 다음), `case 'smartstore'` 라우팅 + `setCurrentPage` prop 전달.
+
+### 📊 MOVIS API 사용량 실시간 게이지 (Gemini + Groq 듀얼)
+
+- **트래커** ([src/lib/apiUsageTracker.js](src/lib/apiUsageTracker.js)): localStorage 기반 호출 기록, in-memory + 3초 flush 패턴, 모델별 가격표, 무료티어 한도 (override 가능)
+- **위젯** ([src/components/analytics/ApiUsageGauge.jsx](src/components/analytics/ApiUsageGauge.jsx)): JARVIS 테마 게이지 + Portal (z-index 충돌 회피) + Popover (1초 갱신, 칩 토글)
+- **계측 위치 5개**: `geminiAnalyst.postGemini` / `groqAnalyst.postGroq+askGroqChat` / `embedding.embedText` / `TextAnalyze.jsx` Gemini fetch / `AdminPage.jsx` 자연어 fetch — 모두 `usageMetadata` 또는 `data.usage` 기반 토큰 정확 측정
+- **source 분류**: `movis` / `order-recog` / `admin-nl` / `embedding` — 4 카테고리 자동 분류, Popover에 BY SOURCE 섹션
+- **마운트 위치**: MOVIS 페이지 + AI 주문인식 페이지 헤더 우측
+
+### 🧠 MOVIS 주문 등록 강화 — 유사 후보 + 편집 모달
+
+- **fuzzyMatch.js 신규** ([src/lib/fuzzyMatch.js](src/lib/fuzzyMatch.js)): matchCustomer + matchItem (Levenshtein + 초성 + 토큰 + 부분일치 점수 max). 정확 매칭만 status:'exact', 후보 0.6 임계
+- **OrderConfirmEditable.jsx 신규**: saveOrder 전용 편집 모달
+  - 거래처 후보 dropdown ("💡 혹시 이거?") + 검색 input + [신규 등록] 명시 버튼
+  - 항목 inline 편집 (수량/단가) + [변경] dropdown (alternatives + 검색)
+  - 추가 비용 (택배비 7,300원 / 퀵비 30,000원 / 수수료 + 커스텀) — `useQuickItems` preset 활용
+  - 추가 지시사항 textarea
+  - canConfirm 가드: 거래처 OK + 0원 없음 (surcharge 제외) + 항목 1개+
+  - max-h calc(100vh - 80px) + 내부 스크롤
+  - [수정] 버튼 항상 노출
+- **geminiTools.js saveOrder**: matchCustomer 사용 (exact만 통과), customerCandidates + items.alternatives + zeroPrice 플래그 + needsConfirmation 첨부
+- **MOVIS 시스템 프롬프트 강화**: 동의어 매핑 30+ (스텐→스덴, 직관레조→CH 등), 자판 오타(ㅡ→-), 수량 분리 vs 규격 보존, AI 학습 사례 15건 주입
+
+### 🚀 PC 페이드인 + 구형 갤럭시 호환
+
+- **AIAnalytics 자체 마운트 페이드인**: AppLayout wrapper의 페이드인이 PC에서 Suspense swap에 무력화되는 문제 → 자체 opacity transition 1100ms cubic-bezier 추가
+- **`@vitejs/plugin-legacy`**: 구형 Samsung Internet 8+ / Android 7+ / iOS 11+ 호환 (SystemJS 폴리필 자동 주입). React.lazy 동적 import 흰 화면 fix
+
+### 📦 매장 PC sync bridge 폴더 구조
+
+```
+C:\Users\MOVEAM_PC\naver-sync-bridge\
+  ├── sync.js              # OAuth + polling + detail + 매칭 + upsert (1분 주기)
+  ├── package.json         # bcryptjs + dotenv
+  ├── .env                 # 4개 필수 환경변수 (Naver + Supabase)
+  ├── .env.example         # 템플릿
+  ├── .gitignore           # .env 보호
+  ├── start.bat            # 더블클릭 실행
+  ├── install-scheduler.ps1  # Windows 작업 스케줄러 자동 등록
+  └── README.md            # 설치/실행 가이드
+```
+
+**작업 스케줄러**: `MOVE-WEP-Naver-Sync-Bridge` (At Logon 트리거).
+
+**CLI 옵션**:
+- `node sync.js` — 무한 루프 (60초 간격)
+- `node sync.js --once` — 1회 실행
+- `node sync.js --backfill 30` — 30일치 backfill (24시간 윈도우 분할 + rate limit sleep 1.2s)
+
+### 🚦 외부 주문 매칭 점수 임계
+
+| 점수 | 상태 | 처리 |
+|------|------|------|
+| 0.95+ | matched | 자동 확정 |
+| 0.7~0.95 | manual | 후보 표시, 사용자 확인 필요 |
+| <0.7 | missing / no-candidate | 사용자 수동 매칭 |
+
+**Codex 경고 반영**: 토큰 매칭 너무 관대 fix — substring 매칭 4자 이상만, STOPWORDS 제외 (`타이어` `제품` `용` 등), F1 (양방향 hits / sum) 계산.
+
+### 📋 환경변수 (전체)
+
+**클라이언트 (.env.local 또는 vite-config) — 없음** (모든 API 키는 코드 내장 또는 Supabase Secrets).
+
+**Supabase Edge Function Secrets** (Dashboard → Settings → Edge Functions → Secrets):
+- `NAVER_CLIENT_ID` — 네이버 커머스 API Application ID
+- `NAVER_CLIENT_SECRET` — 네이버 커머스 API Application Secret (`$2a$10$...` bcrypt 형식)
+- `NAVER_WEBHOOK_SECRET` — 임의 secret 토큰 (매장 PC sync bridge ↔ Edge Function 인증)
+
+**매장 PC `.env`** (`C:\Users\MOVEAM_PC\naver-sync-bridge\.env`):
+- 위 3개 + `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` + `SYNC_INTERVAL_SECONDS=60`
+
+### 🔑 Supabase RPC
+
+- `request_naver_sync_now()` — `external_sync_cursors.last_changed_at`을 `now() - 1분`으로 갱신. anon/authenticated 호출 가능. SmartStoreOrders 페이지의 [지금 동기화] 버튼에서 사용
+
+### 📦 DB 테이블 추가 (Supabase)
+
+- `external_orders` — 외부 마켓플레이스 주문 마스터 (provider, provider_order_id UNIQUE, 매칭, 발주확인, 배송정책, raw_payload)
+- `external_order_items` — 주문 라인 + 매칭 + 발송처리 (productOrderId UNIQUE, dispatch_status, tracking_number)
+- `external_oauth_tokens` — provider별 OAuth 토큰 캐시 (RLS service_role only)
+- `external_sync_cursors` — provider별 마지막 동기화 cursor (RLS SELECT anon 허용)
+- `external_sync_logs` — sync 실행 로그 (RLS SELECT anon 허용, 운영 모니터링용)
+
+### 💸 택배비 기본 금액 7,300원
+
+- `useQuickItems.js` DEFAULT_PRESETS 변경 + 일회성 마이그레이션 (`pos_quick_items_migration_v2` 플래그) — 기존 사용자 5,000원 → 7,300원 자동 갱신
+- MOVIS 주문 모달 [수정] 모드에서 택배비/퀵비/수수료 빠른 추가 + 커스텀 입력
+
+### 🆕 신규 파일 목록
+
+```
+src/components/SyncMonitorWidget.jsx       # 스마트스토어 sync 모니터링 위젯
+src/components/analytics/ApiUsageGauge.jsx # API 사용량 실시간 게이지
+src/components/analytics/OrderConfirmEditable.jsx # MOVIS 주문 편집 모달
+src/lib/apiUsageTracker.js                 # API 사용량 트래커 (Gemini + Groq + 임베딩)
+src/lib/fuzzyMatch.js                      # 거래처/제품 공통 fuzzy 매칭
+src/pages/SmartStoreOrders.jsx             # 스마트스토어 주문 페이지
+```
+
+**외부 폴더**: `C:\Users\MOVEAM_PC\naver-sync-bridge\` (Git 무관, 매장 PC 전용)
+
+---
 
 ## 🆕 v2026-05-25 (2차) — Containing-block 함정 6건 핫픽스
 
@@ -292,6 +428,20 @@ npx gh-pages -d dist     # GitHub Pages 배포
 
 > `vite.config.js`에 `base: '/pos-calculator-web/'` 설정됨. `--base` 사용 시 빈 페이지 발생.
 
+> **v2026-05-27 추가**: `@vitejs/plugin-legacy` 도입 → 빌드 시 `*-legacy-*.js` chunk 자동 생성 (구형 Samsung Internet 8+ / Android 7+ 호환). 빌드 시간 ~1분으로 증가했지만 호환성 ↑
+
+### 매장 PC sync bridge (별도 폴더, GitHub 미포함)
+
+```bash
+cd C:\Users\MOVEAM_PC\naver-sync-bridge
+npm install                  # 최초 1회
+node sync.js --once          # 1회 테스트
+node sync.js                 # 무한 루프 (60초 간격)
+node sync.js --backfill 30   # 30일 backfill
+start.bat                    # 더블클릭 실행
+powershell -ExecutionPolicy Bypass -File install-scheduler.ps1  # 작업 스케줄러 자동 등록
+```
+
 ## 핵심 규칙
 
 - **텍스트 표시**: `truncate` 금지. 제품명/메모는 `break-words leading-snug`, 한국어 주소/이름은 `break-keep leading-snug` 사용. flex 자식에는 `min-w-0`, 아이콘/버튼은 `flex-shrink-0` 필수
@@ -309,18 +459,29 @@ npx gh-pages -d dist     # GitHub Pages 배포
 - **payment_records 갱신**: `balance`, `payment_status`는 **generated columns**. INSERT/UPDATE 페이로드에 절대 포함 금지 (400 code:428C9). `paid_amount`만 갱신하면 DB가 자동 계산
 - **완불체크 동기화**: `useManualPaid.setPaid(orderId, method, order, customers)` — 4번째 인자 customers 필수 (N+1 회피). **모든 호출부 4-arg 강제** (2026-05-11 WARN fix). `CustomerDetailModal`은 단일 거래처 컨텍스트라 `[customer]` 배열로 전달. 동기화 실패 시 호출부에서 `res.syncResult.reason === 'no_customer'` 검사하여 alert. 자동 history 식별자: `memo` prefix `[자동] 완불체크`
 - **단건 주문 조회**: `supabase.getOrderById(id)` — payment_record.order_id가 orders 캐시에 없을 때 안전한 단건 조회. 신규 함수 (2026-05-11 Critical #1 fix). encodeURIComponent + null 가드 내장
-- **부가 항목 (QuickItemBar)**: 택배비/퀵비/수수료 등은 `items` 배열에 `{ name, price, quantity:1, isCustom:true, presetId? }`로 저장. 프리셋은 localStorage `pos_quick_items_v1`에 보관. 빌트인 3개는 `builtin:true`로 보호되어 삭제 불가
+- **부가 항목 (QuickItemBar)**: 택배비/퀵비/수수료 등은 `items` 배열에 `{ name, price, quantity:1, isCustom:true, presetId? }`로 저장. 프리셋은 localStorage `pos_quick_items_v1`에 보관. 빌트인 3개는 `builtin:true`로 보호되어 삭제 불가. **v2026-05-27 변경**: 택배비 기본 5,000 → 7,300원 + 일회성 마이그레이션 (`pos_quick_items_migration_v2` 플래그)
+- **MOVIS 주문 등록 (v2026-05-27)**: `saveOrder` 전용 모달 `OrderConfirmEditable`. 거래처/제품 fuzzy 매칭 후보 dropdown + 명시 등록 클릭 (자동 신규 등록 금지) + 인자 직접 편집 + 추가 비용 (택배비 등 surcharge isSurcharge:true 플래그) + 추가 지시사항 textarea. `id: surcharge-{timestamp}` 접두사라 `deductStock` 자동 skip
+- **MOVIS API 호출 계측 (v2026-05-27)**: 모든 Gemini/Groq fetch에 `recordApiCall({ source: 'movis'|'order-recog'|'admin-nl'|'embedding' })` 호출 필수. usageMetadata/data.usage 기반 토큰 정확 측정. `setContextTokens(promptTokens)` — 다음 호출 컨텍스트 추정용
+- **네이버 스마트스토어 연동 (v2026-05-27)**: 매장 PC `naver-sync-bridge`가 1분마다 polling. **IP 화이트리스트(115.22.7.219)는 사장님 매장 KT IP**. 모뎀 재부팅 시 IP 바뀌면 재등록 필요. cursor를 7일 전으로 강제 갱신하면 옛 주문 다시 fetch (의도된 동작)
+- **외부 주문 매칭 임계 (v2026-05-27)**: 0.95+ matched / 0.7~0.95 manual (사용자 확인 필수, top1 자동 선택 금지) / <0.7 missing. 토큰 매칭은 STOPWORDS (`타이어` `제품` `용` 등) 제외 + F1 양방향 계산
 
 ## Supabase
 
 - URL: `https://jubzppndcclhnvgbvrxr.supabase.co`
-- 테이블: orders, products, customers, customer_returns, saved_carts, ai_learning, **payment_records**, **payment_history**, **manual_paid_orders**
+- 테이블: orders, products, customers, customer_returns, saved_carts, ai_learning, **payment_records**, **payment_history**, **manual_paid_orders**, **external_orders**, **external_order_items**, **external_oauth_tokens**, **external_sync_cursors**, **external_sync_logs**
 - 관리자 비밀번호: `4321`
 - **orders 주의**: `updated_at`, `status` 컬럼 없음. PATCH 시 미존재 컬럼 포함하면 PGRST204로 전체 실패
 - **customer_returns 주의**: PK는 `id`(bigint auto), 삭제 시 `return_id`(text) 사용
 - **payment_records 주의** (v2026-04-30): `balance`, `payment_status`는 **generated columns** (DB 자동 계산). UPDATE 페이로드에 포함하면 `400 code:428C9 "can only be updated to DEFAULT"`. `paid_amount`만 갱신
 - **payment_history**: `payment_record_id`(FK), `amount`, `method`, `paid_at`, `memo`. 자동 생성된 row는 `memo` prefix `[자동] 완불체크 (수단)`로 식별
 - **manual_paid_orders**: 수동 완불 체크의 시각 마커 (UPSERT key: `order_id`). useManualPaid 훅이 멀티 디바이스 Realtime 동기화
+- **external_orders 주의** (v2026-05-27): `provider` + `provider_order_id` UNIQUE. REPLICA IDENTITY FULL (Realtime UPDATE 알림). `delivery_policy_type` (착불/선불), `delivery_fee_amount`, `detail_fetched_at` (7일 skip 키)
+- **external_order_items 주의**: `provider_product_order_id` UNIQUE. `match_status` (pending/matched/manual/no-candidate), `dispatch_status` (pending/sending/success/failed), `tracking_number`. `provider_product_name` NOT NULL — detail 없으면 placeholder
+- **external_oauth_tokens 주의**: provider별 1개 row (PK = provider). RLS 차단 (service_role only). 만료 5분 전 자동 갱신
+- **external_sync_cursors 주의**: provider별 마지막 sync 시점. SELECT는 anon 허용 (위젯 read용), UPDATE는 service_role + RPC `request_naver_sync_now()`만
+- **external_sync_logs 주의**: 5분 cron + 매장 PC 1분 polling 모두 기록. SELECT anon 허용 (SyncMonitorWidget 24h 성공률 계산)
+- **Edge Functions**: `naver-webhook` (Phase 1 mock 수신), `naver-order-action` (발주확인+발송처리, OAuth+401 fallback), `naver-sync-orders` (polling DEBUG MODE)
+- **RPC**: `request_naver_sync_now()` — cursor 1분 전으로 갱신 (수동 동기화 트리거)
 
 ### localStorage 키 일람
 - `pos_invoice_line_overrides_v1` — 명세서 라인 수동 수정 (원본 무영향)
@@ -334,6 +495,11 @@ npx gh-pages -d dist     # GitHub Pages 배포
 - `pos_ai_quick_prompts_usage_v1` — AI 추천 질문 사용 빈도 (정렬용)
 - `pos_ai_rfm_thresholds_v1` — RFM 점수 임계값 (사용자 조정 가능)
 - `pos_ai_insights_v1` — AI 분석 인사이트 저장 (Phase 5 예정, 키만 예약)
+- `pos_quick_items_migration_v2` — v2026-05-27 택배비 5,000 → 7,300 일회성 마이그레이션 플래그
+- `movis_api_usage_v1` — API 사용량 트래커 (Gemini + Groq + 임베딩 호출 기록, 1일 보관, in-memory + 3초 flush)
+- `movis_api_limits_override` — 무료티어 한도 override (`{ gemini: {rpd, rpm}, groq: {rpd, rpm} }` JSON, 옵셔널)
+- `movis_ctx_tokens` — 현재 대화 prompt token 추정치 (sessionStorage)
+- `shippingCustomEntries` — 택배 송장 사용자 정의 항목 (스마트스토어 주문에서 prefill 추가됨)
 
 ## 상세 문서
 
