@@ -35,7 +35,7 @@ export function hasGroqKey() {
  * @param {object} options — { signal, temperature, maxTokens, jsonMode }
  * @returns {Promise<string>} text response
  */
-export async function askGroqChat(prompt, { signal, temperature = 0.1, maxTokens = 8192, jsonMode = false } = {}) {
+export async function askGroqChat(prompt, { signal, temperature = 0.1, maxTokens = 8192, jsonMode = false, source = 'order-recog' } = {}) {
   const key = getGroqKey();
   if (!key) throw new Error('GROQ_NO_KEY');
 
@@ -70,6 +70,7 @@ export async function askGroqChat(prompt, { signal, temperature = 0.1, maxTokens
           candidatesTokens: usage.completion_tokens || 0,
           totalTokens: usage.total_tokens || 0,
           ok: true, status: response.status, durationMs,
+          source,
         });
         if (usage.prompt_tokens) setContextTokens(usage.prompt_tokens);
         return data?.choices?.[0]?.message?.content || '';
@@ -79,6 +80,7 @@ export async function askGroqChat(prompt, { signal, temperature = 0.1, maxTokens
       recordApiCall({
         model, promptTokens: 0, candidatesTokens: 0, totalTokens: 0,
         ok: false, status: response.status, durationMs,
+        source,
       });
 
       if ((response.status === 429 || response.status === 503) && retry < 2) {
@@ -145,6 +147,7 @@ async function postGroq(messages, { signal } = {}) {
           ok: true,
           status: response.status,
           durationMs,
+          source: 'movis',
         });
         // 컨텍스트 길이 = 입력 토큰만 (출력 제외). 다음 호출의 prompt 크기 추정
         if (usage.prompt_tokens) setContextTokens(usage.prompt_tokens);
@@ -168,6 +171,7 @@ async function postGroq(messages, { signal } = {}) {
         ok: false,
         status: response.status,
         durationMs,
+        source: 'movis',
       });
 
       // 429 (한도) / 503 (서버) 재시도, 그 외는 다음 모델

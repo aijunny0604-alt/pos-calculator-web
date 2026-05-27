@@ -524,6 +524,7 @@ ${aiLearningData.slice(0, 50).map(l =>
               candidatesTokens: usage.candidatesTokenCount || 0,
               totalTokens: usage.totalTokenCount || 0,
               ok: true, status: response.status, durationMs,
+              source: 'order-recog',
             });
             if (usage.promptTokenCount) setContextTokens(usage.promptTokenCount);
             break;
@@ -532,6 +533,7 @@ ${aiLearningData.slice(0, 50).map(l =>
           recordApiCall({
             model, promptTokens: 0, candidatesTokens: 0, totalTokens: 0,
             ok: false, status: response.status, durationMs,
+            source: 'order-recog',
           });
           if (response.status === 503) { await new Promise(r => setTimeout(r, 2000)); continue; }
           break;

@@ -3,8 +3,8 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, ChevronDown, ChevronUp, Zap, Brain, Flame, Cpu } from 'lucide-react';
-import { getUsageStats } from '@/lib/apiUsageTracker';
+import { Activity, ChevronDown, ChevronUp, Zap, Brain, Flame, Cpu, Layers } from 'lucide-react';
+import { getUsageStats, SOURCES } from '@/lib/apiUsageTracker';
 
 const REFRESH_INTERVAL_MS = 1000;
 
@@ -282,6 +282,37 @@ function PopoverCard({ stats, chipRect, popoverRef, onClose }) {
             pct={Math.min(100, (stats.burnRatePerHour / 2) * 100)}
           />
         </div>
+
+        {/* BY SOURCE — 호출 발생한 소스만 노출 */}
+        {stats.bySource && Object.entries(stats.bySource).some(([, s]) => s.calls > 0) && (
+          <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(0, 212, 255, 0.18)' }}>
+            <div className="flex items-center gap-1.5 mb-2 text-[10px] uppercase tracking-wider font-mono" style={{ color: 'var(--jarvis-text-muted, #7e9cb8)' }}>
+              <Layers className="w-3 h-3" style={{ color: '#4dffff' }} />
+              BY SOURCE
+            </div>
+            <div className="space-y-1.5">
+              {Object.entries(stats.bySource)
+                .filter(([, s]) => s.calls > 0)
+                .sort(([ka], [kb]) => (SOURCES[ka]?.order || 99) - (SOURCES[kb]?.order || 99))
+                .map(([key, src]) => {
+                  const meta = SOURCES[key] || SOURCES.other;
+                  return (
+                    <div key={key} className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="flex items-center gap-1.5 truncate" style={{ color: '#e8f4fd' }}>
+                        <span className="opacity-80">{meta.icon}</span>
+                        <span className="truncate">{meta.label}</span>
+                      </span>
+                      <span className="flex items-center gap-2 flex-shrink-0 ml-2" style={{ color: 'var(--jarvis-text-muted, #7e9cb8)' }}>
+                        <span style={{ color: '#4dffff' }}>{src.calls}건</span>
+                        <span>{formatTokens(src.tokens)}tok</span>
+                        <span style={{ color: '#00ff88', minWidth: '52px', textAlign: 'right' }}>${src.cost.toFixed(4)}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
 
         {/* 폴백 표시 */}
         {stats.fallbackActive && (

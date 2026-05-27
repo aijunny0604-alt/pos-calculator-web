@@ -2346,6 +2346,7 @@ ${inputText}
                 candidatesTokens: usage.candidatesTokenCount || 0,
                 totalTokens: usage.totalTokenCount || 0,
                 ok: true, status: resp.status, durationMs,
+                source: 'admin-nl',
               });
               if (usage.promptTokenCount) setContextTokens(usage.promptTokenCount);
               break;
@@ -2353,6 +2354,7 @@ ${inputText}
             recordApiCall({
               model, promptTokens: 0, candidatesTokens: 0, totalTokens: 0,
               ok: false, status: resp.status, durationMs,
+              source: 'admin-nl',
             });
             if (resp.status === 503) { await new Promise(r => setTimeout(r, 2000)); continue; } // 서버 과부하 → 2초 후 재시도
             break; // 다른 에러(429/403)면 다음 키로

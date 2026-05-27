@@ -163,6 +163,7 @@ const postGemini = async (contents, { signal, systemPrompt, forcedTools } = {}) 
             ok: true,
             status: response.status,
             durationMs,
+            source: 'movis',
           });
           // 컨텍스트 길이 = 입력 토큰만 (출력 제외). 다음 호출의 prompt 크기 추정
           if (usage.promptTokenCount) setContextTokens(usage.promptTokenCount);
@@ -186,6 +187,7 @@ const postGemini = async (contents, { signal, systemPrompt, forcedTools } = {}) 
           ok: false,
           status: response.status,
           durationMs,
+          source: 'movis',
         });
 
         if (response.status === 503 && retry < 2) {

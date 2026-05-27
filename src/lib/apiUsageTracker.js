@@ -109,6 +109,15 @@ const computeCost = (model, promptTokens = 0, candidatesTokens = 0) => {
          (candidatesTokens / 1_000_000) * pricing.out;
 };
 
+// Source 분류 — 어디서 호출됐는지
+export const SOURCES = {
+  movis: { label: 'MOVIS · AI 분석', icon: '🧠', order: 1 },
+  'order-recog': { label: 'AI 주문 인식', icon: '📝', order: 2 },
+  'admin-nl': { label: '관리자 자연어', icon: '⚙️', order: 3 },
+  embedding: { label: '임베딩 인덱싱', icon: '🔍', order: 4 },
+  other: { label: '기타', icon: '·', order: 99 },
+};
+
 /**
  * API 호출 기록.
  * @param {Object} entry
@@ -119,6 +128,7 @@ const computeCost = (model, promptTokens = 0, candidatesTokens = 0) => {
  * @param {boolean} entry.ok
  * @param {number} [entry.status] - HTTP status
  * @param {number} [entry.durationMs]
+ * @param {string} [entry.source] - 호출 원천 ('movis' | 'order-recog' | 'admin-nl' | 'embedding' | 'other')
  */
 export function recordApiCall(entry) {
   const today = getTodayKST();
@@ -126,6 +136,7 @@ export function recordApiCall(entry) {
   if (!store[today]) store[today] = [];
 
   const provider = inferProvider(entry.model);
+  const source = SOURCES[entry.source] ? entry.source : 'other';
   const cost = entry.ok
     ? computeCost(entry.model, entry.promptTokens, entry.candidatesTokens)
     : 0;
@@ -134,6 +145,7 @@ export function recordApiCall(entry) {
     t: Date.now(),
     m: entry.model,
     p: provider,
+    src: source,
     pt: entry.promptTokens || 0,
     ct: entry.candidatesTokens || 0,
     tt: entry.totalTokens || (entry.promptTokens || 0) + (entry.candidatesTokens || 0),
@@ -180,6 +192,14 @@ export function getUsageStats() {
 
   // 프로바이더별 집계
   const byProvider = { gemini: blankProvider(), groq: blankProvider() };
+  // Source별 집계
+  const bySource = {
+    movis: blankSource(),
+    'order-recog': blankSource(),
+    'admin-nl': blankSource(),
+    embedding: blankSource(),
+    other: blankSource(),
+  };
 
   let totalCost = 0;
   let burnCost = 0;
@@ -187,14 +207,24 @@ export function getUsageStats() {
 
   for (const r of records) {
     const target = byProvider[r.p];
-    if (!target) continue;
-    target.calls += 1;
-    target.tokens.in += r.pt;
-    target.tokens.out += r.ct;
-    target.tokens.total += r.tt;
-    target.cost += r.c;
-    if (r.ok) target.success += 1; else target.errors += 1;
-    if (r.t > target.lastAt) target.lastAt = r.t;
+    if (target) {
+      target.calls += 1;
+      target.tokens.in += r.pt;
+      target.tokens.out += r.ct;
+      target.tokens.total += r.tt;
+      target.cost += r.c;
+      if (r.ok) target.success += 1; else target.errors += 1;
+      if (r.t > target.lastAt) target.lastAt = r.t;
+    }
+    // Source 집계 (구버전 레코드는 src 없을 수 있음 → 'other')
+    const src = r.src && bySource[r.src] ? r.src : 'other';
+    const sTarget = bySource[src];
+    sTarget.calls += 1;
+    sTarget.tokens += r.tt;
+    sTarget.cost += r.c;
+    if (r.ok) sTarget.success += 1; else sTarget.errors += 1;
+    if (r.t > sTarget.lastAt) sTarget.lastAt = r.t;
+
     if (r.t > lastCallAt) lastCallAt = r.t;
     totalCost += r.c;
 
@@ -252,6 +282,7 @@ export function getUsageStats() {
       rpmLimit: FREE_TIER_LIMITS.groq.rpm,
       rpdLimit: FREE_TIER_LIMITS.groq.rpd,
     },
+    bySource, // movis / order-recog / admin-nl / embedding / other
     fallbackActive,
     totalCalls: records.length,
   };
@@ -263,6 +294,17 @@ function blankProvider() {
     success: 0,
     errors: 0,
     tokens: { in: 0, out: 0, total: 0 },
+    cost: 0,
+    lastAt: 0,
+  };
+}
+
+function blankSource() {
+  return {
+    calls: 0,
+    success: 0,
+    errors: 0,
+    tokens: 0,
     cost: 0,
     lastAt: 0,
   };

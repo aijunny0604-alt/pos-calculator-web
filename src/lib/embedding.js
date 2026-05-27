@@ -64,6 +64,7 @@ export async function embedText(text, { taskType = 'RETRIEVAL_DOCUMENT' } = {}) 
             candidatesTokens: 0,
             totalTokens: estimatedTokens,
             ok: true, status: response.status, durationMs,
+            source: 'embedding',
           });
           return data?.embedding?.values || null;
         }
@@ -71,6 +72,7 @@ export async function embedText(text, { taskType = 'RETRIEVAL_DOCUMENT' } = {}) 
           model: EMBED_MODEL,
           promptTokens: 0, candidatesTokens: 0, totalTokens: 0,
           ok: false, status: response.status, durationMs,
+          source: 'embedding',
         });
         if (response.status === 429 || response.status === 503) {
           await sleep(1500);
