@@ -22,6 +22,7 @@ import CommandBar from '@/components/CommandBar';
 const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
 const InvoicesContainer = lazy(() => import('@/pages/InvoicesContainer'));
 const AIAnalytics = lazy(() => import('@/pages/AIAnalytics'));
+const SmartStoreOrders = lazy(() => import('@/pages/SmartStoreOrders'));
 
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
@@ -1168,6 +1169,18 @@ export default function App() {
               setProducts={setProducts}
               setCustomers={setCustomers}
               setCurrentPage={setCurrentPage}
+              showToast={showToast}
+              saveOrder={saveOrder}
+            />
+          </Suspense>
+        );
+
+      case 'smartstore':
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>스마트스토어 주문 로드 중...</div>}>
+            <SmartStoreOrders
+              products={products}
+              customers={customers}
               showToast={showToast}
               saveOrder={saveOrder}
             />

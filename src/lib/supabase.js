@@ -746,4 +746,46 @@ export const supabase = {
     if (customer.id) return await this.updateCustomer(customer.id, customer);
     return await this.addCustomer(customer);
   },
+
+  // ===== 외부 마켓플레이스 주문 (네이버 스마트스토어 등) =====
+  async getExternalOrders({ provider, status, limit = 100 } = {}) {
+    try {
+      let url = `${SUPABASE_URL}/rest/v1/external_orders?order=received_at.desc&limit=${limit}`;
+      if (provider) url += `&provider=eq.${provider}`;
+      if (status) url += `&order_status=eq.${status}`;
+      return await fetchJSON(url, { headers });
+    } catch (e) { console.error('getExternalOrders:', e); return []; }
+  },
+  async getExternalOrderItems(externalOrderId) {
+    try {
+      return await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/external_order_items?external_order_id=eq.${externalOrderId}&order=created_at.asc`,
+        { headers }
+      );
+    } catch (e) { console.error('getExternalOrderItems:', e); return []; }
+  },
+  async updateExternalOrder(id, patch) {
+    try {
+      const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/external_orders?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(patch),
+      });
+      return Array.isArray(r) ? r[0] : r;
+    } catch (e) { console.error('updateExternalOrder:', e); return null; }
+  },
+  async updateExternalOrderItem(id, patch) {
+    try {
+      const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/external_order_items?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(patch),
+      });
+      return Array.isArray(r) ? r[0] : r;
+    } catch (e) { console.error('updateExternalOrderItem:', e); return null; }
+  },
+  async deleteExternalOrder(id) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/external_orders?id=eq.${id}`, {
+        method: 'DELETE', headers: headersNoContent,
+      });
+      return true;
+    } catch (e) { console.error('deleteExternalOrder:', e); return false; }
+  },
 };

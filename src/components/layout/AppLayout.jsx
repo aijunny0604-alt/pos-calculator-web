@@ -4,7 +4,7 @@ import Header from './Header';
 import MobileNav from './MobileNav';
 
 // 자체 레이아웃(sticky header, 패딩)을 관리하는 페이지
-const fullScreenPages = ['pos', 'orders', 'customers', 'saved-carts', 'stock', 'shipping', 'burnway-stock', 'ai-order', 'ai-analytics'];
+const fullScreenPages = ['pos', 'orders', 'customers', 'saved-carts', 'stock', 'shipping', 'burnway-stock', 'ai-order', 'ai-analytics', 'smartstore'];
 
 export default function AppLayout({ children, currentPage, onNavigate, isOnline, orderCount = 0, savedCartCount = 0, shippingCount = 0 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
