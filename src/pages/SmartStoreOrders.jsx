@@ -496,6 +496,8 @@ export default function SmartStoreOrders({
       customer_name: customerName,
       customer_phone: order.buyer_phone || '',
       customer_address: order.buyer_address || '',
+      // 신규 거래처 등록 시 카테고리 자동 태깅 (사용자 정책)
+      customer_category: isNaverOrder ? NAVER_STORE_CUSTOMER_NAME : undefined,
       price_type: 'retail', // 네이버 = 소비자가 정책
       items: itemsForOrder,
       total_amount: total,

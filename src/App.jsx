@@ -454,6 +454,8 @@ export default function App() {
           const customerData = { name: customer_name };
           if (orderData.customer_phone) customerData.phone = orderData.customer_phone;
           if (orderData.customer_address) customerData.address = orderData.customer_address;
+          // 사용자 정책: 외부 마켓 주문(엠파츠/네이버 등) 신규 거래처는 category 태그
+          if (orderData.customer_category) customerData.category = orderData.customer_category;
           const newCustomer = await supabase.addCustomer(customerData);
           if (newCustomer) {
             setCustomers((prev) => [...prev, newCustomer]);
