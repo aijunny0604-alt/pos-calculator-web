@@ -123,6 +123,10 @@ export default function SmartStoreOrders({
   const [providerFilter, setProviderFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCompleted, setShowCompleted] = useState(false); // 처리완료 카드 표시 토글
+  // 날짜 조회 (네이버 관리자 페이지 스타일)
+  const [datePreset, setDatePreset] = useState('1w'); // today | 1w | 1m | 3m | custom
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   // 뷰 모드 — localStorage 영구 저장 (주문 많을 때 컴팩트로 한눈에)
   const [viewMode, setViewMode] = useState(() => {
     try { return localStorage.getItem('smartstore_view_mode') || 'card'; } catch { return 'card'; }
@@ -217,15 +221,37 @@ export default function SmartStoreOrders({
     return () => { supabaseClient.removeChannel(channel); };
   }, [reload, showToast, soundOn]);
 
+  // 날짜 조회 범위 계산 (KST 기준)
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(todayStart.getDate() + 1);
+    if (datePreset === 'today') return { from: todayStart, to: tomorrowStart };
+    if (datePreset === '1w') return { from: new Date(todayStart.getTime() - 6 * 24 * 3600 * 1000), to: tomorrowStart };
+    if (datePreset === '1m') return { from: new Date(todayStart.getTime() - 29 * 24 * 3600 * 1000), to: tomorrowStart };
+    if (datePreset === '3m') return { from: new Date(todayStart.getTime() - 89 * 24 * 3600 * 1000), to: tomorrowStart };
+    if (datePreset === 'custom' && dateFrom && dateTo) {
+      const f = new Date(dateFrom + 'T00:00:00');
+      const t = new Date(dateTo + 'T23:59:59');
+      return { from: f, to: t };
+    }
+    return null; // 전체
+  }, [datePreset, dateFrom, dateTo]);
+
   const filtered = useMemo(() => {
     return orders.filter((o) => {
       if (providerFilter !== 'all' && o.provider !== providerFilter) return false;
       if (statusFilter !== 'all' && o.order_status !== statusFilter) return false;
       // 처리완료(converted/shipped/cancelled/구매확정) 는 토글 OFF 시 숨김
       if (!showCompleted && (DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED')) return false;
+      // 날짜 범위 (결제일 = received_at 기준, 네이버 조회기간과 동일)
+      if (dateRange && o.received_at) {
+        const rec = new Date(o.received_at);
+        if (rec < dateRange.from || rec >= dateRange.to) return false;
+      }
       return true;
     });
-  }, [orders, providerFilter, statusFilter, showCompleted]);
+  }, [orders, providerFilter, statusFilter, showCompleted, dateRange]);
 
   const completedCount = useMemo(() => orders.filter((o) =>
     DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED'
@@ -572,6 +598,44 @@ export default function SmartStoreOrders({
             <NaverStatBox icon="🔥" label="발송마감 D-day" value={stats.dispatchDueDday} alert={stats.dispatchDueDday > 0} accent="#ff4d6d" />
           </div>
         </div>
+      </div>
+
+      {/* 날짜 조회 (네이버 관리자 페이지 스타일) */}
+      <div className="flex flex-wrap items-center gap-2 px-3 sm:px-4 pb-2">
+        <span className="text-xs opacity-70 font-mono uppercase">조회기간</span>
+        <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+          {[
+            { v: 'today', label: '오늘' },
+            { v: '1w', label: '1주일' },
+            { v: '1m', label: '1개월' },
+            { v: '3m', label: '3개월' },
+            { v: 'all', label: '전체' },
+          ].map((p) => (
+            <button key={p.v} onClick={() => setDatePreset(p.v)}
+              className="text-xs px-3 py-1 transition-colors"
+              style={{
+                background: datePreset === p.v ? 'var(--primary)' : 'var(--card)',
+                color: datePreset === p.v ? 'white' : 'var(--foreground)',
+                fontWeight: datePreset === p.v ? 700 : 400,
+              }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <input type="date" value={dateFrom}
+          onChange={(e) => { setDateFrom(e.target.value); setDatePreset('custom'); }}
+          className="text-xs px-2 py-1 rounded border"
+          style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+        <span className="text-xs opacity-50">~</span>
+        <input type="date" value={dateTo}
+          onChange={(e) => { setDateTo(e.target.value); setDatePreset('custom'); }}
+          className="text-xs px-2 py-1 rounded border"
+          style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+        {dateRange && (
+          <span className="text-[10px] opacity-60 font-mono ml-auto">
+            {fmtDate(dateRange.from)} ~ {fmtDate(new Date(dateRange.to.getTime() - 1))} · {filtered.length}건
+          </span>
+        )}
       </div>
 
       {/* 필터 */}
