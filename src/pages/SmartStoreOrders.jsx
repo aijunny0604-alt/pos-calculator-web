@@ -82,7 +82,7 @@ export default function SmartStoreOrders({
       amount: String(totalAmount),
       packaging: '박스1',
       paymentType: normalizeDeliveryPayType(order.delivery_policy_type),
-      sender: '무브모터스',
+      sender: '엠파츠', // 네이버 스마트스토어 주문은 엠파츠 명의로 발송 (무브모터스 X)
       note: `[네이버 ${order.provider_order_id}]`,
     };
     try {
