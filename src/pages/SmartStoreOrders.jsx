@@ -598,11 +598,20 @@ export default function SmartStoreOrders({
                     </div>
                     <div className="text-[11px] opacity-70 truncate">{productSummary}</div>
                   </div>
-                  <div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap"
+                  <div className="flex flex-col gap-0.5">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap text-center"
                       style={{ background: statusMeta.bg, color: statusMeta.color }}>
                       {statusMeta.label}
                     </span>
+                    {order.naver_dispatch_succeeded_at ? (
+                      <span className="text-[9px] font-bold text-center" style={{ color: '#00ff88' }} title="네이버 발송완료">
+                        ✓ 발송
+                      </span>
+                    ) : order.naver_confirm_succeeded_at ? (
+                      <span className="text-[9px] font-bold text-center" style={{ color: '#a78bfa' }} title="네이버 발주확인">
+                        ✓ 발주확인
+                      </span>
+                    ) : null}
                   </div>
                   <div className="text-right font-bold whitespace-nowrap" style={{ color: 'var(--primary)' }}>
                     {fmtNum(order.total_amount)}원
@@ -649,8 +658,8 @@ export default function SmartStoreOrders({
             <div key={order.id} className="rounded-xl border overflow-hidden shadow-sm"
               style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
 
-              {/* ① 상단 — 상태 + provider + 날짜 */}
-              <div className="px-4 py-2.5 flex items-center gap-2 border-b"
+              {/* ① 상단 — 상태 + provider + 발주확인/발송완료 마커 + 날짜 */}
+              <div className="px-4 py-2.5 flex items-center gap-2 flex-wrap border-b"
                 style={{ background: statusMeta.bg, borderColor: 'var(--border)' }}>
                 <span className="px-2 py-0.5 rounded text-[11px] font-bold tracking-wide flex items-center gap-1"
                   style={{ background: 'rgba(0,0,0,0.25)', color: statusMeta.color }}>
@@ -660,6 +669,21 @@ export default function SmartStoreOrders({
                   style={{ background: `${providerMeta.color}20`, color: providerMeta.color }}>
                   {providerMeta.label}
                 </span>
+                {/* 네이버 측 처리 마커 — DB의 succeeded_at 기준 */}
+                {order.naver_confirm_succeeded_at && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-0.5"
+                    style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }}
+                    title={`네이버 발주확인 완료 ${fmtDate(order.naver_confirm_succeeded_at)}`}>
+                    ✓ 발주확인
+                  </span>
+                )}
+                {order.naver_dispatch_succeeded_at && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-0.5"
+                    style={{ background: 'rgba(0,255,136,0.18)', color: '#00ff88', border: '1px solid rgba(0,255,136,0.35)' }}
+                    title={`네이버 발송처리 완료 ${fmtDate(order.naver_dispatch_succeeded_at)}`}>
+                    ✓ 발송완료
+                  </span>
+                )}
                 <span className="ml-auto text-xs opacity-80 font-mono">
                   {fmtDate(order.received_at)}
                 </span>
