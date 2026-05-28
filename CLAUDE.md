@@ -1,9 +1,188 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-05-27 (네이버 스마트스토어 연동 + API 사용량 게이지 + MOVIS 매칭 강화)
+> 마지막 업데이트: 2026-05-28 (네이버 양방향 자동화 큐 + 거래처 카테고리 + 카드 UI 전면 개편 + Codex 검토 8건 적용)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-05-28 — 네이버 양방향 자동화 큐 + 카드 UI 개편 + Codex 검토 8건
+
+오늘 누적 27 커밋. 핵심 기능 13가지 + Codex Critical/Major fix 8건.
+
+### 🔄 POS ↔ 네이버 양방향 자동화 (60초 폴링, 매장 PC IP 우회)
+
+**큐 패턴 3종** (모두 매장 PC sync.js 가 처리, IP 화이트리스트 통과):
+- **발주확인 큐**: `needs_naver_confirm=true` → sync.js confirmPendingNaverOrders() → POST `/external/v1/pay-order/seller/product-orders/confirm`
+- **발송처리 큐**: `needs_naver_dispatch=true` + 송장정보 → sync.js dispatchPendingNaverOrders() → POST `.../dispatch`
+- **취소 큐** (DB 준비 완료, UI 다음 사이클): `needs_naver_cancel` 컬럼 + `naver_cancel_reason`
+
+**큐 처리 패턴 (Codex 권장)**:
+- 원자적 claim: PATCH ?claimed_at=is.null AND needs_*=true → 동시 실행 방지
+- Retry backoff: exponential (1·2·4·8·16분, max 60분) + MAX_CONFIRM_RETRIES=5
+- 영구 4xx (429 제외) 2회 후 즉시 큐 제거
+- "already/이미/중복" 응답은 성공으로 간주
+- LOCAL_PROCESSED_STATUSES = {confirmed, shipped, converted, cancelled} 보호 — polling 으로 절대 덮어쓰지 않음
+- dispatch 큐는 confirm 성공 + 2분 grace 후만 처리 (race 방지)
+
+**네이버 → POS 반영**:
+- last-changed-statuses API 60초 polling
+- polling 응답 ID 는 변경 감지 시그널 → detail 강제 재조회 (7일 skip 무력화, Codex Critical fix)
+- order_status 자동 갱신 + Supabase Realtime postgres_changes → 화면 자동 reload
+
+### 🎨 SmartStoreOrders 카드 UI 전면 개편
+
+**5블록 카드** ([src/pages/SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx)):
+1. 상태 헤더 (status chip + provider chip + ✓ 발주확인/발송완료 마커 + 날짜)
+2. 구매자 블록 (큰 글씨 이름 + 전화 + 주소 + 주문번호)
+3. 상품/금액 블록 (매칭 chip + 매칭 변경 [변경]/[해제] 인라인 패널)
+4. 발송 정보 (택배사·송장번호, dispatched_at 있을 때만)
+5. 액션 버튼 (발주확인 / 내부주문 / 발송처리 / 송장) - 모바일 2x2, 데스크탑 4열
+
+**뷰 모드 토글** (localStorage `smartstore_view_mode` 영구 저장):
+- 카드 모드: lg 2열 grid + 모바일 1열
+- 컴팩트 모드: 5열 grid row + 클릭 시 인라인 펼침 패널 (상품 + 매칭 변경 + 처리 마커 + 합계)
+- 액션 버튼은 e.target.closest('button[title]') 가드로 펼침 트리거 분리
+
+**처리완료 토글**: DONE_STATUSES (converted/shipped/cancelled) 기본 숨김 + "처리완료 표시" 체크박스 (건수 chip)
+
+**모바일 햄버거 메뉴**: 다른 페이지 동일 패턴 — `md:hidden` + `window.dispatchEvent(new CustomEvent('toggle-sidebar'))`
+
+### 📊 네이버 관리자 페이지 위젯 6개 통합
+
+KPI 4개 (전체/오늘/대기/오늘매출) + 네이버 위젯 6개:
+- ⏰ 발송기한 초과 (`dispatch_due_date < now() AND !shipped`)
+- 🤖 자동처리 예정 (`needs_naver_confirm OR needs_naver_dispatch`)
+- 🚚 발주 후 신규 (`confirm_succeeded_at AND !dispatch_succeeded_at`)
+- ❌ 취소 요청 (raw_payload.cancelRequest 또는 status CANCEL_*)
+- 📅 발송마감 D-1 / 🔥 D-day (KST 자정 경계 계산)
+
+`stats useMemo` 는 `ordersInRange` (dateRange 적용된) 기반 — 날짜 조회와 일관 (Codex Major A fix).
+
+### 📅 날짜 조회 필터 (네이버 관리자 페이지 스타일)
+
+- 5 프리셋: 오늘 / 1주일(기본) / 1개월 / 3개월 / 전체
+- date input 2개 (from/to) — 변경 시 자동 `custom` 모드
+- KST 자정 경계 (`new Date().setHours(0,0,0,0)`)
+- filtered 와 stats(ordersInRange) 모두 dateRange 적용
+
+### 👤 거래처 정책 변경 — 구매자별 분리 + 카테고리 태깅
+
+**이전**: 모든 네이버 주문 → "엠파츠" 단일 거래처
+**현재**: 거래처 = 실제 구매자 (matchCustomer fuzzy 매칭, 재구매 시 자동 합쳐짐) + `customers.category='엠파츠'` 자동 부여
+
+**memo 형식**:
+```
+[엠파츠] [네이버 스마트스토어] {provider_order_id}
+구매자: 권찬수 / 010-3529-4697
+주소: 경북 영천시 ...
+```
+
+**App.jsx saveOrder**: `customerData.category = orderData.customer_category` (네이버 주문이면 '엠파츠' 자동)
+**OrderHistory 식별**: `/\[엠파츠\]|\[네이버/i.test(memo) || customerName==='엠파츠'` (구·신 데이터 둘 다 인식)
+
+### 🛒 OrderHistory 네이버 카드 시각 차별화
+
+- 배경: `color-mix(in srgb, #03c75a 16%, var(--card))`
+- borderWidth: 2px + boxShadow `0 0 0 1px rgba(3,199,90,0.35), 0 4px 14px rgba(3,199,90,0.18)`
+- 좌측 세로 컬러 바 (linear-gradient 180deg, #03c75a→#22c55e, w-1.5)
+- 상단 accent bar (linear-gradient 90deg 3-stop, h-2, glow shadow)
+- 인라인 chip "🛒 네이버" (업체명 옆, 우측 상단 absolute 제거로 겹침 방지) — gradient 배경 + 흰 글씨 + textShadow
+- 옛 엠파츠 데이터 호환: memo 파싱하여 "엠파츠 → 권찬수 님" 표시
+- 발송처리 인라인 [📦 발송] 버튼 + 모달 (memo 의 provider_order_id 정규식 추출 → external_orders 매칭 → 큐 PATCH)
+
+### 🔧 매칭 직접 수정 + freeform 전환
+
+**카드 매칭 변경**:
+- 모든 매칭 상태에서 [변경] 버튼 (matched·manual·pending·no-candidate)
+- 인라인 검색 패널 (products 검색 + 후보 8개 드롭다운)
+- matched 상태에선 [해제] 버튼 추가 → 매칭 풀고 pending 으로
+
+**freeform 주문 전환** (사용자 정책 — "굳이 제품 등록 안 해도"):
+- 매칭 안 된 item 도 네이버 제품명·금액 그대로 내부 주문에 포함
+- id = `naver-{provider_product_order_id}` 마커 (같은 주문 합산 사고 방지)
+- placeholder 만 안전 차단
+
+### 🔍 자동 제품 등록 (sync.js)
+
+매칭 실패 시 sync.js 가 products 테이블 자동 INSERT:
+- name = provider_product_name
+- retail = wholesale = unit_price (네이버 소비자가만)
+- category = '네이버 자동등록' (단일 카테고리)
+- 같은 이름 product 이미 있으면 그것 재사용 (중복 방지)
+- placeholder 가드: `name.includes('⏳')` + `detail_fetch_error === 'pending-detail-fetch'`
+- partial unique index (`WHERE category='네이버 자동등록'`) — 409 conflict 시 재조회 fallback
+
+### 📦 송장 발송인 자동화
+
+- 네이버 주문 [📦 송장] → ShippingLabel 자동 이동 + entry.sender='엠파츠'
+- ShippingLabel.jsx 의 `newCustomEntry.sender` 동적 default — `computeDefaultSender()` 가 localStorage 최신 entry sender 자동 추적
+- useEffect 감지 → customEntries 변경 시 자동 동기화 (페이지 진입 직후 즉시 반영)
+- 신규 entry reset 시 prev.sender 보존 (네이버=엠파츠 / 매장=무브모터스 연속 입력 시 매번 변경 부담 제거)
+
+### 🏷 거래처 관리 카테고리 필터
+
+[src/pages/CustomerList.jsx](src/pages/CustomerList.jsx):
+- categoryOptions useMemo (등록된 카테고리 자동 발견)
+- 필터 buttons: [전체] [🛒 엠파츠] [미분류] (건수 chip 동시 표시)
+- categoryFilter state: 'all' | 'none' | <category name>
+- "엠파츠" 카테고리만 클릭하면 모든 네이버 구매자 한눈에
+
+### 🚨 Codex 검토 결과 적용 (Critical 1 + Major 8 + Minor 2)
+
+| 등급 | 항목 | 적용 |
+|---|---|---|
+| 🔴 Critical | sync.js 7일 skip → polling 응답 ID 강제 detail | ✅ |
+| 🔴 Critical | order_status 순환 덮어쓰기 → LOCAL_PROCESSED_STATUSES 보호 | ✅ |
+| 🟡 Major | confirm 큐 race condition → claimNaverConfirmRow 원자적 PATCH | ✅ |
+| 🟡 Major | retry backoff + MAX 5 → 영구 stuck 방지 | ✅ |
+| 🟡 Major | dispatch confirm 안 됨 거부 → SELECT 에 succeeded_at NOT NULL 조건 | ✅ |
+| 🟡 Major | dispatch 같은 cycle race → confirm 후 2분 grace | ✅ |
+| 🟡 Major | dispatch body 필수값 누락 → trim 검증 + 에러 분기 | ✅ |
+| 🟡 Major | needs_naver_confirm 조건 → succeeded_at IS NULL 기준 | ✅ |
+| 🟡 Major | stats vs dateRange 충돌 → ordersInRange 통일 | ✅ |
+| 🟡 Major | dispatch_due_date 컬럼 미활용 → 컬럼 우선 폴백 | ✅ |
+| 🟡 Major | autoRegister race → partial unique index + 409 재조회 | ✅ |
+| 🟡 Major | autoRegister placeholder 가드 → detail_fetch_error 추가 검사 | ✅ |
+| 🟢 Minor | STATUS_LABEL fallback → 원본 status 표시 | ✅ |
+| 🟢 Minor | isNaverOrder 공백 정규화 | ⏭️ 다음 사이클 (Task #112) |
+
+### 📦 DB 마이그레이션 추가 (002·003·004)
+
+- **002 `external_orders_naver_confirm_hardening`**: needs_naver_confirm + retry/claim 컬럼 + partial index
+- **003 `external_orders_naver_dispatch_queue`**: needs_naver_dispatch + 송장정보 + retry 컬럼 + dispatch_due_date 컬럼 + partial index (generated column 시도 IMMUTABLE 제약으로 실패 → 일반 column + sync.js 자동 채움)
+- **003 후속 `naver_cancel_queue`**: needs_naver_cancel + 취소 사유 + retry 컬럼 + partial index
+- **004 `customers_category`**: customers.category 컬럼 + index (자동 태깅 활용)
+
+### 🔧 매장 PC sync.js 자동 시작
+
+`MOVE-WEP-Naver-Sync-Bridge` Windows 작업 스케줄러 — At Logon 트리거. PC 부팅·로그온 시 자동 시작 (사용자 별도 실행 불필요).
+
+### 📋 신규 파일
+
+```
+src/pages/SmartStoreOrders.jsx (대폭 개편)
+src/pages/OrderHistory.jsx (네이버 카드 + 발송 모달)
+src/pages/CustomerList.jsx (categoryFilter)
+src/pages/ShippingLabel.jsx (sender 동적 default)
+src/App.jsx (saveOrder customer_category 전달)
+
+C:\Users\MOVEAM_PC\naver-sync-bridge\
+  ├── sync.js (양방향 큐 + 자동 등록 + Codex hardening)
+  └── migrations/
+      ├── 002_*.sql (이미 적용)
+      ├── 003_naver_cancel_queue.sql (적용 완료)
+      └── 004_customers_category.sql (적용 완료)
+```
+
+### 🚦 다음 사이클 후보 (Task #108~112 등록)
+
+1. `needs_naver_cancel` 큐 활용 — 취소 액션 버튼 + sync.js cancelPendingNaverOrders()
+2. 일괄 발송 multi-select UI (네이버 "엑셀 일괄 발송처리" 동등)
+3. Codex Major D — memo 채널 기반 별도 매출 집계 (옛 엠파츠 + 신규 분산 합산)
+4. Playwright 풀 flow-check (Claude Code 재시작 후 활성)
+5. Codex Minor B — isNaverOrder 공백 정규화
+
+---
 
 ## 🆕 v2026-05-27 — 네이버 스마트스토어 실시간 연동 + API 사용량 게이지 + MOVIS 매칭 강화
 
