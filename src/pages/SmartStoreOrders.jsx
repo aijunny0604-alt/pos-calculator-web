@@ -505,7 +505,12 @@ export default function SmartStoreOrders({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {filtered.map((order) => {
           const items = itemsByOrder[order.id] || [];
-          const statusMeta = STATUS_LABEL[order.order_status] || STATUS_LABEL.received;
+          // Codex Minor G fix: 매핑 안 된 status 는 '수신' 으로 위장하지 않고 원본 그대로 표시
+          const statusMeta = STATUS_LABEL[order.order_status] || {
+            label: order.order_status || '알 수 없음',
+            color: '#7e9cb8',
+            bg: 'rgba(126,156,184,0.15)',
+          };
           const providerMeta = PROVIDER_LABEL[order.provider] || { label: order.provider, color: '#7e9cb8' };
           const matchedCount = items.filter((i) => i.match_status === 'matched').length;
           const totalCount = items.length;
