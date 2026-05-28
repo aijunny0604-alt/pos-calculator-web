@@ -34,6 +34,17 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
     catch (e) { console.warn('shippingCustomEntries 파싱 실패:', e); return []; }
   });
   const [showAddCustomModal, setShowAddCustomModal] = useState(false);
+  // 동적 default sender — 가장 최근 customEntry 의 sender 따라감 (네이버 prefill 자동 반영)
+  const computeDefaultSender = () => {
+    try {
+      const saved = localStorage.getItem('shippingCustomEntries');
+      if (saved) {
+        const list = JSON.parse(saved);
+        if (list[0]?.sender) return list[0].sender;
+      }
+    } catch {}
+    return '무브모터스';
+  };
   const [newCustomEntry, setNewCustomEntry] = useState({
     name: '',
     phone: '',
@@ -42,8 +53,17 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
     amount: '',
     packaging: '박스1',
     paymentType: '착불',
-    sender: '무브모터스'
+    sender: computeDefaultSender()
   });
+
+  // customEntries 변경 시 최신 entry 의 sender 자동 반영 (네이버 prefill 직후 즉시 동기화)
+  useEffect(() => {
+    if (customEntries.length > 0 && customEntries[0]?.sender) {
+      setNewCustomEntry((prev) =>
+        prev.sender === customEntries[0].sender ? prev : { ...prev, sender: customEntries[0].sender }
+      );
+    }
+  }, [customEntries]);
 
   useEffect(() => {
     localStorage.setItem('shippingCustomEntries', JSON.stringify(customEntries));
@@ -263,7 +283,8 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
       shippingCost: calculateShippingCost(newCustomEntry.packaging)
     };
     setCustomEntries(prev => [...prev, entry]);
-    setNewCustomEntry({ name: '', phone: '', address: '', product: '', amount: '', packaging: '박스1', paymentType: '착불', sender: '무브모터스' });
+    // sender 는 방금 선택한 값 보존 (네이버=엠파츠 / 매장=무브모터스 연속 입력 시 매번 변경 부담 제거)
+    setNewCustomEntry((prev) => ({ name: '', phone: '', address: '', product: '', amount: '', packaging: '박스1', paymentType: '착불', sender: prev.sender || '무브모터스' }));
     setShowAddCustomModal(false);
   };
 
