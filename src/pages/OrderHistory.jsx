@@ -2,12 +2,27 @@ import { useState, useEffect } from 'react';
 import {
   ChevronLeft, Menu, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
-  ChevronDown, CheckCircle2, CircleDollarSign
+  ChevronDown, CheckCircle2, CircleDollarSign, Truck, X
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
 import SubPrice from '@/components/ui/SubPrice';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
 import useCountUp from '@/hooks/useCountUp';
+import { supabase } from '@/lib/supabase';
+
+// 네이버 발송처리 모달용 택배사 (SmartStoreOrders 와 동일)
+const DELIVERY_COMPANIES_FOR_DISPATCH = [
+  { code: 'CJGLS', name: 'CJ대한통운' },
+  { code: 'HANJIN', name: '한진택배' },
+  { code: 'LOGEN', name: '로젠택배' },
+  { code: 'EPOST', name: '우체국택배' },
+  { code: 'LOTTE', name: '롯데택배' },
+  { code: 'KGB', name: '경동택배' },
+  { code: 'CVSNET', name: 'CU편의점택배' },
+  { code: 'CUPOST', name: 'CU(BGF)' },
+  { code: 'DAESIN', name: '대신택배' },
+  { code: 'ILYANG', name: '일양로지스' },
+];
 
 // 카운트업 숫자 표시 (toLocaleString) — 명세서 통계와 동일 톤
 function CountNumber({ value, duration = 700 }) {
@@ -31,6 +46,63 @@ export default function OrderHistory({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('today');
+  // 네이버 발송처리 모달 (사용자 요청 — OrderHistory 카드에서 송장 입력 + 발송처리)
+  const [naverDispatchModal, setNaverDispatchModal] = useState(null);
+  const [naverDispatchCompany, setNaverDispatchCompany] = useState('CJGLS');
+  const [naverDispatchTracking, setNaverDispatchTracking] = useState('');
+  const [naverDispatching, setNaverDispatching] = useState(false);
+
+  const openNaverDispatch = (order) => {
+    setNaverDispatchModal(order);
+    setNaverDispatchCompany('CJGLS');
+    setNaverDispatchTracking('');
+  };
+
+  const submitNaverDispatch = async () => {
+    if (!naverDispatchModal || !naverDispatchTracking.trim()) return;
+    setNaverDispatching(true);
+    try {
+      const order = naverDispatchModal;
+      const match = (order.memo || '').match(/\[네이버[^\]]*\]\s*(\d+)/);
+      const providerOrderId = match?.[1];
+      if (!providerOrderId) {
+        alert('이 주문의 네이버 주문번호를 찾을 수 없습니다. memo 형식 확인 필요.');
+        return;
+      }
+      const externalOrders = await supabase.getExternalOrders({ limit: 100 });
+      const target = externalOrders.find((e) => String(e.provider_order_id) === providerOrderId);
+      if (!target) {
+        alert('연결된 네이버 주문을 DB에서 찾을 수 없어요.');
+        return;
+      }
+      const company = DELIVERY_COMPANIES_FOR_DISPATCH.find((c) => c.code === naverDispatchCompany);
+      const patch = {
+        needs_naver_dispatch: true,
+        naver_dispatch_company_code: naverDispatchCompany,
+        naver_dispatch_company_name: company?.name || naverDispatchCompany,
+        naver_dispatch_tracking: naverDispatchTracking.trim(),
+        naver_dispatch_retry_count: 0,
+        naver_dispatch_next_retry_at: null,
+      };
+      // 발주확인 안 됐으면 동시 등록 (sync.js 가 confirm → dispatch 순서로 처리)
+      if (!target.naver_confirm_succeeded_at) {
+        patch.needs_naver_confirm = true;
+        patch.naver_confirm_retry_count = 0;
+        patch.naver_confirm_next_retry_at = null;
+      }
+      await supabase.updateExternalOrder(target.id, patch);
+      const tracker = `${company?.name} · ${naverDispatchTracking.trim()}`;
+      alert(target.naver_confirm_succeeded_at
+        ? `발송처리 대기열 등록 (${tracker}) — 60초 내 네이버 자동 전달`
+        : `발주확인 + 발송처리 대기열 등록 (${tracker}) — 60초 내 순차 자동 처리`
+      );
+      setNaverDispatchModal(null);
+    } catch (e) {
+      alert('발송처리 등록 실패: ' + (e?.message || e));
+    } finally {
+      setNaverDispatching(false);
+    }
+  };
   const [customDate, setCustomDate] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [selectedOrders, setSelectedOrders] = useState([]);
@@ -767,8 +839,12 @@ export default function OrderHistory({
               const paidMethod = isPaid ? METHOD_MAP[paidInfo.method] : null;
               const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
               const isReturned = (order.totalReturned || 0) > 0;
-              // 네이버 스마트스토어 경유 주문 (엠파츠 거래처 + memo prefix)
-              const isNaverOrder = (order.memo || '').includes('[네이버') || order.customerName === '엠파츠';
+              // 네이버 스마트스토어 경유 주문 — memo 의 [엠파츠] 또는 [네이버] 태그로 식별
+              // (신규 주문은 거래처=실제 구매자, memo에만 태그. 옛 데이터는 customerName='엠파츠' 도 호환)
+              const isNaverOrder = /\[엠파츠\]|\[네이버/i.test(order.memo || '') || order.customerName === '엠파츠';
+              // memo 에서 실제 구매자 이름 추출 (옛 엠파츠 거래처 데이터 호환용)
+              const naverBuyerMatch = isNaverOrder ? (order.memo || '').match(/구매자:\s*([^/\n]+?)(?:\s*\/|\n|$)/) : null;
+              const naverBuyer = naverBuyerMatch?.[1]?.trim() || null;
 
               return (
                 <div
@@ -783,7 +859,7 @@ export default function OrderHistory({
                         : isPaid
                           ? 'color-mix(in srgb, #10b981 10%, var(--card))'
                           : isNaverOrder
-                            ? 'color-mix(in srgb, #03c75a 8%, var(--card))'
+                            ? 'color-mix(in srgb, #03c75a 16%, var(--card))'
                             : isBlacklist
                               ? 'color-mix(in srgb, var(--destructive) 6%, var(--card))'
                               : 'var(--card)',
@@ -798,6 +874,10 @@ export default function OrderHistory({
                             : isBlacklist
                               ? 'var(--destructive)'
                               : 'var(--border)',
+                    borderWidth: isNaverOrder && !isReturned ? '2px' : undefined,
+                    boxShadow: isNaverOrder && !isReturned && !isPaid
+                      ? '0 0 0 1px rgba(3,199,90,0.35), 0 4px 14px rgba(3,199,90,0.18)'
+                      : undefined,
                     borderWidth: isReturned ? '2px' : '1px',
                     outline: isSelected ? '2px solid var(--primary)' : isReturned ? '1px solid rgba(245,158,11,0.5)' : isPaid ? '1px solid rgba(16,185,129,0.4)' : 'none',
                     outlineOffset: '-1px',
@@ -821,8 +901,8 @@ export default function OrderHistory({
                     />
                   ) : isNaverOrder ? (
                     <div
-                      className="absolute top-0 left-0 right-0 h-1.5"
-                      style={{ background: 'linear-gradient(90deg,#03c75a,#22c55e)' }}
+                      className="absolute top-0 left-0 right-0 h-2"
+                      style={{ background: 'linear-gradient(90deg,#03c75a,#22c55e,#03c75a)', boxShadow: '0 0 8px rgba(3,199,90,0.5)' }}
                     />
                   ) : isBlacklist ? (
                     <div
@@ -831,14 +911,12 @@ export default function OrderHistory({
                     />
                   ) : null}
 
-                  {/* 네이버 스토어 주문 chip — 우측 상단 */}
+                  {/* 좌측 세로 컬러 바 — 네이버 카드 시각 강조 (우측 상단 chip 은 인라인 으로 이동) */}
                   {isNaverOrder && (
                     <div
-                      className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 z-10"
-                      style={{ background: 'rgba(3,199,90,0.18)', color: '#03c75a', border: '1px solid rgba(3,199,90,0.45)' }}
-                    >
-                      🛒 네이버
-                    </div>
+                      className="absolute top-0 left-0 bottom-0 w-1.5"
+                      style={{ background: 'linear-gradient(180deg,#03c75a,#22c55e)' }}
+                    />
                   )}
 
                   {/* Returned badge (top-right corner ribbon) */}
@@ -863,16 +941,36 @@ export default function OrderHistory({
                       style={{ accentColor: 'var(--primary)' }}
                     />
                     <div className="flex-1 min-w-0">
-                      {/* 업체명 (크게, 맨 위) + 도매/소비자 배지 + 블랙리스트 */}
+                      {/* 업체명 (크게, 맨 위) + 도매/소비자 배지 + 블랙리스트 + 네이버 chip 인라인 */}
                       {order.customerName ? (
                         <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                          <span className="flex-shrink-0 text-base">{isBlacklist ? '🚫' : '👤'}</span>
+                          <span className="flex-shrink-0 text-base">{isBlacklist ? '🚫' : (isNaverOrder ? '🛒' : '👤')}</span>
                           <span
                             className="font-bold text-base sm:text-lg break-keep leading-snug min-w-0"
                             style={{ color: isBlacklist ? 'var(--destructive)' : 'var(--foreground)' }}
                           >
                             {order.customerName}
                           </span>
+                          {/* 네이버 스토어 chip — 인라인 (우측 상단 absolute 대신) */}
+                          {isNaverOrder && (
+                            <span
+                              className="px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 flex-shrink-0"
+                              style={{
+                                background: 'linear-gradient(135deg,#03c75a,#22c55e)',
+                                color: '#ffffff',
+                                boxShadow: '0 1px 4px rgba(3,199,90,0.45)',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.15)',
+                              }}
+                            >
+                              🛒 네이버
+                            </span>
+                          )}
+                          {/* 옛 데이터(customerName='엠파츠') 의 실제 구매자 — memo 파싱 */}
+                          {isNaverOrder && naverBuyer && order.customerName === '엠파츠' && (
+                            <span className="text-xs font-semibold" style={{ color: '#03c75a' }}>
+                              → {naverBuyer} 님
+                            </span>
+                          )}
                           <span
                             className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
                             style={{
@@ -1141,6 +1239,18 @@ export default function OrderHistory({
                       </button>
                     )}
 
+                    {/* 네이버 발송처리 — 네이버 주문에만 노출 */}
+                    {isNaverOrder && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openNaverDispatch(order); }}
+                        className="py-2 px-2.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center justify-center gap-1.5 transition-colors"
+                        style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a', border: '1px solid rgba(3,199,90,0.4)' }}
+                        title="송장번호 입력 → 네이버 발송처리 자동 전달"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        📦 발송
+                      </button>
+                    )}
                     {onReorder && (
                       <button
                         onClick={() => onReorder(order)}
@@ -1361,6 +1471,55 @@ export default function OrderHistory({
                 <Trash2 className="w-5 h-5" />
                 삭제 실행
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 네이버 발송처리 모달 — 사용자 요청: 주문 내역에서도 송장 등록 가능 */}
+      {naverDispatchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setNaverDispatchModal(null)}>
+          <div className="rounded-xl w-full max-w-md p-5 border"
+            style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-4">
+              <Truck className="w-5 h-5" style={{ color: '#03c75a' }} />
+              <h3 className="text-lg font-bold flex-1">🛒 네이버 발송처리</h3>
+              <button onClick={() => setNaverDispatchModal(null)}>
+                <X className="w-4 h-4 opacity-60" />
+              </button>
+            </div>
+            <div className="text-xs opacity-70 mb-3">
+              {naverDispatchModal.customerName} · {formatPrice(naverDispatchModal.totalAmount || 0)}원
+            </div>
+            <label className="block text-xs font-mono uppercase mb-1.5 opacity-70">택배사</label>
+            <select value={naverDispatchCompany} onChange={(e) => setNaverDispatchCompany(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border text-sm mb-3"
+              style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+              {DELIVERY_COMPANIES_FOR_DISPATCH.map((c) => (
+                <option key={c.code} value={c.code}>{c.name}</option>
+              ))}
+            </select>
+            <label className="block text-xs font-mono uppercase mb-1.5 opacity-70">송장번호</label>
+            <input type="text" value={naverDispatchTracking}
+              onChange={(e) => setNaverDispatchTracking(e.target.value)}
+              placeholder="예: 1234-5678-9012" autoFocus
+              className="w-full px-3 py-2 rounded-lg border text-sm mb-4 font-mono"
+              style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+            <div className="text-[11px] opacity-60 mb-4 leading-snug">
+              💡 등록 시 60초 내 매장 PC sync.js 가 네이버 관리자 페이지에 자동 전달. 발주확인 안 됐으면 자동으로 같이 처리.
+            </div>
+            <div className="flex gap-2">
+              <button onClick={submitNaverDispatch} disabled={!naverDispatchTracking.trim() || naverDispatching}
+                className="flex-1 py-2.5 rounded-lg font-semibold disabled:opacity-40"
+                style={{ background: '#03c75a', color: 'white' }}>
+                <CheckCircle2 className="w-4 h-4 inline mr-1" />
+                {naverDispatching ? '등록 중...' : '발송 등록'}
+              </button>
+              <button onClick={() => setNaverDispatchModal(null)}
+                className="px-4 py-2.5 rounded-lg border"
+                style={{ borderColor: 'var(--border)' }}>취소</button>
             </div>
           </div>
         </div>

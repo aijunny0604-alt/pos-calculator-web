@@ -400,13 +400,19 @@ export default function SmartStoreOrders({
     }
     if (!saveOrderProp) return;
 
-    // 네이버 주문 = 엠파츠 거래처. 실제 구매자 정보는 memo 에 기록 (혼동 방지)
+    // 거래처 = 실제 구매자 (기존 매장 거래처와 자동 매칭, 재구매 시 합쳐짐)
+    // 네이버 주문 식별은 memo prefix "[엠파츠]" + "[네이버 스마트스토어]" 태그로 처리 (DB 구분)
     const isNaverOrder = order.provider === 'naver';
-    const customerName = isNaverOrder ? NAVER_STORE_CUSTOMER_NAME : (order.buyer_name || '온라인 구매자');
-    const buyerInfo = `구매자: ${order.buyer_name || '-'} / ${order.buyer_phone || '-'}`;
-    const addressInfo = order.buyer_address ? `\n주소: ${order.buyer_address}` : '';
+    const buyerName = (order.buyer_name || '').trim();
+    // 기존 거래처와 fuzzy 매칭 (전화번호 우선 + 이름)
+    const cm = isNaverOrder
+      ? matchCustomer(buyerName, customers, { maxCandidates: 1, threshold: 0.8 })
+      : matchCustomer(buyerName, customers, { maxCandidates: 1, threshold: 0.7 });
+    const customerName = cm?.status === 'exact'
+      ? cm.exact.name
+      : (buyerName || '온라인 구매자');
     const memo = isNaverOrder
-      ? `[네이버 스마트스토어] ${order.provider_order_id}\n${buyerInfo}${addressInfo}`
+      ? `[엠파츠] [네이버 스마트스토어] ${order.provider_order_id}\n구매자: ${buyerName || '-'} / ${order.buyer_phone || '-'}${order.buyer_address ? `\n주소: ${order.buyer_address}` : ''}`
       : `[${PROVIDER_LABEL[order.provider]?.label || order.provider}] 주문번호: ${order.provider_order_id}`;
 
     // placeholder 제외 (detail 미도착 row 는 안전 차단)
@@ -435,8 +441,8 @@ export default function SmartStoreOrders({
 
     const result = await saveOrderProp({
       customer_name: customerName,
-      customer_phone: isNaverOrder ? '' : (order.buyer_phone || ''),
-      customer_address: isNaverOrder ? '' : (order.buyer_address || ''),
+      customer_phone: order.buyer_phone || '',
+      customer_address: order.buyer_address || '',
       price_type: 'retail', // 네이버 = 소비자가 정책
       items: itemsForOrder,
       total_amount: total,
