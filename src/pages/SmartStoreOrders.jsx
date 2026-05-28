@@ -5,7 +5,7 @@
 // - Mock 데이터 주입 (Phase 1 — API 키 받기 전 테스트용)
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu } from 'lucide-react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
@@ -365,6 +365,14 @@ export default function SmartStoreOrders({
     <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--background)' }}>
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+        {/* 모바일 햄버거 메뉴 — 다른 페이지와 동일 패턴 (toggle-sidebar 이벤트) */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
+          className="md:hidden p-2 -ml-1 rounded-lg transition-colors hover:bg-[var(--accent)]"
+          title="메뉴 열기"
+        >
+          <Menu className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+        </button>
         <ShoppingBag className="w-5 h-5" style={{ color: 'var(--primary)' }} />
         <h1 className="text-lg sm:text-xl font-bold flex-1" style={{ color: 'var(--foreground)' }}>스마트스토어 주문</h1>
         <a
