@@ -127,6 +127,8 @@ export default function SmartStoreOrders({
   const [viewMode, setViewMode] = useState(() => {
     try { return localStorage.getItem('smartstore_view_mode') || 'card'; } catch { return 'card'; }
   });
+  // 컴팩트 모드 row 클릭 펼침
+  const [expandedCompactId, setExpandedCompactId] = useState(null);
   const toggleViewMode = () => {
     const next = viewMode === 'card' ? 'compact' : 'card';
     setViewMode(next);
@@ -587,14 +589,22 @@ export default function SmartStoreOrders({
                 : `${itemsForOrder[0].provider_product_name} 외 ${itemsForOrder.length - 1}건`;
               const statusMeta = STATUS_LABEL[order.order_status] || { label: order.order_status || '-', color: '#7e9cb8', bg: 'rgba(126,156,184,0.15)' };
               const isCash = order.delivery_policy_type === '착불' || /cash/i.test(order.delivery_policy_type || '');
+              const isExpanded = expandedCompactId === order.id;
               return (
-                <div key={order.id}
-                  className="grid grid-cols-1 sm:grid-cols-[1fr_100px_120px_120px_180px] gap-2 px-3 py-2.5 border-b text-sm items-center hover:bg-[var(--accent)]/30"
-                  style={{ borderColor: 'var(--border)' }}>
+                <div key={order.id} className="border-b" style={{ borderColor: 'var(--border)' }}>
+                <div
+                  className="grid grid-cols-1 sm:grid-cols-[1fr_100px_120px_120px_180px] gap-2 px-3 py-2.5 text-sm items-center hover:bg-[var(--accent)]/30 cursor-pointer"
+                  onClick={(e) => {
+                    // 액션 버튼 영역은 클릭 이벤트 통과
+                    if (e.target.closest('button[title]')) return;
+                    setExpandedCompactId(isExpanded ? null : order.id);
+                  }}
+                >
                   <div className="min-w-0">
                     <div className="font-semibold flex items-center gap-1.5">
                       {order.provider === 'naver' && <span className="text-[10px] px-1 rounded" style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a' }}>N</span>}
                       <span className="truncate">{order.buyer_name || '구매자'}</span>
+                      <span className="text-[10px] opacity-50">{isExpanded ? '▲' : '▼'}</span>
                     </div>
                     <div className="text-[11px] opacity-70 truncate">{productSummary}</div>
                   </div>
@@ -634,6 +644,102 @@ export default function SmartStoreOrders({
                     <button onClick={() => handleCreateShippingLabel(order)} className="px-2 py-1 rounded text-[10px] font-semibold"
                       style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }} title="택배 송장">📦</button>
                   </div>
+                </div>
+                {/* 펼침 상세 패널 — 클릭 시 row 아래 표시 */}
+                {isExpanded && (
+                  <div className="px-3 sm:px-4 py-3 space-y-3 border-t"
+                    style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
+                    {/* 구매자 + 처리 마커 */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="opacity-70">📞</span>
+                      <span className="font-mono">{order.buyer_phone || '-'}</span>
+                      <span className="opacity-50">|</span>
+                      <span className="opacity-70">📍</span>
+                      <span className="break-keep flex-1">{order.buyer_address || '-'}</span>
+                      <span className="opacity-50 font-mono text-[10px]">#{order.provider_order_id}</span>
+                    </div>
+                    {order.naver_confirm_succeeded_at && (
+                      <div className="text-[11px] font-semibold" style={{ color: '#a78bfa' }}>
+                        ✓ 네이버 발주확인 완료 — {fmtDate(order.naver_confirm_succeeded_at)}
+                      </div>
+                    )}
+                    {order.naver_dispatch_succeeded_at && (
+                      <div className="text-[11px] font-semibold" style={{ color: '#00ff88' }}>
+                        ✓ 네이버 발송완료 — {fmtDate(order.naver_dispatch_succeeded_at)}
+                        {order.naver_dispatch_company_name && order.naver_dispatch_tracking && (
+                          <span className="ml-2 opacity-80">{order.naver_dispatch_company_name} · {order.naver_dispatch_tracking}</span>
+                        )}
+                      </div>
+                    )}
+                    {/* 상품 리스트 */}
+                    <div className="space-y-1.5">
+                      {itemsForOrder.map((it) => {
+                        const matched = it.match_status === 'matched';
+                        const candidate = it.match_status === 'manual';
+                        const lineTotal = Number(it.unit_price || 0) * Number(it.quantity || 0);
+                        return (
+                          <div key={it.id} className="p-2 rounded border text-xs"
+                            style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+                            <div className="font-medium break-keep mb-0.5">{it.provider_product_name}</div>
+                            {it.provider_product_option && (
+                              <div className="text-[10px] opacity-60">옵션: {it.provider_product_option}</div>
+                            )}
+                            <div className="flex justify-between items-center mt-1">
+                              <span className="opacity-80">×{it.quantity} · 단가 {fmtNum(it.unit_price)}원</span>
+                              <span className="font-bold" style={{ color: 'var(--primary)' }}>{fmtNum(lineTotal)}원</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {matched && (
+                                <span className="flex items-center gap-1 text-[10px]" style={{ color: '#00ff88' }}>
+                                  <Check className="w-3 h-3" />{it.matched_product_name}
+                                </span>
+                              )}
+                              {candidate && (
+                                <span className="flex items-center gap-1 text-[10px]" style={{ color: '#ffaa00' }}>
+                                  <AlertTriangle className="w-3 h-3" />후보: {it.matched_product_name}
+                                </span>
+                              )}
+                              {it.match_status === 'no-candidate' && (
+                                <span className="text-[10px]" style={{ color: '#ff4d6d' }}>매칭 후보 없음 (freeform 가능)</span>
+                              )}
+                              <button
+                                onClick={() => { setEditingItemId(editingItemId === it.id ? null : it.id); setMatchSearch(''); }}
+                                className="px-1.5 py-0.5 rounded text-[10px] ml-auto"
+                                style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }}
+                              >
+                                {editingItemId === it.id ? '닫기' : '매칭 변경'}
+                              </button>
+                            </div>
+                            {editingItemId === it.id && (
+                              <div className="mt-2 p-2 rounded space-y-1.5" style={{ background: 'var(--background)' }}>
+                                <input type="text" value={matchSearch} onChange={(e) => setMatchSearch(e.target.value)}
+                                  placeholder="제품명 검색" autoFocus
+                                  className="w-full px-2 py-1 text-xs rounded border"
+                                  style={{ background: 'var(--card)', borderColor: 'var(--border)' }} />
+                                <div className="max-h-32 overflow-y-auto space-y-0.5">
+                                  {matchSearchResults.map((p) => (
+                                    <button key={p.id} onClick={() => applyManualMatch(it, p)}
+                                      className="w-full text-left px-2 py-1 rounded text-[10px] hover:bg-[var(--accent)]">
+                                      {p.name} {p.retail > 0 && <span className="opacity-60">({fmtNum(p.retail)}원)</span>}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* 합계 + 배송정보 */}
+                    <div className="flex justify-between items-center pt-2 border-t text-sm"
+                      style={{ borderColor: 'var(--border)' }}>
+                      <span className="opacity-70">
+                        합계 {isCash && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,170,0,0.15)', color: '#ffaa00' }}>🚚 착불</span>}
+                      </span>
+                      <span className="font-bold text-base" style={{ color: 'var(--primary)' }}>{fmtNum(order.total_amount)}원</span>
+                    </div>
+                  </div>
+                )}
                 </div>
               );
             })}
