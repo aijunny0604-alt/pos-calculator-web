@@ -234,11 +234,38 @@ export default function SmartStoreOrders({
   const stats = useMemo(() => {
     const today = new Date().toDateString();
     const todayOrders = orders.filter((o) => o.received_at && new Date(o.received_at).toDateString() === today);
+    // 네이버 관리자 페이지 위젯 카운트 (raw_payload + DB 컬럼 조합)
+    const now = Date.now();
+    const todayKstStart = new Date(); todayKstStart.setHours(0, 0, 0, 0);
+    const tomorrowKstStart = new Date(todayKstStart); tomorrowKstStart.setDate(todayKstStart.getDate() + 1);
+    const dayAfterTomorrowKstStart = new Date(todayKstStart); dayAfterTomorrowKstStart.setDate(todayKstStart.getDate() + 2);
+
+    let overdue = 0, autoConfirmPending = 0, newAfterConfirm = 0, dispatchDueDday = 0, dispatchDueD1 = 0, cancelRequest = 0;
+    for (const o of orders) {
+      const dispatchDue = o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
+      const isDone = DONE_STATUSES.has(o.order_status) || o.naver_dispatch_succeeded_at;
+      if (!isDone && dispatchDue) {
+        const due = new Date(dispatchDue).getTime();
+        if (due < now) overdue++;
+        else if (due >= todayKstStart.getTime() && due < tomorrowKstStart.getTime()) dispatchDueDday++;
+        else if (due >= tomorrowKstStart.getTime() && due < dayAfterTomorrowKstStart.getTime()) dispatchDueD1++;
+      }
+      if (o.needs_naver_confirm || o.needs_naver_dispatch) autoConfirmPending++;
+      if (o.naver_confirm_succeeded_at && !o.naver_dispatch_succeeded_at && o.order_status !== 'shipped') newAfterConfirm++;
+      const status = o.order_status;
+      if (status === 'CANCEL_REQUEST' || status === 'CANCELED' || /cancel/i.test(o.raw_payload?.cancelRequest || '')) cancelRequest++;
+    }
     return {
       total: orders.length,
       todayCount: todayOrders.length,
-      pending: orders.filter((o) => o.order_status === 'received').length,
+      pending: orders.filter((o) => o.order_status === 'received' || o.order_status === 'PAYED').length,
       todayRevenue: todayOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0),
+      overdue,
+      autoConfirmPending,
+      newAfterConfirm,
+      dispatchDueDday,
+      dispatchDueD1,
+      cancelRequest,
     };
   }, [orders]);
 
@@ -525,11 +552,26 @@ export default function SmartStoreOrders({
       </div>
 
       {/* KPI 카드 */}
-      <div className="grid grid-cols-4 gap-2 px-3 sm:px-4 pb-3">
+      <div className="grid grid-cols-4 gap-2 px-3 sm:px-4 pb-2">
         <KpiCard label="전체" value={stats.total} />
         <KpiCard label="오늘" value={stats.todayCount} accent="#4dffff" />
         <KpiCard label="대기" value={stats.pending} accent="#ffaa00" />
         <KpiCard label="오늘 매출" value={`${fmtNum(stats.todayRevenue)}원`} small />
+      </div>
+
+      {/* 네이버 관리자 페이지 위젯 — 빠르게 확인 + 발송처리 진행 */}
+      <div className="px-3 sm:px-4 pb-3">
+        <div className="rounded-lg border p-2.5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {/* 빠르게 확인 (빨강 그룹) */}
+            <NaverStatBox icon="⏰" label="발송기한 초과" value={stats.overdue} alert={stats.overdue > 0} />
+            <NaverStatBox icon="🤖" label="자동처리 예정" value={stats.autoConfirmPending} accent="#a78bfa" />
+            <NaverStatBox icon="🚚" label="발주 후 신규" value={stats.newAfterConfirm} accent="#03c75a" />
+            <NaverStatBox icon="❌" label="취소 요청" value={stats.cancelRequest} alert={stats.cancelRequest > 0} />
+            <NaverStatBox icon="📅" label="발송마감 D-1" value={stats.dispatchDueD1} accent="#ffaa00" alert={stats.dispatchDueD1 > 0} />
+            <NaverStatBox icon="🔥" label="발송마감 D-day" value={stats.dispatchDueDday} alert={stats.dispatchDueDday > 0} accent="#ff4d6d" />
+          </div>
+        </div>
       </div>
 
       {/* 필터 */}
@@ -1067,6 +1109,24 @@ function KpiCard({ label, value, accent, small }) {
     <div className="p-2.5 rounded-lg border" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
       <div className="text-[10px] opacity-60 uppercase tracking-wider">{label}</div>
       <div className={`font-bold ${small ? 'text-sm' : 'text-xl'} mt-0.5`} style={{ color: accent || 'var(--foreground)' }}>{value}</div>
+    </div>
+  );
+}
+
+function NaverStatBox({ icon, label, value, accent, alert }) {
+  const isActive = value > 0;
+  return (
+    <div className="p-1.5 rounded-lg flex flex-col items-center text-center"
+      style={{
+        background: alert && isActive ? 'rgba(255,77,109,0.08)' : 'var(--background)',
+        border: alert && isActive ? '1px solid rgba(255,77,109,0.35)' : '1px solid var(--border)',
+      }}>
+      <div className="text-base leading-none mb-0.5">{icon}</div>
+      <div className="text-[9px] sm:text-[10px] opacity-70 leading-tight">{label}</div>
+      <div className="text-base sm:text-lg font-bold mt-0.5"
+        style={{ color: isActive ? (accent || (alert ? '#ff4d6d' : 'var(--foreground)')) : 'var(--foreground)', opacity: isActive ? 1 : 0.4 }}>
+        {value}
+      </div>
     </div>
   );
 }
