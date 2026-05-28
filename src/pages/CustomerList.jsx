@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Menu, Building, Search, Phone, MapPin, ChevronDown, ChevronRight,
   Receipt, Copy, RotateCcw, X, Minus, Plus, Maximize2, Minimize2
@@ -30,6 +30,8 @@ export default function CustomerList({
 }) {
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'payments'
   const [searchTerm, setSearchTerm] = useState('');
+  // 카테고리 필터 (사용자 정책: 네이버=엠파츠 카테고리 분류)
+  const [categoryFilter, setCategoryFilter] = useState('all'); // 'all' | 'none' | <category name>
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [detailOrder, setDetailOrder] = useState(null);
@@ -125,10 +127,20 @@ export default function CustomerList({
 
   // -- Filters --
 
+  // 등록된 카테고리 목록 (필터 dropdown 옵션)
+  const categoryOptions = useMemo(() => {
+    const set = new Set();
+    (customers || []).forEach((c) => { if (c.category) set.add(c.category); });
+    return Array.from(set).sort();
+  }, [customers]);
+
   const filteredCustomers = (customers || []).filter(c => {
     if (blacklistFilter === 'blacklist' && !c.is_blacklist) return false;
     if (blacklistFilter === 'normal' && c.is_blacklist) return false;
     if (outstandingFilter && !(outstandingByCustomer[String(c.id)] > 0)) return false;
+    // 카테고리 필터
+    if (categoryFilter === 'none' && c.category) return false;
+    if (categoryFilter !== 'all' && categoryFilter !== 'none' && c.category !== categoryFilter) return false;
     const search = searchTerm.toLowerCase().replace(/\s/g, '');
     const name = c.name.toLowerCase().replace(/\s/g, '');
     const address = (c.address || '').toLowerCase().replace(/\s/g, '');
@@ -391,6 +403,34 @@ export default function CustomerList({
                   className="w-full pl-10 pr-4 py-2.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] placeholder:text-[var(--muted-foreground)]"
                 />
               </div>
+
+              {/* 카테고리 필터 — 네이버=엠파츠 등 자동 태그된 거래처 그룹 */}
+              {categoryOptions.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-[var(--muted-foreground)]">카테고리:</span>
+                  {['all', ...categoryOptions, 'none'].map((cat) => {
+                    const label = cat === 'all' ? '전체' : cat === 'none' ? '미분류' : cat;
+                    const count = cat === 'all'
+                      ? (customers || []).length
+                      : cat === 'none'
+                        ? (customers || []).filter((c) => !c.category).length
+                        : (customers || []).filter((c) => c.category === cat).length;
+                    const active = categoryFilter === cat;
+                    return (
+                      <button key={cat} onClick={() => setCategoryFilter(cat)}
+                        className="text-xs px-2.5 py-1 rounded-lg border transition-colors"
+                        style={{
+                          background: active ? 'var(--primary)' : 'var(--card)',
+                          color: active ? 'white' : 'var(--foreground)',
+                          borderColor: active ? 'var(--primary)' : 'var(--border)',
+                          fontWeight: active ? 700 : 400,
+                        }}>
+                        {cat === '엠파츠' ? '🛒 ' : ''}{label} <span className="opacity-70">({count})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Stats badges */}
               <div className="flex items-center gap-2 text-xs">
