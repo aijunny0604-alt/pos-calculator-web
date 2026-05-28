@@ -123,6 +123,53 @@ export default function SmartStoreOrders({
   const [providerFilter, setProviderFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCompleted, setShowCompleted] = useState(false); // 처리완료 카드 표시 토글
+  // 뷰 모드 — localStorage 영구 저장 (주문 많을 때 컴팩트로 한눈에)
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem('smartstore_view_mode') || 'card'; } catch { return 'card'; }
+  });
+  const toggleViewMode = () => {
+    const next = viewMode === 'card' ? 'compact' : 'card';
+    setViewMode(next);
+    try { localStorage.setItem('smartstore_view_mode', next); } catch {}
+  };
+
+  // 매칭 직접 수정 (사용자 요청)
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [matchSearch, setMatchSearch] = useState('');
+
+  const matchSearchResults = useMemo(() => {
+    const q = matchSearch.trim().toLowerCase();
+    if (!q || q.length < 1) return [];
+    return (products || [])
+      .filter((p) => (p.name || '').toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [products, matchSearch]);
+
+  const applyManualMatch = async (item, product) => {
+    await supabase.updateExternalOrderItem(item.id, {
+      matched_product_id: product.id,
+      matched_product_name: product.name,
+      match_status: 'matched',
+      match_score: 1.0,
+    });
+    setEditingItemId(null);
+    setMatchSearch('');
+    showToast?.(`매칭 변경: ${product.name}`, 'success');
+    reload();
+  };
+
+  const clearMatch = async (item) => {
+    await supabase.updateExternalOrderItem(item.id, {
+      matched_product_id: null,
+      matched_product_name: null,
+      match_status: 'pending',
+      match_score: null,
+    });
+    setEditingItemId(null);
+    setMatchSearch('');
+    showToast?.('매칭 해제됨 — 다시 시도 가능', 'info');
+    reload();
+  };
 
   // 발송처리 모달
   const [dispatchModalOrder, setDispatchModalOrder] = useState(null);
@@ -342,11 +389,11 @@ export default function SmartStoreOrders({
   };
 
   // 내부 주문으로 전환 — 네이버 스토어 주문은 "엠파츠" 거래처로 통합
+  // 매칭 안 된 item 도 네이버 제품명·금액 그대로 freeform 으로 포함 (사용자 정책)
   const convertToInternalOrder = async (order) => {
     const items = itemsByOrder[order.id] || [];
-    const matched = items.filter((it) => it.matched_product_id && (it.match_status === 'matched' || it.match_status === 'manual'));
-    if (matched.length === 0) {
-      showToast?.('매칭된 항목이 없어요. 먼저 제품 매칭부터 해주세요', 'error');
+    if (items.length === 0) {
+      showToast?.('주문 항목이 없어요', 'error');
       return;
     }
     if (!saveOrderProp) return;
@@ -360,14 +407,25 @@ export default function SmartStoreOrders({
       ? `[네이버 스마트스토어] ${order.provider_order_id}\n${buyerInfo}${addressInfo}`
       : `[${PROVIDER_LABEL[order.provider]?.label || order.provider}] 주문번호: ${order.provider_order_id}`;
 
-    const itemsForOrder = matched.map((it) => {
-      const p = products.find((x) => x.id === it.matched_product_id);
+    // placeholder 제외 (detail 미도착 row 는 안전 차단)
+    const usableItems = items.filter((it) =>
+      it.provider_product_name && !it.provider_product_name.includes('⏳') && it.provider_product_name !== '확인 필요'
+    );
+    if (usableItems.length === 0) {
+      showToast?.('주문 항목이 아직 준비 안 됐어요 — 잠시 후 다시 시도', 'error');
+      return;
+    }
+    // 매칭된 item 은 product DB 연결, 매칭 안 된 item 은 freeform (네이버 제품명·금액 그대로)
+    const itemsForOrder = usableItems.map((it) => {
+      const isMatched = !!(it.matched_product_id && (it.match_status === 'matched' || it.match_status === 'manual'));
+      const p = isMatched ? products.find((x) => x.id === it.matched_product_id) : null;
       return {
-        id: p?.id || it.matched_product_id,
+        // freeform 의 id 는 productOrderId 기반 유니크 마커 (같은 주문 합산 안 되게)
+        id: isMatched ? (p?.id || it.matched_product_id) : `naver-${it.provider_product_order_id || it.id}`,
         name: it.matched_product_name || it.provider_product_name,
         price: it.unit_price, // 네이버 unitPrice = 소비자가
-        wholesale: Number(p?.wholesale) || it.unit_price,
-        retail: Number(p?.retail) || it.unit_price,
+        wholesale: isMatched ? (Number(p?.wholesale) || it.unit_price) : it.unit_price,
+        retail: isMatched ? (Number(p?.retail) || it.unit_price) : it.unit_price,
         quantity: it.quantity,
       };
     });
@@ -483,8 +541,17 @@ export default function SmartStoreOrders({
           <option value="shipped">발송완료</option>
           <option value="cancelled">취소</option>
         </select>
+        {/* 뷰 모드 토글 — 카드 / 컴팩트 */}
+        <button
+          onClick={toggleViewMode}
+          className="text-xs px-2 py-1 rounded border ml-auto flex items-center gap-1 hover:bg-[var(--accent)]"
+          style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+          title={viewMode === 'card' ? '컴팩트 모드로 (한 줄 표시)' : '카드 모드로 (디테일 표시)'}
+        >
+          {viewMode === 'card' ? '📋 컴팩트' : '🔲 카드'}
+        </button>
         {/* 처리완료 카드 표시 토글 */}
-        <label className="text-xs flex items-center gap-1.5 cursor-pointer ml-auto px-2 py-1 rounded border"
+        <label className="text-xs flex items-center gap-1.5 cursor-pointer px-2 py-1 rounded border"
           style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
           <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} className="accent-current" />
           처리완료 표시
@@ -502,6 +569,68 @@ export default function SmartStoreOrders({
             <div className="text-xs mt-1">우측 상단 [Mock 주문 테스트]로 흐름 검증 가능</div>
           </div>
         )}
+        {viewMode === 'compact' && (
+          <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+            {/* 컴팩트 헤더 (데스크탑만) */}
+            <div className="hidden sm:grid grid-cols-[1fr_100px_120px_120px_180px] gap-2 px-3 py-2 text-[10px] font-bold opacity-70 border-b uppercase tracking-wide"
+              style={{ borderColor: 'var(--border)' }}>
+              <span>주문자 · 상품</span>
+              <span>상태</span>
+              <span className="text-right">금액</span>
+              <span>날짜</span>
+              <span className="text-center">액션</span>
+            </div>
+            {filtered.map((order) => {
+              const itemsForOrder = itemsByOrder[order.id] || [];
+              const productSummary = itemsForOrder.length === 0 ? '-'
+                : itemsForOrder.length === 1 ? itemsForOrder[0].provider_product_name
+                : `${itemsForOrder[0].provider_product_name} 외 ${itemsForOrder.length - 1}건`;
+              const statusMeta = STATUS_LABEL[order.order_status] || { label: order.order_status || '-', color: '#7e9cb8', bg: 'rgba(126,156,184,0.15)' };
+              const isCash = order.delivery_policy_type === '착불' || /cash/i.test(order.delivery_policy_type || '');
+              return (
+                <div key={order.id}
+                  className="grid grid-cols-1 sm:grid-cols-[1fr_100px_120px_120px_180px] gap-2 px-3 py-2.5 border-b text-sm items-center hover:bg-[var(--accent)]/30"
+                  style={{ borderColor: 'var(--border)' }}>
+                  <div className="min-w-0">
+                    <div className="font-semibold flex items-center gap-1.5">
+                      {order.provider === 'naver' && <span className="text-[10px] px-1 rounded" style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a' }}>N</span>}
+                      <span className="truncate">{order.buyer_name || '구매자'}</span>
+                    </div>
+                    <div className="text-[11px] opacity-70 truncate">{productSummary}</div>
+                  </div>
+                  <div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap"
+                      style={{ background: statusMeta.bg, color: statusMeta.color }}>
+                      {statusMeta.label}
+                    </span>
+                  </div>
+                  <div className="text-right font-bold whitespace-nowrap" style={{ color: 'var(--primary)' }}>
+                    {fmtNum(order.total_amount)}원
+                    {isCash && <div className="text-[10px] font-normal" style={{ color: '#ffaa00' }}>🚚 착불</div>}
+                  </div>
+                  <div className="text-xs opacity-70 whitespace-nowrap">{fmtDate(order.received_at)}</div>
+                  <div className="flex gap-1 justify-center flex-wrap">
+                    {PENDING_CONFIRM_STATUSES.has(order.order_status) && !order.naver_confirm_succeeded_at && (
+                      <button onClick={() => confirmOrder(order)} className="px-2 py-1 rounded text-[10px] font-semibold"
+                        style={{ background: 'rgba(167,139,250,0.2)', color: '#a78bfa' }} title="발주확인">📋</button>
+                    )}
+                    {!DONE_STATUSES.has(order.order_status) && (
+                      <button onClick={() => convertToInternalOrder(order)} className="px-2 py-1 rounded text-[10px] font-semibold"
+                        style={{ background: 'var(--primary)', color: 'white' }} title="내부주문 전환">→</button>
+                    )}
+                    {!DONE_STATUSES.has(order.order_status) && (
+                      <button onClick={() => openDispatch(order)} className="px-2 py-1 rounded text-[10px] font-semibold"
+                        style={{ background: 'rgba(0,255,136,0.15)', color: '#00ff88' }} title="발송처리">🚚</button>
+                    )}
+                    <button onClick={() => handleCreateShippingLabel(order)} className="px-2 py-1 rounded text-[10px] font-semibold"
+                      style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }} title="택배 송장">📦</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {viewMode === 'card' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {filtered.map((order) => {
           const items = itemsByOrder[order.id] || [];
@@ -602,7 +731,57 @@ export default function SmartStoreOrders({
                         {it.match_status === 'no-candidate' && (
                           <span className="text-[10px]" style={{ color: '#ff4d6d' }}>매칭 후보 없음</span>
                         )}
+                        {/* 매칭 직접 수정 — 모든 상태에서 [변경] 버튼 */}
+                        <button
+                          onClick={() => { setEditingItemId(editingItemId === it.id ? null : it.id); setMatchSearch(''); }}
+                          className="px-2 py-0.5 rounded text-[10px] flex items-center gap-1 ml-auto"
+                          style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }}
+                        >
+                          {editingItemId === it.id ? '닫기' : (matched || candidate ? '변경' : '직접 선택')}
+                        </button>
+                        {matched && (
+                          <button onClick={() => clearMatch(it)} className="px-2 py-0.5 rounded text-[10px]"
+                            style={{ background: 'rgba(255,77,109,0.15)', color: '#ff4d6d' }} title="매칭 해제 후 다시 시도">
+                            해제
+                          </button>
+                        )}
                       </div>
+                      {/* 인라인 검색 + 후보 선택 패널 */}
+                      {editingItemId === it.id && (
+                        <div className="ml-6 mt-1 p-2 rounded-lg border space-y-1.5"
+                          style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
+                          <input
+                            type="text"
+                            value={matchSearch}
+                            onChange={(e) => setMatchSearch(e.target.value)}
+                            placeholder="제품명 검색 (1글자 이상)"
+                            autoFocus
+                            className="w-full px-2 py-1.5 text-xs rounded border"
+                            style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                          />
+                          {matchSearchResults.length === 0 && matchSearch.trim() && (
+                            <div className="text-[11px] opacity-60 py-1">검색 결과 없음</div>
+                          )}
+                          {matchSearchResults.length === 0 && !matchSearch.trim() && (
+                            <div className="text-[11px] opacity-60 py-1">제품명을 입력해주세요</div>
+                          )}
+                          <div className="max-h-40 overflow-y-auto space-y-1">
+                            {matchSearchResults.map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => applyManualMatch(it, p)}
+                                className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-[var(--accent)]"
+                                style={{ background: it.matched_product_id === p.id ? 'rgba(0,255,136,0.12)' : 'transparent' }}
+                              >
+                                <div className="font-medium truncate">{p.name}</div>
+                                {p.retail > 0 && (
+                                  <div className="text-[10px] opacity-60">소비자가 {fmtNum(p.retail)}원</div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -701,6 +880,7 @@ export default function SmartStoreOrders({
           );
         })}
         </div>
+        )}
       </div>
 
       {/* 발송처리 모달 */}
