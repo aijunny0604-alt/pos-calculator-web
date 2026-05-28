@@ -22,12 +22,29 @@ const fmtDate = (s) => {
 
 const STATUS_LABEL = {
   received: { label: '수신', color: '#4dffff', bg: 'rgba(0,212,255,0.15)' },
+  // 네이버 원본 productOrderStatus 직접 인식 (실시간 모니터링)
+  PAYMENT_WAITING: { label: '입금대기', color: '#ffaa00', bg: 'rgba(255,170,0,0.15)' },
+  PAYED: { label: '결제완료', color: '#4dffff', bg: 'rgba(0,212,255,0.15)' },
+  DELIVERING: { label: '배송중', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
+  DISPATCHED: { label: '발송중', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
+  DELIVERED: { label: '배송완료', color: '#00ff88', bg: 'rgba(0,255,136,0.15)' },
+  PURCHASE_DECIDED: { label: '구매확정', color: '#00ff88', bg: 'rgba(0,255,136,0.15)' },
+  // 내부 status
   matched: { label: '매칭됨', color: '#00ff88', bg: 'rgba(0,255,136,0.15)' },
   confirmed: { label: '발주확인', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
   converted: { label: '내부주문 전환', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
   shipped: { label: '발송완료', color: '#00ff88', bg: 'rgba(0,255,136,0.15)' },
   cancelled: { label: '취소', color: '#ff4d6d', bg: 'rgba(255,77,109,0.15)' },
 };
+
+// 발주확인 가능 상태 (네이버 원본 + 내부 status 모두 포함)
+const PENDING_CONFIRM_STATUSES = new Set(['received', 'PAYED', 'PAYMENT_WAITING', 'matched']);
+
+// 처리 완료 상태 (카드 기본 숨김 대상)
+const DONE_STATUSES = new Set(['converted', 'shipped', 'cancelled']);
+
+// 네이버 스토어 통합 거래처명 (실 buyer 는 memo 에 기록)
+const NAVER_STORE_CUSTOMER_NAME = '엠파츠';
 
 // 네이버 커머스 API 호환 택배사 코드 (주요)
 const DELIVERY_COMPANIES = [
@@ -105,6 +122,7 @@ export default function SmartStoreOrders({
   const [soundOn, setSoundOn] = useState(true);
   const [providerFilter, setProviderFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showCompleted, setShowCompleted] = useState(false); // 처리완료 카드 표시 토글
 
   // 발송처리 모달
   const [dispatchModalOrder, setDispatchModalOrder] = useState(null);
@@ -154,9 +172,15 @@ export default function SmartStoreOrders({
     return orders.filter((o) => {
       if (providerFilter !== 'all' && o.provider !== providerFilter) return false;
       if (statusFilter !== 'all' && o.order_status !== statusFilter) return false;
+      // 처리완료(converted/shipped/cancelled/구매확정) 는 토글 OFF 시 숨김
+      if (!showCompleted && (DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED')) return false;
       return true;
     });
-  }, [orders, providerFilter, statusFilter]);
+  }, [orders, providerFilter, statusFilter, showCompleted]);
+
+  const completedCount = useMemo(() => orders.filter((o) =>
+    DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED'
+  ).length, [orders]);
 
   const stats = useMemo(() => {
     const today = new Date().toDateString();
@@ -265,16 +289,18 @@ export default function SmartStoreOrders({
   };
 
   const confirmOrder = async (order) => {
-    const items = itemsByOrder[order.id] || [];
-    const ids = items.map((it) => it.id);
-    if (ids.length === 0) return;
-    const result = await callOrderAction('confirm', ids);
-    if (result?.ok) {
-      const modeLabel = result.sentToNaver ? '✓ 네이버에 전송됨' : '🧪 Mock (네이버 미전송)';
-      showToast?.(`발주확인 완료 — ${modeLabel}`, 'success');
-      await supabase.updateExternalOrder(order.id, { order_status: 'confirmed' });
-      reload();
+    // 큐 방식 전환 — Edge Function (IP 차단 위험) 제거, sync.js 매장 PC bridge 가 처리
+    if (order.naver_confirm_succeeded_at) {
+      showToast?.('이미 발주확인 완료된 주문입니다', 'info');
+      return;
     }
+    await supabase.updateExternalOrder(order.id, {
+      needs_naver_confirm: true,
+      naver_confirm_retry_count: 0,
+      naver_confirm_next_retry_at: null,
+    });
+    showToast?.('발주확인 대기열 등록 — 매장 PC 가 60초 내 자동 처리', 'success');
+    reload();
   };
 
   const openDispatch = (order) => {
@@ -284,26 +310,23 @@ export default function SmartStoreOrders({
   };
 
   const submitDispatch = async () => {
+    // 큐 방식 전환 — 매장 PC sync.js 가 네이버 dispatch API 호출 (IP 화이트리스트 우회)
     if (!dispatchModalOrder || !dispatchTracking.trim()) return;
-    const items = itemsByOrder[dispatchModalOrder.id] || [];
-    const ids = items.map((it) => it.id);
-    if (ids.length === 0) return;
     const company = DELIVERY_COMPANIES.find((c) => c.code === dispatchCompany);
-    const result = await callOrderAction('dispatch', ids, {
-      deliveryCompanyCode: dispatchCompany,
-      deliveryCompanyName: company?.name || dispatchCompany,
-      trackingNumber: dispatchTracking.trim(),
+    await supabase.updateExternalOrder(dispatchModalOrder.id, {
+      needs_naver_dispatch: true,
+      naver_dispatch_company_code: dispatchCompany,
+      naver_dispatch_company_name: company?.name || dispatchCompany,
+      naver_dispatch_tracking: dispatchTracking.trim(),
+      naver_dispatch_retry_count: 0,
+      naver_dispatch_next_retry_at: null,
     });
-    if (result?.ok) {
-      const modeLabel = result.sentToNaver ? '✓ 네이버 전송됨' : '🧪 Mock 모드';
-      showToast?.(`발송처리 완료 (${company?.name}) — ${modeLabel}`, 'success');
-      await supabase.updateExternalOrder(dispatchModalOrder.id, { order_status: 'shipped' });
-      setDispatchModalOrder(null);
-      reload();
-    }
+    showToast?.(`발송처리 대기열 등록 (${company?.name} · ${dispatchTracking.trim()}) — 60초 내 자동 처리`, 'success');
+    setDispatchModalOrder(null);
+    reload();
   };
 
-  // 내부 주문으로 전환
+  // 내부 주문으로 전환 — 네이버 스토어 주문은 "엠파츠" 거래처로 통합
   const convertToInternalOrder = async (order) => {
     const items = itemsByOrder[order.id] || [];
     const matched = items.filter((it) => it.matched_product_id && (it.match_status === 'matched' || it.match_status === 'manual'));
@@ -313,16 +336,21 @@ export default function SmartStoreOrders({
     }
     if (!saveOrderProp) return;
 
-    // 거래처 매칭
-    const cm = matchCustomer(order.buyer_name || '', customers, { maxCandidates: 1, threshold: 0.7 });
-    const customerName = cm.status === 'exact' ? cm.exact.name : (order.buyer_name || '온라인 구매자');
+    // 네이버 주문 = 엠파츠 거래처. 실제 구매자 정보는 memo 에 기록 (혼동 방지)
+    const isNaverOrder = order.provider === 'naver';
+    const customerName = isNaverOrder ? NAVER_STORE_CUSTOMER_NAME : (order.buyer_name || '온라인 구매자');
+    const buyerInfo = `구매자: ${order.buyer_name || '-'} / ${order.buyer_phone || '-'}`;
+    const addressInfo = order.buyer_address ? `\n주소: ${order.buyer_address}` : '';
+    const memo = isNaverOrder
+      ? `[네이버 스마트스토어] ${order.provider_order_id}\n${buyerInfo}${addressInfo}`
+      : `[${PROVIDER_LABEL[order.provider]?.label || order.provider}] 주문번호: ${order.provider_order_id}`;
 
     const itemsForOrder = matched.map((it) => {
       const p = products.find((x) => x.id === it.matched_product_id);
       return {
         id: p?.id || it.matched_product_id,
         name: it.matched_product_name || it.provider_product_name,
-        price: it.unit_price,
+        price: it.unit_price, // 네이버 unitPrice = 소비자가
         wholesale: Number(p?.wholesale) || it.unit_price,
         retail: Number(p?.retail) || it.unit_price,
         quantity: it.quantity,
@@ -332,12 +360,12 @@ export default function SmartStoreOrders({
 
     const result = await saveOrderProp({
       customer_name: customerName,
-      customer_phone: order.buyer_phone || '',
-      customer_address: order.buyer_address || '',
-      price_type: 'retail', // 온라인 주문은 보통 소비자가
+      customer_phone: isNaverOrder ? '' : (order.buyer_phone || ''),
+      customer_address: isNaverOrder ? '' : (order.buyer_address || ''),
+      price_type: 'retail', // 네이버 = 소비자가 정책
       items: itemsForOrder,
       total_amount: total,
-      memo: `[${PROVIDER_LABEL[order.provider]?.label || order.provider}] 주문번호: ${order.provider_order_id}`,
+      memo,
     });
     if (result) {
       // 네이버 발주확인 자동화 큐 — 항상 등록 (이미 confirmed 면 sync.js 가 "already" 응답 받고 깔끔히 skip)
@@ -434,11 +462,19 @@ export default function SmartStoreOrders({
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
           className="text-xs px-2 py-1 rounded border" style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
           <option value="all">전체 상태</option>
-          <option value="received">수신</option>
-          <option value="matched">매칭됨</option>
+          <option value="PAYED">결제완료</option>
+          <option value="confirmed">발주확인</option>
           <option value="converted">전환됨</option>
+          <option value="shipped">발송완료</option>
           <option value="cancelled">취소</option>
         </select>
+        {/* 처리완료 카드 표시 토글 */}
+        <label className="text-xs flex items-center gap-1.5 cursor-pointer ml-auto px-2 py-1 rounded border"
+          style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+          <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} className="accent-current" />
+          처리완료 표시
+          {completedCount > 0 && <span className="opacity-60">({completedCount})</span>}
+        </label>
       </div>
 
       {/* 주문 카드 목록 — 항상 풀 디스플레이, 모바일 우선 디자인 */}
@@ -600,7 +636,7 @@ export default function SmartStoreOrders({
               {/* ⑤ 액션 버튼 — 모바일 2열, 데스크탑 4열 */}
               <div className="px-3 py-3 border-t grid grid-cols-2 sm:grid-cols-4 gap-2"
                 style={{ borderColor: 'var(--border)' }}>
-                {order.order_status === 'received' && (
+                {PENDING_CONFIRM_STATUSES.has(order.order_status) && !order.naver_confirm_succeeded_at && (
                   <button
                     onClick={() => confirmOrder(order)}
                     className="py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"
@@ -609,7 +645,7 @@ export default function SmartStoreOrders({
                     <ClipboardCheck className="w-4 h-4" />발주확인
                   </button>
                 )}
-                {order.order_status !== 'converted' && order.order_status !== 'shipped' && (
+                {!DONE_STATUSES.has(order.order_status) && (
                   <button
                     onClick={() => convertToInternalOrder(order)}
                     className="py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"
@@ -618,7 +654,7 @@ export default function SmartStoreOrders({
                     <ArrowRight className="w-4 h-4" />내부주문
                   </button>
                 )}
-                {order.order_status !== 'shipped' && order.order_status !== 'cancelled' && (
+                {!DONE_STATUSES.has(order.order_status) && (
                   <button
                     onClick={() => openDispatch(order)}
                     className="py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"

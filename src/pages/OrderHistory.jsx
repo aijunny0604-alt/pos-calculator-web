@@ -767,6 +767,8 @@ export default function OrderHistory({
               const paidMethod = isPaid ? METHOD_MAP[paidInfo.method] : null;
               const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
               const isReturned = (order.totalReturned || 0) > 0;
+              // 네이버 스마트스토어 경유 주문 (엠파츠 거래처 + memo prefix)
+              const isNaverOrder = (order.memo || '').includes('[네이버') || order.customerName === '엠파츠';
 
               return (
                 <div
@@ -780,18 +782,22 @@ export default function OrderHistory({
                         ? 'color-mix(in srgb, #f59e0b 14%, var(--card))'
                         : isPaid
                           ? 'color-mix(in srgb, #10b981 10%, var(--card))'
-                          : isBlacklist
-                            ? 'color-mix(in srgb, var(--destructive) 6%, var(--card))'
-                            : 'var(--card)',
+                          : isNaverOrder
+                            ? 'color-mix(in srgb, #03c75a 8%, var(--card))'
+                            : isBlacklist
+                              ? 'color-mix(in srgb, var(--destructive) 6%, var(--card))'
+                              : 'var(--card)',
                     borderColor: isSelected
                       ? 'var(--primary)'
                       : isReturned
                         ? '#f59e0b'
                         : isPaid
                           ? '#10b981'
-                          : isBlacklist
-                            ? 'var(--destructive)'
-                            : 'var(--border)',
+                          : isNaverOrder
+                            ? '#03c75a'
+                            : isBlacklist
+                              ? 'var(--destructive)'
+                              : 'var(--border)',
                     borderWidth: isReturned ? '2px' : '1px',
                     outline: isSelected ? '2px solid var(--primary)' : isReturned ? '1px solid rgba(245,158,11,0.5)' : isPaid ? '1px solid rgba(16,185,129,0.4)' : 'none',
                     outlineOffset: '-1px',
@@ -813,12 +819,27 @@ export default function OrderHistory({
                       className="absolute top-0 left-0 right-0 h-1.5"
                       style={{ background: 'linear-gradient(90deg,#10b981,#34d399)' }}
                     />
+                  ) : isNaverOrder ? (
+                    <div
+                      className="absolute top-0 left-0 right-0 h-1.5"
+                      style={{ background: 'linear-gradient(90deg,#03c75a,#22c55e)' }}
+                    />
                   ) : isBlacklist ? (
                     <div
                       className="absolute top-0 left-0 right-0 h-1"
                       style={{ background: 'var(--destructive)' }}
                     />
                   ) : null}
+
+                  {/* 네이버 스토어 주문 chip — 우측 상단 */}
+                  {isNaverOrder && (
+                    <div
+                      className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 z-10"
+                      style={{ background: 'rgba(3,199,90,0.18)', color: '#03c75a', border: '1px solid rgba(3,199,90,0.45)' }}
+                    >
+                      🛒 네이버
+                    </div>
+                  )}
 
                   {/* Returned badge (top-right corner ribbon) */}
                   {isReturned && (
