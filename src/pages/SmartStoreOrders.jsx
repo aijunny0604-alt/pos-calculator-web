@@ -313,15 +313,30 @@ export default function SmartStoreOrders({
     // 큐 방식 전환 — 매장 PC sync.js 가 네이버 dispatch API 호출 (IP 화이트리스트 우회)
     if (!dispatchModalOrder || !dispatchTracking.trim()) return;
     const company = DELIVERY_COMPANIES.find((c) => c.code === dispatchCompany);
-    await supabase.updateExternalOrder(dispatchModalOrder.id, {
+    const order = dispatchModalOrder;
+    // Codex Major E fix: 발주확인 안 되어 있으면 confirm 큐도 같이 등록
+    // sync.js 가 confirm → dispatch 순서로 처리 (네이버는 발주확인 안 된 주문 dispatch 거부)
+    const needsConfirm = !order.naver_confirm_succeeded_at;
+    const patch = {
       needs_naver_dispatch: true,
       naver_dispatch_company_code: dispatchCompany,
       naver_dispatch_company_name: company?.name || dispatchCompany,
       naver_dispatch_tracking: dispatchTracking.trim(),
       naver_dispatch_retry_count: 0,
       naver_dispatch_next_retry_at: null,
-    });
-    showToast?.(`발송처리 대기열 등록 (${company?.name} · ${dispatchTracking.trim()}) — 60초 내 자동 처리`, 'success');
+    };
+    if (needsConfirm) {
+      patch.needs_naver_confirm = true;
+      patch.naver_confirm_retry_count = 0;
+      patch.naver_confirm_next_retry_at = null;
+    }
+    await supabase.updateExternalOrder(order.id, patch);
+    showToast?.(
+      needsConfirm
+        ? `발주확인 + 발송처리 대기열 등록 (${company?.name} · ${dispatchTracking.trim()}) — 60초 내 순차 자동 처리`
+        : `발송처리 대기열 등록 (${company?.name} · ${dispatchTracking.trim()}) — 60초 내 자동 처리`,
+      'success'
+    );
     setDispatchModalOrder(null);
     reload();
   };
