@@ -340,17 +340,21 @@ export default function SmartStoreOrders({
       memo: `[${PROVIDER_LABEL[order.provider]?.label || order.provider}] 주문번호: ${order.provider_order_id}`,
     });
     if (result) {
+      // 네이버 발주확인 자동화 큐 — 항상 등록 (이미 confirmed 면 sync.js 가 "already" 응답 받고 깔끔히 skip)
+      // Codex 권장: order_status 로컬값 의존 X → 큐 복구 보장
+      const alreadyConfirmed = !!order.naver_confirm_succeeded_at;
       await supabase.updateExternalOrder(order.id, {
         order_status: 'converted',
         internal_order_id: result.id,
-        // 네이버 발주확인 자동화 큐에 추가 — 매장 PC bridge 가 다음 60초 사이클에 처리
-        needs_naver_confirm: order.order_status === 'received' ? true : undefined,
+        needs_naver_confirm: !alreadyConfirmed,
+        // retry_count 도 초기화 — 새 시도이므로 backoff 도 처음부터
+        naver_confirm_retry_count: alreadyConfirmed ? undefined : 0,
+        naver_confirm_next_retry_at: alreadyConfirmed ? undefined : null,
       });
-      const queuedConfirm = order.order_status === 'received';
       showToast?.(
-        queuedConfirm
-          ? '내부 주문 전환 + 네이버 발주확인 대기열 등록 (최대 60초 내 자동 처리)'
-          : '내부 주문으로 전환 완료',
+        alreadyConfirmed
+          ? '내부 주문으로 전환 완료 (네이버는 이미 확인됨)'
+          : '내부 주문 전환 + 네이버 발주확인 대기열 등록 (최대 60초 내 자동 처리)',
         'success'
       );
       reload();
