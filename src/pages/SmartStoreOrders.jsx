@@ -257,9 +257,20 @@ export default function SmartStoreOrders({
     DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED'
   ).length, [orders]);
 
+  // Codex Major A fix: 위젯 stats 는 dateRange 가 적용된 filtered 가 아닌, dateRange 기간 내 전체 (현재 화면 카드와 일관)
+  // dateRange 만 따르고 status/완료 토글은 무시 — 운영자가 위젯에서 "처리해야 할 항목" 카운트 보고 싶어함
+  const ordersInRange = useMemo(() => {
+    if (!dateRange) return orders;
+    return orders.filter((o) => {
+      if (!o.received_at) return false;
+      const rec = new Date(o.received_at);
+      return rec >= dateRange.from && rec < dateRange.to;
+    });
+  }, [orders, dateRange]);
+
   const stats = useMemo(() => {
     const today = new Date().toDateString();
-    const todayOrders = orders.filter((o) => o.received_at && new Date(o.received_at).toDateString() === today);
+    const todayOrders = ordersInRange.filter((o) => o.received_at && new Date(o.received_at).toDateString() === today);
     // 네이버 관리자 페이지 위젯 카운트 (raw_payload + DB 컬럼 조합)
     const now = Date.now();
     const todayKstStart = new Date(); todayKstStart.setHours(0, 0, 0, 0);
@@ -267,8 +278,9 @@ export default function SmartStoreOrders({
     const dayAfterTomorrowKstStart = new Date(todayKstStart); dayAfterTomorrowKstStart.setDate(todayKstStart.getDate() + 2);
 
     let overdue = 0, autoConfirmPending = 0, newAfterConfirm = 0, dispatchDueDday = 0, dispatchDueD1 = 0, cancelRequest = 0;
-    for (const o of orders) {
-      const dispatchDue = o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
+    for (const o of ordersInRange) {
+      // Codex Major C fix: dispatch_due_date 컬럼 우선, raw_payload 폴백
+      const dispatchDue = o.dispatch_due_date || o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
       const isDone = DONE_STATUSES.has(o.order_status) || o.naver_dispatch_succeeded_at;
       if (!isDone && dispatchDue) {
         const due = new Date(dispatchDue).getTime();
@@ -282,9 +294,9 @@ export default function SmartStoreOrders({
       if (status === 'CANCEL_REQUEST' || status === 'CANCELED' || /cancel/i.test(o.raw_payload?.cancelRequest || '')) cancelRequest++;
     }
     return {
-      total: orders.length,
+      total: ordersInRange.length,
       todayCount: todayOrders.length,
-      pending: orders.filter((o) => o.order_status === 'received' || o.order_status === 'PAYED').length,
+      pending: ordersInRange.filter((o) => o.order_status === 'received' || o.order_status === 'PAYED').length,
       todayRevenue: todayOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0),
       overdue,
       autoConfirmPending,
@@ -293,7 +305,7 @@ export default function SmartStoreOrders({
       dispatchDueD1,
       cancelRequest,
     };
-  }, [orders]);
+  }, [ordersInRange]);
 
   // Mock 데이터 주입 (Phase 1 테스트용)
   const injectMockOrder = async () => {
