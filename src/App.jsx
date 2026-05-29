@@ -443,13 +443,10 @@ export default function App() {
         }
 
         // Auto-register unknown customers (skip 일반고객)
-        if (
-          customer_name &&
-          customer_name !== '일반고객' &&
-          !customers.find(
-            (c) => c.name?.toLowerCase() === customer_name?.toLowerCase()
-          )
-        ) {
+        const existingCustomer = customer_name && customer_name !== '일반고객'
+          ? customers.find((c) => c.name?.toLowerCase() === customer_name?.toLowerCase())
+          : null;
+        if (customer_name && customer_name !== '일반고객' && !existingCustomer) {
           setSavingStep('신규 거래처 등록 중...');
           const customerData = { name: customer_name };
           if (orderData.customer_phone) customerData.phone = orderData.customer_phone;
@@ -459,6 +456,13 @@ export default function App() {
           const newCustomer = await supabase.addCustomer(customerData);
           if (newCustomer) {
             setCustomers((prev) => [...prev, newCustomer]);
+          }
+        } else if (existingCustomer && orderData.customer_category && !existingCustomer.category) {
+          // 기존 거래처가 채널 주문(엠파츠 등)으로 첫 매칭 → category 태그 업데이트
+          // (Codex 버그 fix: 기존 거래처 매칭 시 카테고리 누락되어 필터에서 보이지 않던 문제)
+          const updated = await supabase.updateCustomer(existingCustomer.id, { category: orderData.customer_category });
+          if (updated) {
+            setCustomers((prev) => prev.map((c) => c.id === existingCustomer.id ? { ...c, category: orderData.customer_category } : c));
           }
         }
 
