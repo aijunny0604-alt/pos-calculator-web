@@ -34,12 +34,13 @@ function CountBadge({ count, isActive }) {
   );
 }
 
-export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount = 0, savedCartCount = 0, shippingCount = 0 }) {
+export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount = 0, savedCartCount = 0, shippingCount = 0, smartstoreCount = 0 }) {
   const [showCalc, setShowCalc] = useState(false);
   const badgeMap = {
     orders: orderCount,
     'saved-carts': savedCartCount,
     shipping: shippingCount,
+    smartstore: smartstoreCount,
   };
 
   return (

@@ -341,6 +341,31 @@ export default function App() {
     }).length;
   }, [orders]);
 
+  // 스마트스토어 메뉴 배지 — 오늘 받은 외부 주문 + 처리 대기 건수 (1분마다 polling)
+  const [smartstoreCount, setSmartstoreCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const list = await supabase.getExternalOrders({ limit: 200 });
+        if (cancelled) return;
+        const today = getTodayKST();
+        // 오늘 받은 + 아직 처리 안 된 (converted/shipped/cancelled 제외) 건수
+        const DONE = new Set(['converted', 'shipped', 'cancelled', 'PURCHASE_DECIDED', 'DELIVERED']);
+        const count = (list || []).filter((o) => {
+          if (!o.received_at) return false;
+          const d = toDateKST(o.received_at);
+          if (d !== today) return false;
+          return !DONE.has(o.order_status);
+        }).length;
+        setSmartstoreCount(count);
+      } catch {}
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
   const savedCartCount = useMemo(() => savedCarts.length, [savedCarts]);
 
   const shippingCount = useMemo(() => {
@@ -1241,6 +1266,7 @@ export default function App() {
         orderCount={todayOrderCount}
         savedCartCount={savedCartCount}
         shippingCount={shippingCount}
+        smartstoreCount={smartstoreCount}
       >
         {renderPage()}
       </AppLayout>

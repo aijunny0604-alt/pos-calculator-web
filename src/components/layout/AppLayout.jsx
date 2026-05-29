@@ -6,7 +6,7 @@ import MobileNav from './MobileNav';
 // 자체 레이아웃(sticky header, 패딩)을 관리하는 페이지
 const fullScreenPages = ['pos', 'orders', 'customers', 'saved-carts', 'stock', 'shipping', 'burnway-stock', 'ai-order', 'ai-analytics', 'smartstore'];
 
-export default function AppLayout({ children, currentPage, onNavigate, isOnline, orderCount = 0, savedCartCount = 0, shippingCount = 0 }) {
+export default function AppLayout({ children, currentPage, onNavigate, isOnline, orderCount = 0, savedCartCount = 0, shippingCount = 0, smartstoreCount = 0 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isFullScreen = fullScreenPages.includes(currentPage);
 
@@ -49,7 +49,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
     <div className="flex h-[100dvh] overflow-hidden bg-[var(--background)]">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r border-[var(--border)] bg-[var(--card)]">
-        <Sidebar currentPage={currentPage} onNavigate={onNavigate} isOnline={isOnline} orderCount={orderCount} savedCartCount={savedCartCount} shippingCount={shippingCount} />
+        <Sidebar currentPage={currentPage} onNavigate={onNavigate} isOnline={isOnline} orderCount={orderCount} savedCartCount={savedCartCount} shippingCount={shippingCount} smartstoreCount={smartstoreCount} />
       </aside>
 
       {/* Mobile Sidebar Overlay */}
@@ -64,6 +64,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
               orderCount={orderCount}
               savedCartCount={savedCartCount}
               shippingCount={shippingCount}
+              smartstoreCount={smartstoreCount}
             />
           </aside>
         </div>
@@ -95,7 +96,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
 
       {/* Mobile Bottom Nav - POS 페이지에서 숨김 */}
       {currentPage !== 'pos' && (
-        <MobileNav currentPage={currentPage} onNavigate={onNavigate} orderCount={orderCount} savedCartCount={savedCartCount} shippingCount={shippingCount} />
+        <MobileNav currentPage={currentPage} onNavigate={onNavigate} orderCount={orderCount} savedCartCount={savedCartCount} shippingCount={shippingCount} smartstoreCount={smartstoreCount} />
       )}
     </div>
   );
