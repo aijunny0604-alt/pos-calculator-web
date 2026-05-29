@@ -187,6 +187,11 @@ export default function SmartStoreOrders({
   const [bulkDispatchOpen, setBulkDispatchOpen] = useState(false);
   const [bulkDispatchCompany, setBulkDispatchCompany] = useState('CJGLS');
   const [bulkTrackingMap, setBulkTrackingMap] = useState({}); // { orderId: 'tracking' }
+  // 주문 취소 모달 (Task #108 → C1 fix: window.prompt → 모달 UI)
+  const [cancelModalOrder, setCancelModalOrder] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const CANCEL_PRESETS = ['상품 품절', '구매자 요청', '배송 지연', '가격 오류', '기타'];
   const [dispatchCompany, setDispatchCompany] = useState('CJGLS');
   const [dispatchTracking, setDispatchTracking] = useState('');
 
@@ -498,32 +503,36 @@ export default function SmartStoreOrders({
   };
 
   // 주문 취소 — needs_naver_cancel 큐 등록 + 로컬 상태 cancelled (Task #108)
-  const cancelOrder = async (order) => {
-    const reasonChoices = ['상품 품절', '구매자 요청', '배송 지연', '가격 오류', '기타'];
-    const reason = window.prompt(
-      `주문 취소 사유를 입력하세요.\n\n예시: ${reasonChoices.join(' / ')}\n\n주문: ${order.buyer_name || '구매자'} #${order.provider_order_id}`,
-      '상품 품절'
-    );
-    if (reason === null) return; // 사용자 취소
-    const trimmed = reason.trim();
+  // C1 fix: window.prompt/confirm → 모달 UI (iOS Safari 안정성, CLAUDE.md 모달 정책 일관성)
+  const cancelOrder = (order) => {
+    setCancelReason('상품 품절');
+    setCancelModalOrder(order);
+  };
+  const submitCancelOrder = async () => {
+    if (!cancelModalOrder) return;
+    const trimmed = (cancelReason || '').trim();
     if (!trimmed) { showToast?.('취소 사유는 필수예요', 'error'); return; }
-    // m7: 네이버 API 길이 한도 고려 (큐 stuck 방지)
     if (trimmed.length > 200) { showToast?.('취소 사유는 200자 이하로 작성해주세요', 'error'); return; }
-    const confirmMsg = `정말 이 주문을 취소하시겠어요?\n\n주문: ${order.buyer_name || '구매자'} #${order.provider_order_id}\n사유: ${trimmed}\n\n· 로컬 상태가 [취소] 로 변경됩니다\n· 매장 PC sync.js 가 네이버 취소 API 호출 대기열에 등록합니다 (실제 API 검증 후 동작)`;
-    if (!window.confirm(confirmMsg)) return;
-    const patch = {
-      order_status: 'cancelled',
-      needs_naver_cancel: true,
-      naver_cancel_reason: trimmed,
-      naver_cancel_retry_count: 0,
-      naver_cancel_next_retry_at: null,
-    };
-    const ok = await supabase.updateExternalOrder(order.id, patch);
-    if (ok) {
-      showToast?.(`주문 취소 — 사유: ${trimmed}`, 'success');
-      reload();
-    } else {
-      showToast?.('취소 처리 실패 — 다시 시도해주세요', 'error');
+    setCancelSubmitting(true);
+    try {
+      const patch = {
+        order_status: 'cancelled',
+        needs_naver_cancel: true,
+        naver_cancel_reason: trimmed,
+        naver_cancel_retry_count: 0,
+        naver_cancel_next_retry_at: null,
+      };
+      const ok = await supabase.updateExternalOrder(cancelModalOrder.id, patch);
+      if (ok) {
+        showToast?.(`주문 취소 — 사유: ${trimmed}`, 'success');
+        setCancelModalOrder(null);
+        setCancelReason('');
+        reload();
+      } else {
+        showToast?.('취소 처리 실패 — 다시 시도해주세요', 'error');
+      }
+    } finally {
+      setCancelSubmitting(false);
     }
   };
 
@@ -561,7 +570,10 @@ export default function SmartStoreOrders({
       showToast?.('송장번호를 1건 이상 입력해주세요', 'error');
       return;
     }
-    let success = 0, failed = 0;
+    // M1 fix: 부분 실패 시 실패 주문만 selection+tracking 유지하여 재시도 쉽게
+    let success = 0;
+    const failedOrders = [];
+    const successIds = [];
     for (const order of ready) {
       const tracking = bulkTrackingMap[order.id].trim();
       const needsConfirm = !order.naver_confirm_succeeded_at;
@@ -579,16 +591,28 @@ export default function SmartStoreOrders({
         patch.naver_confirm_next_retry_at = null;
       }
       const ok = await supabase.updateExternalOrder(order.id, patch);
-      if (ok) success++; else failed++;
+      if (ok) { success++; successIds.push(order.id); }
+      else failedOrders.push(order);
     }
-    showToast?.(
-      failed > 0
-        ? `일괄 발송 등록: 성공 ${success}건 / 실패 ${failed}건 (${company?.name}) — 60초 내 자동 처리`
-        : `일괄 발송 ${success}건 대기열 등록 (${company?.name}) — 60초 내 자동 처리`,
-      failed > 0 ? 'error' : 'success'
-    );
-    setBulkDispatchOpen(false);
-    clearSelection();
+    if (failedOrders.length > 0) {
+      // 실패 주문만 selection 유지 + tracking 보존, 모달은 열어둠 → 사용자가 즉시 재시도 가능
+      setSelectedOrderIds(new Set(failedOrders.map((o) => o.id)));
+      setBulkTrackingMap((prev) => {
+        const next = {};
+        for (const o of failedOrders) if (prev[o.id]) next[o.id] = prev[o.id];
+        return next;
+      });
+      const names = failedOrders.slice(0, 3).map((o) => o.buyer_name || `#${o.provider_order_id}`).join(', ');
+      const suffix = failedOrders.length > 3 ? ` 외 ${failedOrders.length - 3}건` : '';
+      showToast?.(
+        `일괄 발송 ${success}건 성공 / ${failedOrders.length}건 실패: ${names}${suffix} — 모달 유지, 재시도 가능`,
+        'error'
+      );
+    } else {
+      showToast?.(`일괄 발송 ${success}건 대기열 등록 (${company?.name}) — 60초 내 자동 처리`, 'success');
+      setBulkDispatchOpen(false);
+      clearSelection();
+    }
     reload();
   };
 
@@ -1455,6 +1479,64 @@ export default function SmartStoreOrders({
           </div>
         );
       })()}
+
+      {/* 주문 취소 모달 (C1 fix: window.prompt → 모달 UI) */}
+      {cancelModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => !cancelSubmitting && setCancelModalOrder(null)}>
+          <div className="rounded-2xl w-full max-w-md p-5 border" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <Ban className="w-5 h-5" style={{ color: '#ff4d6d' }} />
+              <h3 className="text-lg font-bold flex-1">주문 취소</h3>
+              <button onClick={() => !cancelSubmitting && setCancelModalOrder(null)} disabled={cancelSubmitting}>
+                <X className="w-4 h-4 opacity-60" />
+              </button>
+            </div>
+            <div className="text-xs mb-3 p-2 rounded border" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
+              <div><span className="opacity-60">구매자:</span> <span className="font-semibold">{cancelModalOrder.buyer_name || '구매자'}</span></div>
+              <div><span className="opacity-60">주문번호:</span> #{cancelModalOrder.provider_order_id}</div>
+              <div><span className="opacity-60">금액:</span> {fmtNum(cancelModalOrder.total_amount)}원</div>
+            </div>
+            <div className="mb-3">
+              <div className="text-xs opacity-70 mb-1.5">취소 사유 (자주 쓰는 것 선택 또는 직접 입력)</div>
+              <div className="grid grid-cols-2 gap-1.5 mb-2">
+                {CANCEL_PRESETS.map((p) => (
+                  <button key={p} onClick={() => setCancelReason(p)}
+                    className="text-xs px-2 py-1.5 rounded border transition-colors"
+                    style={{
+                      background: cancelReason === p ? 'rgba(255,77,109,0.15)' : 'var(--background)',
+                      borderColor: cancelReason === p ? '#ff4d6d' : 'var(--border)',
+                      color: cancelReason === p ? '#ff4d6d' : 'var(--foreground)',
+                      fontWeight: cancelReason === p ? 700 : 400,
+                    }}>{p}</button>
+                ))}
+              </div>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                maxLength={200}
+                rows={2}
+                placeholder="취소 사유 (200자 이내, 직접 수정 가능)"
+                className="w-full px-3 py-2 rounded border text-sm resize-none"
+                style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+              />
+              <div className="text-[10px] opacity-50 text-right mt-0.5">{cancelReason.length} / 200</div>
+            </div>
+            <div className="text-[11px] opacity-60 mb-3">
+              로컬 상태가 [취소]로 변경되고 매장 PC sync.js가 네이버 취소 큐에 등록합니다.
+            </div>
+            <div className="flex gap-2">
+              <button onClick={submitCancelOrder} disabled={!cancelReason.trim() || cancelSubmitting}
+                className="flex-1 py-2.5 rounded-lg font-bold disabled:opacity-40"
+                style={{ background: '#ff4d6d', color: 'white' }}>
+                {cancelSubmitting ? '처리 중...' : '취소 등록'}
+              </button>
+              <button onClick={() => setCancelModalOrder(null)} disabled={cancelSubmitting}
+                className="px-4 py-2.5 rounded-lg border disabled:opacity-40"
+                style={{ borderColor: 'var(--border)' }}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
