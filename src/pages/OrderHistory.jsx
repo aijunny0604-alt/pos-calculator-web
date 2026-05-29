@@ -63,7 +63,7 @@ export default function OrderHistory({
     setNaverDispatching(true);
     try {
       const order = naverDispatchModal;
-      const match = (order.memo || '').match(/\[네이버[^\]]*\]\s*(\d+)/);
+      const match = (order.memo || '').match(/\[\s*네\s*이\s*버[^\]]*\]\s*(\d+)/);
       const providerOrderId = match?.[1];
       if (!providerOrderId) {
         alert('이 주문의 네이버 주문번호를 찾을 수 없습니다. memo 형식 확인 필요.');
@@ -839,9 +839,9 @@ export default function OrderHistory({
               const paidMethod = isPaid ? METHOD_MAP[paidInfo.method] : null;
               const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
               const isReturned = (order.totalReturned || 0) > 0;
-              // 네이버 스마트스토어 경유 주문 — memo 의 [엠파츠] 또는 [네이버] 태그로 식별
+              // 네이버 스마트스토어 경유 주문 — memo 의 [엠파츠] 또는 [네이버] 태그로 식별 (Codex Minor B: 공백 허용)
               // (신규 주문은 거래처=실제 구매자, memo에만 태그. 옛 데이터는 customerName='엠파츠' 도 호환)
-              const isNaverOrder = /\[엠파츠\]|\[네이버/i.test(order.memo || '') || order.customerName === '엠파츠';
+              const isNaverOrder = /\[\s*엠\s*파\s*츠\s*\]|\[\s*네\s*이\s*버/i.test(order.memo || '') || (order.customerName || '').trim() === '엠파츠';
               // memo 에서 실제 구매자 이름 추출 (옛 엠파츠 거래처 데이터 호환용)
               const naverBuyerMatch = isNaverOrder ? (order.memo || '').match(/구매자:\s*([^/\n]+?)(?:\s*\/|\n|$)/) : null;
               const naverBuyer = naverBuyerMatch?.[1]?.trim() || null;

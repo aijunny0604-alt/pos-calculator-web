@@ -252,8 +252,8 @@ export default function SmartStoreOrders({
       if (providerFilter !== 'all' && o.provider !== providerFilter) return false;
       if (statusFilter !== 'all' && o.order_status !== statusFilter) return false;
       // 처리완료(converted/shipped/cancelled/구매확정) 는 토글 OFF 시 숨김
-      // 단, widgetFilter='cancel' 인 경우 취소를 보여야 하므로 예외
-      if (!showCompleted && widgetFilter !== 'cancel' && (DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED')) return false;
+      // 단, widgetFilter active 시에는 위젯 카운트 로직(converted 포함 등)이 우선이므로 우회
+      if (!showCompleted && widgetFilter === 'none' && (DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED')) return false;
       // 날짜 범위 (결제일 = received_at 기준, 네이버 조회기간과 동일)
       if (dateRange && o.received_at) {
         const rec = new Date(o.received_at);
