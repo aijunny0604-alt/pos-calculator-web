@@ -586,30 +586,53 @@ export default function SmartStoreOrders({
         </button>
       </div>
 
+      {/* 본문 스크롤 영역 — 헤더 외 모든 컨텐츠를 포함 (모바일 스크롤 보장) */}
+      <div className="flex-1 min-h-0 overflow-y-auto pb-20 sm:pb-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+
       {/* Sync 모니터링 위젯 */}
       <div className="px-3 sm:px-4 pt-3">
         <SyncMonitorWidget showToast={showToast} />
       </div>
 
-      {/* KPI 카드 */}
-      <div className="grid grid-cols-4 gap-2 px-3 sm:px-4 pb-2">
-        <KpiCard label="전체" value={stats.total} />
-        <KpiCard label="오늘" value={stats.todayCount} accent="#4dffff" />
-        <KpiCard label="대기" value={stats.pending} accent="#ffaa00" />
-        <KpiCard label="오늘 매출" value={`${fmtNum(stats.todayRevenue)}원`} small />
+      {/* KPI 카드 — 클릭 시 해당 필터 적용 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 px-3 sm:px-4 pt-3 pb-2">
+        <KpiCard label="전체" value={stats.total}
+          hint="모든 상태 / 전체 기간 보기"
+          onClick={() => { setStatusFilter('all'); setDatePreset('all'); setProviderFilter('all'); }} />
+        <KpiCard label="오늘" value={stats.todayCount} accent="#4dffff"
+          hint="오늘 들어온 주문만 보기"
+          onClick={() => { setStatusFilter('all'); setDatePreset('today'); }} />
+        <KpiCard label="대기" value={stats.pending} accent="#ffaa00"
+          hint="결제완료 / 발주확인 대기 주문 보기"
+          onClick={() => { setStatusFilter('PAYED'); setDatePreset('all'); }} />
+        <KpiCard label="오늘 매출" value={`${fmtNum(stats.todayRevenue)}원`} small
+          hint="오늘 매출 상세 카드 보기"
+          onClick={() => { setStatusFilter('all'); setDatePreset('today'); }} />
       </div>
 
-      {/* 네이버 관리자 페이지 위젯 — 빠르게 확인 + 발송처리 진행 */}
+      {/* 네이버 관리자 페이지 위젯 — 빠르게 확인 + 발송처리 진행, 클릭 시 해당 그룹 필터링 */}
       <div className="px-3 sm:px-4 pb-3">
-        <div className="rounded-lg border p-2.5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {/* 빠르게 확인 (빨강 그룹) */}
-            <NaverStatBox icon="⏰" label="발송기한 초과" value={stats.overdue} alert={stats.overdue > 0} />
-            <NaverStatBox icon="🤖" label="자동처리 예정" value={stats.autoConfirmPending} accent="#a78bfa" />
-            <NaverStatBox icon="🚚" label="발주 후 신규" value={stats.newAfterConfirm} accent="#03c75a" />
-            <NaverStatBox icon="❌" label="취소 요청" value={stats.cancelRequest} alert={stats.cancelRequest > 0} />
-            <NaverStatBox icon="📅" label="발송마감 D-1" value={stats.dispatchDueD1} accent="#ffaa00" alert={stats.dispatchDueD1 > 0} />
-            <NaverStatBox icon="🔥" label="발송마감 D-day" value={stats.dispatchDueDday} alert={stats.dispatchDueDday > 0} accent="#ff4d6d" />
+        <div className="rounded-xl border p-3 sm:p-3.5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+          <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider opacity-70 mb-2 sm:mb-2.5">네이버 관리자 — 빠른 확인 (클릭하여 필터)</div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+            <NaverStatBox icon="⏰" label="발송기한 초과" value={stats.overdue} alert={stats.overdue > 0}
+              hint="발송 기한이 지난 미발송 주문"
+              onClick={() => { setStatusFilter('PAYED'); setDatePreset('all'); }} />
+            <NaverStatBox icon="🤖" label="자동처리 예정" value={stats.autoConfirmPending} accent="#a78bfa"
+              hint="자동 발주확인 큐에 대기 중"
+              onClick={() => { setStatusFilter('PAYED'); setDatePreset('all'); }} />
+            <NaverStatBox icon="🚚" label="발주 후 신규" value={stats.newAfterConfirm} accent="#03c75a"
+              hint="발주확인됐지만 아직 발송 안 된 건"
+              onClick={() => { setStatusFilter('confirmed'); setDatePreset('all'); }} />
+            <NaverStatBox icon="❌" label="취소 요청" value={stats.cancelRequest} alert={stats.cancelRequest > 0}
+              hint="구매자가 취소 요청한 주문"
+              onClick={() => { setStatusFilter('cancelled'); setDatePreset('all'); }} />
+            <NaverStatBox icon="📅" label="발송마감 D-1" value={stats.dispatchDueD1} accent="#ffaa00" alert={stats.dispatchDueD1 > 0}
+              hint="내일까지 발송해야 하는 주문"
+              onClick={() => { setStatusFilter('PAYED'); setDatePreset('all'); }} />
+            <NaverStatBox icon="🔥" label="발송마감 D-day" value={stats.dispatchDueDday} alert={stats.dispatchDueDday > 0} accent="#ff4d6d"
+              hint="오늘이 발송 마감! 우선 처리 필요"
+              onClick={() => { setStatusFilter('PAYED'); setDatePreset('today'); }} />
           </div>
         </div>
       </div>
@@ -688,7 +711,7 @@ export default function SmartStoreOrders({
       </div>
 
       {/* 주문 카드 목록 — 항상 풀 디스플레이, 모바일 우선 디자인 */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 pb-20 sm:pb-6">
+      <div className="px-3 sm:px-4">
         {loading && <div className="text-center py-12 text-sm opacity-60">불러오는 중...</div>}
         {!loading && filtered.length === 0 && (
           <div className="text-center py-16 opacity-60">
@@ -1139,6 +1162,9 @@ export default function SmartStoreOrders({
         )}
       </div>
 
+      </div>
+      {/* 본문 스크롤 영역 끝 */}
+
       {/* 발송처리 모달 */}
       {dispatchModalOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setDispatchModalOrder(null)}>
@@ -1182,29 +1208,41 @@ export default function SmartStoreOrders({
   );
 }
 
-function KpiCard({ label, value, accent, small }) {
+function KpiCard({ label, value, accent, small, onClick, hint }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="p-2.5 rounded-lg border" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-      <div className="text-[10px] opacity-60 uppercase tracking-wider">{label}</div>
-      <div className={`font-bold ${small ? 'text-sm' : 'text-xl'} mt-0.5`} style={{ color: accent || 'var(--foreground)' }}>{value}</div>
-    </div>
+    <Tag
+      onClick={onClick}
+      title={hint || label}
+      className={`p-3 sm:p-3.5 rounded-xl border w-full text-left transition-all ${onClick ? 'hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer' : ''}`}
+      style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+    >
+      <div className="text-[11px] sm:text-xs opacity-70 uppercase tracking-wider font-semibold">{label}</div>
+      <div className={`font-extrabold ${small ? 'text-base sm:text-lg' : 'text-2xl sm:text-3xl'} mt-1 leading-tight`} style={{ color: accent || 'var(--foreground)' }}>{value}</div>
+    </Tag>
   );
 }
 
-function NaverStatBox({ icon, label, value, accent, alert }) {
+function NaverStatBox({ icon, label, value, accent, alert, onClick, hint }) {
   const isActive = value > 0;
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="p-1.5 rounded-lg flex flex-col items-center text-center"
+    <Tag
+      onClick={onClick}
+      title={hint || label}
+      className={`p-2.5 sm:p-3 rounded-xl flex flex-col items-center text-center w-full transition-all ${onClick ? 'hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer' : ''}`}
       style={{
         background: alert && isActive ? 'rgba(255,77,109,0.08)' : 'var(--background)',
         border: alert && isActive ? '1px solid rgba(255,77,109,0.35)' : '1px solid var(--border)',
-      }}>
-      <div className="text-base leading-none mb-0.5">{icon}</div>
-      <div className="text-[9px] sm:text-[10px] opacity-70 leading-tight">{label}</div>
-      <div className="text-base sm:text-lg font-bold mt-0.5"
+        minHeight: 92,
+      }}
+    >
+      <div className="text-xl sm:text-2xl leading-none mb-1">{icon}</div>
+      <div className="text-[11px] sm:text-xs opacity-80 leading-tight font-medium">{label}</div>
+      <div className="text-xl sm:text-2xl font-extrabold mt-1 leading-none"
         style={{ color: isActive ? (accent || (alert ? '#ff4d6d' : 'var(--foreground)')) : 'var(--foreground)', opacity: isActive ? 1 : 0.4 }}>
         {value}
       </div>
-    </div>
+    </Tag>
   );
 }
