@@ -5,7 +5,7 @@
 // - Mock 데이터 주입 (Phase 1 — API 키 받기 전 테스트용)
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu, Ban } from 'lucide-react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
@@ -495,6 +495,34 @@ export default function SmartStoreOrders({
     reload();
   };
 
+  // 주문 취소 — needs_naver_cancel 큐 등록 + 로컬 상태 cancelled (Task #108)
+  const cancelOrder = async (order) => {
+    const reasonChoices = ['상품 품절', '구매자 요청', '배송 지연', '가격 오류', '기타'];
+    const reason = window.prompt(
+      `주문 취소 사유를 입력하세요.\n\n예시: ${reasonChoices.join(' / ')}\n\n주문: ${order.buyer_name || '구매자'} #${order.provider_order_id}`,
+      '상품 품절'
+    );
+    if (reason === null) return; // 사용자 취소
+    const trimmed = reason.trim();
+    if (!trimmed) { showToast?.('취소 사유는 필수예요', 'error'); return; }
+    const confirmMsg = `정말 이 주문을 취소하시겠어요?\n\n주문: ${order.buyer_name || '구매자'} #${order.provider_order_id}\n사유: ${trimmed}\n\n· 로컬 상태가 [취소] 로 변경됩니다\n· 매장 PC sync.js 가 네이버 취소 API 호출 대기열에 등록합니다 (실제 API 검증 후 동작)`;
+    if (!window.confirm(confirmMsg)) return;
+    const patch = {
+      order_status: 'cancelled',
+      needs_naver_cancel: true,
+      naver_cancel_reason: trimmed,
+      naver_cancel_retry_count: 0,
+      naver_cancel_next_retry_at: null,
+    };
+    const ok = await supabase.updateExternalOrder(order.id, patch);
+    if (ok) {
+      showToast?.(`주문 취소 — 사유: ${trimmed}`, 'success');
+      reload();
+    } else {
+      showToast?.('취소 처리 실패 — 다시 시도해주세요', 'error');
+    }
+  };
+
   // 일괄 발송 — 다수 주문 선택 후 한 번에 등록 (Task #109)
   const toggleOrderSelect = (id) => {
     setSelectedOrderIds((prev) => {
@@ -941,6 +969,10 @@ export default function SmartStoreOrders({
                     )}
                     <button onClick={() => handleCreateShippingLabel(order)} className="px-2 py-1 rounded text-[10px] font-semibold"
                       style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }} title="택배 송장">📦</button>
+                    {!DONE_STATUSES.has(order.order_status) && (
+                      <button onClick={() => cancelOrder(order)} className="px-2 py-1 rounded text-[10px] font-semibold"
+                        style={{ background: 'rgba(255,77,109,0.15)', color: '#ff4d6d' }} title="주문 취소">✕</button>
+                    )}
                   </div>
                 </div>
                 {/* 펼침 상세 패널 — 클릭 시 row 아래 표시 */}
@@ -1298,6 +1330,16 @@ export default function SmartStoreOrders({
                 >
                   <Printer className="w-4 h-4" />송장
                 </button>
+                {!DONE_STATUSES.has(order.order_status) && (
+                  <button
+                    onClick={() => cancelOrder(order)}
+                    className="py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"
+                    style={{ background: 'rgba(255,77,109,0.15)', color: '#ff4d6d', border: '1px solid rgba(255,77,109,0.4)' }}
+                    title="주문 취소 — 네이버 취소 큐 등록 (사유 입력 필요)"
+                  >
+                    <Ban className="w-4 h-4" />주문취소
+                  </button>
+                )}
                 {order.order_status === 'shipped' && (
                   <div className="col-span-2 sm:col-span-4 py-2 text-center text-xs" style={{ color: '#00ff88' }}>
                     ✓ 발송 완료
