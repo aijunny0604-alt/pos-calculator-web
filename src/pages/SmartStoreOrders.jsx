@@ -182,6 +182,11 @@ export default function SmartStoreOrders({
 
   // 발송처리 모달
   const [dispatchModalOrder, setDispatchModalOrder] = useState(null);
+  // 일괄 발송 multi-select (Task #109)
+  const [selectedOrderIds, setSelectedOrderIds] = useState(() => new Set());
+  const [bulkDispatchOpen, setBulkDispatchOpen] = useState(false);
+  const [bulkDispatchCompany, setBulkDispatchCompany] = useState('CJGLS');
+  const [bulkTrackingMap, setBulkTrackingMap] = useState({}); // { orderId: 'tracking' }
   const [dispatchCompany, setDispatchCompany] = useState('CJGLS');
   const [dispatchTracking, setDispatchTracking] = useState('');
 
@@ -490,6 +495,71 @@ export default function SmartStoreOrders({
     reload();
   };
 
+  // 일괄 발송 — 다수 주문 선택 후 한 번에 등록 (Task #109)
+  const toggleOrderSelect = (id) => {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => { setSelectedOrderIds(new Set()); setBulkTrackingMap({}); };
+  const openBulkDispatch = () => {
+    if (selectedOrderIds.size === 0) {
+      showToast?.('선택된 주문이 없어요', 'error');
+      return;
+    }
+    // 선택된 주문 중 이미 발송완료 제외
+    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !DONE_STATUSES.has(o.order_status) && !o.naver_dispatch_succeeded_at);
+    if (eligible.length === 0) {
+      showToast?.('발송 가능한 주문이 없어요 (이미 발송완료/취소)', 'error');
+      return;
+    }
+    // 기존 송장 prefill (재오픈 시)
+    const next = {};
+    eligible.forEach((o) => { if (bulkTrackingMap[o.id]) next[o.id] = bulkTrackingMap[o.id]; });
+    setBulkTrackingMap(next);
+    setBulkDispatchOpen(true);
+  };
+  const submitBulkDispatch = async () => {
+    const company = DELIVERY_COMPANIES.find((c) => c.code === bulkDispatchCompany);
+    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !DONE_STATUSES.has(o.order_status) && !o.naver_dispatch_succeeded_at);
+    const ready = eligible.filter((o) => (bulkTrackingMap[o.id] || '').trim().length > 0);
+    if (ready.length === 0) {
+      showToast?.('송장번호를 1건 이상 입력해주세요', 'error');
+      return;
+    }
+    let success = 0, failed = 0;
+    for (const order of ready) {
+      const tracking = bulkTrackingMap[order.id].trim();
+      const needsConfirm = !order.naver_confirm_succeeded_at;
+      const patch = {
+        needs_naver_dispatch: true,
+        naver_dispatch_company_code: bulkDispatchCompany,
+        naver_dispatch_company_name: company?.name || bulkDispatchCompany,
+        naver_dispatch_tracking: tracking,
+        naver_dispatch_retry_count: 0,
+        naver_dispatch_next_retry_at: null,
+      };
+      if (needsConfirm) {
+        patch.needs_naver_confirm = true;
+        patch.naver_confirm_retry_count = 0;
+        patch.naver_confirm_next_retry_at = null;
+      }
+      const ok = await supabase.updateExternalOrder(order.id, patch);
+      if (ok) success++; else failed++;
+    }
+    showToast?.(
+      failed > 0
+        ? `일괄 발송 등록: 성공 ${success}건 / 실패 ${failed}건 (${company?.name}) — 60초 내 자동 처리`
+        : `일괄 발송 ${success}건 대기열 등록 (${company?.name}) — 60초 내 자동 처리`,
+      failed > 0 ? 'error' : 'success'
+    );
+    setBulkDispatchOpen(false);
+    clearSelection();
+    reload();
+  };
+
   // 내부 주문으로 전환 — 네이버 스토어 주문은 "엠파츠" 거래처로 통합
   // 매칭 안 된 item 도 네이버 제품명·금액 그대로 freeform 으로 포함 (사용자 정책)
   const convertToInternalOrder = async (order) => {
@@ -772,9 +842,32 @@ export default function SmartStoreOrders({
         )}
         {viewMode === 'compact' && (
           <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-            {/* 컴팩트 헤더 (데스크탑만) */}
-            <div className="hidden sm:grid grid-cols-[1fr_100px_120px_120px_180px] gap-2 px-3 py-2 text-[10px] font-bold opacity-70 border-b uppercase tracking-wide"
+            {/* 일괄 선택 액션 바 (선택된 게 있을 때만) */}
+            {selectedOrderIds.size > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ background: 'rgba(0,212,255,0.10)', borderColor: 'var(--border)' }}>
+                <span className="text-sm font-bold" style={{ color: '#4dffff' }}>{selectedOrderIds.size}건 선택</span>
+                <button onClick={openBulkDispatch}
+                  className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"
+                  style={{ background: '#00ff88', color: '#001a1a' }}>
+                  <Truck className="w-3.5 h-3.5" />일괄 발송처리
+                </button>
+                <button onClick={clearSelection}
+                  className="px-2 py-1.5 rounded-lg text-xs"
+                  style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>해제</button>
+              </div>
+            )}
+            {/* 컴팩트 헤더 (데스크탑만) — 체크박스 컬럼 추가 */}
+            <div className="hidden sm:grid grid-cols-[36px_1fr_100px_120px_120px_180px] gap-2 px-3 py-2 text-[10px] font-bold opacity-70 border-b uppercase tracking-wide"
               style={{ borderColor: 'var(--border)' }}>
+              <span className="text-center">
+                <input type="checkbox"
+                  checked={filtered.length > 0 && filtered.every((o) => selectedOrderIds.has(o.id))}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedOrderIds(new Set(filtered.map((o) => o.id)));
+                    else clearSelection();
+                  }}
+                  title="전체 선택/해제" />
+              </span>
               <span>주문자 · 상품</span>
               <span>상태</span>
               <span className="text-right">금액</span>
@@ -792,13 +885,19 @@ export default function SmartStoreOrders({
               return (
                 <div key={order.id} className="border-b" style={{ borderColor: 'var(--border)' }}>
                 <div
-                  className="grid grid-cols-1 sm:grid-cols-[1fr_100px_120px_120px_180px] gap-2 px-3 py-2.5 text-sm items-center hover:bg-[var(--accent)]/30 cursor-pointer"
+                  className="grid grid-cols-[36px_1fr] sm:grid-cols-[36px_1fr_100px_120px_120px_180px] gap-2 px-3 py-2.5 text-sm items-center hover:bg-[var(--accent)]/30 cursor-pointer"
                   onClick={(e) => {
-                    // 액션 버튼 영역은 클릭 이벤트 통과
                     if (e.target.closest('button[title]')) return;
+                    if (e.target.closest('input[type="checkbox"]')) return;
                     setExpandedCompactId(isExpanded ? null : order.id);
                   }}
                 >
+                  <span className="text-center" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox"
+                      checked={selectedOrderIds.has(order.id)}
+                      onChange={() => toggleOrderSelect(order.id)}
+                      title="선택" />
+                  </span>
                   <div className="min-w-0">
                     <div className="font-semibold flex items-center gap-1.5">
                       {order.provider === 'naver' && <span className="text-[10px] px-1 rounded" style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a' }}>N</span>}
@@ -1254,6 +1353,62 @@ export default function SmartStoreOrders({
           </div>
         </div>
       )}
+
+      {/* 일괄 발송처리 모달 (Task #109) */}
+      {bulkDispatchOpen && (() => {
+        const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !DONE_STATUSES.has(o.order_status) && !o.naver_dispatch_succeeded_at);
+        const readyCount = eligible.filter((o) => (bulkTrackingMap[o.id] || '').trim().length > 0).length;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setBulkDispatchOpen(false)}>
+            <div className="rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col border" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-2 p-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                <Truck className="w-5 h-5" style={{ color: '#00ff88' }} />
+                <h3 className="text-lg font-bold flex-1">일괄 발송 처리 ({eligible.length}건)</h3>
+                <button onClick={() => setBulkDispatchOpen(false)}><X className="w-4 h-4 opacity-60" /></button>
+              </div>
+              <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+                <div className="text-xs opacity-70 mb-1">택배사 (모든 주문 공통)</div>
+                <select value={bulkDispatchCompany} onChange={(e) => setBulkDispatchCompany(e.target.value)}
+                  className="w-full px-3 py-2 rounded border text-sm" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                  {DELIVERY_COMPANIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+                {eligible.map((o) => (
+                  <div key={o.id} className="flex items-center gap-2 p-2 rounded border" style={{ borderColor: 'var(--border)' }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate">{o.buyer_name || '구매자'} · <span className="opacity-60">{fmtNum(o.total_amount)}원</span></div>
+                      <div className="text-[11px] opacity-60 truncate">#{o.provider_order_id}</div>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="송장번호"
+                      value={bulkTrackingMap[o.id] || ''}
+                      onChange={(e) => setBulkTrackingMap((prev) => ({ ...prev, [o.id]: e.target.value }))}
+                      className="w-44 px-3 py-2 rounded border text-sm"
+                      style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="p-4 border-t flex gap-2 items-center" style={{ borderColor: 'var(--border)' }}>
+                <div className="text-xs opacity-70 flex-1">
+                  송장번호 입력된 {readyCount}건만 등록됩니다. 발주확인 안 된 건은 자동으로 함께 등록.
+                </div>
+                <button onClick={submitBulkDispatch} disabled={readyCount === 0}
+                  className="px-4 py-2 rounded-lg font-bold disabled:opacity-40"
+                  style={{ background: '#00ff88', color: '#001a1a' }}>
+                  {readyCount}건 등록
+                </button>
+                <button onClick={() => setBulkDispatchOpen(false)}
+                  className="px-3 py-2 rounded-lg border"
+                  style={{ borderColor: 'var(--border)' }}>취소</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
