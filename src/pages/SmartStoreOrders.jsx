@@ -280,6 +280,8 @@ export default function SmartStoreOrders({
           const due = new Date(dispatchDue).getTime();
           if (!(due >= tomorrowKstStart.getTime() && due < dayAfterTomorrowKstStart.getTime())) return false;
         } else if (widgetFilter === 'autoPending') {
+          // M4 fix: 이미 발송완료/처리완료된 큐 잔존 row 제외 (polling latency 동안 false positive 방지)
+          if (DONE_STATUSES.has(o.order_status) || o.naver_dispatch_succeeded_at) return false;
           if (!(o.needs_naver_confirm || o.needs_naver_dispatch)) return false;
         } else if (widgetFilter === 'newAfterConfirm') {
           if (!(o.naver_confirm_succeeded_at && !o.naver_dispatch_succeeded_at && o.order_status !== 'shipped')) return false;
@@ -505,6 +507,8 @@ export default function SmartStoreOrders({
     if (reason === null) return; // 사용자 취소
     const trimmed = reason.trim();
     if (!trimmed) { showToast?.('취소 사유는 필수예요', 'error'); return; }
+    // m7: 네이버 API 길이 한도 고려 (큐 stuck 방지)
+    if (trimmed.length > 200) { showToast?.('취소 사유는 200자 이하로 작성해주세요', 'error'); return; }
     const confirmMsg = `정말 이 주문을 취소하시겠어요?\n\n주문: ${order.buyer_name || '구매자'} #${order.provider_order_id}\n사유: ${trimmed}\n\n· 로컬 상태가 [취소] 로 변경됩니다\n· 매장 PC sync.js 가 네이버 취소 API 호출 대기열에 등록합니다 (실제 API 검증 후 동작)`;
     if (!window.confirm(confirmMsg)) return;
     const patch = {

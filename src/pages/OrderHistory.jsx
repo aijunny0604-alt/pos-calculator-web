@@ -9,6 +9,7 @@ import SubPrice from '@/components/ui/SubPrice';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
 import useCountUp from '@/hooks/useCountUp';
 import { supabase } from '@/lib/supabase';
+import { classifyOrderChannel, extractNaverBuyer } from '@/lib/channelClassifier';
 
 // 네이버 발송처리 모달용 택배사 (SmartStoreOrders 와 동일)
 const DELIVERY_COMPANIES_FOR_DISPATCH = [
@@ -839,12 +840,10 @@ export default function OrderHistory({
               const paidMethod = isPaid ? METHOD_MAP[paidInfo.method] : null;
               const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
               const isReturned = (order.totalReturned || 0) > 0;
-              // 네이버 스마트스토어 경유 주문 — memo 의 [엠파츠] 또는 [네이버] 태그로 식별 (Codex Minor B: 공백 허용)
-              // (신규 주문은 거래처=실제 구매자, memo에만 태그. 옛 데이터는 customerName='엠파츠' 도 호환)
-              const isNaverOrder = /\[\s*엠\s*파\s*츠\s*\]|\[\s*네\s*이\s*버/i.test(order.memo || '') || (order.customerName || '').trim() === '엠파츠';
+              // 네이버 스마트스토어 경유 주문 — channelClassifier로 통합 (M2: DRY 적용)
+              const isNaverOrder = classifyOrderChannel(order) === 'naver';
               // memo 에서 실제 구매자 이름 추출 (옛 엠파츠 거래처 데이터 호환용)
-              const naverBuyerMatch = isNaverOrder ? (order.memo || '').match(/구매자:\s*([^/\n]+?)(?:\s*\/|\n|$)/) : null;
-              const naverBuyer = naverBuyerMatch?.[1]?.trim() || null;
+              const naverBuyer = isNaverOrder ? extractNaverBuyer(order) : null;
 
               return (
                 <div
@@ -874,18 +873,17 @@ export default function OrderHistory({
                             : isBlacklist
                               ? 'var(--destructive)'
                               : 'var(--border)',
-                    borderWidth: isNaverOrder && !isReturned ? '2px' : undefined,
-                    boxShadow: isNaverOrder && !isReturned && !isPaid
-                      ? '0 0 0 1px rgba(3,199,90,0.35), 0 4px 14px rgba(3,199,90,0.18)'
-                      : undefined,
-                    borderWidth: isReturned ? '2px' : '1px',
+                    // M5 fix: 중복 키 제거 — isReturned 우선, 그 외 isNaverOrder 강조 살아남게 통합
+                    borderWidth: isReturned ? '2px' : (isNaverOrder ? '2px' : '1px'),
                     outline: isSelected ? '2px solid var(--primary)' : isReturned ? '1px solid rgba(245,158,11,0.5)' : isPaid ? '1px solid rgba(16,185,129,0.4)' : 'none',
                     outlineOffset: '-1px',
                     boxShadow: isReturned
                       ? '0 0 0 1px rgba(245, 158, 11, 0.35), 0 4px 14px rgba(245, 158, 11, 0.18)'
                       : isPaid
                         ? '0 0 0 1px rgba(16, 185, 129, 0.25), 0 4px 14px rgba(16, 185, 129, 0.12)'
-                        : undefined,
+                        : isNaverOrder
+                          ? '0 0 0 1px rgba(3,199,90,0.35), 0 4px 14px rgba(3,199,90,0.18)'
+                          : undefined,
                   }}
                 >
                   {/* Top accent bar */}
