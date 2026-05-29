@@ -1,11 +1,196 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-05-28 (네이버 양방향 자동화 큐 + 거래처 카테고리 + 카드 UI 전면 개편 + Codex 검토 8건 적용)
+> 마지막 업데이트: 2026-05-29 (모바일 스크롤 + 위젯 폰트/필터 + 일괄발송 + 취소모달 + STATUS_RANK fix + received_at fix + 디스크 인프라 보강)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
 
-## 🆕 v2026-05-28 — 네이버 양방향 자동화 큐 + 카드 UI 개편 + Codex 검토 8건
+## 🆕 v2026-05-29 — 모바일 UX 전면 개편 + sync.js 상태 머신 + 인프라 보강
+
+오늘 13 커밋 (pos-calculator-web 10 + naver-sync-bridge 5 = 총 15 변경). 인프라 사고 1건 + 데이터 정합성 버그 2건 해결.
+
+### A. SmartStore 모바일 UX 전면 개편 (da743fc + bf3119a + 002bfb3 + 9d26f37 + bf79bc0 + f7870f9 + e6f6391)
+
+#### A-1. 모바일 스크롤 (`da743fc`)
+**문제**: SmartStoreOrders 페이지가 root에 `h-full overflow-hidden` + 카드 영역만 `flex-1 min-h-0 overflow-y-auto` 중첩 스크롤. 모바일 viewport(667px)에서 헤더+Sync위젯+KPI+네이버위젯6+날짜필터+상태필터 6블록이 460~540px 차지 → 스크롤 영역 100px 이하로 줄어 사실상 스크롤 불가.
+
+**수정**: 헤더만 고정으로 두고 KPI/위젯/필터/카드 전체를 단일 wrapper `flex-1 min-h-0 overflow-y-auto`로 통합.
+
+**검증**: Playwright 모바일 viewport 375x812 → `innerScroll.scrollHeight=1744px in clientHeight=499px` → scrollable: true ✅
+
+#### A-2. 상단 위젯 폰트/사이즈 + 클릭 액션 (`da743fc`)
+- `KpiCard`: `text-xl` → `text-2xl sm:text-3xl`, `p-2.5` → `p-3 sm:p-3.5`, hover 효과 + onClick prop
+- `NaverStatBox`: `text-base` → `text-xl sm:text-2xl`, `text-[9px]` → `text-[11px] sm:text-xs`, `minHeight: 92`, hover/active
+- 그리드: KPI 4열 → 모바일 2x2, 네이버 위젯 3열 → 모바일 2x3 / 태블릿 3x2 / 데스크탑 1x6
+- 10개 카드 모두 `<button>` 으로 변경, hover `shadow-md + -translate-y-0.5`, active `scale-[0.98]`
+
+#### A-3. 위젯 카운트↔클릭필터 1:1 일관성 (`bf3119a`)
+**Codex Major fix**: 위젯 카운트와 클릭 필터가 다른 로직을 쓰던 문제.
+
+**해결**: `widgetFilter` state 도입 (`'overdue' | 'dueDday' | 'dueD1' | 'autoPending' | 'newAfterConfirm' | 'cancel'`).
+- `filtered` useMemo에 stats 카운트 로직과 1:1 동일 적용
+- 토글: 같은 위젯 재클릭 = 해제
+- 일반 status/provider/date filter 변경 시 widgetFilter 자동 해제
+- 활성 위젯: accent 색 테두리 2px + ring shadow + bg `color-mix(in srgb, ... 12%, var(--background))`
+- "필터 해제 ✕" 칩 (active 시)
+
+#### A-4. "발주 후 신규" 카드 안 보이던 버그 (`002bfb3`)
+**문제**: `newAfterConfirm` 카운트는 `converted` 상태 포함이지만 `showCompleted` 토글이 OFF면 converted 카드가 숨겨져서 위젯 클릭해도 카드 0건.
+
+**수정**: `widgetFilter` active 시 `showCompleted` 토글 우회. M4 추가 fix: `autoPending`에 `isDone`/`dispatched` 가드 (polling latency false positive 방지).
+
+#### A-5. 일괄 발송 multi-select UI (`9d26f37`)
+- 컴팩트 모드 row 앞에 체크박스 컬럼 + 헤더 전체 선택
+- 선택 시 상단 floating bar: "N건 선택 / [일괄 발송처리] / [해제]"
+- 일괄 발송 모달: 택배사 공통 선택 + 주문별 송장번호 input
+- 송장 입력된 건만 등록, 발주확인 미완료 건은 자동 함께 등록
+- M1 부분 실패 처리: 실패 주문만 selection + tracking 보존, 모달 유지, 토스트에 buyer_name 3건 + "외 N건"
+
+#### A-6. 주문 취소 모달 (`bf79bc0` + `e6f6391`)
+- `cancelOrder` 함수: `Ban` 아이콘 버튼 → 모달 오픈
+- C1 fix: `window.prompt/confirm` → 모달 UI (iOS Safari 안정성, CLAUDE.md 모달 정책 일관성)
+- 5개 사유 preset 버튼 (`상품 품절 / 구매자 요청 / 배송 지연 / 가격 오류 / 기타`) + textarea + 200자 카운터
+- 구매자/주문번호/금액 미리보기 + disabled 상태 처리
+- DB: `order_status='cancelled'` + `needs_naver_cancel=true` + `naver_cancel_reason` PATCH
+
+#### A-7. 채널 분류 헬퍼 (`bf79bc0`)
+**Codex Major D fix**: 옛 엠파츠 단일 거래처 + 새 분산 거래처(category 태그) 둘 다 일관 처리.
+
+**파일**: `src/lib/channelClassifier.js`
+- `classifyOrderChannel(order)` → `'naver' | 'general'`
+- `aggregateByChannel(orders, customers)` → 채널별 매출 집계
+- `extractNaverBuyer(order)` → memo에서 구매자 이름
+
+OrderHistory.jsx의 isNaverOrder 정규식 인라인 → channelClassifier 호출로 통합 (M2 DRY).
+
+#### A-8. OrderHistory 네이버 카드 강조 (★ M5 핫픽스 - 가장 중요!)
+**버그**: borderWidth/boxShadow를 같은 style 객체에 두 번 정의 → 뒤 값이 덮어써서 **네이버 카드 강조(2px+초록 glow)가 실효성 0**.
+
+```jsx
+// 버그 코드
+borderWidth: isNaverOrder ? '2px' : undefined,  // ← 이게
+boxShadow: isNaverOrder ? '0 0 0 1px rgba(3,199,90,0.35)...' : undefined,
+borderWidth: isReturned ? '2px' : '1px',  // ← 이거로 덮어써짐!
+boxShadow: isReturned ? '...' : isPaid ? '...' : undefined,  // 네이버 glow 사라짐
+```
+
+**수정** (`f7870f9`): 단일 조건문으로 통합, isReturned 우선 + 그 외 isNaverOrder 적용.
+
+**Playwright 라이브 검증**: 네이버 카드 `boxShadow: rgba(3, 199, 90, 0.35) 0px 0px 0px 1px, rgba(3, 199, 90, 0.18) 0px 4px 14px 0px` ← **초록 glow 실제로 보임** ✅
+
+### B. 거래처 카테고리 자동 태그 (`09432b0`)
+
+**버그**: 신규 거래처만 customer_category 적용 → 기존 거래처와 매칭되면 카테고리 누락.
+
+**수정**: App.jsx saveOrder 흐름 — `existingCustomer.category`가 비어있고 `orderData.customer_category` 있으면 `supabase.updateCustomer(id, { category })` PATCH + setCustomers 동기화.
+
+**효과**: 네이버 주문 buyer가 기존 거래처와 매칭돼도 '엠파츠' 카테고리 필터에 잡힘.
+
+### C. 스마트스토어 메뉴 빨간 알림 배지 (`fa82893`)
+
+- App.jsx `smartstoreCount` state 추가
+- `useEffect` 1분 polling: `supabase.getExternalOrders` 호출 → 오늘 received_at + non-DONE 카운트
+- Sidebar/MobileNav badgeMap에 `'smartstore': smartstoreCount` 추가
+- 빨간 배지 표시 (다른 페이지 패턴 일관)
+
+### D. DONE_STATUSES 확장 (`057980f`)
+
+**문제**: 처리완료 표시 토글 OFF인데도 DELIVERED/PURCHASE_DECIDED/CANCELED 카드 표시.
+
+**수정**: DONE_STATUSES Set에 네이버 원본 종결 상태 추가.
+```js
+const DONE_STATUSES = new Set([
+  'converted', 'shipped', 'cancelled',           // 내부
+  'DELIVERED', 'PURCHASE_DECIDED',                // 네이버 종결
+  'CANCELED', 'CANCEL_REQUEST',                   // 취소
+]);
+```
+
+### E. sync.js 상태 머신 정정 (★ 데이터 정합성 fix)
+
+#### E-1. STATUS_RANK 도입 - 후퇴만 방어 (`40d75fa`)
+**버그**: `LOCAL_PROCESSED_STATUSES`에 `'confirmed'` 포함 → 사장님이 발주확인한 주문이 네이버에서 DISPATCHED/DELIVERED로 진행해도 polling 차단. 화면에 "어제 보냈는데 발주확인" stuck.
+
+**수정**: STATUS_RANK 도입.
+```js
+const STATUS_RANK = {
+  received: 1, PAYMENT_WAITING: 1,
+  PAYED: 2, matched: 2,
+  confirmed: 3,
+  DELIVERING: 4, DISPATCHED: 4,
+  shipped: 5,
+  DELIVERED: 6,
+  PURCHASE_DECIDED: 7,
+  CANCEL_REQUEST: 90,
+  CANCELED: 91, cancelled: 91,
+  converted: 99,
+};
+```
+
+**로직**: 새 status rank가 현재보다 높으면 **갱신**(전진 허용), 낮거나 같으면 **보존**(후퇴 방어).
+- `confirmed(3) → DISPATCHED(4)`: 갱신 OK
+- `confirmed(3) → PAYED(2)`: 보존
+- `converted(99) → 무엇이든`: 절대 변경 안 함
+
+#### E-2. received_at = paymentDate || orderDate (`6933e4e`)
+**버그**: sync.js upsertOrderAndItem에서 `received_at` 명시 설정 안 함 → DB default(NOW) 사용 → **backfill 시 옛 주문이 backfill 실행 시각으로 표시**. 5/26 공효빈 주문이 5/29로 잘못 표시.
+
+**수정**: `orderRow.received_at = od.paymentDate || od.orderDate || new Date().toISOString()`
+
+**검증**: 5일치 backfill 18건 재실행 → Playwright 라이브 11건 카드 모두 주문번호 prefix와 일치하는 정확한 날짜 표시 (`202605**26**... = 5/26 16:25` 등).
+
+### F. 인프라 사고 + 자동 보강 4건 (★ 운영 안정성)
+
+#### F-1. 매장 PC 디스크 0GB 사고 (오전 9:47~14:30)
+**증상**: 사장님이 "오늘 주문 안 들어옴" 보고. 네이버 관리자엔 주문 1건 있는데 우리 시스템엔 0건.
+
+**원인**: C 드라이브 0GB Free (Downloads 폴더 혼자 267GB). sync.js PID 401272는 살아있지만 디스크 write 실패로 polling 결과 저장 못함. OS swap/temp도 실패해 시스템 전반 hang.
+
+**복구**:
+1. Vite/npm/Temp 캐시 정리 → 67GB Free 확보
+2. sync.js kill (PID 401272) → 직접 재시작 (PID 425044)
+3. 1일치 backfill → 어제 6건 동기화
+4. 누락 1건 (신민철, 5/29 14:28) 5분 polling 자동 수집
+
+#### F-2. 자동 보강 4건 등록 (`d146a7d`, `f060ca5`)
+재발 방지 인프라:
+
+| # | 항목 | 파일 | 효과 |
+|---|---|---|---|
+| 1 | **디스크 SessionStart 경고** | `~/.claude/hooks/session-start.sh` | Free < 5GB 빨강 / < 15GB 노랑 자동 경고 + sync.js 살아있는지 확인 |
+| 2 | **sync.js watchdog** | `naver-sync-bridge/watchdog.ps1` | 5분마다 체크 → 죽었으면 자동 부활 (디스크 3GB 미만이면 skip) |
+| 3 | **로그 파일 출력 + 회전** | `start.bat` 수정 | stdout→`logs/sync-YYYYMMDD.log`, stderr→`.err`, 7일 후 자동 삭제 |
+| 4 | **Task Scheduler 트리거 강화** | `install-scheduler.ps1` | AtLogon → **AtStartup 추가** + RestartCount 3 (5분 간격) |
+
+**등록 완료**:
+```
+MOVE-WEP-Naver-Sync-Bridge   Ready  ← AtLogon + AtStartup + RestartCount 3
+MOVE-WEP-Naver-Sync-Watchdog Ready  ← 5분마다 sync.js 살아있는지 체크
+```
+
+### G. flow-check 라이브 검증 결과
+
+오늘 마지막 단계로 Playwright MCP 직접 검증:
+- ✅ sync.js LIVE 표시, 마지막 sync "방금 전", 24h 성공률 100% (288회)
+- ✅ 오늘 누락 1건 (신민철 320,000원) 자동 수집됨
+- ✅ 위젯 클릭 → border 2px active 강조 작동
+- ✅ 컴팩트 모드 체크박스 5개 (헤더+row 4)
+- ✅ 카드 모드 [주문취소] 버튼 + 모달 정상
+- ✅ **OrderHistory 네이버 카드 boxShadow 초록 glow 적용** (M5 핫픽스 효과)
+- ✅ 모바일 viewport 스크롤 1744px in 499px → scrollable
+- ✅ Console 에러 0건
+- 최종 판정: **PASS (95점)**
+
+### H. 사장님이 발견한 의문 2건
+
+| 의문 | 원인 | 해결 |
+|---|---|---|
+| "공효빈 왜 오늘 떠있어?" | received_at 미설정 → DB default(NOW) | E-2 수정 후 5/26로 정확 표시 |
+| "어제 발송한 게 왜 발주확인?" | STATUS_RANK 없어 confirmed→DISPATCHED 차단 | E-1 수정 후 DELIVERED/PURCHASE_DECIDED 정확 반영 |
+
+---
+
+
 
 오늘 누적 27 커밋. 핵심 기능 13가지 + Codex Critical/Major fix 8건.
 
