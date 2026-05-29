@@ -123,6 +123,9 @@ export default function SmartStoreOrders({
   const [providerFilter, setProviderFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCompleted, setShowCompleted] = useState(false); // 처리완료 카드 표시 토글
+  // 위젯 클릭 → 위젯과 동일한 카운트 로직으로 필터링 (Codex Major: 카운트↔필터 일관성)
+  // 'none' | 'overdue' | 'dueDday' | 'dueD1' | 'autoPending' | 'newAfterConfirm' | 'cancel'
+  const [widgetFilter, setWidgetFilter] = useState('none');
   // 날짜 조회 (네이버 관리자 페이지 스타일)
   const [datePreset, setDatePreset] = useState('1w'); // today | 1w | 1m | 3m | custom
   const [dateFrom, setDateFrom] = useState('');
@@ -239,19 +242,51 @@ export default function SmartStoreOrders({
   }, [datePreset, dateFrom, dateTo]);
 
   const filtered = useMemo(() => {
+    // widgetFilter용 시간 윈도우 (stats 와 동일 로직)
+    const now = Date.now();
+    const todayKstStart = new Date(); todayKstStart.setHours(0, 0, 0, 0);
+    const tomorrowKstStart = new Date(todayKstStart); tomorrowKstStart.setDate(todayKstStart.getDate() + 1);
+    const dayAfterTomorrowKstStart = new Date(todayKstStart); dayAfterTomorrowKstStart.setDate(todayKstStart.getDate() + 2);
+
     return orders.filter((o) => {
       if (providerFilter !== 'all' && o.provider !== providerFilter) return false;
       if (statusFilter !== 'all' && o.order_status !== statusFilter) return false;
       // 처리완료(converted/shipped/cancelled/구매확정) 는 토글 OFF 시 숨김
-      if (!showCompleted && (DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED')) return false;
+      // 단, widgetFilter='cancel' 인 경우 취소를 보여야 하므로 예외
+      if (!showCompleted && widgetFilter !== 'cancel' && (DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED')) return false;
       // 날짜 범위 (결제일 = received_at 기준, 네이버 조회기간과 동일)
       if (dateRange && o.received_at) {
         const rec = new Date(o.received_at);
         if (rec < dateRange.from || rec >= dateRange.to) return false;
       }
+      // 위젯 필터 (stats 카운트 로직과 1:1 동일)
+      if (widgetFilter !== 'none') {
+        const dispatchDue = o.dispatch_due_date || o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
+        const isDone = DONE_STATUSES.has(o.order_status) || o.naver_dispatch_succeeded_at;
+        if (widgetFilter === 'overdue') {
+          if (isDone || !dispatchDue) return false;
+          if (new Date(dispatchDue).getTime() >= now) return false;
+        } else if (widgetFilter === 'dueDday') {
+          if (isDone || !dispatchDue) return false;
+          const due = new Date(dispatchDue).getTime();
+          if (!(due >= todayKstStart.getTime() && due < tomorrowKstStart.getTime())) return false;
+        } else if (widgetFilter === 'dueD1') {
+          if (isDone || !dispatchDue) return false;
+          const due = new Date(dispatchDue).getTime();
+          if (!(due >= tomorrowKstStart.getTime() && due < dayAfterTomorrowKstStart.getTime())) return false;
+        } else if (widgetFilter === 'autoPending') {
+          if (!(o.needs_naver_confirm || o.needs_naver_dispatch)) return false;
+        } else if (widgetFilter === 'newAfterConfirm') {
+          if (!(o.naver_confirm_succeeded_at && !o.naver_dispatch_succeeded_at && o.order_status !== 'shipped')) return false;
+        } else if (widgetFilter === 'cancel') {
+          const st = o.order_status;
+          const isCancel = st === 'CANCEL_REQUEST' || st === 'CANCELED' || st === 'cancelled' || /cancel/i.test(o.raw_payload?.cancelRequest || '');
+          if (!isCancel) return false;
+        }
+      }
       return true;
     });
-  }, [orders, providerFilter, statusFilter, showCompleted, dateRange]);
+  }, [orders, providerFilter, statusFilter, showCompleted, dateRange, widgetFilter]);
 
   const completedCount = useMemo(() => orders.filter((o) =>
     DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED'
@@ -594,45 +629,60 @@ export default function SmartStoreOrders({
         <SyncMonitorWidget showToast={showToast} />
       </div>
 
-      {/* KPI 카드 — 클릭 시 해당 필터 적용 */}
+      {/* KPI 카드 — 클릭 시 해당 필터 적용 (위젯 필터 해제) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 px-3 sm:px-4 pt-3 pb-2">
         <KpiCard label="전체" value={stats.total}
           hint="모든 상태 / 전체 기간 보기"
-          onClick={() => { setStatusFilter('all'); setDatePreset('all'); setProviderFilter('all'); }} />
+          onClick={() => { setWidgetFilter('none'); setStatusFilter('all'); setDatePreset('all'); setProviderFilter('all'); }} />
         <KpiCard label="오늘" value={stats.todayCount} accent="#4dffff"
           hint="오늘 들어온 주문만 보기"
-          onClick={() => { setStatusFilter('all'); setDatePreset('today'); }} />
+          onClick={() => { setWidgetFilter('none'); setStatusFilter('all'); setDatePreset('today'); }} />
         <KpiCard label="대기" value={stats.pending} accent="#ffaa00"
           hint="결제완료 / 발주확인 대기 주문 보기"
-          onClick={() => { setStatusFilter('PAYED'); setDatePreset('all'); }} />
+          onClick={() => { setWidgetFilter('none'); setStatusFilter('PAYED'); setDatePreset('all'); }} />
         <KpiCard label="오늘 매출" value={`${fmtNum(stats.todayRevenue)}원`} small
           hint="오늘 매출 상세 카드 보기"
-          onClick={() => { setStatusFilter('all'); setDatePreset('today'); }} />
+          onClick={() => { setWidgetFilter('none'); setStatusFilter('all'); setDatePreset('today'); }} />
       </div>
 
-      {/* 네이버 관리자 페이지 위젯 — 빠르게 확인 + 발송처리 진행, 클릭 시 해당 그룹 필터링 */}
+      {/* 네이버 관리자 페이지 위젯 — 카운트 로직과 1:1 동일 필터 (Codex Major fix) */}
       <div className="px-3 sm:px-4 pb-3">
         <div className="rounded-xl border p-3 sm:p-3.5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-          <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider opacity-70 mb-2 sm:mb-2.5">네이버 관리자 — 빠른 확인 (클릭하여 필터)</div>
+          <div className="flex items-center justify-between mb-2 sm:mb-2.5">
+            <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider opacity-70">네이버 관리자 — 빠른 확인 (클릭=필터, 다시 클릭=해제)</div>
+            {widgetFilter !== 'none' && (
+              <button onClick={() => setWidgetFilter('none')}
+                className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-semibold"
+                style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }}>
+                필터 해제 ✕
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
             <NaverStatBox icon="⏰" label="발송기한 초과" value={stats.overdue} alert={stats.overdue > 0}
               hint="발송 기한이 지난 미발송 주문"
-              onClick={() => { setStatusFilter('PAYED'); setDatePreset('all'); }} />
+              active={widgetFilter === 'overdue'}
+              onClick={() => { setWidgetFilter((f) => f === 'overdue' ? 'none' : 'overdue'); setStatusFilter('all'); setDatePreset('all'); }} />
             <NaverStatBox icon="🤖" label="자동처리 예정" value={stats.autoConfirmPending} accent="#a78bfa"
-              hint="자동 발주확인 큐에 대기 중"
-              onClick={() => { setStatusFilter('PAYED'); setDatePreset('all'); }} />
+              hint="자동 발주확인/발송 큐에 대기 중"
+              active={widgetFilter === 'autoPending'}
+              onClick={() => { setWidgetFilter((f) => f === 'autoPending' ? 'none' : 'autoPending'); setStatusFilter('all'); setDatePreset('all'); }} />
             <NaverStatBox icon="🚚" label="발주 후 신규" value={stats.newAfterConfirm} accent="#03c75a"
-              hint="발주확인됐지만 아직 발송 안 된 건"
-              onClick={() => { setStatusFilter('confirmed'); setDatePreset('all'); }} />
+              hint="발주확인 완료, 아직 발송 미처리"
+              active={widgetFilter === 'newAfterConfirm'}
+              onClick={() => { setWidgetFilter((f) => f === 'newAfterConfirm' ? 'none' : 'newAfterConfirm'); setStatusFilter('all'); setDatePreset('all'); }} />
             <NaverStatBox icon="❌" label="취소 요청" value={stats.cancelRequest} alert={stats.cancelRequest > 0}
-              hint="구매자가 취소 요청한 주문"
-              onClick={() => { setStatusFilter('cancelled'); setDatePreset('all'); }} />
+              hint="구매자가 취소 요청한 주문 (네이버/내부 모든 cancel 상태)"
+              active={widgetFilter === 'cancel'}
+              onClick={() => { setWidgetFilter((f) => f === 'cancel' ? 'none' : 'cancel'); setStatusFilter('all'); setDatePreset('all'); }} />
             <NaverStatBox icon="📅" label="발송마감 D-1" value={stats.dispatchDueD1} accent="#ffaa00" alert={stats.dispatchDueD1 > 0}
               hint="내일까지 발송해야 하는 주문"
-              onClick={() => { setStatusFilter('PAYED'); setDatePreset('all'); }} />
+              active={widgetFilter === 'dueD1'}
+              onClick={() => { setWidgetFilter((f) => f === 'dueD1' ? 'none' : 'dueD1'); setStatusFilter('all'); setDatePreset('all'); }} />
             <NaverStatBox icon="🔥" label="발송마감 D-day" value={stats.dispatchDueDday} alert={stats.dispatchDueDday > 0} accent="#ff4d6d"
               hint="오늘이 발송 마감! 우선 처리 필요"
-              onClick={() => { setStatusFilter('PAYED'); setDatePreset('today'); }} />
+              active={widgetFilter === 'dueDday'}
+              onClick={() => { setWidgetFilter((f) => f === 'dueDday' ? 'none' : 'dueDday'); setStatusFilter('all'); setDatePreset('all'); }} />
           </div>
         </div>
       </div>
@@ -648,7 +698,7 @@ export default function SmartStoreOrders({
             { v: '3m', label: '3개월' },
             { v: 'all', label: '전체' },
           ].map((p) => (
-            <button key={p.v} onClick={() => setDatePreset(p.v)}
+            <button key={p.v} onClick={() => { setWidgetFilter('none'); setDatePreset(p.v); }}
               className="text-xs px-3 py-1 transition-colors"
               style={{
                 background: datePreset === p.v ? 'var(--primary)' : 'var(--card)',
@@ -660,12 +710,12 @@ export default function SmartStoreOrders({
           ))}
         </div>
         <input type="date" value={dateFrom}
-          onChange={(e) => { setDateFrom(e.target.value); setDatePreset('custom'); }}
+          onChange={(e) => { setWidgetFilter('none'); setDateFrom(e.target.value); setDatePreset('custom'); }}
           className="text-xs px-2 py-1 rounded border"
           style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
         <span className="text-xs opacity-50">~</span>
         <input type="date" value={dateTo}
-          onChange={(e) => { setDateTo(e.target.value); setDatePreset('custom'); }}
+          onChange={(e) => { setWidgetFilter('none'); setDateTo(e.target.value); setDatePreset('custom'); }}
           className="text-xs px-2 py-1 rounded border"
           style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
         {dateRange && (
@@ -677,13 +727,13 @@ export default function SmartStoreOrders({
 
       {/* 필터 */}
       <div className="flex flex-wrap gap-2 px-3 sm:px-4 pb-2">
-        <select value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)}
+        <select value={providerFilter} onChange={(e) => { setWidgetFilter('none'); setProviderFilter(e.target.value); }}
           className="text-xs px-2 py-1 rounded border" style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
           <option value="all">전체 마켓</option>
           <option value="naver">네이버</option>
           <option value="mock">🧪 Mock</option>
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+        <select value={statusFilter} onChange={(e) => { setWidgetFilter('none'); setStatusFilter(e.target.value); }}
           className="text-xs px-2 py-1 rounded border" style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
           <option value="all">전체 상태</option>
           <option value="PAYED">결제완료</option>
@@ -1223,17 +1273,23 @@ function KpiCard({ label, value, accent, small, onClick, hint }) {
   );
 }
 
-function NaverStatBox({ icon, label, value, accent, alert, onClick, hint }) {
+function NaverStatBox({ icon, label, value, accent, alert, onClick, hint, active }) {
   const isActive = value > 0;
   const Tag = onClick ? 'button' : 'div';
+  const accentRing = accent || (alert ? '#ff4d6d' : 'var(--primary)');
   return (
     <Tag
       onClick={onClick}
       title={hint || label}
       className={`p-2.5 sm:p-3 rounded-xl flex flex-col items-center text-center w-full transition-all ${onClick ? 'hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer' : ''}`}
       style={{
-        background: alert && isActive ? 'rgba(255,77,109,0.08)' : 'var(--background)',
-        border: alert && isActive ? '1px solid rgba(255,77,109,0.35)' : '1px solid var(--border)',
+        background: active
+          ? `color-mix(in srgb, ${accentRing} 12%, var(--background))`
+          : (alert && isActive ? 'rgba(255,77,109,0.08)' : 'var(--background)'),
+        border: active
+          ? `2px solid ${accentRing}`
+          : (alert && isActive ? '1px solid rgba(255,77,109,0.35)' : '1px solid var(--border)'),
+        boxShadow: active ? `0 0 0 4px color-mix(in srgb, ${accentRing} 18%, transparent)` : undefined,
         minHeight: 92,
       }}
     >
