@@ -41,7 +41,12 @@ const STATUS_LABEL = {
 const PENDING_CONFIRM_STATUSES = new Set(['received', 'PAYED', 'PAYMENT_WAITING', 'matched']);
 
 // 처리 완료 상태 (카드 기본 숨김 대상)
-const DONE_STATUSES = new Set(['converted', 'shipped', 'cancelled']);
+// 내부 status + 네이버 원본 종결 status 모두 포함 (2026-05-29 fix: DELIVERED/PURCHASE_DECIDED/CANCELED 빠져서 기본 OFF에도 보이던 버그)
+const DONE_STATUSES = new Set([
+  'converted', 'shipped', 'cancelled',
+  'DELIVERED', 'PURCHASE_DECIDED',
+  'CANCELED', 'CANCEL_REQUEST',
+]);
 
 // 네이버 스토어 통합 거래처명 (실 buyer 는 memo 에 기록)
 const NAVER_STORE_CUSTOMER_NAME = '엠파츠';
@@ -263,7 +268,7 @@ export default function SmartStoreOrders({
       if (statusFilter !== 'all' && o.order_status !== statusFilter) return false;
       // 처리완료(converted/shipped/cancelled/구매확정) 는 토글 OFF 시 숨김
       // 단, widgetFilter active 시에는 위젯 카운트 로직(converted 포함 등)이 우선이므로 우회
-      if (!showCompleted && widgetFilter === 'none' && (DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED')) return false;
+      if (!showCompleted && widgetFilter === 'none' && DONE_STATUSES.has(o.order_status)) return false;
       // 날짜 범위 (결제일 = received_at 기준, 네이버 조회기간과 동일)
       if (dateRange && o.received_at) {
         const rec = new Date(o.received_at);
@@ -301,7 +306,7 @@ export default function SmartStoreOrders({
   }, [orders, providerFilter, statusFilter, showCompleted, dateRange, widgetFilter]);
 
   const completedCount = useMemo(() => orders.filter((o) =>
-    DONE_STATUSES.has(o.order_status) || o.order_status === 'PURCHASE_DECIDED'
+    DONE_STATUSES.has(o.order_status)
   ).length, [orders]);
 
   // Codex Major A fix: 위젯 stats 는 dateRange 가 적용된 filtered 가 아닌, dateRange 기간 내 전체 (현재 화면 카드와 일관)
