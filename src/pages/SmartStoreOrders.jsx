@@ -41,11 +41,12 @@ const STATUS_LABEL = {
 const PENDING_CONFIRM_STATUSES = new Set(['received', 'PAYED', 'PAYMENT_WAITING', 'matched']);
 
 // 처리 완료 상태 (카드 기본 숨김 대상)
-// 내부 status + 네이버 원본 종결 status 모두 포함 (2026-05-29 fix: DELIVERED/PURCHASE_DECIDED/CANCELED 빠져서 기본 OFF에도 보이던 버그)
+// Codex C-3 fix: CANCEL_REQUEST 제거 — 구매자 취소 요청은 아직 미처리 상태 (사장님 응답 필요)
 const DONE_STATUSES = new Set([
   'converted', 'shipped', 'cancelled',
-  'DELIVERED', 'PURCHASE_DECIDED',
-  'CANCELED', 'CANCEL_REQUEST',
+  'DELIVERED', 'DELIVERED_COMPLETED', 'PURCHASE_DECIDED',
+  'CANCELED', 'CANCELED_BY_NOPAYMENT',
+  'RETURNED', 'EXCHANGED',
 ]);
 
 // 네이버 스토어 통합 거래처명 (실 buyer 는 memo 에 기록)
