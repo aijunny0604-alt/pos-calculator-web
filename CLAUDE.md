@@ -1,9 +1,30 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-05-29 (모바일 스크롤 + 위젯 폰트/필터 + 일괄발송 + 취소모달 + STATUS_RANK fix + received_at fix + 디스크 인프라 보강)
+> 마지막 업데이트: 2026-06-01 (스마트스토어 배지 의미 재정의 + orderStatus.js 공유 모듈 + sync catch-up/heartbeat)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-06-01 — 스마트스토어 배지 의미 재정의 + 완료판정 단일화
+
+스마트스토어 메뉴 빨간 배지의 카운트 기준을 운영 현실에 맞게 재정의. 배지·페이지·일괄발송이 따로 놀던 완료 판정을 단일 소스로 통합.
+
+### 단일 소스: [src/lib/orderStatus.js](src/lib/orderStatus.js) (신규)
+- `DONE_STATUSES` — 종결 상태 10종 (converted/shipped/cancelled/DELIVERED/DELIVERED_COMPLETED/PURCHASE_DECIDED/CANCELED/CANCELED_BY_NOPAYMENT/RETURNED/EXCHANGED)
+- `IN_TRANSIT_STATUSES` — 배송중 (DELIVERING/DISPATCHED): 이미 발송돼 사장님 액션 불필요
+- `PAYMENT_PENDING_STATUSES` — 입금대기 (PAYMENT_WAITING/PAY_WAITING): 고객 미결제, 사장님 액션 불가
+- `isOrderDone(o)` = `DONE_STATUSES.has(order_status) || !!naver_dispatch_succeeded_at` — 발송처리 완료(dispatch 시각)도 완료로 봄 (polling이 status 따라오기 전 구간 false-positive 방지, code-review M-1)
+- `isOrderPending(o)` = 완료(발송 포함)도, 배송중도, 입금대기도 아닌 상태 = **지금 처리할 주문**
+
+### 배지 카운트 = `isOrderPending` (날짜 무관)
+- App.jsx `smartstoreCount`: `getExternalOrders({limit:200})` → `isOrderPending` 필터. **오늘만이 아니라 옛 미처리 주문(예: 며칠 전 PAYED)도 포함** (2026-06-01 결정).
+- 빼는 것: 입금대기(고객 미결제) / 배송중(이미 발송) / 종결. → 결제완료·발주확인·취소요청만 카운트.
+- SmartStoreOrders.jsx 인라인 완료판정 5곳(isDone 2 + 일괄발송 eligible 3)을 `isOrderDone(o)`로 교체 → 배지/페이지 "대기"칩/일괄발송 단일 기준 (라이브 검증: 메뉴 배지 == 페이지 "대기" 칩 일치).
+- 단, 페이지 기본 노출 필터(line 266)는 status-only 유지 → 배송중은 페이지엔 표시(추적용), 배지엔 제외 (의도된 차이).
+
+### naver-sync-bridge (매장 PC, 별도 repo)
+- sync.js `pollChangedOrders`: 24h 윈도우 catch-up 루프 — cursor가 며칠 밀려도 한 폴링에서 현재까지 추종 (MAX_PAGES 초과 시 유실 방지, code-review C-1). `logs/heartbeat.txt` 기록 → watchdog가 15분+ stale 시 hung 판정 재시작.
+- **미해결**: `external_orders.matched_customer_id`(integer) vs `customers.id`(UUID) 타입 불일치 → 자동 고객매칭 PATCH 400 (주문 적재엔 영향 없음, /db-health로 처리 예정).
 
 ## 🆕 v2026-05-29 — 모바일 UX 전면 개편 + sync.js 상태 머신 + 인프라 보강
 
