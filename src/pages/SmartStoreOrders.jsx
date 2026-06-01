@@ -653,8 +653,11 @@ export default function SmartStoreOrders({
     const customerName = cm?.status === 'exact'
       ? cm.exact.name
       : (buyerName || '온라인 구매자');
+    // 배송 정책(착불/선불) 보존 — 내부주문엔 별도 필드가 없으므로 memo에 기록.
+    // ShippingLabel이 이 마커를 읽어 발송인=엠파츠 + 착불/선불을 자동 세팅한다.
+    const payLabel = normalizeDeliveryPayType(order.delivery_policy_type); // '착불' | '선불'
     const memo = isNaverOrder
-      ? `[엠파츠] [네이버 스마트스토어] ${order.provider_order_id}\n구매자: ${buyerName || '-'} / ${order.buyer_phone || '-'}${order.buyer_address ? `\n주소: ${order.buyer_address}` : ''}`
+      ? `[엠파츠] [네이버 스마트스토어] ${order.provider_order_id}\n구매자: ${buyerName || '-'} / ${order.buyer_phone || '-'}${order.buyer_address ? `\n주소: ${order.buyer_address}` : ''}\n배송: ${payLabel}`
       : `[${PROVIDER_LABEL[order.provider]?.label || order.provider}] 주문번호: ${order.provider_order_id}`;
 
     // placeholder 제외 (detail 미도착 row 는 안전 차단)

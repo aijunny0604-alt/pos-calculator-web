@@ -208,8 +208,18 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
     return costs.join(',');
   };
 
-  const getOrderSetting = (orderNumber, customerName = null) => {
-    if (orderSettings[orderNumber]) return orderSettings[orderNumber];
+  // 스토어(엠파츠) 주문 식별 — 내부주문 전환 시 memo에 "[엠파츠] [네이버 스마트스토어]" + "배송: 착불/선불" 기록됨
+  const isStoreOrder = (order) =>
+    !!order && typeof order.memo === 'string' &&
+    (order.memo.includes('[엠파츠]') || order.memo.includes('네이버 스마트스토어'));
+
+  const getOrderSetting = (orderNumber, customerName = null, order = null) => {
+    if (orderSettings[orderNumber]) return orderSettings[orderNumber]; // 사용자가 직접 바꾼 값 최우선
+    // 스토어 주문은 발송인=엠파츠 고정 + 착불/선불은 memo에서 자동 (매장 거래처 설정보다 우선)
+    if (isStoreOrder(order)) {
+      const paymentType = /배송:\s*착불/.test(order.memo) ? '착불' : '선불';
+      return { paymentType, packaging: '박스1', shippingCost: '7300', sender: '엠파츠' };
+    }
     if (customerName && savedCustomerSettings[customerName]) return savedCustomerSettings[customerName];
     return { paymentType: '착불', packaging: '박스1', shippingCost: '7300', sender: senderList[0] };
   };
@@ -333,7 +343,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
     const groupedBySender = {};
     senderList.forEach(sender => { groupedBySender[sender] = { orders: [], custom: [] }; });
     selectedData.forEach(order => {
-      const setting = getOrderSetting(order.orderNumber, order.customerName);
+      const setting = getOrderSetting(order.orderNumber, order.customerName, order);
       const sender = setting.sender || senderList[0];
       if (groupedBySender[sender]) groupedBySender[sender].orders.push(order);
     });
@@ -362,7 +372,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
           const mostExpensive = getMostExpensiveItem(order.items);
           const phone = customer?.phone || order.customerPhone || '';
           const address = customer?.address || '';
-          const setting = getOrderSetting(order.orderNumber, order.customerName);
+          const setting = getOrderSetting(order.orderNumber, order.customerName, order);
           csv += `${index},${order.customerName},${setting.paymentType},${setting.packaging},${setting.shippingCost},${mostExpensive},${phone}\n`;
           if (address) csv += `${address}\n`;
           index++;
@@ -451,7 +461,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
           const mostExpensive = getMostExpensiveItem(order.items);
           const phone = customer?.phone || order.customerPhone || '';
           const address = customer?.address || '';
-          const setting = getOrderSetting(order.orderNumber, order.customerName);
+          const setting = getOrderSetting(order.orderNumber, order.customerName, order);
           const isPrepaid = setting.paymentType === '선불';
           const packagingValue = String(setting.packaging || '');
           const shippingCostValue = String(setting.shippingCost || '');
@@ -586,7 +596,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
           const mostExpensive = getMostExpensiveItem(order.items);
           const phone = customer?.phone || order.customerPhone || '';
           const address = customer?.address || '';
-          const setting = getOrderSetting(order.orderNumber, order.customerName);
+          const setting = getOrderSetting(order.orderNumber, order.customerName, order);
           const isPrepaid = setting.paymentType === '선불';
           const rowClass = isPrepaid ? 'prepaid' : '';
           const packagingDisplay = escapeHtml(String(setting.packaging || '')).replace(/,/g, '<br>');
@@ -729,7 +739,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
               {filteredOrders.map(order => {
                 const customer = order.customerName ? findCustomer(order.customerName) : null;
                 const hasAddress = customer?.address;
-                const setting = getOrderSetting(order.orderNumber, order.customerName);
+                const setting = getOrderSetting(order.orderNumber, order.customerName, order);
                 const isSelected = selectedOrders.includes(order.orderNumber);
                 const hasSavedSetting = order.customerName && savedCustomerSettings[order.customerName];
 
@@ -1078,7 +1088,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                 const senderCount = selectedOrders.filter(id => {
                   const order = filteredOrders.find(o => o.orderNumber === id);
                   if (order) {
-                    const setting = getOrderSetting(order.orderNumber, order.customerName);
+                    const setting = getOrderSetting(order.orderNumber, order.customerName, order);
                     return (setting.sender || senderList[0]) === sender;
                   }
                   const entry = customEntries.find(e => e.id === id);
