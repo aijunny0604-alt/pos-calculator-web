@@ -5,9 +5,9 @@
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
 
-## 🆕 v2026-06-01 — 스마트스토어 배지 의미 재정의 + 완료판정 단일화
+## 🆕 v2026-06-01 — 스마트스토어 배지/색상/옵션/송장 + 네이버 연동 정합성
 
-스마트스토어 메뉴 빨간 배지의 카운트 기준을 운영 현실에 맞게 재정의. 배지·페이지·일괄발송이 따로 놀던 완료 판정을 단일 소스로 통합.
+배지 의미 재정의 + 완료판정 단일화 + 상태별 색상 분리 + 내부주문 옵션 보존 + 송장 발송인(엠파츠)/착불선불 자동 + 네이버 종결·발송 API 연동 수정.
 
 ### 단일 소스: [src/lib/orderStatus.js](src/lib/orderStatus.js) (신규)
 - `DONE_STATUSES` — 종결 상태 10종 (converted/shipped/cancelled/DELIVERED/DELIVERED_COMPLETED/PURCHASE_DECIDED/CANCELED/CANCELED_BY_NOPAYMENT/RETURNED/EXCHANGED)
@@ -22,8 +22,22 @@
 - SmartStoreOrders.jsx 인라인 완료판정 5곳(isDone 2 + 일괄발송 eligible 3)을 `isOrderDone(o)`로 교체 → 배지/페이지 "대기"칩/일괄발송 단일 기준 (라이브 검증: 메뉴 배지 == 페이지 "대기" 칩 일치).
 - 단, 페이지 기본 노출 필터(line 266)는 status-only 유지 → 배송중은 페이지엔 표시(추적용), 배지엔 제외 (의도된 차이).
 
+### 상태별 색상 분리 (SmartStoreOrders STATUS_LABEL)
+- 수명주기 단계가 한눈에 구분되도록 고유 색: 입금대기=회색 / 결제완료·매칭=시안 / 발주확인=노랑 / 내부주문전환=틸 / 발송·발송중=파랑 / 배송중=보라 / 배송완료=초록 / 구매확정=진초록 / 취소요청=주황 / 취소=빨강 / 반품=핑크 / 교환=마젠타
+- 누락 상태 추가: PAY_WAITING, CANCEL_REQUEST, CANCELED, CANCELED_BY_NOPAYMENT, RETURNED, EXCHANGED, DELIVERED_COMPLETED
+
+### 내부주문 전환 시 옵션 보존
+- `convertToInternalOrder`: 스토어 주문 옵션(예: "사이즈: 63-90")을 제품명에 `(옵션)` 형태로 붙여 보존 (상세 모달이 name을 렌더하므로). `option` 필드도 별도 보존.
+- memo에 `배송: 착불/선불` 마커 기록 (내부주문엔 배송정책 필드 없음 → ShippingLabel이 읽음)
+
+### 택배 송장 — 스토어 주문 발송인=엠파츠 + 착불/선불 자동 ([src/pages/ShippingLabel.jsx](src/pages/ShippingLabel.jsx))
+- 경로 A(스토어 페이지 📦 송장 버튼 → `handleCreateShippingLabel`): customEntry sender='엠파츠' + 정책 정규화 (기존)
+- 경로 B(내부주문 전환된 주문이 ShippingLabel 일반 목록에): `getOrderSetting`이 memo의 `[엠파츠]`/`네이버 스마트스토어` 감지 → 발송인=엠파츠 고정 + 착불/선불은 memo `배송:` 마커에서 자동 (매장 거래처 설정보다 우선)
+
 ### naver-sync-bridge (매장 PC, 별도 repo)
 - sync.js `pollChangedOrders`: 24h 윈도우 catch-up 루프 — cursor가 며칠 밀려도 한 폴링에서 현재까지 추종 (MAX_PAGES 초과 시 유실 방지, code-review C-1). `logs/heartbeat.txt` 기록 → watchdog가 15분+ stale 시 hung 판정 재시작.
+- **종결 연동**: 이미 추적 중인 주문이 네이버에서 취소/반품/구매확정/배송완료되면 갱신 (신규 종결 유입만 차단).
+- **발송처리 API**: 필수 `dispatchDate`(KST +09:00) 추가 — 누락 시 HTTP 400. HTTP 200 부분실패(`failProductOrderInfos`)도 파싱해 거짓 성공 방지 (confirm/dispatch 공통).
 - **미해결**: `external_orders.matched_customer_id`(integer) vs `customers.id`(UUID) 타입 불일치 → 자동 고객매칭 PATCH 400 (주문 적재엔 영향 없음, /db-health로 처리 예정).
 
 ## 🆕 v2026-05-29 — 모바일 UX 전면 개편 + sync.js 상태 머신 + 인프라 보강
