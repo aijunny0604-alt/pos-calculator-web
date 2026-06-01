@@ -9,6 +9,7 @@ import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, Arrow
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
+import { DONE_STATUSES } from '@/lib/orderStatus';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
@@ -42,13 +43,6 @@ const PENDING_CONFIRM_STATUSES = new Set(['received', 'PAYED', 'PAYMENT_WAITING'
 
 // 처리 완료 상태 (카드 기본 숨김 대상)
 // Codex C-3 fix: CANCEL_REQUEST 제거 — 구매자 취소 요청은 아직 미처리 상태 (사장님 응답 필요)
-const DONE_STATUSES = new Set([
-  'converted', 'shipped', 'cancelled',
-  'DELIVERED', 'DELIVERED_COMPLETED', 'PURCHASE_DECIDED',
-  'CANCELED', 'CANCELED_BY_NOPAYMENT',
-  'RETURNED', 'EXCHANGED',
-]);
-
 // 네이버 스토어 통합 거래처명 (실 buyer 는 memo 에 기록)
 const NAVER_STORE_CUSTOMER_NAME = '엠파츠';
 

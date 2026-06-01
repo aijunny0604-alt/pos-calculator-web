@@ -27,6 +27,7 @@ const SmartStoreOrders = lazy(() => import('@/pages/SmartStoreOrders'));
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
 import { formatPrice, getTodayKST, toDateKST } from '@/lib/utils';
+import { isOrderDone } from '@/lib/orderStatus';
 
 export default function App() {
   // ─── Navigation ───────────────────────────────────────────────
@@ -350,13 +351,11 @@ export default function App() {
         const list = await supabase.getExternalOrders({ limit: 200 });
         if (cancelled) return;
         const today = getTodayKST();
-        // 오늘 받은 + 아직 처리 안 된 (converted/shipped/cancelled 제외) 건수
-        const DONE = new Set(['converted', 'shipped', 'cancelled', 'PURCHASE_DECIDED', 'DELIVERED']);
+        // 오늘 받은 + 아직 처리 안 된 건수 (완료 판정은 SmartStoreOrders 페이지와 동일 기준 공유)
         const count = (list || []).filter((o) => {
           if (!o.received_at) return false;
-          const d = toDateKST(o.received_at);
-          if (d !== today) return false;
-          return !DONE.has(o.order_status);
+          if (toDateKST(o.received_at) !== today) return false;
+          return !isOrderDone(o);
         }).length;
         setSmartstoreCount(count);
       } catch {}
