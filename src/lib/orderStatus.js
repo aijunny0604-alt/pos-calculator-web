@@ -8,10 +8,10 @@ export const DONE_STATUSES = new Set([
   'RETURNED', 'EXCHANGED',
 ]);
 
-// 주문이 "처리 완료/종결" 상태인가.
-// 상태값뿐 아니라 네이버 발송처리 성공 시각(naver_dispatch_succeeded_at)도 완료로 본다
-// (상태 플립 전이라도 이미 발송된 건은 대기 목록/배지에서 제외).
+// 주문이 "처리 완료/종결" 상태인가 — order_status 기준.
+// SmartStoreOrders 페이지의 기본 노출 필터(showCompleted=false 시 숨김)와 동일 기준이라,
+// App.jsx 메뉴 배지 숫자 = 스토어 페이지 기본 화면에 보이는 오늘 대기 주문 수와 1:1로 일치한다.
+// (발송처리 완료 건은 보통 order_status가 'shipped'로 전환되어 자동 포함됨)
 export function isOrderDone(o) {
-  if (!o) return false;
-  return DONE_STATUSES.has(o.order_status) || !!o.naver_dispatch_succeeded_at;
+  return !!o && DONE_STATUSES.has(o.order_status);
 }
