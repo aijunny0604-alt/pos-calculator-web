@@ -669,10 +669,15 @@ export default function SmartStoreOrders({
     const itemsForOrder = usableItems.map((it) => {
       const isMatched = !!(it.matched_product_id && (it.match_status === 'matched' || it.match_status === 'manual'));
       const p = isMatched ? products.find((x) => x.id === it.matched_product_id) : null;
+      const baseName = it.matched_product_name || it.provider_product_name;
+      // 스토어 주문 옵션(예: "사이즈: 63-90")을 내부주문에도 보존 — 상세 모달이 name을 렌더하므로
+      // 옵션을 제품명에 함께 붙여 한눈에 보이게 + option 필드도 별도 보존.
+      const opt = (it.provider_product_option || '').trim();
       return {
         // freeform 의 id 는 productOrderId 기반 유니크 마커 (같은 주문 합산 안 되게)
         id: isMatched ? (p?.id || it.matched_product_id) : `naver-${it.provider_product_order_id || it.id}`,
-        name: it.matched_product_name || it.provider_product_name,
+        name: opt ? `${baseName} (${opt})` : baseName,
+        option: opt || undefined,
         price: it.unit_price, // 네이버 unitPrice = 소비자가
         wholesale: isMatched ? (Number(p?.wholesale) || it.unit_price) : it.unit_price,
         retail: isMatched ? (Number(p?.retail) || it.unit_price) : it.unit_price,
