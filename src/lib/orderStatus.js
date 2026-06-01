@@ -9,9 +9,20 @@ export const DONE_STATUSES = new Set([
 ]);
 
 // 주문이 "처리 완료/종결" 상태인가 — order_status 기준.
-// SmartStoreOrders 페이지의 기본 노출 필터(showCompleted=false 시 숨김)와 동일 기준이라,
-// App.jsx 메뉴 배지 숫자 = 스토어 페이지 기본 화면에 보이는 오늘 대기 주문 수와 1:1로 일치한다.
+// SmartStoreOrders 페이지의 기본 노출 필터(showCompleted=false 시 숨김)와 동일 기준.
 // (발송처리 완료 건은 보통 order_status가 'shipped'로 전환되어 자동 포함됨)
 export function isOrderDone(o) {
   return !!o && DONE_STATUSES.has(o.order_status);
+}
+
+// 배송 진행 중(이미 발송됨) — 종결은 아니지만 사장님이 더 할 일은 없는 상태.
+export const IN_TRANSIT_STATUSES = new Set(['DELIVERING', 'DISPATCHED']);
+
+// 사장님이 아직 "처리해야 하는" 대기 주문인가 (결제완료/발주확인 등 배송 전).
+// 종결(DONE)도 아니고 이미 발송(배송중)도 아닌 상태 = 액션 필요.
+// 메뉴 배지가 이 기준으로 날짜 무관하게 카운트한다 (2026-06-01: '오늘만' → '처리대기 전체'로 변경).
+export function isOrderPending(o) {
+  if (!o) return false;
+  const s = o.order_status;
+  return !DONE_STATUSES.has(s) && !IN_TRANSIT_STATUSES.has(s);
 }
