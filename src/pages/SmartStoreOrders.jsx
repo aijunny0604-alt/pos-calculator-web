@@ -21,21 +21,37 @@ const fmtDate = (s) => {
   } catch { return s; }
 };
 
+// 상태별 색상 — 수명주기 단계가 한눈에 구분되도록 단계별로 고유 색 부여.
+// 결제완료=시안(지금 처리!) → 발주확인=노랑(발송준비) → 발송=파랑 → 배송중=보라 → 완료=초록.
+// 취소요청=주황(응답필요), 취소=빨강, 반품=핑크, 교환=마젠타. (2026-06-01 색 분리)
 const STATUS_LABEL = {
-  received: { label: '수신', color: '#4dffff', bg: 'rgba(0,212,255,0.15)' },
-  // 네이버 원본 productOrderStatus 직접 인식 (실시간 모니터링)
-  PAYMENT_WAITING: { label: '입금대기', color: '#ffaa00', bg: 'rgba(255,170,0,0.15)' },
-  PAYED: { label: '결제완료', color: '#4dffff', bg: 'rgba(0,212,255,0.15)' },
-  DELIVERING: { label: '배송중', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-  DISPATCHED: { label: '발송중', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-  DELIVERED: { label: '배송완료', color: '#00ff88', bg: 'rgba(0,255,136,0.15)' },
-  PURCHASE_DECIDED: { label: '구매확정', color: '#00ff88', bg: 'rgba(0,255,136,0.15)' },
-  // 내부 status
-  matched: { label: '매칭됨', color: '#00ff88', bg: 'rgba(0,255,136,0.15)' },
-  confirmed: { label: '발주확인', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-  converted: { label: '내부주문 전환', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-  shipped: { label: '발송완료', color: '#00ff88', bg: 'rgba(0,255,136,0.15)' },
-  cancelled: { label: '취소', color: '#ff4d6d', bg: 'rgba(255,77,109,0.15)' },
+  received: { label: '수신', color: '#7e9cb8', bg: 'rgba(126,156,184,0.15)' },
+  // 입금대기 — 고객 미결제, 사장님 액션 불가 → 흐린 회색
+  PAYMENT_WAITING: { label: '입금대기', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
+  PAY_WAITING: { label: '입금대기', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
+  // 결제완료/매칭 — 지금 처리해야 할 시작점 → 밝은 시안
+  PAYED: { label: '결제완료', color: '#22d3ee', bg: 'rgba(34,211,238,0.16)' },
+  matched: { label: '매칭됨', color: '#22d3ee', bg: 'rgba(34,211,238,0.16)' },
+  // 발주확인 — 발송 준비 단계 → 노랑
+  confirmed: { label: '발주확인', color: '#facc15', bg: 'rgba(250,204,21,0.16)' },
+  // 내부주문 전환 — 내부 처리됨 → 틸
+  converted: { label: '내부주문 전환', color: '#2dd4bf', bg: 'rgba(45,212,191,0.16)' },
+  // 발송 — 발송 처리함 → 파랑
+  shipped: { label: '발송완료', color: '#3b82f6', bg: 'rgba(59,130,246,0.18)' },
+  DISPATCHED: { label: '발송중', color: '#3b82f6', bg: 'rgba(59,130,246,0.18)' },
+  // 배송중 — 배송 진행 → 보라
+  DELIVERING: { label: '배송중', color: '#a78bfa', bg: 'rgba(167,139,250,0.16)' },
+  // 배송완료/구매확정 — 도착·최종 완료 → 초록 (진하기로 단계 구분)
+  DELIVERED: { label: '배송완료', color: '#22c55e', bg: 'rgba(34,197,94,0.16)' },
+  DELIVERED_COMPLETED: { label: '배송완료', color: '#22c55e', bg: 'rgba(34,197,94,0.16)' },
+  PURCHASE_DECIDED: { label: '구매확정', color: '#16a34a', bg: 'rgba(22,163,74,0.2)' },
+  // 취소/반품/교환 — 이상 흐름, 각각 다른 경고색
+  CANCEL_REQUEST: { label: '취소요청', color: '#fb923c', bg: 'rgba(251,146,60,0.18)' },
+  cancelled: { label: '취소', color: '#ff4d6d', bg: 'rgba(255,77,109,0.16)' },
+  CANCELED: { label: '취소', color: '#ff4d6d', bg: 'rgba(255,77,109,0.16)' },
+  CANCELED_BY_NOPAYMENT: { label: '미입금취소', color: '#ff4d6d', bg: 'rgba(255,77,109,0.16)' },
+  RETURNED: { label: '반품', color: '#ec4899', bg: 'rgba(236,72,153,0.16)' },
+  EXCHANGED: { label: '교환', color: '#d946ef', bg: 'rgba(217,70,239,0.16)' },
 };
 
 // 발주확인 가능 상태 (네이버 원본 + 내부 status 모두 포함)
