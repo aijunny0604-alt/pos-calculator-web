@@ -20,9 +20,16 @@ export function isOrderDone(o) {
 // 배송 진행 중(이미 발송됨) — 종결은 아니지만 사장님이 더 할 일은 없는 상태.
 export const IN_TRANSIT_STATUSES = new Set(['DELIVERING', 'DISPATCHED']);
 
+// 입금대기 — 고객이 아직 결제를 안 함. 사장님이 할 수 있는 게 없으므로 배지에서 제외.
+// 결제 완료되면 PAYED로 전환되어 그때부터 처리 대기로 잡힌다 (2026-06-01 결정).
+export const PAYMENT_PENDING_STATUSES = new Set(['PAYMENT_WAITING', 'PAY_WAITING']);
+
 // 사장님이 아직 "처리해야 하는" 대기 주문인가 (결제완료/발주확인 등 배송 전).
-// 완료(발송 포함)도 아니고 배송중도 아닌 상태 = 액션 필요.
+// 완료(발송 포함)도, 배송중도, 입금대기(고객 미결제)도 아닌 상태 = 지금 액션 필요.
 // 메뉴 배지가 이 기준으로 날짜 무관하게 카운트한다 (2026-06-01: '오늘만' → '처리대기 전체'로 변경).
 export function isOrderPending(o) {
-  return !!o && !isOrderDone(o) && !IN_TRANSIT_STATUSES.has(o.order_status);
+  return !!o
+    && !isOrderDone(o)
+    && !IN_TRANSIT_STATUSES.has(o.order_status)
+    && !PAYMENT_PENDING_STATUSES.has(o.order_status);
 }
