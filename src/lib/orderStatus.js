@@ -8,21 +8,21 @@ export const DONE_STATUSES = new Set([
   'RETURNED', 'EXCHANGED',
 ]);
 
-// 주문이 "처리 완료/종결" 상태인가 — order_status 기준.
-// SmartStoreOrders 페이지의 기본 노출 필터(showCompleted=false 시 숨김)와 동일 기준.
-// (발송처리 완료 건은 보통 order_status가 'shipped'로 전환되어 자동 포함됨)
+// 주문이 "처리 완료/종결"인가 — order_status 또는 네이버 발송처리 완료 시각 기준.
+// 발송처리는 큐에서 naver_dispatch_succeeded_at만 먼저 찍고 order_status는
+// 네이버 polling이 DISPATCHED/DELIVERED로 따라오기 전까지 confirmed에 머무를 수 있으므로,
+// 이미 발송한 건을 "완료"로 보려면 dispatch 시각도 함께 본다.
+// (SmartStoreOrders 페이지 인라인 판정 5곳과 동일 기준 — 단일 소스)
 export function isOrderDone(o) {
-  return !!o && DONE_STATUSES.has(o.order_status);
+  return !!o && (DONE_STATUSES.has(o.order_status) || !!o.naver_dispatch_succeeded_at);
 }
 
 // 배송 진행 중(이미 발송됨) — 종결은 아니지만 사장님이 더 할 일은 없는 상태.
 export const IN_TRANSIT_STATUSES = new Set(['DELIVERING', 'DISPATCHED']);
 
 // 사장님이 아직 "처리해야 하는" 대기 주문인가 (결제완료/발주확인 등 배송 전).
-// 종결(DONE)도 아니고 이미 발송(배송중)도 아닌 상태 = 액션 필요.
+// 완료(발송 포함)도 아니고 배송중도 아닌 상태 = 액션 필요.
 // 메뉴 배지가 이 기준으로 날짜 무관하게 카운트한다 (2026-06-01: '오늘만' → '처리대기 전체'로 변경).
 export function isOrderPending(o) {
-  if (!o) return false;
-  const s = o.order_status;
-  return !DONE_STATUSES.has(s) && !IN_TRANSIT_STATUSES.has(s);
+  return !!o && !isOrderDone(o) && !IN_TRANSIT_STATUSES.has(o.order_status);
 }

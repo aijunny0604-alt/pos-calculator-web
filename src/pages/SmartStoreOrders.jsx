@@ -9,7 +9,7 @@ import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, Arrow
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
-import { DONE_STATUSES } from '@/lib/orderStatus';
+import { DONE_STATUSES, isOrderDone } from '@/lib/orderStatus';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
@@ -272,7 +272,7 @@ export default function SmartStoreOrders({
       // 위젯 필터 (stats 카운트 로직과 1:1 동일)
       if (widgetFilter !== 'none') {
         const dispatchDue = o.dispatch_due_date || o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
-        const isDone = DONE_STATUSES.has(o.order_status) || o.naver_dispatch_succeeded_at;
+        const isDone = isOrderDone(o);
         if (widgetFilter === 'overdue') {
           if (isDone || !dispatchDue) return false;
           if (new Date(dispatchDue).getTime() >= now) return false;
@@ -286,7 +286,7 @@ export default function SmartStoreOrders({
           if (!(due >= tomorrowKstStart.getTime() && due < dayAfterTomorrowKstStart.getTime())) return false;
         } else if (widgetFilter === 'autoPending') {
           // M4 fix: 이미 발송완료/처리완료된 큐 잔존 row 제외 (polling latency 동안 false positive 방지)
-          if (DONE_STATUSES.has(o.order_status) || o.naver_dispatch_succeeded_at) return false;
+          if (isOrderDone(o)) return false;
           if (!(o.needs_naver_confirm || o.needs_naver_dispatch)) return false;
         } else if (widgetFilter === 'newAfterConfirm') {
           if (!(o.naver_confirm_succeeded_at && !o.naver_dispatch_succeeded_at && o.order_status !== 'shipped')) return false;
@@ -328,7 +328,7 @@ export default function SmartStoreOrders({
     for (const o of ordersInRange) {
       // Codex Major C fix: dispatch_due_date 컬럼 우선, raw_payload 폴백
       const dispatchDue = o.dispatch_due_date || o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
-      const isDone = DONE_STATUSES.has(o.order_status) || o.naver_dispatch_succeeded_at;
+      const isDone = isOrderDone(o);
       if (!isDone && dispatchDue) {
         const due = new Date(dispatchDue).getTime();
         if (due < now) overdue++;
@@ -551,7 +551,7 @@ export default function SmartStoreOrders({
       return;
     }
     // 선택된 주문 중 이미 발송완료 제외
-    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !DONE_STATUSES.has(o.order_status) && !o.naver_dispatch_succeeded_at);
+    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !isOrderDone(o));
     if (eligible.length === 0) {
       showToast?.('발송 가능한 주문이 없어요 (이미 발송완료/취소)', 'error');
       return;
@@ -564,7 +564,7 @@ export default function SmartStoreOrders({
   };
   const submitBulkDispatch = async () => {
     const company = DELIVERY_COMPANIES.find((c) => c.code === bulkDispatchCompany);
-    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !DONE_STATUSES.has(o.order_status) && !o.naver_dispatch_succeeded_at);
+    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !isOrderDone(o));
     const ready = eligible.filter((o) => (bulkTrackingMap[o.id] || '').trim().length > 0);
     if (ready.length === 0) {
       showToast?.('송장번호를 1건 이상 입력해주세요', 'error');
@@ -1426,7 +1426,7 @@ export default function SmartStoreOrders({
 
       {/* 일괄 발송처리 모달 (Task #109) */}
       {bulkDispatchOpen && (() => {
-        const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !DONE_STATUSES.has(o.order_status) && !o.naver_dispatch_succeeded_at);
+        const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !isOrderDone(o));
         const readyCount = eligible.filter((o) => (bulkTrackingMap[o.id] || '').trim().length > 0).length;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setBulkDispatchOpen(false)}>
