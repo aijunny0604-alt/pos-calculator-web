@@ -33,7 +33,18 @@ import { isOrderPending } from '@/lib/orderStatus';
 
 export default function App() {
   // ─── Navigation ───────────────────────────────────────────────
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  // 현재 페이지를 세션에 보존 → lazy 청크 404로 ChunkErrorBoundary가 자동 새로고침해도
+  // 대시보드로 튕기지 않고 보던 페이지(스토어/MOVIS 등)로 복귀. (2026-06-11 fix)
+  const [currentPage, setCurrentPageRaw] = useState(() => {
+    try { return sessionStorage.getItem('pos_current_page') || 'dashboard'; } catch { return 'dashboard'; }
+  });
+  const setCurrentPage = useCallback((page) => {
+    setCurrentPageRaw((prev) => {
+      const next = typeof page === 'function' ? page(prev) : page;
+      try { sessionStorage.setItem('pos_current_page', next); } catch { /* noop */ }
+      return next;
+    });
+  }, []);
   const [aiOrderText, setAiOrderText] = useState('');
   // 명세서 페이지로 점프 시 자동 선택할 업체 ID (페이먼트/업체관리 → 명세서 cross-navigation)
   const [invoicesInitialCustomerId, setInvoicesInitialCustomerId] = useState(null);
