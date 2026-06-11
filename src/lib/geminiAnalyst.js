@@ -120,6 +120,24 @@ function detectWriteIntent(question) {
   return null;
 }
 
+// 리뷰 답글 모드 감지 — 이 경우 쓰기 도구를 강제하지 않는다.
+// ⚠️ 리뷰 본문에 "배송/주문" 등이 흔히 들어가 detectWriteIntent(saveOrder 등)를 잘못 트리거하면
+//    MOVIS가 답글 대신 주문 생성을 시도함. 리뷰 키워드/네이버 리뷰 복사 형식/직전 모델의 리뷰 요청으로 판정.
+const REVIEW_KW_RE = /리뷰|구매평|후기|답글|평점|별점/;
+const REVIEW_PASTE_RE = /상품주문번호\s*[:：]/; // 네이버 리뷰·주문 복사 양식
+function isReviewReplyContext(question, contents = []) {
+  if (REVIEW_KW_RE.test(question || '') || REVIEW_PASTE_RE.test(question || '')) return true;
+  // 직전 모델 턴이 "리뷰 붙여넣어 달라"고 했으면 = 리뷰 답글 흐름 진행 중 (이번이 붙여넣은 리뷰)
+  for (let i = contents.length - 1; i >= 0 && i >= contents.length - 3; i--) {
+    const c = contents[i];
+    if (c?.role === 'model') {
+      const txt = (c.parts || []).map((p) => p.text || '').join(' ');
+      return /리뷰|구매평|답글|붙여넣/.test(txt);
+    }
+  }
+  return false;
+}
+
 const postGemini = async (contents, { signal, systemPrompt, forcedTools } = {}) => {
   const keys = getGeminiKeys();
   let lastStatus = null;
@@ -203,6 +221,58 @@ const postGemini = async (contents, { signal, systemPrompt, forcedTools } = {}) 
   throw new Error(getErrorMessage(lastStatus, lastMessage));
 };
 
+// 모닝 브리핑 한 줄 요약 — 도구 없이 순수 텍스트만 생성 (가볍게)
+// 실패하면 throw → 호출부에서 숫자 카드만 폴백 표시
+export async function summarizeMorningBriefing(factsText, { signal } = {}) {
+  if (!factsText || !factsText.trim()) return '';
+  const keys = getGeminiKeys();
+  const systemPrompt = [
+    '너는 자동차 부품 매장 사장님의 비서다. 아래 "오늘의 사실 데이터"만 근거로,',
+    '사장님이 아침에 읽을 브리핑을 자연스러운 한국어 2~3문장으로 요약한다.',
+    '규칙: ① 가장 급한 일(발송마감 초과/당일, 배송지연)을 먼저 언급한다.',
+    '② 데이터에 없는 숫자/거래처/제품명을 새로 지어내지 않는다.',
+    '③ 정중하고 간결하게. 인사 한마디로 시작해도 좋다. ④ 마크다운/불릿 쓰지 말고 평문으로.',
+  ].join(' ');
+  for (const model of MODELS) {
+    for (const key of keys) {
+      for (let retry = 0; retry < 2; retry++) {
+        let response;
+        const startedAt = Date.now();
+        try {
+          response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal,
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: 'user', parts: [{ text: `오늘의 사실 데이터:\n${factsText}` }] }],
+                generationConfig: { temperature: 0.4, maxOutputTokens: 512 },
+              }),
+            }
+          );
+        } catch (e) {
+          if (e?.name === 'AbortError') throw e;
+          break; // 네트워크 오류 → 다음 키
+        }
+        const durationMs = Date.now() - startedAt;
+        if (response.ok) {
+          const json = await response.json();
+          const usage = json.usageMetadata || {};
+          recordApiCall({ model, promptTokens: usage.promptTokenCount || 0, candidatesTokens: usage.candidatesTokenCount || 0, totalTokens: usage.totalTokenCount || 0, ok: true, status: 200, durationMs, source: 'movis' });
+          const text = json.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join(' ') || '';
+          return text.trim();
+        }
+        recordApiCall({ model, promptTokens: 0, candidatesTokens: 0, totalTokens: 0, ok: false, status: response.status, durationMs, source: 'movis' });
+        if (response.status === 503 && retry < 1) { await sleep(1500); continue; }
+        break;
+      }
+    }
+  }
+  throw new Error('briefing summary failed');
+}
+
 export async function askAnalyst(question, context, options = {}) {
   const {
     signal,
@@ -245,7 +315,8 @@ export async function askAnalyst(question, context, options = {}) {
     // 시스템 프롬프트 동적 생성 (DB 메타 컨텍스트 주입 — 카테고리/거래처/최근 활동)
     const systemPrompt = buildSystemPrompt(context);
     // 쓰기 의도 감지 → 첫 iteration에서만 functionCall 강제 (이후 후속 분석은 AUTO)
-    const writeIntent = detectWriteIntent(question);
+    // 단, 리뷰 답글 모드면 강제 OFF (리뷰 본문의 "배송/주문" 오탐으로 saveOrder 강제되는 것 방지)
+    const writeIntent = isReviewReplyContext(question, contents) ? null : detectWriteIntent(question);
 
     while (iterations < maxIterations) {
       // iteration 0 + 쓰기 의도일 때만 mode=ANY로 강제

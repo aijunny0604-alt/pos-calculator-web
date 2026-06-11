@@ -42,7 +42,8 @@ export default function OrderDetail({
   // Calculator state
   const [showCalculator, setShowCalculator] = useState(false);
   // Mobile bottom section collapse state
-  const [isBottomExpanded, setIsBottomExpanded] = useState(true);
+  // 기본 접힘 — 모바일에서 주문 상품 리스트가 먼저 보이게 (총액 바 탭하면 금액상세/완불체크/버튼 펼침)
+  const [isBottomExpanded, setIsBottomExpanded] = useState(false);
   // 카드별 할인 영역 펼침 (idx Set) — 편집 종료/다른 주문 전환 시 자동 초기화
   const [openDiscountIdxs, setOpenDiscountIdxs] = useState(() => new Set());
   const toggleDiscountOpen = (idx) => {
@@ -66,7 +67,7 @@ export default function OrderDetail({
     handles: resizeHandles,
     reset: resetModalPos,
     ensureSize,
-  } = useDraggableResizable('pos-web.orderDetailModal', { w: 1200, h: 820 });
+  } = useDraggableResizable('pos-web.orderDetailModal', { w: 1200, h: 820 }, { centerOnOpen: true });
 
   // 품목 수 많으면 모달 자동 확장 (최소 보장 — 사용자가 더 크게 조정한 건 유지)
   useEffect(() => {
@@ -1055,10 +1056,11 @@ export default function OrderDetail({
                               />
                               <button
                                 onClick={() => openReplaceProduct(index)}
-                                className="p-1.5 rounded transition-colors hover:bg-[var(--accent)] flex-shrink-0"
+                                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90 hover:opacity-80 flex-shrink-0"
+                                style={{ background: 'color-mix(in srgb, var(--warning) 14%, transparent)', color: 'var(--warning)' }}
                                 title="다른 제품으로 통째 교체"
                               >
-                                <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--warning)' }} />
+                                <Edit3 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           ) : (
@@ -1079,11 +1081,12 @@ export default function OrderDetail({
                         {isEditing && (
                           <button
                             onClick={() => handleRemoveItem(index)}
-                            className="flex-shrink-0 p-1.5 rounded transition-colors"
+                            className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90 hover:opacity-80"
                             style={{
-                              background: 'color-mix(in srgb, var(--destructive) 15%, transparent)',
+                              background: 'color-mix(in srgb, var(--destructive) 12%, transparent)',
                               color: 'var(--destructive)',
                             }}
+                            title="삭제"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1209,21 +1212,21 @@ export default function OrderDetail({
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between rounded-lg p-2" style={{ background: 'var(--muted)' }}>
-                        <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>수량</span>
+                      <div className="flex items-center justify-between rounded-xl p-2.5" style={{ background: 'var(--muted)' }}>
+                        <span className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>수량</span>
                         {isEditing ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center rounded-xl overflow-hidden" style={{ background: 'var(--background)', boxShadow: 'inset 0 0 0 1px var(--border)' }}>
                             <button
                               onClick={() => handleQuantityChange(index, -1)}
-                              className="w-8 h-8 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors"
-                              style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
+                              className="w-9 h-9 flex items-center justify-center transition-all hover:bg-[var(--accent)] active:scale-90"
+                              aria-label="수량 감소"
                             >
-                              <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                              <Minus className="w-3.5 h-3.5" style={{ color: 'var(--foreground)' }} />
                             </button>
                             <input
                               type="number"
-                              className="w-12 text-center font-bold border rounded-lg"
-                              style={{ color: 'var(--foreground)', background: 'var(--background)', borderColor: 'var(--border)' }}
+                              className="w-11 h-9 text-center text-sm font-extrabold bg-transparent border-none focus:outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              style={{ color: 'var(--foreground)' }}
                               value={item.quantity}
                               onChange={(e) => {
                                 const val = parseInt(e.target.value) || 1;
@@ -1237,14 +1240,14 @@ export default function OrderDetail({
                             />
                             <button
                               onClick={() => handleQuantityChange(index, 1)}
-                              className="w-8 h-8 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors"
-                              style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
+                              className="w-9 h-9 flex items-center justify-center transition-all hover:bg-[var(--accent)] active:scale-90"
+                              aria-label="수량 증가"
                             >
-                              <Plus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                              <Plus className="w-3.5 h-3.5" style={{ color: 'var(--foreground)' }} />
                             </button>
                           </div>
                         ) : (
-                          <span className="font-medium" style={{ color: 'var(--foreground)' }}>{item.quantity}개</span>
+                          <span className="font-bold text-base tabular-nums" style={{ color: 'var(--foreground)' }}>{item.quantity}개</span>
                         )}
                       </div>
                     </div>
@@ -1327,19 +1330,18 @@ export default function OrderDetail({
                         </div>
                         <div className={`${isEditing ? 'col-span-2' : 'col-span-2'} text-center`}>
                           {isEditing ? (
-                            <div className="flex items-center justify-center gap-1.5">
+                            <div className="inline-flex items-center rounded-xl overflow-hidden mx-auto" style={{ background: 'var(--background)', boxShadow: 'inset 0 0 0 1px var(--border)' }}>
                               <button
                                 onClick={() => handleQuantityChange(index, -1)}
-                                className="w-11 h-11 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors active:scale-95"
-                                style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
+                                className="w-11 h-11 flex items-center justify-center transition-all hover:bg-[var(--accent)] active:scale-90"
                                 aria-label="수량 감소"
                               >
-                                <Minus className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
+                                <Minus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                               </button>
                               <input
                                 type="number"
-                                className="w-16 h-11 text-center font-bold text-base border rounded-lg"
-                                style={{ color: 'var(--foreground)', background: 'var(--background)', borderColor: 'var(--border)' }}
+                                className="w-12 h-11 text-center font-extrabold text-base bg-transparent border-none focus:outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                style={{ color: 'var(--foreground)' }}
                                 value={item.quantity}
                                 onChange={(e) => {
                                   const val = parseInt(e.target.value) || 1;
@@ -1353,11 +1355,10 @@ export default function OrderDetail({
                               />
                               <button
                                 onClick={() => handleQuantityChange(index, 1)}
-                                className="w-11 h-11 rounded-lg flex items-center justify-center border hover:bg-[var(--accent)] transition-colors active:scale-95"
-                                style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
+                                className="w-11 h-11 flex items-center justify-center transition-all hover:bg-[var(--accent)] active:scale-90"
                                 aria-label="수량 증가"
                               >
-                                <Plus className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
+                                <Plus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                               </button>
                             </div>
                           ) : (
@@ -1375,13 +1376,14 @@ export default function OrderDetail({
                           <div className="col-span-1 flex justify-center">
                             <button
                               onClick={() => handleRemoveItem(index)}
-                              className="p-1.5 rounded-lg flex items-center justify-center transition-colors"
+                              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90 hover:opacity-80"
                               style={{
-                                background: 'color-mix(in srgb, var(--destructive) 15%, transparent)',
+                                background: 'color-mix(in srgb, var(--destructive) 12%, transparent)',
                                 color: 'var(--destructive)',
                               }}
+                              title="삭제"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         )}

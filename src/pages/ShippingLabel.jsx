@@ -8,6 +8,96 @@ import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST, off
 import { supabase } from '@/lib/supabase';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
+import { NAVER_COURIERS } from '@/lib/naverCouriers';
+
+// 커스텀 항목/주문에서 네이버 주문번호(provider_order_id) 추출.
+// 📦 버튼 생성 항목: id="naver-{poid}-{ts}" / note="[네이버 {poid}]"
+const getEntryNaverPoid = (entry) => {
+  if (!entry) return null;
+  const m1 = /^naver-(\d+)-/.exec(entry.id || '');
+  if (m1) return m1[1];
+  const m2 = /\[네이버\s*(\d+)\]/.exec(entry.note || '');
+  return m2 ? m2[1] : null;
+};
+// 내부주문 전환 건: memo="[엠파츠] [네이버 스마트스토어] {poid} ..."
+const getOrderNaverPoid = (order) => {
+  if (!order || typeof order.memo !== 'string') return null;
+  const m = /\[네이버 스마트스토어\]\s*(\d+)/.exec(order.memo);
+  return m ? m[1] : null;
+};
+
+// 송장번호 입력 → 네이버 발송처리 큐 등록 인라인 패널.
+// 매장 PC sync.js 가 60초 내 네이버 dispatch API 로 자동 연동 (IP 화이트리스트 우회).
+function NaverDispatchPanel({ providerOrderId, showToast }) {
+  const [company, setCompany] = useState('CJGLS');
+  const [tracking, setTracking] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    const t = (tracking || '').trim();
+    if (!t) { showToast?.('송장번호를 입력해주세요', 'error'); return; }
+    setBusy(true);
+    try {
+      const ext = await supabase.getExternalOrderByProviderOrderId(providerOrderId);
+      if (!ext) { showToast?.(`네이버 주문(${providerOrderId})을 찾지 못했어요`, 'error'); return; }
+      if (ext.naver_dispatch_succeeded_at) {
+        showToast?.('이미 네이버 발송처리된 주문이에요', 'info'); setDone(true); return;
+      }
+      const courier = NAVER_COURIERS.find((c) => c.code === company);
+      const needsConfirm = !ext.naver_confirm_succeeded_at;
+      const patch = {
+        needs_naver_dispatch: true,
+        naver_dispatch_company_code: company,
+        naver_dispatch_company_name: courier?.name || company,
+        naver_dispatch_tracking: t,
+        naver_dispatch_retry_count: 0,
+        naver_dispatch_next_retry_at: null,
+      };
+      // 발주확인 안 됐으면 confirm 큐도 함께 (sync.js 가 confirm→dispatch 순서 처리)
+      if (needsConfirm) {
+        patch.needs_naver_confirm = true;
+        patch.naver_confirm_retry_count = 0;
+        patch.naver_confirm_next_retry_at = null;
+      }
+      const ok = await supabase.updateExternalOrder(ext.id, patch);
+      if (ok) {
+        setDone(true);
+        showToast?.(`네이버 발송처리 대기열 등록 (${courier?.name} · ${t}) — 60초 내 자동 연동`, 'success');
+      } else {
+        showToast?.('네이버 연동 실패 — 다시 시도해주세요', 'error');
+      }
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="mt-2 p-2.5 rounded-lg border" style={{ background: 'color-mix(in srgb, #03c75a 8%, transparent)', borderColor: 'color-mix(in srgb, #03c75a 35%, var(--border))' }}>
+      <div className="flex items-center gap-1.5 mb-2 text-xs font-bold" style={{ color: '#03c75a' }}>
+        <Truck className="w-3.5 h-3.5" /> 네이버 발송 연동 (송장번호 입력 → 자동 발송처리)
+      </div>
+      {done ? (
+        <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#03c75a' }}>
+          <Check className="w-4 h-4" /> 네이버 발송 대기열 등록됨 — 60초 내 연동
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <select value={company} onChange={(e) => setCompany(e.target.value)}
+            className="px-2 py-1.5 border rounded-lg text-sm focus:outline-none bg-[var(--background)] border-[var(--border)]">
+            {NAVER_COURIERS.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+          </select>
+          <input type="text" value={tracking} onChange={(e) => setTracking(e.target.value)}
+            placeholder="송장번호" inputMode="numeric"
+            className="flex-1 min-w-0 px-2 py-1.5 border rounded-lg text-sm focus:outline-none bg-[var(--background)] border-[var(--border)]" />
+          <button onClick={submit} disabled={busy}
+            className="px-3 py-1.5 rounded-lg text-sm font-bold flex-shrink-0 disabled:opacity-50"
+            style={{ background: '#03c75a', color: 'white' }}>
+            {busy ? '등록 중…' : '네이버 발송'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ShippingLabel({ orders = [], customers = [], savedCarts = [], onBack, refreshCustomers, showToast }) {
   const [selectedOrders, setSelectedOrders] = useState([]);
@@ -870,6 +960,11 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                           </div>
                         </div>
 
+                        {/* 네이버 스토어에서 전환된 주문이면 송장 → 네이버 발송 연동 패널 */}
+                        {getOrderNaverPoid(order) && (
+                          <NaverDispatchPanel providerOrderId={getOrderNaverPoid(order)} showToast={showToast} />
+                        )}
+
                         {/* Save / delete customer setting */}
                         {order.customerName && (
                           <div className="flex gap-2">
@@ -1044,6 +1139,10 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                               <input type="text" value={entry.shippingCost} onChange={(e) => updateCustomEntry(entry.id, 'shippingCost', e.target.value)} className="w-full px-2 py-1.5 border border-[var(--border)] rounded-lg text-sm focus:outline-none text-center bg-[var(--background)]" />
                             </div>
                           </div>
+                          {/* 네이버 스토어 주문이면 송장 → 네이버 발송 연동 패널 */}
+                          {getEntryNaverPoid(entry) && (
+                            <NaverDispatchPanel providerOrderId={getEntryNaverPoid(entry)} showToast={showToast} />
+                          )}
                         </div>
                       )}
                     </div>

@@ -233,7 +233,7 @@ export default function ChatPanel({
                 <div className="text-[10px] font-mono uppercase tracking-widest mb-1 text-left" style={{ color: 'var(--jarvis-text-muted)' }}>
                   OPERATIONS QUERIES ▸
                 </div>
-                {suggestedItems.filter((p) => p.side === 'right').slice(0, 7).map((item) => (
+                {suggestedItems.filter((p) => p.side === 'right').slice(0, 8).map((item) => (
                   <SideChip key={item.id} item={item} onSelect={handleSelect} align="left" />
                 ))}
               </div>

@@ -22,6 +22,15 @@ async function fetchJSON(url, options = {}) {
   return response.json();
 }
 
+// 마이그레이션 006(제품 메모/색상/초기금액/단가이력) 컬럼 미적용 대비 — 컬럼없음 에러 감지 + 필드 제거
+const PRODUCT_006_RE = /PGRST204|column .* does not exist|could not find/i;
+const PRODUCT_006_FIELDS = ['note', 'flag_color', 'initial_wholesale', 'initial_retail', 'initial_set_at', 'price_history'];
+function stripProduct006(product) {
+  const out = { ...product };
+  for (const f of PRODUCT_006_FIELDS) delete out[f];
+  return out;
+}
+
 // Supabase API
 export const supabase = {
   // ===== 주문 =====
@@ -79,20 +88,76 @@ export const supabase = {
     } catch (e) { console.error('getProducts:', e); return null; }
   },
   async addProduct(product) {
+    // 신규 등록 시 초기 설정 금액 기준선 기록 (마이그레이션 006). 단가 변경 모니터링 기준점.
+    const enriched = {
+      ...product,
+      initial_wholesale: product.initial_wholesale ?? (product.wholesale ?? null),
+      initial_retail: product.initial_retail ?? (product.retail ?? null),
+      initial_set_at: new Date().toISOString(),
+      price_history: product.price_history ?? [],
+    };
     try {
       const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/products`, {
-        method: 'POST', headers: headersWithReturn, body: JSON.stringify(product)
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify(enriched)
       });
       return Array.isArray(data) ? data[0] : data;
-    } catch (e) { console.error('addProduct:', e); return null; }
+    } catch (e) {
+      // 마이그레이션 006 미적용(컬럼 없음) → 006 필드 제거하고 재시도 (편집 무중단)
+      if (PRODUCT_006_RE.test(String(e?.message || ''))) {
+        try {
+          const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/products`, {
+            method: 'POST', headers: headersWithReturn, body: JSON.stringify(stripProduct006(product))
+          });
+          return Array.isArray(data) ? data[0] : data;
+        } catch (e2) { console.error('addProduct(fallback):', e2); return null; }
+      }
+      console.error('addProduct:', e); return null;
+    }
   },
   async updateProduct(id, product) {
+    // 단가(도매/소매) 변경 시 price_history에 기록 + 초기금액 미설정이면 백필
+    let payload = { ...product };
+    try {
+      const hasPriceField = product.wholesale !== undefined || product.retail !== undefined;
+      if (hasPriceField) {
+        const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/products?id=eq.${id}&select=wholesale,retail,price_history,initial_wholesale,initial_retail`, { headers });
+        const old = Array.isArray(rows) ? rows[0] : rows;
+        if (old) {
+          const now = new Date().toISOString();
+          const entries = [];
+          if (product.wholesale !== undefined && Number(product.wholesale) !== Number(old.wholesale ?? 0)) {
+            entries.push({ field: 'wholesale', old: Number(old.wholesale ?? 0), new: Number(product.wholesale), at: now });
+          }
+          if (product.retail !== undefined && Number(product.retail) !== Number(old.retail ?? 0)) {
+            entries.push({ field: 'retail', old: Number(old.retail ?? 0), new: Number(product.retail), at: now });
+          }
+          if (entries.length > 0) {
+            const prevHist = Array.isArray(old.price_history) ? old.price_history : [];
+            payload.price_history = [...prevHist, ...entries].slice(-50); // 최근 50건 유지
+          }
+          // 초기금액 미설정 제품이면 변경 직전 값으로 기준선 백필
+          if (old.initial_wholesale == null && old.wholesale != null) payload.initial_wholesale = Number(old.wholesale);
+          if (old.initial_retail == null && old.retail != null) payload.initial_retail = Number(old.retail);
+        }
+      }
+    } catch (e) { /* 조회 실패해도 본 업데이트는 진행 */ console.warn('updateProduct price-history skip:', e?.message); }
     try {
       const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/products?id=eq.${id}`, {
-        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(product)
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(payload)
       });
       return Array.isArray(data) ? data[0] : data;
-    } catch (e) { console.error('updateProduct:', e); return null; }
+    } catch (e) {
+      // 마이그레이션 006 미적용 → 006 필드 제거 후 재시도 (편집 무중단)
+      if (PRODUCT_006_RE.test(String(e?.message || ''))) {
+        try {
+          const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/products?id=eq.${id}`, {
+            method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(stripProduct006(product))
+          });
+          return Array.isArray(data) ? data[0] : data;
+        } catch (e2) { console.error('updateProduct(fallback):', e2); return null; }
+      }
+      console.error('updateProduct:', e); return null;
+    }
   },
   async deleteProduct(id) {
     try {
@@ -756,6 +821,13 @@ export const supabase = {
       return await fetchJSON(url, { headers });
     } catch (e) { console.error('getExternalOrders:', e); return []; }
   },
+  // 네이버 스토어(엠파츠) 상품 카탈로그 — sync.js가 채운 external_products (MOVIS 검색용)
+  async getExternalProducts({ limit = 5000 } = {}) {
+    try {
+      const url = `${SUPABASE_URL}/rest/v1/external_products?select=channel_product_no,name,status_type,sale_price,seller_management_code,category_name,options,option_count,product_url&order=name.asc&limit=${limit}`;
+      return await fetchJSON(url, { headers });
+    } catch (e) { console.error('getExternalProducts:', e); return []; }
+  },
   async getExternalOrderItems(externalOrderId) {
     try {
       return await fetchJSON(
@@ -763,6 +835,16 @@ export const supabase = {
         { headers }
       );
     } catch (e) { console.error('getExternalOrderItems:', e); return []; }
+  },
+  // provider_order_id 로 외부주문 단건 조회 (택배 송장 페이지 → 네이버 발송 연동용)
+  async getExternalOrderByProviderOrderId(providerOrderId) {
+    try {
+      const rows = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/external_orders?provider_order_id=eq.${encodeURIComponent(providerOrderId)}&limit=1`,
+        { headers }
+      );
+      return Array.isArray(rows) ? (rows[0] || null) : (rows || null);
+    } catch (e) { console.error('getExternalOrderByProviderOrderId:', e); return null; }
   },
   async updateExternalOrder(id, patch) {
     try {

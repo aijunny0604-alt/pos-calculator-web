@@ -1162,93 +1162,97 @@ ${aiLearningData.slice(0, 50).map(l =>
 
             {/* Result cards - clean minimal design */}
             <div className="space-y-1.5">
-              {analyzedItems.map((item, index) => (
+              {analyzedItems.map((item, index) => {
+                const cf = item.confidence;
+                const confColor = cf === 'high' ? 'var(--success)' : cf === 'medium' ? 'var(--warning)' : 'var(--destructive)';
+                const confLabel = cf === 'high' ? '확실' : cf === 'medium' ? '추측' : '불확실';
+                const priceColor = priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)';
+                return (
                 <div
                   key={index}
-                  className="rounded-xl overflow-hidden transition-all cursor-pointer active:scale-[0.99]"
+                  className="rounded-2xl overflow-hidden transition-all duration-200 cursor-pointer active:scale-[0.995]"
                   onClick={() => item.matchedProduct && toggleSelect(index)}
                   style={{
-                    backgroundColor: 'var(--card)',
+                    background: item.matchedProduct && item.selected
+                      ? 'linear-gradient(180deg, color-mix(in srgb, var(--primary) 7%, var(--card)) 0%, var(--card) 55%)'
+                      : 'var(--card)',
                     boxShadow: item.matchedProduct && item.selected
-                      ? '0 0 0 1.5px var(--primary), 0 1px 3px rgba(0,0,0,0.06)'
+                      ? '0 0 0 1.5px var(--primary), 0 6px 22px -10px color-mix(in srgb, var(--primary) 50%, transparent)'
                       : !item.matchedProduct
-                        ? '0 0 0 1.5px var(--destructive), 0 1px 3px rgba(0,0,0,0.06)'
-                        : '0 1px 3px rgba(0,0,0,0.06)',
+                        ? '0 0 0 1.5px color-mix(in srgb, var(--destructive) 55%, transparent), 0 1px 3px rgba(0,0,0,0.05)'
+                        : '0 0 0 1px var(--border), 0 1px 4px rgba(0,0,0,0.04)',
                   }}
                 >
-                  {/* Top row: original text + confidence badge */}
-                  <div className="px-3 pt-2.5 pb-1 flex items-center gap-2">
-                    <span className="text-[11px] break-words flex-1 min-w-0" style={{ color: 'var(--muted-foreground)' }}>{item.originalText}</span>
+                  {/* 상단: 원문 메모 + 확신도 칩 */}
+                  <div className="px-3.5 pt-3 pb-1.5 flex items-center gap-2">
+                    <span className="text-[11px] truncate flex-1 min-w-0 opacity-70" style={{ color: 'var(--muted-foreground)' }}>📝 {item.originalText}</span>
                     {item.confidence && item.matchedProduct && (
-                      <span
-                        className="flex-shrink-0 w-1.5 h-1.5 rounded-full"
-                        style={{
-                          backgroundColor: item.confidence === 'high' ? 'var(--success)'
-                            : item.confidence === 'medium' ? 'var(--warning)'
-                            : 'var(--destructive)',
-                        }}
-                        title={item.confidence === 'high' ? '확실' : item.confidence === 'medium' ? '추측' : '불확실'}
-                      />
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
+                        style={{ background: `color-mix(in srgb, ${confColor} 14%, transparent)`, color: confColor }}
+                        title={cf === 'high' ? '확실' : cf === 'medium' ? '추측' : '불확실'}>
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: confColor }} />{confLabel}
+                      </span>
                     )}
                   </div>
 
-                  <div className="px-3 pb-2.5">
+                  <div className="px-3.5 pb-3">
                     {item.matchedProduct ? (
                       <>
-                      <div className="space-y-1.5">
-                        {/* Top: checkbox + product name (full width) */}
+                      <div className="space-y-2.5">
+                        {/* 체크 + 제품명 + 단가 */}
                         <div className="flex items-start gap-2.5">
                           <button
                             onClick={(e) => { e.stopPropagation(); toggleSelect(index); }}
-                            className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all mt-0.5"
+                            className="w-[22px] h-[22px] rounded-lg flex items-center justify-center flex-shrink-0 transition-all mt-0.5"
                             style={{
-                              backgroundColor: item.selected ? 'var(--primary)' : 'var(--secondary)',
+                              backgroundColor: item.selected ? 'var(--primary)' : 'transparent',
+                              boxShadow: item.selected ? 'none' : 'inset 0 0 0 1.5px var(--border)',
                             }}
                           >
-                            {item.selected && <Check className="w-3 h-3 text-white" />}
+                            {item.selected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
                           </button>
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-[13px] break-words leading-snug" style={{ color: 'var(--foreground)' }}>
+                            <p className="font-bold text-[14px] break-words leading-snug" style={{ color: 'var(--foreground)' }}>
                               {item.matchedProduct.name}
+                            </p>
+                            <p className="text-[15px] font-extrabold mt-0.5 tabular-nums" style={{ color: priceColor }}>
+                              {formatPrice(priceType === 'wholesale' ? item.matchedProduct.wholesale : (item.matchedProduct.retail || item.matchedProduct.wholesale))}
+                              <span className="text-[11px] font-medium opacity-40 ml-1">/ 개</span>
                             </p>
                           </div>
                         </div>
-                        {/* Bottom: price + quantity + actions */}
-                        <div className="flex items-center gap-2 ml-[30px]">
-                          <p className="text-xs font-bold flex-1" style={{ color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)' }}>
-                            {formatPrice(priceType === 'wholesale' ? item.matchedProduct.wholesale : (item.matchedProduct.retail || item.matchedProduct.wholesale))}
-                          </p>
-                          <div className="flex items-center gap-0 flex-shrink-0 rounded-lg" style={{ backgroundColor: 'var(--secondary)' }} onClick={e => e.stopPropagation()}>
-                            <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-7 h-7 flex items-center justify-center rounded-l-lg hover:bg-[var(--muted)]">
-                              <Minus className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                        {/* 컨트롤: 수량 스테퍼 + 변경 + 삭제 (한 덩어리로 묶음) */}
+                        <div className="flex items-center gap-2 ml-[32px] flex-wrap" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center rounded-xl overflow-hidden flex-shrink-0" style={{ background: 'var(--secondary)', boxShadow: 'inset 0 0 0 1px var(--border)' }}>
+                            <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-9 h-9 flex items-center justify-center transition-all hover:bg-[var(--muted)] active:scale-90" title="수량 감소">
+                              <Minus className="w-3.5 h-3.5" style={{ color: 'var(--foreground)' }} />
                             </button>
                             <input
                               type="number"
                               value={item.quantity}
                               onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                              className="w-7 h-7 text-center text-xs font-bold bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-10 h-9 text-center text-sm font-extrabold bg-transparent border-none focus:outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               style={{ color: 'var(--foreground)' }}
                             />
-                            <button onClick={() => updateQuantity(index, item.quantity + 1)} className="w-7 h-7 flex items-center justify-center rounded-r-lg hover:bg-[var(--muted)]">
-                              <Plus className="w-3 h-3" style={{ color: 'var(--muted-foreground)' }} />
+                            <button onClick={() => updateQuantity(index, item.quantity + 1)} className="w-9 h-9 flex items-center justify-center transition-all hover:bg-[var(--muted)] active:scale-90" title="수량 증가">
+                              <Plus className="w-3.5 h-3.5" style={{ color: 'var(--foreground)' }} />
                             </button>
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); setSearchingIndex(searchingIndex === index ? null : index); setSearchQuery(item.searchText); }}
-                            className="h-7 px-2 flex items-center justify-center gap-1 rounded-md transition-all hover:opacity-80 flex-shrink-0 border"
-                            style={{ color: 'var(--primary)', borderColor: 'var(--primary)', backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}
+                            className="h-9 px-3 flex items-center justify-center gap-1.5 rounded-xl text-[12px] font-bold transition-all hover:opacity-90 active:scale-95 flex-shrink-0"
+                            style={{ color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 12%, transparent)' }}
                             title="제품 변경 (AI 학습)"
                           >
-                            <Edit3 className="w-3 h-3" />
-                            <span className="text-[10px] font-semibold">변경</span>
+                            <Edit3 className="w-3.5 h-3.5" />변경
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); removeItem(index); }}
-                            className="w-7 h-7 flex items-center justify-center rounded-md transition-all hover:bg-[var(--secondary)] flex-shrink-0"
+                            className="w-9 h-9 flex items-center justify-center rounded-xl transition-all flex-shrink-0 hover:bg-[color-mix(in_srgb,var(--destructive)_12%,transparent)]"
                             style={{ color: 'var(--muted-foreground)' }}
                             title="삭제"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
@@ -1363,7 +1367,8 @@ ${aiLearningData.slice(0, 50).map(l =>
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -1387,9 +1392,9 @@ ${aiLearningData.slice(0, 50).map(l =>
         )}
       </div>
 
-      {/* Footer CTA - fixed bottom */}
+      {/* Footer CTA - fixed bottom. 모바일 하단 네비(MobileNav, md:hidden, ~56px)에 가려지지 않도록 mb-16으로 띄움 */}
       {analyzedItems.length > 0 && (
-        <div className="border-t px-4 py-3 flex-shrink-0 safe-bottom" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}>
+        <div className={`border-t px-4 py-3 flex-shrink-0 safe-bottom ${onClose ? '' : 'mb-16 md:mb-0'}`} style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}>
           <button
             onClick={addSelectedToCart}
             disabled={selectedCount === 0}

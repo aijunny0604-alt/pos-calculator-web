@@ -11,6 +11,9 @@ import TextAnalyze from './TextAnalyze';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import useVoiceOrder from '@/hooks/useVoiceOrder';
 
+// 제품 주의사항 강조 색상 (AdminPage FLAG_COLORS와 동기화)
+const FLAG_MAP = { red: '#ef4444', amber: '#f59e0b', blue: '#3b82f6', green: '#22c55e', purple: '#a78bfa' };
+
 // Static fallback price data (478 products)
 const priceData = [
   { id: 1, category: '모듈', name: '져스트 G1', wholesale: 700000, retail: 1100000 },
@@ -507,7 +510,14 @@ export default function MainPOS({
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {Object.entries(groupedProducts).map(([category, categoryProducts]) => {
+              {Object.entries(groupedProducts)
+                // 네이버 자동등록 제품은 검색 시 항상 맨 아래로 (사용자 요청 — 중요도 낮음)
+                .sort(([a], [b]) => {
+                  const aAuto = a === '네이버 자동등록';
+                  const bAuto = b === '네이버 자동등록';
+                  return aAuto === bAuto ? 0 : aAuto ? 1 : -1;
+                })
+                .map(([category, categoryProducts]) => {
                 const isExpanded = expandedCategories[category] !== false;
                 return (
                   <div
@@ -564,10 +574,14 @@ export default function MainPOS({
                             ? product.image_urls[0].thumb
                             : null;
                           const demoImg = realImg || (isImageDemoMode() ? getSampleImage(product) : null);
+                          // ⚠️ 주의사항: 강조 색상 왼쪽 액센트 바 + 메모 배지 (트레일러 타이어 등)
+                          const flagColor = FLAG_MAP[product.flag_color] || null;
+                          const hasNote = !!(product.note && String(product.note).trim());
                           return (
                             <div
                               key={product.id}
                               onClick={() => !cartItem && addToCart(product)}
+                              title={hasNote ? product.note : undefined}
                               className={`card-interactive rounded-lg cursor-pointer select-none border overflow-hidden ${
                                 demoImg ? 'flex flex-col md:flex-row md:items-stretch md:min-h-[6rem]' : 'px-3 py-4 min-h-[5.5rem] flex flex-col justify-between'
                               } ${
@@ -591,6 +605,8 @@ export default function MainPOS({
                                       ? 'color-mix(in srgb, var(--destructive) 40%, var(--border))'
                                       : 'var(--border)',
                                 '--tw-ring-color': 'var(--primary)',
+                                // 강조 색상 왼쪽 액센트 바 (상태색과 무관하게 항상 표시)
+                                boxShadow: flagColor ? `inset 4px 0 0 0 ${flagColor}` : undefined,
                               }}
                             >
                               {/* 🖼️ 썸네일 — 모바일: 상단 정사각 / 데스크톱: 좌측 96px stretch */}
@@ -627,6 +643,9 @@ export default function MainPOS({
                                   className="text-sm font-medium flex-1 min-w-0 break-words leading-snug"
                                   style={{ color: 'var(--foreground)' }}
                                 >
+                                  {hasNote && (
+                                    <span className="inline-flex items-center mr-1 align-middle" title={product.note} style={{ color: flagColor || 'var(--warning)' }}>⚠️</span>
+                                  )}
                                   {product.name}
                                 </p>
                                 <span
@@ -660,15 +679,20 @@ export default function MainPOS({
                               {/* Price / Cart controls */}
                               {inCart ? (
                                 <div className="flex flex-col items-start min-[420px]:flex-row min-[420px]:items-center justify-between gap-1 min-w-0">
-                                  <p
-                                    className="text-base sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums min-w-0"
-                                    style={{
-                                      color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)',
-                                      letterSpacing: '-0.02em',
-                                    }}
-                                  >
-                                    {formatPrice(displayPrice)}<span className="text-[10px] sm:text-xs font-bold ml-0.5">원</span>
-                                  </p>
+                                  <div className="min-w-0">
+                                    <p
+                                      className="text-base sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums min-w-0"
+                                      style={{
+                                        color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)',
+                                        letterSpacing: '-0.02em',
+                                      }}
+                                    >
+                                      {formatPrice(displayPrice)}<span className="text-[10px] sm:text-xs font-bold ml-0.5">원</span>
+                                    </p>
+                                    <p className="text-[10px] whitespace-nowrap mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                                      VAT제외 {formatPrice(exVatPrice)}원
+                                    </p>
+                                  </div>
                                   <div
                                     className="flex items-center gap-0.5 rounded flex-shrink-0 border"
                                     style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
@@ -714,6 +738,19 @@ export default function MainPOS({
                                     VAT제외 {formatPrice(exVatPrice)}원
                                   </p>
                                 </div>
+                              )}
+                              {/* ⚠️ 주의사항 메모 — 카드 하단 상시 표시 */}
+                              {hasNote && (
+                                <p
+                                  className="mt-1.5 px-2 py-1 rounded text-[11px] font-medium leading-snug break-words"
+                                  style={{
+                                    background: `color-mix(in srgb, ${flagColor || 'var(--warning)'} 12%, transparent)`,
+                                    color: flagColor || 'var(--warning)',
+                                    border: `1px solid color-mix(in srgb, ${flagColor || 'var(--warning)'} 30%, transparent)`,
+                                  }}
+                                >
+                                  ⚠️ {String(product.note).trim()}
+                                </p>
                               )}
                               </div>{/* end demo image inner wrapper */}
                             </div>

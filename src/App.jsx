@@ -17,7 +17,9 @@ import SaveCartModal from '@/pages/SaveCartModal';
 import QuickCalculator from '@/pages/QuickCalculator';
 import NotificationSettings from '@/pages/NotificationSettings';
 import CommandBar from '@/components/CommandBar';
+import StoreOrderAlerts from '@/components/StoreOrderAlerts';
 
+import ChunkErrorBoundary from '@/components/ChunkErrorBoundary';
 // 결제 관련 페이지는 lazy load (exceljs + html-to-image 포함된 무거운 chunk)
 const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
 const InvoicesContainer = lazy(() => import('@/pages/InvoicesContainer'));
@@ -1253,6 +1255,8 @@ export default function App() {
   // ─── Render ───────────────────────────────────────────────────
   return (
     <>
+      {/* 전역 스토어 주문 알림 — 어느 페이지에서든 신규주문/취소 시 알림음+팝업+OS알림 */}
+      <StoreOrderAlerts />
       <AppLayout
         currentPage={currentPage}
         onNavigate={setCurrentPage}
@@ -1262,7 +1266,10 @@ export default function App() {
         shippingCount={shippingCount}
         smartstoreCount={smartstoreCount}
       >
-        {renderPage()}
+        {/* key={currentPage} → 페이지 이동 시 바운더리 리셋 (한 페이지 청크 실패가 다른 페이지로 안 번지게) */}
+        <ChunkErrorBoundary key={currentPage}>
+          {renderPage()}
+        </ChunkErrorBoundary>
       </AppLayout>
 
       {/* Order detail modal */}
@@ -1303,7 +1310,7 @@ export default function App() {
           onSave={async (data) => {
             const now = new Date();
             const totalAmount = cart.reduce((sum, item) => {
-              const price = priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale);
+              const price = priceType === 'wholesale' ? (item.wholesale || item.price || item.retail || 0) : (item.retail || item.price || item.wholesale || 0);
               return sum + price * item.quantity;
             }, 0);
             await handleSaveCart({

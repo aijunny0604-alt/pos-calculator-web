@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2, Volume2, VolumeX, DollarSign, Wallet, PackageX, LayoutGrid, Truck, Undo2, Brain, TrendingUp, Clock, AudioLines, MessageSquareOff } from 'lucide-react';
+import { Menu, ArrowLeft, Sparkles, Crown, Package, Users, TrendingDown, BarChart3, RefreshCw, Settings, X, Check, AlertTriangle, Trash2, Volume2, VolumeX, DollarSign, Wallet, PackageX, LayoutGrid, Truck, Undo2, Brain, TrendingUp, Clock, AudioLines, MessageSquareOff, MessageSquare } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
 import QuantumSpaceField from '@/components/analytics/QuantumSpaceField';
@@ -58,6 +58,9 @@ const DEFAULT_PROMPTS = [
   { id: 'dormant', label: '휴면 거래처 알려줘', icon: TrendingDown, side: 'right' },
   { id: 'pending', label: '출고 예정 주문', icon: Truck, side: 'right' },
   { id: 'returns', label: '반품률 분석', icon: Undo2, side: 'right' },
+  // 라벨≠질문: 클릭하면 query 가 전송됨 → MOVIS가 "리뷰 붙여넣어 주세요" 안내 후 답글 작성
+  { id: 'reviewReply', label: '🗣 리뷰 답글 쓰기', icon: MessageSquare, side: 'right',
+    query: '네이버 스토어 구매평에 답글을 쓰려고 해. 리뷰를 붙여넣을 테니 정중형/친근형 두 가지 답글을 써줘. 먼저 리뷰를 붙여넣으라고 안내해줘.' },
 ];
 
 export default function AIAnalytics({
@@ -76,6 +79,8 @@ export default function AIAnalytics({
   const [paymentRecords, setPaymentRecords] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [customerReturns, setCustomerReturns] = useState([]);
+  const [externalOrders, setExternalOrders] = useState([]); // 스마트스토어 주문 (MOVIS 도구용)
+  const [externalProducts, setExternalProducts] = useState([]); // 네이버 스토어 상품 카탈로그 (searchNaverCatalog 도구용)
   const [loadingExtra, setLoadingExtra] = useState(true);
 
   // 컴포넌트 자체 마운트 페이드인 (AppLayout wrapper의 페이드인이 Suspense swap에 의해 무력화되는 문제 fix)
@@ -83,27 +88,38 @@ export default function AIAnalytics({
   // iPhone: chunk 로드 느려서 페이드인 시간 동안 swap → 정상 보임
   const [mountFadeIn, setMountFadeIn] = useState(false);
   useEffect(() => {
-    // requestAnimationFrame 2번으로 mount → paint → opacity 트랜지션 보장
+    // requestAnimationFrame 2번으로 mount → paint → opacity 트랜지션 보장.
+    // ⚠️ 안전장치: rAF 체인이 안 끝나면(탭 백그라운드/스로틀) opacity:0 그대로 = 흰 화면 고착.
+    //   200ms 폴백 타이머로 무조건 보이게 보장. (id2 를 외부 변수로 잡아 cleanup 누락 버그도 수정)
+    let id2 = 0;
     const id1 = requestAnimationFrame(() => {
-      const id2 = requestAnimationFrame(() => setMountFadeIn(true));
-      return () => cancelAnimationFrame(id2);
+      id2 = requestAnimationFrame(() => setMountFadeIn(true));
     });
-    return () => cancelAnimationFrame(id1);
+    const safety = setTimeout(() => setMountFadeIn(true), 200);
+    return () => {
+      cancelAnimationFrame(id1);
+      cancelAnimationFrame(id2);
+      clearTimeout(safety);
+    };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [pr, ph, cr] = await Promise.all([
+        const [pr, ph, cr, eo, ep] = await Promise.all([
           supabase.getPaymentRecords({ limit: 5000 }),
           supabase.getPaymentHistory({ limit: 5000 }),
           supabase.getCustomerReturns(),
+          supabase.getExternalOrders({ limit: 200 }),
+          supabase.getExternalProducts({ limit: 5000 }),
         ]);
         if (cancelled) return;
         setPaymentRecords(pr || []);
         setPaymentHistory(ph || []);
         setCustomerReturns(cr || []);
+        setExternalOrders(eo || []);
+        setExternalProducts(ep || []);
       } catch (e) {
         console.warn('AI 분석용 추가 데이터 로드 실패:', e);
       } finally {
@@ -115,7 +131,7 @@ export default function AIAnalytics({
 
   const chat = useAIAnalystChat({
     orders, customers, products, savedCarts, aiLearningData,
-    paymentRecords, paymentHistory, customerReturns,
+    paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts,
   });
   const [executing, setExecuting] = useState(false);
 
@@ -475,7 +491,8 @@ export default function AIAnalytics({
   const dataReady = orders.length > 0 || customers.length > 0 || products.length > 0;
 
   const handleSelect = (item) => {
-    chat.send(item.label, { promptId: item.id });
+    // query 가 있으면 실제 전송문은 query, 없으면 label (리뷰 답글처럼 라벨≠질문인 경우)
+    chat.send(item.query || item.label, { promptId: item.id });
   };
 
   const handleSaveKey = () => {

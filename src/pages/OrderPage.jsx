@@ -230,7 +230,8 @@ export default function OrderPage({
   // 아니면 기존 폴백 체인 (retail 0/null → wholesale)
   const getLineUnit = useCallback((item) => {
     if (isDiscountActiveForCurrent(item)) return Number(item[priceField]) || 0;
-    return priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale);
+    // price 폴백: 저장 카트/주문이력 복사 item은 wholesale/retail 없이 price만 있을 수 있음 (0원 버그 방지)
+    return priceType === 'wholesale' ? (item.wholesale || item.price || item.retail || 0) : (item.retail || item.price || item.wholesale || 0);
   }, [isDiscountActiveForCurrent, priceField, priceType]);
 
   // 실시간 총액 계산 (할인 적용)

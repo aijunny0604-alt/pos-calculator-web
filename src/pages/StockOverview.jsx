@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Menu, Package, Search, ChevronDown } from 'lucide-react';
 
-function matchesSearchQuery(name, query) {
+// 토큰 단위 매칭 — "플랜지 54" 처럼 여러 단어를 띄어 입력해도 각 토큰이 모두 들어있으면 매칭.
+// 제품명 + 카테고리 + 코드까지 검색 대상에 포함. null 안전.
+function matchesSearchQuery(name, query, extra = '') {
   if (!query.trim()) return true;
-  const normalizedName = name.toLowerCase().replace(/\s/g, '');
-  const normalizedQuery = query.toLowerCase().replace(/\s/g, '');
-  return normalizedName.includes(normalizedQuery);
+  const hay = (String(name || '') + ' ' + String(extra || '')).toLowerCase().replace(/\s/g, '');
+  const tokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  return tokens.every((t) => hay.includes(t));
 }
 
 export default function StockOverview({ products = [], categories = [], formatPrice, onBack }) {
@@ -24,7 +26,7 @@ export default function StockOverview({ products = [], categories = [], formatPr
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === '전체' || p.category === selectedCategory;
-    const matchesSearch = matchesSearchQuery(p.name, searchTerm);
+    const matchesSearch = matchesSearchQuery(p.name, searchTerm, `${p.category || ''} ${p.code || ''} ${p.barcode || ''}`);
     const stock = p.stock ?? 50;
     const minStock = p.min_stock || 5;
 

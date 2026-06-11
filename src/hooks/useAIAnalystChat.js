@@ -102,6 +102,8 @@ export default function useAIAnalystChat({
   paymentRecords = [],
   paymentHistory = [],
   customerReturns = [],
+  externalOrders = [],
+  externalProducts = [],
 } = {}) {
   const [messages, setMessages] = useState(() => loadHistory());
   const [isLoading, setIsLoading] = useState(false);
@@ -170,6 +172,8 @@ export default function useAIAnalystChat({
         paymentRecords,
         paymentHistory,
         customerReturns,
+        externalOrders,
+        externalProducts,
       }, {
         signal: controller.signal,
         history, // ← 이전 대화 컨텍스트
@@ -292,7 +296,7 @@ export default function useAIAnalystChat({
       setLoadingStep('');
       abortRef.current = null;
     }
-  }, [orders, customers, products, savedCarts, aiLearningData, paymentRecords, paymentHistory, customerReturns, isLoading, recordUsage]);
+  }, [orders, customers, products, savedCarts, aiLearningData, paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts, isLoading, recordUsage]);
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
@@ -864,6 +868,7 @@ function friendlyToolName(name) {
     getReturnAnalysis: '반품 통계',
     getPendingCarts: '저장 장바구니 조회',
     getLearningStats: 'AI 학습 통계',
+    getSmartstoreOrders: '스마트스토어 주문 조회',
     getPaymentSummary: '미수금 집계',
     getReturnedItems: '반품 내역 조회',
     getSavedCartsByCustomer: '저장 장바구니 조회',

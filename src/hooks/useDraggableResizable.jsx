@@ -44,7 +44,11 @@ function centerRect(defaults) {
  */
 const DESKTOP_BREAKPOINT = 768;
 
-export default function useDraggableResizable(storageKey, defaults = { w: 960, h: 720 }) {
+export default function useDraggableResizable(storageKey, defaults = { w: 960, h: 720 }, options = {}) {
+  // centerOnOpen: 열 때마다 위치는 항상 중앙(크기만 저장값 유지).
+  // 기본 true — 저장된 위치가 화면 구석/밖에 박혀 모달이 안 보이거나 컨트롤이 잘리는 사고 방지 (2026-06-09).
+  // 드래그/리사이즈는 세션 중엔 그대로 동작하고, 다음에 열 때 다시 중앙으로.
+  const { centerOnOpen = true } = options;
   const [maximized, setMaximized] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const transitionTimer = useRef(null);
@@ -53,7 +57,14 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
   );
   const [rect, setRect] = useState(() => {
     if (typeof window === 'undefined') return { x: 0, y: 0, w: defaults.w, h: defaults.h };
-    return clampRect(loadRect(storageKey) || centerRect(defaults));
+    const saved = loadRect(storageKey);
+    if (centerOnOpen) {
+      // 크기는 저장값(없으면 기본) 유지, 위치는 항상 중앙 계산 → 상단 박힘 영구 고착 방지
+      const w = (saved && saved.w) || defaults.w;
+      const h = (saved && saved.h) || defaults.h;
+      return clampRect(centerRect({ w, h }));
+    }
+    return clampRect(saved || centerRect(defaults));
   });
 
   const dragState = useRef(null);

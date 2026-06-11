@@ -39,7 +39,19 @@ const TABS = [
 
 const EMPTY_PRODUCT = {
   name: '', category: '', wholesale: '', retail: '', stock: '', min_stock: '', stock_status: '',
+  note: '', flag_color: '',
 };
+
+// 제품 주의사항 강조 색상 프리셋 (주문 시 카드/배지에 적용)
+const FLAG_COLORS = [
+  { key: '', label: '없음', color: 'transparent' },
+  { key: 'red', label: '빨강', color: '#ef4444' },
+  { key: 'amber', label: '주황', color: '#f59e0b' },
+  { key: 'blue', label: '파랑', color: '#3b82f6' },
+  { key: 'green', label: '초록', color: '#22c55e' },
+  { key: 'purple', label: '보라', color: '#a78bfa' },
+];
+export const FLAG_COLOR_MAP = FLAG_COLORS.reduce((m, f) => { if (f.key) m[f.key] = f.color; return m; }, {});
 
 const EMPTY_CUSTOMER = {
   name: '', phone: '', address: '', memo: '', blacklist: false,
@@ -419,6 +431,8 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
       stock: product.stock ?? '',
       min_stock: product.min_stock ?? '',
       stock_status: product.stock_status || '',
+      note: product.note || '',
+      flag_color: product.flag_color || '',
     });
     setFormErrors({});
     setEditTarget(product);
@@ -445,6 +459,8 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
       if (formData.retail !== '' && formData.retail !== '0') payload.retail = Number(formData.retail);
       if (formData.stock !== '') payload.stock = Number(formData.stock);
       if (formData.min_stock !== '') payload.min_stock = Number(formData.min_stock);
+      payload.note = formData.note?.trim() || null;
+      payload.flag_color = formData.flag_color || null;
       const isNew = !editTarget?.id;
       if (supabaseConnected && supabase) {
         const saved = isNew
@@ -948,6 +964,99 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
               <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)' }}>입고예정 상품</span>
             )}
           </div>
+
+          {/* 주의사항 메모 — 주문 시 상기됨 (예: 트레일러 타이어 = 도매 선불 / 소비자 착불) */}
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--foreground)' }}>
+              ⚠️ 주의사항 메모 <span className="text-xs font-normal" style={{ color: 'var(--muted-foreground)' }}>(주문 담을 때 알림으로 뜸)</span>
+            </label>
+            <textarea
+              value={formData.note}
+              onChange={e => setFormData(p => ({ ...p, note: e.target.value }))}
+              placeholder="예) 도매=택배 선불 / 소비자=착불, 소매가 없음"
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg border bg-[var(--background)] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+              style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+            />
+          </div>
+
+          {/* 강조 색상 — 제품 카드 색 차별화 */}
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>강조 색상 (주의 제품 구분)</label>
+            <div className="flex flex-wrap gap-2">
+              {FLAG_COLORS.map(fc => {
+                const active = (formData.flag_color || '') === fc.key;
+                return (
+                  <button
+                    key={fc.key || 'none'}
+                    type="button"
+                    onClick={() => setFormData(p => ({ ...p, flag_color: fc.key }))}
+                    className="px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all"
+                    style={{
+                      borderColor: active ? (fc.color === 'transparent' ? 'var(--primary)' : fc.color) : 'var(--border)',
+                      background: active && fc.color !== 'transparent' ? `color-mix(in srgb, ${fc.color} 15%, transparent)` : 'var(--background)',
+                      borderWidth: active ? 2 : 1,
+                    }}
+                  >
+                    {fc.color !== 'transparent' && <span className="w-3 h-3 rounded-full" style={{ background: fc.color }} />}
+                    {fc.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 초기 설정 금액 + 단가 변경 이력 (수정 모드만) */}
+          {editTarget?.id && (
+            <div className="sm:col-span-2 rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'var(--secondary)' }}>
+              <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--muted-foreground)' }}>📊 단가 모니터링</div>
+              {(() => {
+                const initW = editTarget.initial_wholesale;
+                const curW = Number(formData.wholesale) || 0;
+                const diffW = initW != null ? curW - Number(initW) : null;
+                return (
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span style={{ color: 'var(--muted-foreground)' }}>도매가 (초기 → 현재)</span>
+                    <span className="tabular-nums font-semibold">
+                      {initW != null ? formatPrice(initW) : '-'} → {formatPrice(curW)}
+                      {diffW != null && diffW !== 0 && (
+                        <span className="ml-1.5 text-xs" style={{ color: diffW > 0 ? 'var(--success)' : 'var(--destructive)' }}>
+                          ({diffW > 0 ? '+' : ''}{formatPrice(diffW)})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
+              {editTarget.initial_retail != null && (
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span style={{ color: 'var(--muted-foreground)' }}>소매가 (초기 → 현재)</span>
+                  <span className="tabular-nums font-semibold">
+                    {formatPrice(editTarget.initial_retail)} → {formatPrice(Number(formData.retail) || 0)}
+                  </span>
+                </div>
+              )}
+              {Array.isArray(editTarget.price_history) && editTarget.price_history.length > 0 ? (
+                <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                  <div className="text-[11px] font-semibold mb-1" style={{ color: 'var(--muted-foreground)' }}>변경 기록 (최근순)</div>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {[...editTarget.price_history].reverse().slice(0, 20).map((h, i) => (
+                      <div key={i} className="flex items-center justify-between text-[11px] tabular-nums">
+                        <span style={{ color: 'var(--muted-foreground)' }}>
+                          {h.field === 'wholesale' ? '도매' : '소매'} · {h.at ? new Date(h.at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) : ''}
+                        </span>
+                        <span>
+                          {formatPrice(h.old)} → <span className="font-semibold" style={{ color: Number(h.new) > Number(h.old) ? 'var(--success)' : 'var(--destructive)' }}>{formatPrice(h.new)}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[11px] mt-1" style={{ color: 'var(--muted-foreground)' }}>아직 변경 기록 없음 (단가 수정 시 자동 기록)</div>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-[var(--border)]">
           <ActionBtn variant="secondary" size="md" onClick={() => setEditTarget(null)}>취소</ActionBtn>
@@ -3371,7 +3480,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
           </div>
 
           {/* 카테고리 칩 + 펼치기 */}
-          <div className="space-y-1 max-h-64 overflow-y-auto custom-scroll">
+          <div className="space-y-1 max-h-[50vh] overflow-y-auto custom-scroll">
             {filteredCats.map(cat => {
               const isSelected = selectedCats.has(cat);
               const catProducts = displayProducts.filter(p => p.category === cat);
@@ -3402,7 +3511,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
                   </div>
                   {/* 펼친 제품 목록 */}
                   {isExpanded && (
-                    <div className="ml-7 mt-1 mb-2 space-y-0.5 max-h-48 overflow-y-auto custom-scroll rounded-lg border border-[var(--border)] bg-[var(--background)]">
+                    <div className="ml-7 mt-1 mb-2 space-y-0.5 max-h-72 overflow-y-auto custom-scroll rounded-lg border border-[var(--border)] bg-[var(--background)]">
                       {catProducts.map(p => {
                         const isExcluded = excludedIds.has(p.id);
                         const active = isSelected && !isExcluded;
@@ -3451,7 +3560,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
               />
             </div>
             {productSearchResults.length > 0 && (
-              <div className="mt-2 max-h-40 overflow-y-auto custom-scroll rounded-lg border border-[var(--border)] bg-[var(--background)]">
+              <div className="mt-2 max-h-[60vh] min-h-[280px] overflow-y-auto custom-scroll rounded-lg border border-[var(--border)] bg-[var(--background)]">
                 {productSearchResults.map(p => {
                   const isAdded = selectedIds.has(p.id);
                   return (

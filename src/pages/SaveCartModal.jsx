@@ -82,7 +82,7 @@ export default function SaveCartModal({
   }, [isOpen, onBack]);
 
   const total = cart.reduce((sum, item) => {
-    const price = priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale);
+    const price = priceType === 'wholesale' ? (item.wholesale || item.price || item.retail || 0) : (item.retail || item.price || item.wholesale || 0);
     return sum + price * item.quantity;
   }, 0);
 

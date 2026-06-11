@@ -45,7 +45,8 @@ export default function SavedCarts({
     if (!cart) return '';
     const priceType = cart.priceType || cart.price_type || 'wholesale';
     const total = cart.total || cart.items?.reduce((sum, item) => {
-      const price = priceType === 'wholesale' ? (item.wholesale || 0) : (item.retail || item.wholesale || 0);
+      // 저장 카트 item은 wholesale/retail 없이 price만 있는 경우가 많음(주문이력 복사 등) → price 폴백 필수 (0원 버그 방지)
+      const price = priceType === 'wholesale' ? (item.wholesale || item.price || item.retail || 0) : (item.retail || item.price || item.wholesale || 0);
       return sum + price * (item.quantity || 1);
     }, 0) || 0;
     const exVat = calcExVat(total);
@@ -57,7 +58,8 @@ export default function SavedCarts({
     text += `단가기준: ${priceType === 'wholesale' ? '도매가 (부가세 포함)' : '소비자가 (부가세 포함)'}\n\n`;
     text += `[ 상품 목록 ]\n\n`;
     (cart.items || []).forEach((item, index) => {
-      const price = priceType === 'wholesale' ? (item.wholesale || 0) : (item.retail || item.wholesale || 0);
+      // 저장 카트 item은 wholesale/retail 없이 price만 있는 경우가 많음(주문이력 복사 등) → price 폴백 필수 (0원 버그 방지)
+      const price = priceType === 'wholesale' ? (item.wholesale || item.price || item.retail || 0) : (item.retail || item.price || item.wholesale || 0);
       text += `${index + 1}. ${item.name}\n`;
       text += `   ${formatPrice(price)}원 × ${item.quantity || 1}개 = ${formatPrice(price * (item.quantity || 1))}원\n\n`;
     });
@@ -101,6 +103,9 @@ export default function SavedCarts({
   const [editedDetailCart, setEditedDetailCart] = useState(null);
   const [showProductSearchDetail, setShowProductSearchDetail] = useState(false);
   const [productSearchTermDetail, setProductSearchTermDetail] = useState('');
+  // 라인별 제품 교체 (잘못 주문한 제품 바로잡기) — 펼친 라인 idx + 검색어
+  const [replaceLineIdx, setReplaceLineIdx] = useState(null);
+  const [replaceSearchTerm, setReplaceSearchTerm] = useState('');
   // 카드별 할인 영역 펼침 상태 (idx Set) — 카트 전환/모달 닫힘 시 useEffect로 자동 리셋
   const [openDiscountIdxs, setOpenDiscountIdxs] = useState(() => new Set());
   const toggleDiscountOpen = (idx) => {
@@ -127,7 +132,7 @@ export default function SavedCarts({
     handles: detailResizeHandles,
     reset: resetDetailModalPos,
   } = useDraggableResizable('pos-web.savedCartDetailModal', { w: 1200, h: 820 });
-  const [isBottomExpanded, setIsBottomExpanded] = useState(true);
+  const [isBottomExpanded, setIsBottomExpanded] = useState(false); // 기본 접힘 (총금액·액션버튼은 항상 노출, 공급가/부가세만 접힘) — 사장님 요청 2026-06-09
 
   // Keyboard nav for product search in detail modal (must be in component body, not inside renderDetailModal)
   const scFilteredProducts = products.length > 0 ? products.filter(product => {
@@ -150,15 +155,47 @@ export default function SavedCarts({
     scFilteredProducts, scSelectProduct, showProductSearchDetail && scFilteredProducts.length > 0
   );
 
+  // 라인 제품 교체 — 수량은 유지하고 제품만 다른 것으로 교체 (단가/할인 메타 초기화)
+  const replaceFilteredProducts = products.length > 0 && replaceSearchTerm
+    ? products.filter(p => matchesSearchQuery(p.name, replaceSearchTerm)).slice(0, 8)
+    : [];
+  const replaceLineProduct = useCallback((idx, product) => {
+    const cart = editedDetailCart || detailCart;
+    if (!cart) return;
+    // 다른 줄에 이미 같은 제품이 있으면 교체 차단 (중복 id 방지 — add 경로와 동일 정책)
+    if (cart.items.some((it, i) => i !== idx && it.id === product.id)) {
+      showToast?.('이미 다른 줄에 등록된 제품입니다. 수량을 조정하세요.', 'error');
+      return;
+    }
+    const isWholesale = cart.priceType === 'wholesale' || cart.price_type === 'wholesale';
+    const price = isWholesale ? (product.wholesale || product.price || 0) : (product.retail || product.wholesale || product.price || 0);
+    const newItems = cart.items.map((it, i) => i === idx ? {
+      ...product,
+      quantity: it.quantity || 1,        // 수량 유지
+      price,
+      wholesale: product.wholesale,
+      retail: product.retail,
+      // 할인 메타 초기화 (다른 제품이므로)
+      originalPrice: undefined,
+      discountType: undefined,
+      discountValue: undefined,
+    } : it);
+    setEditedDetailCart({ ...cart, items: newItems });
+    setReplaceLineIdx(null);
+    setReplaceSearchTerm('');
+  }, [editedDetailCart, detailCart]);
+
   useEffect(() => {
     if (isEditingDetail && !editedDetailCart && detailCart) {
       setEditedDetailCart({ ...detailCart });
     }
   }, [isEditingDetail, editedDetailCart, detailCart]);
 
-  // 카트 전환 또는 편집 모드 종료 시 할인 펼침 상태 자동 정리 (M2)
+  // 카트 전환 또는 편집 모드 종료 시 할인 펼침 + 제품 교체 상태 자동 정리 (M2)
   useEffect(() => {
     setOpenDiscountIdxs(new Set());
+    setReplaceLineIdx(null);
+    setReplaceSearchTerm('');
   }, [detailCart?.id, isEditingDetail]);
 
   // ESC key handler
@@ -701,22 +738,134 @@ export default function SavedCarts({
                 const activeMode = item.discountType || 'percent';
 
                 if (isEditingDetail) {
-                  // 편집 모드 — 모바일 친화 세로 적층
+                  // 편집 모드 — 하나의 응집된 카드 (제품 / 수량·단가·합계 한 줄 연결 / 할인)
+                  const isReplacing = replaceLineIdx === idx;
                   return (
-                    <div key={idx} className="rounded-lg border border-[var(--border)] overflow-hidden">
-                      {/* 1행: 제품명 input (full width) */}
-                      <input
-                        type="text"
-                        value={item.name || ''}
-                        onChange={(e) => updateItem({ name: e.target.value })}
-                        placeholder="제품명"
-                        className="w-full px-3 py-2.5 text-base font-semibold bg-[var(--background)] border-b border-[var(--border)] focus:outline-none focus:bg-[var(--card)] focus:ring-2 focus:ring-inset focus:ring-[var(--primary)]/40"
-                      />
-                      {/* 2행: 단가 input + 합계 (좌우 분할) */}
-                      <div className="grid grid-cols-2 gap-2 p-3 bg-[var(--card)] border-b border-[var(--border)]">
-                        <label className="flex flex-col gap-0.5">
+                    <div
+                      key={idx}
+                      className="rounded-xl border overflow-hidden transition-colors"
+                      style={{
+                        borderColor: isReplacing ? 'var(--primary)' : 'var(--border)',
+                        background: 'var(--card)',
+                        boxShadow: isReplacing ? '0 0 0 2px color-mix(in srgb, var(--primary) 30%, transparent)' : '0 1px 2px rgba(0,0,0,0.04)',
+                      }}
+                    >
+                      {/* 헤더: 순번 + 제품명 input + [교체] + [삭제] */}
+                      <div className="flex items-center gap-2 px-3 pt-2.5 pb-2">
+                        <span
+                          className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold tabular-nums"
+                          style={{ background: 'var(--secondary)', color: 'var(--muted-foreground)' }}
+                        >
+                          {idx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          value={item.name || ''}
+                          onChange={(e) => updateItem({ name: e.target.value })}
+                          placeholder="제품명"
+                          className="flex-1 min-w-0 px-2 py-1.5 text-[15px] sm:text-base font-bold bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReplaceLineIdx(isReplacing ? null : idx);
+                            setReplaceSearchTerm('');
+                          }}
+                          className="flex-shrink-0 h-9 px-2.5 rounded-lg border flex items-center gap-1 text-xs font-bold transition-colors"
+                          style={{
+                            borderColor: isReplacing ? 'var(--primary)' : 'var(--border)',
+                            background: isReplacing ? 'var(--primary)' : 'var(--background)',
+                            color: isReplacing ? 'white' : 'var(--primary)',
+                          }}
+                          title="잘못 주문한 제품을 다른 제품으로 교체 (수량 유지)"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" /> 교체
+                        </button>
+                        <button
+                          onClick={() => {
+                            const newItems = currentCart.items.filter((_, i) => i !== idx);
+                            setEditedDetailCart({ ...editedDetailCart, items: newItems });
+                          }}
+                          className="flex-shrink-0 w-9 h-9 border rounded-lg flex items-center justify-center transition-colors"
+                          style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
+                          aria-label="제품 삭제"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* 제품 교체 검색 (펼침 시) */}
+                      {isReplacing && (
+                        <div className="px-3 pb-2.5 relative">
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--muted-foreground)' }} />
+                            <input
+                              type="text"
+                              autoFocus
+                              value={replaceSearchTerm}
+                              onChange={(e) => setReplaceSearchTerm(e.target.value)}
+                              onFocus={handleSearchFocus}
+                              placeholder="바꿀 제품명 검색…"
+                              className="w-full pl-9 pr-3 py-2 text-sm bg-[var(--background)] border-2 rounded-lg focus:outline-none"
+                              style={{ borderColor: 'var(--primary)' }}
+                            />
+                          </div>
+                          {replaceSearchTerm && (
+                            <div className="absolute left-3 right-3 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl max-h-56 overflow-y-auto z-50">
+                              {replaceFilteredProducts.length > 0 ? replaceFilteredProducts.map((product) => {
+                                const isWholesale = currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale';
+                                const rPrice = isWholesale ? (product.wholesale || product.price) : (product.retail || product.wholesale || product.price);
+                                return (
+                                  <button
+                                    key={product.id}
+                                    onClick={() => replaceLineProduct(idx, product)}
+                                    className="w-full px-3 py-2.5 text-left hover:bg-[var(--accent)] transition-colors border-b border-[var(--border)] last:border-0 flex items-center justify-between gap-2"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium break-words leading-snug">{product.name}</div>
+                                      {product.category && <div className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>{product.category}</div>}
+                                    </div>
+                                    <span className="font-bold text-sm flex-shrink-0" style={{ color: 'var(--success)' }}>{formatPrice(rPrice)}</span>
+                                  </button>
+                                );
+                              }) : (
+                                <div className="px-3 py-3 text-sm text-center" style={{ color: 'var(--muted-foreground)' }}>검색 결과 없음</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 수량 · 단가 · 합계 — 한 줄에 연결 (구분선으로 묶음) */}
+                      <div
+                        className="grid grid-cols-[auto_1fr_1fr]"
+                        style={{ borderTop: '1px solid var(--border)' }}
+                      >
+                        {/* 수량 */}
+                        <div className="flex flex-col items-center justify-center gap-1 px-2.5 py-2" style={{ borderRight: '1px solid var(--border)' }}>
+                          <span className="text-[10px] font-medium" style={{ color: 'var(--muted-foreground)' }}>수량</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => { if (item.quantity > 1) updateItem({ quantity: item.quantity - 1 }); }}
+                              className="w-8 h-8 border border-[var(--border)] hover:bg-[var(--accent)] rounded-md flex items-center justify-center transition-colors"
+                              aria-label="수량 감소"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="font-bold text-base min-w-[2.2rem] text-center tabular-nums">{item.quantity}</span>
+                            <button
+                              onClick={() => updateItem({ quantity: item.quantity + 1 })}
+                              className="w-8 h-8 bg-[var(--primary)] hover:opacity-90 text-white rounded-md flex items-center justify-center transition-opacity"
+                              aria-label="수량 증가"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        {/* 단가 */}
+                        <label className="flex flex-col gap-1 px-3 py-2 text-center" style={{ borderRight: '1px solid var(--border)' }}>
                           <span className="text-[10px] font-medium" style={{ color: isDiscounted ? 'var(--warning)' : 'var(--muted-foreground)' }}>
-                            {isDiscounted ? '할인 적용 단가 (자동)' : '단가 (VAT포함)'}
+                            {isDiscounted ? '할인단가' : '단가 (VAT포함)'}
                           </span>
                           <input
                             type="text"
@@ -726,31 +875,27 @@ export default function SavedCarts({
                             readOnly={isDiscounted}
                             title={isDiscounted ? '할인 적용 중 — 직접 수정하려면 아래 [해제] 버튼을 눌러주세요' : undefined}
                             placeholder="0"
-                            className={`w-full px-2 py-1.5 text-sm font-bold tabular-nums border rounded focus:outline-none ${
+                            className={`w-full px-2 py-1 text-sm font-bold tabular-nums text-center border rounded focus:outline-none ${
                               isDiscounted
                                 ? 'bg-[var(--secondary)] border-[var(--border)] cursor-not-allowed opacity-80'
                                 : 'bg-[var(--background)] border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)]/40'
                             }`}
                             style={{ color: isDiscounted ? 'var(--warning)' : 'var(--primary)' }}
                           />
-                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-                            VAT제외 {formatPrice(itemSupply)}
-                          </span>
+                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>VAT제외 {formatPrice(itemSupply)}</span>
                         </label>
-                        <div className="flex flex-col gap-0.5 text-right">
+                        {/* 합계 */}
+                        <div className="flex flex-col gap-1 px-3 py-2 text-center justify-center">
                           <span className="text-[10px] font-medium" style={{ color: 'var(--muted-foreground)' }}>합계</span>
-                          <p className="px-2 py-1.5 text-sm font-bold tabular-nums" style={{ color: 'var(--success)' }}>
+                          <p className="text-base font-bold tabular-nums leading-tight" style={{ color: 'var(--success)' }}>
                             {formatPrice(itemTotal)}원
                           </p>
-                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-                            VAT제외 {formatPrice(itemTotalSupply)}
-                          </span>
+                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>VAT제외 {formatPrice(itemTotalSupply)}</span>
                         </div>
                       </div>
-                      {/* 2.5행: 할인 토글 + 펼침 영역 */}
+                      {/* 할인 토글 + 펼침 영역 */}
                       <div
-                        className="border-b border-[var(--border)]"
-                        style={{ background: isDiscounted ? 'color-mix(in srgb, var(--warning) 8%, var(--card))' : 'var(--card)' }}
+                        style={{ borderTop: '1px solid var(--border)', background: isDiscounted ? 'color-mix(in srgb, var(--warning) 8%, var(--card))' : 'transparent' }}
                       >
                         <button
                           type="button"
@@ -825,39 +970,6 @@ export default function SavedCarts({
                             <span>총 절감 <span className="font-bold" style={{ color: 'var(--warning)' }}>-{formatPrice(discountAmount * item.quantity)}원</span></span>
                           </div>
                         )}
-                      </div>
-                      {/* 3행: 수량 컨트롤 + 삭제 */}
-                      <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-[var(--secondary)]">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => {
-                              if (item.quantity > 1) updateItem({ quantity: item.quantity - 1 });
-                            }}
-                            className="w-9 h-9 border border-[var(--border)] hover:bg-[var(--accent)] rounded flex items-center justify-center transition-colors"
-                            aria-label="수량 감소"
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <span className="font-bold text-sm min-w-[3rem] text-center tabular-nums">×{item.quantity}</span>
-                          <button
-                            onClick={() => updateItem({ quantity: item.quantity + 1 })}
-                            className="w-9 h-9 bg-[var(--primary)] hover:opacity-90 text-white rounded flex items-center justify-center transition-opacity"
-                            aria-label="수량 증가"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <button
-                          onClick={() => {
-                            const newItems = currentCart.items.filter((_, i) => i !== idx);
-                            setEditedDetailCart({ ...editedDetailCart, items: newItems });
-                          }}
-                          className="w-9 h-9 border rounded flex items-center justify-center transition-colors"
-                          style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
-                          aria-label="제품 삭제"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
                     </div>
                   );
