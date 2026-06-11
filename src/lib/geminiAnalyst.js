@@ -110,7 +110,8 @@ const WRITE_INTENT_PATTERNS = [
   { re: /거래처\s*(등록|추가|신규)/, tools: ['addCustomer', 'bulkAddCustomer'] },
   { re: /거래처.*(수정|변경|바꿔|업데이트)|전화\s*(바꿔|변경)/, tools: ['updateCustomer', 'bulkUpdateCustomer'] },
   { re: /재고\s*(변경|수정|바꿔|입고|출고|업데이트|로\s*해줘)/, tools: ['updateProductStock', 'bulkUpdateProductStock'] },
-  { re: /가격\s*(변경|수정|바꿔|올려|내려|업데이트|인상|인하)/, tools: ['updateProductPrice', 'bulkUpdateProductPrice'] },
+  // 가격뿐 아니라 금액·단가·도매가·소비자가 등도 포함 + 어순/비인접("도매가 5만원으로 수정") 대응
+  { re: /(가격|금액|단가|도매가|소매가|소비자가|판매가)[\s\S]{0,25}(변경|수정|바꿔|올려|내려|업데이트|인상|인하|로\s*해)|(변경|수정|바꿔|올려|내려|인상|인하)[\s\S]{0,25}(가격|금액|단가|도매가|소매가|소비자가|판매가)/, tools: ['updateProductPrice', 'bulkUpdateProductPrice'] },
 ];
 function detectWriteIntent(question) {
   if (!question) return null;
