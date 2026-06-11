@@ -105,11 +105,14 @@ const getErrorMessage = (status, fallback) => {
 
 // 쓰기 의도 감지 키워드 → 매칭 시 Gemini에 functionCall 강제 + 허용 도구 제한
 const WRITE_INTENT_PATTERNS = [
-  { re: /주문\s*(추가|넣|등록|해줘|좀)|배송|배달|주문\s*해/, tools: ['saveOrder'] },
+  // 주문 등록 — "팔았어/나갔어/판매" 등 매장 실사용 동사 포함(거래처+제품 동반 시)
+  { re: /주문\s*(추가|넣|등록|해줘|좀)|배송|배달|주문\s*해|([가-힣]+(에|한테|으로))[\s\S]{0,40}(팔|판매|나갔)/, tools: ['saveOrder'] },
   { re: /제품\s*(등록|추가|새로|신규)/, tools: ['addProduct', 'bulkAddProduct'] },
   { re: /거래처\s*(등록|추가|신규)/, tools: ['addCustomer', 'bulkAddCustomer'] },
-  { re: /거래처.*(수정|변경|바꿔|업데이트)|전화\s*(바꿔|변경)/, tools: ['updateCustomer', 'bulkUpdateCustomer'] },
-  { re: /재고\s*(변경|수정|바꿔|입고|출고|업데이트|로\s*해줘)/, tools: ['updateProductStock', 'bulkUpdateProductStock'] },
+  // 거래처 정보 수정 — 전화뿐 아니라 연락처·주소 수정도 포함
+  { re: /거래처.*(수정|변경|바꿔|업데이트)|(전화|연락처|주소)[\s\S]{0,25}(바꿔|변경|수정|로\s*해)/, tools: ['updateCustomer', 'bulkUpdateCustomer'] },
+  // 재고 변경 — "수량"·"정정"·"재고없음/품절" 동의어 포함
+  { re: /(재고|수량)[\s\S]{0,10}(변경|수정|바꿔|입고|출고|업데이트|로\s*해|으로\s*해|정정|채워)|재고없음|품절로\s*(변경|수정|해)/, tools: ['updateProductStock', 'bulkUpdateProductStock'] },
   // 가격뿐 아니라 금액·단가·도매가·소비자가 등도 포함 + 어순/비인접("도매가 5만원으로 수정") 대응
   { re: /(가격|금액|단가|도매가|소매가|소비자가|판매가)[\s\S]{0,25}(변경|수정|바꿔|올려|내려|업데이트|인상|인하|로\s*해)|(변경|수정|바꿔|올려|내려|인상|인하)[\s\S]{0,25}(가격|금액|단가|도매가|소매가|소비자가|판매가)/, tools: ['updateProductPrice', 'bulkUpdateProductPrice'] },
 ];

@@ -81,8 +81,24 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
   });
   const displayedContent = shouldType ? displayed : content;
 
-  // system 메시지 — 가운데 작은 회색
+  // system 메시지 — 작업 결과(✅완료/❌실패)는 눈에 띄는 카드, 그 외는 작은 회색 알약
   if (role === 'system') {
+    const txt = typeof content === 'string' ? content.trim() : '';
+    const isSuccess = txt.startsWith('✅');
+    const isFail = txt.startsWith('❌') || /실패/.test(txt);
+    if (isSuccess || isFail) {
+      const accent = isSuccess ? '#00e676' : '#ff5a7a';
+      const tint = isSuccess ? 'rgba(0,230,118,0.13)' : 'rgba(255,90,122,0.13)';
+      return (
+        <div className="flex justify-center my-3 px-2 animate-modal-up">
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm sm:text-[15px] font-bold max-w-[92%] break-words"
+            style={{ color: accent, background: tint, border: `1.5px solid ${accent}`, boxShadow: `0 0 0 4px ${tint}, 0 8px 24px rgba(0,0,0,0.3)` }}>
+            <span className="text-xl flex-shrink-0">{isSuccess ? '✅' : '⚠️'}</span>
+            <span className="leading-snug">{txt.replace(/^✅\s*/, '').replace(/^❌\s*/, '')}</span>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex justify-center my-2 px-2">
         <span className="text-[11px] font-medium px-3 py-2 rounded-full min-w-0 break-words" style={{
