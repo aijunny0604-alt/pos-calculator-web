@@ -288,6 +288,12 @@ export default function StockOverview({ products = [], categories = [], formatPr
                       <th className="px-2 sm:px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide hidden sm:table-cell" style={{ color: 'var(--muted-foreground)' }}>
                         도매가
                       </th>
+                      <th className="px-2 sm:px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide hidden sm:table-cell" style={{ color: 'var(--muted-foreground)' }}>
+                        소매가
+                      </th>
+                      <th className="px-2 sm:px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide hidden sm:table-cell" style={{ color: 'var(--muted-foreground)' }}>
+                        마진
+                      </th>
                       <th className="px-2 sm:px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
                         재고
                       </th>
@@ -307,9 +313,19 @@ export default function StockOverview({ products = [], categories = [], formatPr
                           <span className="font-medium text-xs sm:text-sm" style={{ color: 'var(--foreground)' }}>
                             {product.name}
                           </span>
-                          <span className="block sm:hidden text-[10px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                            {product.category} · {formatPrice(product.wholesale)}
-                          </span>
+                          {(() => {
+                            const w = Number(product.wholesale) || 0;
+                            const r = Number(product.retail) || 0;
+                            const m = r - w;
+                            const rate = r > 0 ? Math.round((m / r) * 100) : 0;
+                            const mColor = m > 0 ? 'var(--success)' : m < 0 ? 'var(--destructive)' : 'var(--muted-foreground)';
+                            return (
+                              <span className="block sm:hidden text-[10px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                                {product.category} · 도 {formatPrice(w)} · 소 {formatPrice(r)}
+                                {r > 0 && <span style={{ color: mColor }}> · 마진 {formatPrice(m)}({rate}%)</span>}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-2 sm:px-4 py-3 hidden sm:table-cell">
                           <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
@@ -320,6 +336,25 @@ export default function StockOverview({ products = [], categories = [], formatPr
                           <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                             {formatPrice(product.wholesale)}
                           </span>
+                        </td>
+                        <td className="px-2 sm:px-4 py-3 text-right hidden sm:table-cell">
+                          <span className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>
+                            {formatPrice(product.retail)}
+                          </span>
+                        </td>
+                        <td className="px-2 sm:px-4 py-3 text-right hidden sm:table-cell">
+                          {(() => {
+                            const w = Number(product.wholesale) || 0;
+                            const r = Number(product.retail) || 0;
+                            const m = r - w;
+                            const rate = r > 0 ? Math.round((m / r) * 100) : 0;
+                            const mColor = m > 0 ? 'var(--success)' : m < 0 ? 'var(--destructive)' : 'var(--muted-foreground)';
+                            return r > 0 ? (
+                              <span className="text-sm font-semibold" style={{ color: mColor }}>
+                                {formatPrice(m)} <span className="text-[11px] opacity-80">({rate}%)</span>
+                              </span>
+                            ) : <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>-</span>;
+                          })()}
                         </td>
                         <td className="px-2 sm:px-4 py-3 text-center">
                           {getStockBadge(product)}
