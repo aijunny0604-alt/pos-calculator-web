@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   X, FileText, Package, Plus, Minus, Trash2, Edit3, RotateCcw,
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
-  ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2, Tag, Percent
+  ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2, Tag, Percent, Replace
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
@@ -31,6 +31,8 @@ export default function OrderDetail({
   const [editedOrder, setEditedOrder] = useState(null);
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState('');
+  // 저장 전 변경 확인 모달 — { updatedData, diff } (실수 방지: OK 눌러야 실제 적용)
+  const [pendingSave, setPendingSave] = useState(null);
   const [pendingDeleteReturnId, setPendingDeleteReturnId] = useState(null);
   // Return state
   const [isReturning, setIsReturning] = useState(false);
@@ -44,6 +46,18 @@ export default function OrderDetail({
   // Mobile bottom section collapse state
   // 기본 접힘 — 모바일에서 주문 상품 리스트가 먼저 보이게 (총액 바 탭하면 금액상세/완불체크/버튼 펼침)
   const [isBottomExpanded, setIsBottomExpanded] = useState(false);
+  // 데스크탑 푸터 합계(총수량·공급가액·부가세) 상세 접기/펼치기 — 총액은 항상 표시
+  const [totalsCollapsed, setTotalsCollapsed] = useState(false);
+  // 조회 모드: 행마다 공급가/부가세 2줄 표시 토글. 기본 ON + localStorage 영구 기억
+  // (한번 설정하면 모든 주문에서 유지 — 매번 버튼 누를 필요 없음)
+  const [showLineVat, setShowLineVat] = useState(() => {
+    try { return localStorage.getItem('pos_order_show_line_vat') !== '0'; } catch { return true; }
+  });
+  const toggleShowLineVat = () => setShowLineVat((v) => {
+    const next = !v;
+    try { localStorage.setItem('pos_order_show_line_vat', next ? '1' : '0'); } catch { /* noop */ }
+    return next;
+  });
   // 카드별 할인 영역 펼침 (idx Set) — 편집 종료/다른 주문 전환 시 자동 초기화
   const [openDiscountIdxs, setOpenDiscountIdxs] = useState(() => new Set());
   const toggleDiscountOpen = (idx) => {
@@ -260,6 +274,37 @@ export default function OrderDetail({
   };
 
   // Edit: save
+  // 편집 전(order.items) vs 편집 후(editedOrder.items) 변경점 목록 — 실수 방지 확인용
+  const buildEditDiff = () => {
+    const changes = [];
+    const orig = order.items || [];
+    const next = editedOrder.items || [];
+    const keyOf = (it) => String(it?.id ?? it?.name ?? '');
+    const origMap = new Map(orig.map((it) => [keyOf(it), it]));
+    const nextMap = new Map(next.map((it) => [keyOf(it), it]));
+    orig.forEach((it) => {
+      const n = nextMap.get(keyOf(it));
+      if (!n) {
+        changes.push({ type: 'remove', name: it.name, qty: it.quantity, price: getItemPrice(it) });
+      } else {
+        const qc = Number(it.quantity) !== Number(n.quantity);
+        const pc = Number(getItemPrice(it)) !== Number(getItemPrice(n));
+        if (qc || pc) changes.push({ type: 'change', name: it.name, fromQty: it.quantity, toQty: n.quantity, fromPrice: getItemPrice(it), toPrice: getItemPrice(n), qc, pc });
+      }
+    });
+    next.forEach((it) => {
+      if (!origMap.has(keyOf(it))) changes.push({ type: 'add', name: it.name, qty: it.quantity, price: getItemPrice(it) });
+    });
+    const fld = (label, from, to) => { if ((from || '') !== (to || '')) changes.push({ type: 'field', label, from, to }); };
+    fld('거래처', order.customerName, editedOrder.customerName);
+    fld('연락처', order.customerPhone, editedOrder.customerPhone);
+    fld('주소', order.customerAddress, editedOrder.customerAddress);
+    fld('메모', order.memo, editedOrder.memo);
+    const origTotal = orig.reduce((s, it) => s + getItemPrice(it) * it.quantity, 0);
+    if (Number(origTotal) !== Number(currentTotal)) changes.push({ type: 'total', from: origTotal, to: currentTotal });
+    return changes;
+  };
+
   const handleSave = () => {
     const updatedData = {
       items: editedOrder.items,
@@ -271,7 +316,20 @@ export default function OrderDetail({
       vat: currentTotal - Math.round(currentTotal / 1.1),
       memo: editedOrder.memo,
     };
-    if (onUpdateOrder) onUpdateOrder(order.id, updatedData);
+    const diff = buildEditDiff();
+    // 변경 없으면 그냥 편집 종료 (모달 안 띄움)
+    if (diff.length === 0) {
+      setIsEditing(false);
+      setShowProductSearch(false);
+      return;
+    }
+    // 실수 방지 — 변경점 확인 모달을 띄우고, OK(적용) 눌러야 실제 반영
+    setPendingSave({ updatedData, diff });
+  };
+
+  const confirmSave = () => {
+    if (pendingSave && onUpdateOrder) onUpdateOrder(order.id, pendingSave.updatedData);
+    setPendingSave(null);
     setIsEditing(false);
     setShowProductSearch(false);
   };
@@ -539,11 +597,12 @@ export default function OrderDetail({
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
-                style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}
+                className="px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all hover:brightness-105 shadow-sm"
+                style={{ background: 'white', color: 'var(--primary)' }}
+                title="주문 내용(제품·단가·수량 등) 수정"
               >
                 <Edit3 className="w-4 h-4" />
-                수정
+                주문 수정
               </button>
             )}
             {isEditing && (
@@ -686,6 +745,32 @@ export default function OrderDetail({
                 </div>
               </div>
 
+              {/* 받는분 — 스토어 전환 주문에서 주문자≠받는분일 때만 표시 (memo "받는분: 이름 / 전화" 파싱) */}
+              {(() => {
+                const m = order.memo || '';
+                const rm = m.match(/받는분:\s*([^\n/]+?)(?:\s*\/\s*([0-9+\-\s]+))?\s*(?:\n|$)/);
+                const name = rm && rm[1].trim();
+                if (!name || name === order.customerName) return null;
+                const tel = rm[2] ? rm[2].trim() : '';
+                return (
+                  <div className="flex items-center gap-3 md:gap-4 rounded-xl p-3 md:p-4 md:col-span-2"
+                    style={{ background: 'color-mix(in srgb, var(--warning) 12%, var(--secondary))', border: '1px solid color-mix(in srgb, var(--warning) 40%, transparent)' }}>
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)' }}>
+                      <span className="text-xl md:text-2xl">🎁</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs md:text-sm mb-0.5 md:mb-1 font-semibold" style={{ color: 'var(--warning)' }}>받는분 (주문자와 다름)</div>
+                      <div className="font-bold text-base md:text-xl break-words leading-snug flex items-center gap-2 flex-wrap" style={{ color: 'var(--foreground)' }}>
+                        {name}
+                        {tel && <span className="font-mono text-sm md:text-base font-semibold opacity-80">{tel}</span>}
+                      </div>
+                      <div className="text-[11px] md:text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>주문자: {order.customerName}</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* 배송주소 - full width */}
               <div
                 className="flex items-start gap-3 md:gap-4 rounded-xl p-3 md:p-4 md:col-span-2"
@@ -757,6 +842,17 @@ export default function OrderDetail({
                 <Package className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                 주문 상품 ({currentItems.length}종)
               </h3>
+              {!isEditing && (
+                <button
+                  onClick={toggleShowLineVat}
+                  className="hidden md:inline-flex px-3 py-1.5 rounded-lg text-xs font-semibold items-center gap-1.5 border transition-colors hover:bg-[var(--accent)]"
+                  style={{ color: 'var(--muted-foreground)', borderColor: 'var(--border)', background: 'var(--card)' }}
+                  title={showLineVat ? '공급가·부가세 숨겨 한 줄로 압축' : '행마다 공급가·부가세 표시'}
+                >
+                  {showLineVat ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  공급가·부가세 {showLineVat ? '숨기기' : '표시'}
+                </button>
+              )}
               {isEditing && (
                 <button
                   onClick={() => setShowProductSearch(!showProductSearch)}
@@ -1056,11 +1152,12 @@ export default function OrderDetail({
                               />
                               <button
                                 onClick={() => openReplaceProduct(index)}
-                                className="w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90 hover:opacity-80 flex-shrink-0"
-                                style={{ background: 'color-mix(in srgb, var(--warning) 14%, transparent)', color: 'var(--warning)' }}
-                                title="다른 제품으로 통째 교체"
+                                className="h-9 px-3 inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold whitespace-nowrap border transition-all active:scale-95 hover:brightness-95 flex-shrink-0"
+                                style={{ background: 'color-mix(in srgb, var(--warning) 14%, transparent)', color: 'var(--warning)', borderColor: 'color-mix(in srgb, var(--warning) 45%, transparent)' }}
+                                title="이 제품을 다른 제품으로 통째 교체"
                               >
-                                <Edit3 className="w-3.5 h-3.5" />
+                                <Replace className="w-3.5 h-3.5" />
+                                제품 교체
                               </button>
                             </div>
                           ) : (
@@ -1122,7 +1219,10 @@ export default function OrderDetail({
                           ) : (
                             <div className="font-medium tabular-nums" style={{ color: isDiscounted ? 'var(--warning)' : 'var(--foreground)' }}>{formatPrice(unit)}원</div>
                           )}
-                          <div className="text-[10px] mt-0.5 leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat(unit))}원</div>
+                          <div className="text-[10px] mt-0.5 leading-tight" style={{ color: 'var(--muted-foreground)' }}>
+                            <div>공급 {formatPrice(calcExVat(unit))}원</div>
+                            <div>부가세 {formatPrice(unit - calcExVat(unit))}원</div>
+                          </div>
                         </div>
                         <div className="rounded-lg p-2" style={{ background: 'var(--muted)' }}>
                           <div className="text-xs mb-0.5" style={{ color: 'var(--muted-foreground)' }}>금액</div>
@@ -1132,7 +1232,10 @@ export default function OrderDetail({
                             </div>
                           )}
                           <div className="font-bold tabular-nums" style={{ color: 'var(--primary)' }}>{formatPrice(unit * item.quantity)}원</div>
-                          <div className="text-[10px] mt-0.5 leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat(unit * item.quantity))}원</div>
+                          <div className="text-[10px] mt-0.5 leading-tight" style={{ color: 'var(--muted-foreground)' }}>
+                            <div>공급 {formatPrice(calcExVat(unit * item.quantity))}원</div>
+                            <div>부가세 {formatPrice(unit * item.quantity - calcExVat(unit * item.quantity))}원</div>
+                          </div>
                         </div>
                       </div>
                       {isEditing && (
@@ -1254,7 +1357,7 @@ export default function OrderDetail({
 
                     {/* Desktop table layout */}
                     <div className="hidden md:block">
-                      <div className="grid grid-cols-12 gap-3 px-5 py-4 items-center">
+                      <div className={`grid grid-cols-12 gap-3 px-5 items-center ${(showLineVat || isEditing) ? 'py-4' : 'py-2.5'}`}>
                         <div className="col-span-1 text-center text-base font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                           {index + 1}
                         </div>
@@ -1296,10 +1399,12 @@ export default function OrderDetail({
                           {isEditing && (
                             <button
                               onClick={() => openReplaceProduct(index)}
-                              className="p-1 rounded opacity-60 hover:opacity-100 transition-all hover:bg-[var(--accent)] flex-shrink-0"
-                              title="다른 제품으로 통째 교체"
+                              className="px-2 py-1 inline-flex items-center gap-1 rounded-lg text-[11px] font-bold whitespace-nowrap border flex-shrink-0 transition-all active:scale-95"
+                              style={{ background: 'color-mix(in srgb, var(--warning) 14%, transparent)', color: 'var(--warning)', borderColor: 'color-mix(in srgb, var(--warning) 45%, transparent)' }}
+                              title="이 제품을 다른 제품으로 통째 교체"
                             >
-                              <Edit3 className="w-3.5 h-3.5" style={{ color: 'var(--warning)' }} />
+                              <Replace className="w-3 h-3" />
+                              제품 교체
                             </button>
                           )}
                         </div>
@@ -1326,7 +1431,12 @@ export default function OrderDetail({
                           ) : (
                             <div className="text-lg font-medium tabular-nums" style={{ color: isDiscounted ? 'var(--warning)' : 'inherit' }}>{formatPrice(unit)}원</div>
                           )}
-                          <div className="text-[13px] opacity-80 leading-tight mt-0.5 tabular-nums">공급가 {formatPrice(calcExVat(unit))}원</div>
+                          {(showLineVat || isEditing) && (
+                            <div className="text-[13px] opacity-80 leading-tight mt-0.5 tabular-nums">
+                              <div>공급가 {formatPrice(calcExVat(unit))}원</div>
+                              <div>부가세 {formatPrice(unit - calcExVat(unit))}원</div>
+                            </div>
+                          )}
                         </div>
                         <div className={`${isEditing ? 'col-span-2' : 'col-span-2'} text-center`}>
                           {isEditing ? (
@@ -1370,7 +1480,12 @@ export default function OrderDetail({
                             <div className="text-[12px] line-through tabular-nums" style={{ color: 'var(--muted-foreground)' }}>{formatPrice(baseUnit * item.quantity)}원</div>
                           )}
                           <div className="font-bold text-xl tabular-nums" style={{ color: 'var(--primary)' }}>{formatPrice(unit * item.quantity)}원</div>
-                          <div className="text-[13px] font-normal leading-tight mt-0.5 tabular-nums" style={{ color: 'var(--muted-foreground)' }}>공급가 {formatPrice(calcExVat(unit * item.quantity))}원</div>
+                          {(showLineVat || isEditing) && (
+                            <div className="text-[13px] font-normal leading-tight mt-0.5 tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                              <div>공급가 {formatPrice(calcExVat(unit * item.quantity))}원</div>
+                              <div>부가세 {formatPrice(unit * item.quantity - calcExVat(unit * item.quantity))}원</div>
+                            </div>
+                          )}
                         </div>
                         {isEditing && (
                           <div className="col-span-1 flex justify-center">
@@ -1664,16 +1779,41 @@ export default function OrderDetail({
 
         {/* Desktop footer (always full) */}
         <div
-          className="hidden lg:block border-t p-6 flex-shrink-0"
+          className="hidden lg:block border-t px-6 py-3 flex-shrink-0"
           style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
         >
-          {/* Totals */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="text-base space-y-1" style={{ color: 'var(--muted-foreground)' }}>
-              <p>총 수량: <span className="font-bold text-lg" style={{ color: 'var(--foreground)' }}>{totalQuantity}개</span></p>
+          {/* Totals — 상세(총수량·공급가액·부가세)는 접기/펼치기, 총액은 항상 표시 */}
+          <div className="mb-2">
+            <div className="flex items-end justify-between gap-4">
+              <button
+                type="button"
+                onClick={() => setTotalsCollapsed((v) => !v)}
+                className="flex items-center gap-1.5 text-sm rounded-lg px-1.5 py-1 -ml-1.5 transition-colors hover:bg-[var(--accent)]"
+                style={{ color: 'var(--muted-foreground)' }}
+                title={totalsCollapsed ? '금액 상세 펼치기' : '금액 상세 접기'}
+              >
+                {totalsCollapsed
+                  ? <ChevronDown className="w-4 h-4" />
+                  : <ChevronUp className="w-4 h-4" />}
+                <span>총 수량 <span className="font-bold" style={{ color: 'var(--foreground)' }}>{totalQuantity}개</span></span>
+              </button>
+              {totalReturned > 0 ? (
+                <div className="text-right">
+                  <p className="text-sm line-through" style={{ color: 'var(--muted-foreground)' }}>
+                    {formatPrice(order.totalAmount)}원
+                  </p>
+                  <p className="text-3xl font-bold leading-tight" style={{ color: 'var(--foreground)' }}>
+                    {formatPrice(order.totalAmount - totalReturned)}원
+                  </p>
+                </div>
+              ) : (
+                <p className="text-3xl font-bold leading-tight" style={{ color: 'var(--foreground)' }}>
+                  {formatPrice(isEditing ? currentTotal : order.totalAmount)}원
+                </p>
+              )}
             </div>
-            <div className="text-right">
-              <div className="text-base space-y-1.5 mb-3" style={{ color: 'var(--muted-foreground)' }}>
+            {!totalsCollapsed && (
+              <div className="text-sm space-y-1 mt-2 ml-auto" style={{ color: 'var(--muted-foreground)', maxWidth: '20rem' }}>
                 <p className="flex justify-between gap-4">
                   <span>공급가액:</span>
                   <span className="font-semibold" style={{ color: 'var(--foreground)' }}>{formatPrice(exVat)}원</span>
@@ -1689,21 +1829,7 @@ export default function OrderDetail({
                   </p>
                 )}
               </div>
-              {totalReturned > 0 ? (
-                <div>
-                  <p className="text-lg line-through" style={{ color: 'var(--muted-foreground)' }}>
-                    {formatPrice(order.totalAmount)}원
-                  </p>
-                  <p className="text-4xl font-bold leading-tight" style={{ color: 'var(--foreground)' }}>
-                    {formatPrice(order.totalAmount - totalReturned)}원
-                  </p>
-                </div>
-              ) : (
-                <p className="text-4xl font-bold leading-tight" style={{ color: 'var(--foreground)' }}>
-                  {formatPrice(isEditing ? currentTotal : order.totalAmount)}원
-                </p>
-              )}
-            </div>
+            )}
           </div>
 
           {/* 수동 완불 체크 - Desktop 컴팩트 */}
@@ -1786,6 +1912,17 @@ export default function OrderDetail({
               </button>
             </div>
           ) : isReturning ? null : (
+            <>
+            {/* 주문 수정 — 크고 명확하게(누구나 쉽게). 헤더 버튼 외 푸터에도 배치 */}
+            <button
+              onClick={() => setIsEditing(true)}
+              className="w-full mb-2.5 py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all hover:brightness-105 shadow-sm"
+              style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+              title="주문 내용(제품·단가·수량 등) 수정"
+            >
+              <Edit3 className="w-5 h-5" />
+              주문 수정
+            </button>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 onClick={startReturn}
@@ -1837,6 +1974,7 @@ export default function OrderDetail({
                 인쇄
               </button>
             </div>
+            </>
           )}
         </div>
 
@@ -1980,15 +2118,17 @@ export default function OrderDetail({
                   </button>
                 </div>
               ) : isReturning ? null : (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-2">
+                  {/* 주문 수정 — 크고 명확하게(누구나 쉽게) */}
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--accent)] border"
-                    style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                    className="w-full py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.99] shadow-sm"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
                   >
-                    <Edit3 className="w-4 h-4" />
-                    수정
+                    <Edit3 className="w-5 h-5" />
+                    주문 수정
                   </button>
+                  <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={startReturn}
                     className="py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-colors border"
@@ -2038,6 +2178,7 @@ export default function OrderDetail({
                     <Printer className="w-4 h-4" />
                     인쇄
                   </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -2066,6 +2207,71 @@ export default function OrderDetail({
             onConfirm={performDeleteReturn}
             onCancel={() => setPendingDeleteReturnId(null)}
           />
+        </div>
+      )}
+
+      {/* 주문 수정 변경점 확인 — OK(적용) 눌러야 실제 저장 (실수 방지) */}
+      {pendingSave && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={() => setPendingSave(null)}>
+          <div className="bg-[var(--card)] w-full max-w-md rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: '85vh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 flex items-center gap-3 flex-shrink-0" style={{ background: 'linear-gradient(90deg, #f59e0b, #f97316)' }}>
+              <span className="text-2xl">📝</span>
+              <div className="min-w-0">
+                <h3 className="text-white font-bold text-base leading-tight">주문 수정 확인</h3>
+                <p className="text-white/85 text-xs mt-0.5 break-keep">{order.customerName} · 아래 내용으로 변경됩니다</p>
+              </div>
+            </div>
+            <div className="px-4 py-3 overflow-y-auto flex-1 space-y-2" style={{ minHeight: 0 }}>
+              {pendingSave.diff.map((c, i) => {
+                if (c.type === 'add') return (
+                  <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg text-sm" style={{ background: 'color-mix(in srgb, #22c55e 12%, var(--card))', border: '1px solid color-mix(in srgb, #22c55e 40%, transparent)' }}>
+                    <span className="font-bold flex-shrink-0" style={{ color: '#16a34a' }}>➕ 추가</span>
+                    <span className="break-words min-w-0"><b>{c.name}</b> · {c.qty}개 · {formatPrice(c.price)}원</span>
+                  </div>
+                );
+                if (c.type === 'remove') return (
+                  <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg text-sm" style={{ background: 'color-mix(in srgb, #ef4444 12%, var(--card))', border: '1px solid color-mix(in srgb, #ef4444 40%, transparent)' }}>
+                    <span className="font-bold flex-shrink-0" style={{ color: '#dc2626' }}>➖ 삭제</span>
+                    <span className="break-words min-w-0 line-through opacity-80"><b>{c.name}</b> · {c.qty}개</span>
+                  </div>
+                );
+                if (c.type === 'change') return (
+                  <div key={i} className="p-2.5 rounded-lg text-sm" style={{ background: 'color-mix(in srgb, #f59e0b 12%, var(--card))', border: '1px solid color-mix(in srgb, #f59e0b 40%, transparent)' }}>
+                    <div className="font-semibold break-words mb-1" style={{ color: 'var(--foreground)' }}>✏️ {c.name}</div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                      {c.qc && <span>수량 <b style={{ color: 'var(--foreground)' }}>{c.fromQty} → {c.toQty}</b></span>}
+                      {c.pc && <span>단가 <b style={{ color: 'var(--foreground)' }}>{formatPrice(c.fromPrice)} → {formatPrice(c.toPrice)}</b></span>}
+                    </div>
+                  </div>
+                );
+                if (c.type === 'field') return (
+                  <div key={i} className="p-2.5 rounded-lg text-sm" style={{ background: 'var(--background)', border: '1px solid var(--border)' }}>
+                    <div className="font-semibold mb-0.5" style={{ color: 'var(--foreground)' }}>{c.label}</div>
+                    <div className="text-xs break-words" style={{ color: 'var(--muted-foreground)' }}>
+                      <span className="line-through opacity-70">{c.from || '(없음)'}</span>
+                      <span className="mx-1">→</span>
+                      <b style={{ color: 'var(--foreground)' }}>{c.to || '(없음)'}</b>
+                    </div>
+                  </div>
+                );
+                if (c.type === 'total') return (
+                  <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg text-sm font-semibold" style={{ background: 'color-mix(in srgb, #3b82f6 14%, var(--card))', border: '1px solid color-mix(in srgb, #3b82f6 45%, transparent)' }}>
+                    <span className="flex-shrink-0" style={{ color: '#2563eb' }}>💰 합계</span>
+                    <span style={{ color: 'var(--foreground)' }}>{formatPrice(c.from)}원 → {formatPrice(c.to)}원</span>
+                  </div>
+                );
+                return null;
+              })}
+            </div>
+            <div className="px-4 py-3 flex gap-2 flex-shrink-0 border-t border-[var(--border)]">
+              <button onClick={() => setPendingSave(null)} className="flex-1 py-2.5 rounded-lg font-medium text-sm border border-[var(--border)] hover:bg-[var(--background)] transition-colors" style={{ color: 'var(--foreground)' }}>
+                취소
+              </button>
+              <button onClick={confirmSave} className="flex-1 py-2.5 rounded-lg font-bold text-sm text-white transition-all hover:brightness-95 active:scale-[0.98]" style={{ background: 'linear-gradient(90deg, #f59e0b, #f97316)' }}>
+                ✅ 적용
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

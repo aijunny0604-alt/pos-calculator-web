@@ -31,8 +31,57 @@ function stripProduct006(product) {
   return out;
 }
 
+// ===== 주문 감사 로그 (order_audit_log) — 혹시 모를 사고 대비, 누가·언제·뭘 바꿨는지 =====
+// 단일 매장 앱이라 "누가"는 기기 식별자(localStorage). 마이그007 미적용/실패해도 주문 흐름은 절대 막지 않음(조용히 무시).
+function getAuditActor() {
+  try {
+    let name = localStorage.getItem('pos_device_name');
+    if (name) return name;
+    let id = localStorage.getItem('pos_device_id');
+    if (!id) { id = 'dev-' + Math.random().toString(36).slice(2, 8); localStorage.setItem('pos_device_id', id); }
+    return id;
+  } catch { return 'pos-web'; }
+}
+// 두 주문 객체의 바뀐 필드만 추출 → { field: { from, to } }
+function diffOrderFields(before, after) {
+  const changes = {};
+  const keys = new Set([...Object.keys(after || {})]);
+  for (const k of keys) {
+    if (k === 'created_at' || k === 'id') continue;
+    const a = before ? before[k] : undefined;
+    const b = after[k];
+    const norm = (v) => (typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
+    if (norm(a) !== norm(b)) changes[k] = { from: a ?? null, to: b ?? null };
+  }
+  return changes;
+}
+async function postAudit(entry) {
+  // fire-and-forget — 주문 작업 지연/실패에 영향 X
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/order_audit_log`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        order_id: entry.orderId ?? null,
+        action: entry.action,
+        changes: entry.changes ?? null,
+        actor: entry.actor ?? getAuditActor(),
+        source: entry.source ?? null,
+      }),
+    });
+  } catch { /* 테이블 미생성 등 — 무시 */ }
+}
+
 // Supabase API
 export const supabase = {
+  // 주문 변경 이력 조회 (최신순) — 특정 주문 또는 전체
+  async getOrderAuditLog(orderId, limit = 100) {
+    try {
+      const q = orderId ? `order_id=eq.${encodeURIComponent(orderId)}&` : '';
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/order_audit_log?${q}order=created_at.desc&limit=${limit}`, { headers });
+    } catch (e) { return []; }
+  },
+  logOrderAudit: postAudit,
   // ===== 주문 =====
   async getOrders() {
     try {
@@ -52,31 +101,53 @@ export const supabase = {
     } catch (e) { console.error('getOrderById:', e); return null; }
   },
   async saveOrder(order) {
+    const _audit = (res) => {
+      const row = Array.isArray(res) ? res[0] : res;
+      if (row?.id) postAudit({ orderId: row.id, action: 'create', changes: { 거래처: order.customer_name, 금액: order.total ?? order.total_amount, 품목수: (order.items || []).length } });
+    };
     try {
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/orders`, {
+      const res = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders`, {
         method: 'POST', headers: headersWithReturn, body: JSON.stringify(order)
       });
+      _audit(res); return res;
     } catch (e) {
       // customer_address 컬럼 없을 경우 재시도
       try {
         const { customer_address, ...rest } = order;
-        return await fetchJSON(`${SUPABASE_URL}/rest/v1/orders`, {
+        const res = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders`, {
           method: 'POST', headers: headersWithReturn, body: JSON.stringify(rest)
         });
+        _audit(res); return res;
       } catch (e) { console.error('saveOrder:', e); return null; }
     }
   },
   async updateOrder(id, order) {
     try {
+      // 감사 로그용 변경 전 스냅샷 (PATCH에 포함된 필드만 비교)
+      let before = null;
+      try {
+        const sel = Object.keys(order).filter((k) => k !== 'id').join(',');
+        const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(id)}&select=${sel || '*'}&limit=1`, { headers });
+        before = Array.isArray(rows) ? rows[0] : rows;
+      } catch { /* 조회 실패해도 PATCH는 진행 */ }
       const result = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?id=eq.${id}`, {
         method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(order)
       });
+      const changes = diffOrderFields(before, order);
+      if (Object.keys(changes).length > 0) postAudit({ orderId: id, action: 'update', changes, source: order.__auditSource });
       return result.length > 0 ? result : true;
     } catch (e) { console.error('updateOrder:', e); return null; }
   },
   async deleteOrder(id) {
     try {
+      // 삭제 전 전체 스냅샷 보존 (복구 단서)
+      let snapshot = null;
+      try {
+        const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(id)}&limit=1`, { headers });
+        snapshot = Array.isArray(rows) ? rows[0] : rows;
+      } catch {}
       const r = await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      if (r.ok) postAudit({ orderId: id, action: 'delete', changes: { snapshot } });
       return r.ok;
     } catch (e) { console.error('deleteOrder:', e); return false; }
   },
@@ -250,6 +321,28 @@ export const supabase = {
       });
       return Array.isArray(data) ? data[0] : data;
     } catch (e) { console.error('updateCustomer:', e); return null; }
+  },
+  // 상호(거래처명) 변경 시 과거 이력 이전 — orders/saved_carts/customer_returns의 customer_name을 새 이름으로 일괄 PATCH.
+  // ⚠️ 주문·이력이 customer_name '텍스트'로 연결돼 있어서, 이걸 안 하면 이름 변경 즉시 과거 주문이 거래처에서 끊긴다.
+  // payment_records는 customer_id(UUID) 연결이라 이름 변경 무관. 반환: { orders, carts, returns } 이전 건수.
+  async renameCustomerCascade(oldName, newName) {
+    const out = { orders: 0, carts: 0, returns: 0 };
+    const from = String(oldName || '').trim();
+    const to = String(newName || '').trim();
+    if (!from || !to || from === to) return out;
+    const enc = encodeURIComponent(from);
+    const patch = async (table, col) => {
+      try {
+        const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/${table}?${col}=eq.${enc}`, {
+          method: 'PATCH', headers: headersWithReturn, body: JSON.stringify({ [col]: to })
+        });
+        return Array.isArray(rows) ? rows.length : 0;
+      } catch (e) { console.error(`renameCascade ${table}:`, e); return 0; }
+    };
+    out.orders = await patch('orders', 'customer_name');
+    out.carts = await patch('saved_carts', 'name'); // ⚠️ saved_carts는 거래처명이 name 컬럼
+    out.returns = await patch('customer_returns', 'customer_name');
+    return out;
   },
   async deleteCustomer(id) {
     try {
@@ -813,9 +906,11 @@ export const supabase = {
   },
 
   // ===== 외부 마켓플레이스 주문 (네이버 스마트스토어 등) =====
-  async getExternalOrders({ provider, status, limit = 100 } = {}) {
+  // select 옵션 — 배지 카운트 등 가벼운 용도는 필요한 컬럼만 받아 raw_payload(큰 JSONB) 전송 회피.
+  async getExternalOrders({ provider, status, limit = 100, select } = {}) {
     try {
       let url = `${SUPABASE_URL}/rest/v1/external_orders?order=received_at.desc&limit=${limit}`;
+      if (select) url += `&select=${select}`;
       if (provider) url += `&provider=eq.${provider}`;
       if (status) url += `&order_status=eq.${status}`;
       return await fetchJSON(url, { headers });
@@ -835,6 +930,26 @@ export const supabase = {
         { headers }
       );
     } catch (e) { console.error('getExternalOrderItems:', e); return []; }
+  },
+  // 여러 주문의 items를 한 번에 — N+1 제거(주문마다 따로 요청하던 것 → 단일 in.() 쿼리). 반환: { [external_order_id]: items[] }
+  async getExternalOrderItemsByOrders(orderIds) {
+    const ids = (orderIds || []).filter(Boolean);
+    if (ids.length === 0) return {};
+    const map = {};
+    try {
+      // URL 길이 한도 대비 100개씩 청크 (49건 규모면 1번이지만 안전하게)
+      for (let i = 0; i < ids.length; i += 100) {
+        const chunk = ids.slice(i, i + 100);
+        const rows = await fetchJSON(
+          `${SUPABASE_URL}/rest/v1/external_order_items?external_order_id=in.(${chunk.map(encodeURIComponent).join(',')})&order=created_at.asc`,
+          { headers }
+        );
+        for (const r of (rows || [])) {
+          (map[r.external_order_id] ||= []).push(r);
+        }
+      }
+      return map;
+    } catch (e) { console.error('getExternalOrderItemsByOrders:', e); return map; }
   },
   // provider_order_id 로 외부주문 단건 조회 (택배 송장 페이지 → 네이버 발송 연동용)
   async getExternalOrderByProviderOrderId(providerOrderId) {

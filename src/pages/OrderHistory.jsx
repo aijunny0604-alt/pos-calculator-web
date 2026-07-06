@@ -31,6 +31,31 @@ function CountNumber({ value, duration = 700 }) {
   return <>{Number(n).toLocaleString('ko-KR')}</>;
 }
 
+// 스토어(네이버 등) 내부주문 전환 시 자동 기입되는 메모 식별 — 사용자 메모가 아니므로
+// 주문 카드 메모 박스/미확인 메모 알림·집계에서 제외. ⚠️ DB 메모는 그대로 유지(송장 발송인=엠파츠·
+// 착불/선불 자동, 주문내역 네이버 카드 강조 등 기존 기능이 memo 마커에 의존하므로 절대 삭제 X).
+const isStoreAutoMemo = (memo) => {
+  const m = (memo || '').trim();
+  if (!m) return false;
+  return /^\[\s*엠파츠\s*\]/.test(m)
+    || /\[\s*네\s*이\s*버\s*스마트스토어\s*\]/.test(m)
+    // 기타 마켓 전환 메모 — 알려진 마켓 라벨만 매칭(임의 [메모] 주문번호:.. 사용자 메모 오숨김 방지) [bug-hunt 8]
+    || /^\[\s*(쿠팡|G마켓|지마켓|11번가|옥션|위메프|티몬|스마트스토어|네이버)\s*\]\s*주문번호\s*:/.test(m);
+};
+// 카드/알림에 노출할 "사용자 메모"만 (스토어 자동 메모 제외)
+const hasUserMemo = (o) => !!o?.memo && !isStoreAutoMemo(o.memo);
+
+// 스토어 전환 메모에서 주문자(구매자)·받는분(수령인) 파싱 — 카드엔 자동메모 박스가 숨겨져 있어
+// 주문자≠받는분일 때 따로 표시해주기 위함. 형식: "구매자: 이름 / 전화", "받는분: 이름 / 전화"
+const parseStoreParties = (memo) => {
+  const m = memo || '';
+  const buyerM = m.match(/구매자:\s*([^\n/]+?)(?:\s*\/\s*([0-9+\-\s]+))?\s*(?:\n|$)/);
+  const recvM = m.match(/받는분:\s*([^\n/]+?)(?:\s*\/\s*([0-9+\-\s]+))?\s*(?:\n|$)/);
+  const buyer = buyerM && buyerM[1].trim() ? { name: buyerM[1].trim(), tel: (buyerM[2] || '').trim() } : null;
+  const receiver = recvM && recvM[1].trim() ? { name: recvM[1].trim(), tel: (recvM[2] || '').trim() } : null;
+  return { buyer, receiver };
+};
+
 export default function OrderHistory({
   orders,
   onBack,
@@ -122,7 +147,7 @@ export default function OrderHistory({
 
   // 진입 시 미확인 메모 알림 (페이지 진입할 때마다)
   useEffect(() => {
-    const unchecked = orders.filter(o => !!o.memo && !o.memoChecked).length;
+    const unchecked = orders.filter(o => hasUserMemo(o) && !o.memoChecked).length;
     if (unchecked > 0) {
       setMemoAlert(unchecked);
       const timer = setTimeout(() => setMemoAlert(false), 4000);
@@ -245,19 +270,26 @@ export default function OrderHistory({
       return (order.customerName || '').toLowerCase().replace(/\s/g, '') === customerFilter.toLowerCase().replace(/\s/g, '');
     })
     .filter(order => {
-      const search = searchTerm.toLowerCase().replace(/\s/g, '');
-      if (!search) return true;
-      const orderNum = String(order.orderNumber || '').toLowerCase().replace(/\s/g, '');
-      const customerName = (order.customerName || '').toLowerCase().replace(/\s/g, '');
-      const customerPhone = (order.customerPhone || '').replace(/\s/g, '');
-      const memo = (order.memo || '').toLowerCase().replace(/\s/g, '');
-      return orderNum.includes(search) || customerName.includes(search) || customerPhone.includes(search) || memo.includes(search);
+      const raw = searchTerm.trim().toLowerCase();
+      if (!raw) return true;
+      // 검색 대상 = 주문번호 + 거래처명 + 전화 + 메모 + 제품명(items) 전체
+      const itemNames = (order.items || []).map(it => it?.name || '').join(' ');
+      const hayNoSpace = [
+        String(order.orderNumber || ''),
+        order.customerName || '',
+        order.customerPhone || '',
+        order.memo || '',
+        itemNames,
+      ].join(' ').toLowerCase().replace(/\s/g, '');
+      // 토큰 AND — "HKS BOV 밸브"의 각 단어가 모두 있으면 매칭(어순·중간글자 무관)
+      const tokens = raw.split(/\s+/).filter(Boolean);
+      return tokens.every(t => hayNoSpace.includes(t.replace(/\s/g, '')));
     })
     .filter(order => !showReturnsOnly || (order.totalReturned || 0) > 0)
     .filter(order => {
       if (memoFilter === 'off') return true;
-      if (memoFilter === 'unchecked') return !!order.memo && !order.memoChecked;
-      if (memoFilter === 'all') return !!order.memo;
+      if (memoFilter === 'unchecked') return hasUserMemo(order) && !order.memoChecked;
+      if (memoFilter === 'all') return hasUserMemo(order);
       return true;
     });
 
@@ -265,10 +297,10 @@ export default function OrderHistory({
   const filteredTotalSales = filteredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const filteredTotalReturned = filteredOrders.reduce((sum, o) => sum + (o.totalReturned || 0), 0);
   const filteredReturnCount = filteredOrders.filter(o => (o.totalReturned || 0) > 0).length;
-  const filteredMemoCount = filteredOrders.filter(o => !!o.memo).length;
-  const filteredMemoUnchecked = filteredOrders.filter(o => !!o.memo && !o.memoChecked).length;
-  const totalMemoCount = orders.filter(o => !!o.memo).length;
-  const totalMemoUnchecked = orders.filter(o => !!o.memo && !o.memoChecked).length;
+  const filteredMemoCount = filteredOrders.filter(o => hasUserMemo(o)).length;
+  const filteredMemoUnchecked = filteredOrders.filter(o => hasUserMemo(o) && !o.memoChecked).length;
+  const totalMemoCount = orders.filter(o => hasUserMemo(o)).length;
+  const totalMemoUnchecked = orders.filter(o => hasUserMemo(o) && !o.memoChecked).length;
   const totalSales = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const totalReturned = orders.reduce((sum, o) => sum + (o.totalReturned || 0), 0);
   const totalReturnCount = orders.filter(o => (o.totalReturned || 0) > 0).length;
@@ -329,6 +361,71 @@ export default function OrderHistory({
     { key: 'custom', label: '날짜 선택' },
     { key: 'all', label: '전체' },
   ];
+
+  // 하루씩 앞/뒤로 이동 — 현재 기준일을 ±1일 한 뒤 '날짜 선택'(단일 날짜) 모드로 고정
+  const currentAnchorDate = () => {
+    const t = getTodayKST();
+    if (dateFilter === 'custom' && customDate) return customDate;
+    if (dateFilter === 'yesterday') return offsetDateKST(t, -1);
+    return t; // today / week / month / all → 오늘 기준
+  };
+  const stepDate = (delta) => {
+    const next = offsetDateKST(currentAnchorDate(), delta);
+    setCustomDate(next);
+    setDateFilter('custom');
+    setSelectedOrders([]);
+  };
+  // 가운데 날짜 라벨 클릭 → 달력에서 원하는 날짜 직접 선택
+  const pickDate = (v) => {
+    if (!v) return;
+    setCustomDate(v);
+    setDateFilter('custom');
+    setSelectedOrders([]);
+  };
+  const canStepForward = currentAnchorDate() < getTodayKST(); // 오늘 이후(미래)로는 이동 막음
+  const mmddLabel = (d) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : '');
+
+  // ◀ [📅 M/D] ▶ 날짜 스테퍼 (두 필터 줄에서 재사용). 가운데 라벨은 클릭 시 달력 오픈
+  const DateStepper = ({ small }) => {
+    const btn = small ? 'w-9 h-9 text-lg' : 'w-11 h-11 text-2xl';
+    const mid = small ? 'px-3 py-1.5 text-sm' : 'px-4 py-2.5 text-lg';
+    return (
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <button
+          onClick={() => stepDate(-1)}
+          title="하루 전"
+          aria-label="하루 전"
+          className={`${btn} rounded-xl flex items-center justify-center font-black leading-none transition-all hover:-translate-y-px hover:shadow-md active:translate-y-0`}
+          style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
+        >‹</button>
+        {/* 라벨 위에 투명 date input을 겹쳐 어느 브라우저든 클릭 시 네이티브 달력 오픈 */}
+        <label
+          className={`${mid} relative rounded-xl font-extrabold tabular-nums whitespace-nowrap cursor-pointer inline-flex items-center gap-1.5 transition-all hover:-translate-y-px hover:shadow-md`}
+          style={{ background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
+          title="클릭하여 날짜 선택"
+        >
+          <span aria-hidden className={small ? 'text-sm' : 'text-base'}>📅</span>
+          {mmddLabel(currentAnchorDate())}
+          <input
+            type="date"
+            value={currentAnchorDate() || ''}
+            max={getTodayKST()}
+            onChange={(e) => pickDate(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-label="날짜 선택"
+          />
+        </label>
+        <button
+          onClick={() => stepDate(1)}
+          disabled={!canStepForward}
+          title="하루 후"
+          aria-label="하루 후"
+          className={`${btn} rounded-xl flex items-center justify-center font-black leading-none transition-all hover:-translate-y-px hover:shadow-md active:translate-y-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none`}
+          style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
+        >›</button>
+      </div>
+    );
+  };
 
   return (
     <div style={{ background: 'var(--background)' }}>
@@ -444,7 +541,8 @@ export default function OrderHistory({
 
           {/* Date filter buttons - always visible */}
           {isHeaderCollapsed && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+              <DateStepper small />
               {dateFilterOptions.map(({ key, label }) => (
                 <button
                   key={key}
@@ -697,7 +795,8 @@ export default function OrderHistory({
             </div>
 
             {/* Date filter buttons */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              <DateStepper />
               {dateFilterOptions.map(({ key, label }) => (
                 <button
                   key={key}
@@ -750,7 +849,7 @@ export default function OrderHistory({
                 />
                 <input
                   type="text"
-                  placeholder="주문번호, 고객명, 연락처, 메모 검색..."
+                  placeholder="제품명, 고객명, 주문번호, 연락처, 메모 검색..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2"
@@ -813,8 +912,8 @@ export default function OrderHistory({
         </div>
       </header>
 
-      {/* Order list */}
-      <div className="px-2 sm:px-4 py-4">
+      {/* Order list — 모바일 하단 네비에 마지막 카드 버튼(장바구니 등) 가려짐 방지: pb 확대 */}
+      <div className="px-2 sm:px-4 pt-4 pb-24 md:pb-4">
         {isLoading && (
           <div className="flex flex-col items-center py-8">
             <RefreshCw className="w-8 h-8 animate-spin mb-2" style={{ color: 'var(--primary)' }} />
@@ -844,6 +943,11 @@ export default function OrderHistory({
               const isNaverOrder = classifyOrderChannel(order) === 'naver';
               // memo 에서 실제 구매자 이름 추출 (옛 엠파츠 거래처 데이터 호환용)
               const naverBuyer = isNaverOrder ? extractNaverBuyer(order) : null;
+              // 스토어 주문자(구매자)·받는분 파싱 — 주문자≠받는분일 때 받는분 별도 표시
+              const storeParties = isNaverOrder ? parseStoreParties(order.memo) : { buyer: null, receiver: null };
+              const ordererName = storeParties.buyer?.name || naverBuyer || order.customerName;
+              const receiverDiff = storeParties.receiver && storeParties.receiver.name
+                && storeParties.receiver.name !== ordererName;
 
               return (
                 <div
@@ -969,8 +1073,16 @@ export default function OrderHistory({
                               → {naverBuyer} 님
                             </span>
                           )}
+                          {/* 주문자 ≠ 받는분 — 받는분 별도 강조 배지 (주황) */}
+                          {receiverDiff && (
+                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
+                              style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)', border: '1px solid color-mix(in srgb, var(--warning) 45%, transparent)' }}
+                              title={`받는분: ${storeParties.receiver.name}${storeParties.receiver.tel ? ` / ${storeParties.receiver.tel}` : ''} (주문자와 다름)`}>
+                              🎁 받는분 {storeParties.receiver.name}
+                            </span>
+                          )}
                           <span
-                            className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
+                            className="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
                             style={{
                               background: order.priceType === 'wholesale'
                                 ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
@@ -980,9 +1092,19 @@ export default function OrderHistory({
                           >
                             {order.priceType === 'wholesale' ? '도매' : '소비자'}
                           </span>
+                          {/* 완불 칩 — 이름 옆(같은 줄)에 표시 (사장님 요청 2026-06-16) */}
+                          {isPaid && (
+                            <span
+                              className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
+                              style={{ background: '#10b981', color: 'white' }}
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              완불 {paidMethod?.emoji} {paidMethod?.label}
+                            </span>
+                          )}
                           {isBlacklist && (
                             <span
-                              className="px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 font-semibold"
+                              className="px-2 py-0.5 rounded-full text-[10px] flex-shrink-0 font-bold"
                               style={{
                                 background: 'color-mix(in srgb, var(--destructive) 20%, transparent)',
                                 color: 'var(--destructive)',
@@ -998,7 +1120,7 @@ export default function OrderHistory({
                             고객 미지정
                           </span>
                           <span
-                            className="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
+                            className="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
                             style={{
                               background: order.priceType === 'wholesale'
                                 ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
@@ -1007,19 +1129,6 @@ export default function OrderHistory({
                             }}
                           >
                             {order.priceType === 'wholesale' ? '도매' : '소비자'}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* 완불 인라인 칩 (간섭 없음, 자동 줄바꿈) */}
-                      {isPaid && (
-                        <div className="flex items-center gap-1 flex-wrap mb-1">
-                          <span
-                            className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                            style={{ background: '#10b981', color: 'white' }}
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            완불 {paidMethod?.emoji} {paidMethod?.label}
                           </span>
                         </div>
                       )}
@@ -1070,7 +1179,7 @@ export default function OrderHistory({
                         }, 0);
                         return (
                           <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                            className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold"
                             style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)' }}
                           >
                             🏷 할인 {discounted.length}건 (-{formatPrice(totalSaved)}원)
@@ -1147,8 +1256,8 @@ export default function OrderHistory({
                     );
                   })()}
 
-                  {/* Memo preview with check toggle */}
-                  {order.memo && (
+                  {/* Memo preview with check toggle — 스토어 자동 메모는 카드에 숨김(DB엔 유지) */}
+                  {hasUserMemo(order) && (
                     <div
                       className="text-xs px-2 py-1 rounded mb-2 flex items-center gap-1"
                       style={{
@@ -1332,10 +1441,19 @@ export default function OrderHistory({
                     </div>
                   )}
 
-                  {/* Inline delete confirm */}
+                  {/* Inline delete confirm — 무엇을 지우는지 요약 표시(실수 방지) */}
                   {deleteConfirm === order.orderNumber && (
-                    <div className="mt-2 p-2.5 border rounded-lg" onClick={(e) => e.stopPropagation()} style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)' }}>
-                      <p className="text-xs mb-2" style={{ color: 'var(--destructive)' }}>정말 삭제하시겠습니까?</p>
+                    <div className="mt-2 p-3 border rounded-lg" onClick={(e) => e.stopPropagation()} style={{ background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)' }}>
+                      <p className="text-sm font-bold mb-1.5" style={{ color: 'var(--destructive)' }}>🗑️ 이 주문을 삭제할까요?</p>
+                      <div className="text-xs mb-2.5 p-2 rounded" style={{ background: 'var(--card)', color: 'var(--foreground)' }}>
+                        <div className="font-semibold break-words">{order.customerName || '(거래처 없음)'}</div>
+                        <div className="mt-0.5 break-words" style={{ color: 'var(--muted-foreground)' }}>
+                          {(order.items || []).slice(0, 3).map(it => it?.name).filter(Boolean).join(', ')}
+                          {(order.items || []).length > 3 ? ` 외 ${order.items.length - 3}건` : ''}
+                        </div>
+                        <div className="mt-0.5 font-bold" style={{ color: 'var(--destructive)' }}>합계 {formatPrice(order.totalAmount || 0)}원</div>
+                      </div>
+                      <p className="text-[11px] mb-2" style={{ color: 'var(--muted-foreground)' }}>삭제해도 Ctrl+Z 또는 하단 [↩️ 실행취소]로 복구할 수 있어요.</p>
                       <div className="flex gap-2">
                         <button
                           onClick={() => { onDeleteOrder(order.orderNumber); setDeleteConfirm(null); }}
@@ -1367,7 +1485,7 @@ export default function OrderHistory({
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
         >
           <div
-            className="rounded-2xl w-full max-w-md p-6 border shadow-2xl"
+            className="rounded-2xl w-full max-w-md p-6 border shadow-2xl modal-card-safe"
             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
           >
             <div className="flex items-center gap-3 mb-4">
@@ -1414,7 +1532,7 @@ export default function OrderHistory({
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
         >
           <div
-            className="rounded-2xl w-full max-w-lg p-6 border shadow-2xl"
+            className="rounded-2xl w-full max-w-lg p-6 border shadow-2xl modal-card-safe"
             style={{
               background: 'var(--card)',
               borderColor: 'color-mix(in srgb, var(--destructive) 40%, var(--border))',
@@ -1478,7 +1596,7 @@ export default function OrderHistory({
       {naverDispatchModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => setNaverDispatchModal(null)}>
-          <div className="rounded-xl w-full max-w-md p-5 border"
+          <div className="rounded-xl w-full max-w-md p-5 border modal-card-safe"
             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-4">

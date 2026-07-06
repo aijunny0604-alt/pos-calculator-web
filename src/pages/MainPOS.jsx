@@ -4,6 +4,7 @@ import {
   Package, Calculator, Maximize2, Minimize2, RotateCcw, Zap, ArrowLeft, Mic, MicOff
 } from 'lucide-react';
 import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calculateDiscount } from '@/lib/utils';
+import { searchProductsRanked } from '@/lib/productMatch';
 import { isImageDemoMode, getSampleImage } from '@/lib/sampleProductImages';
 import ProductGalleryModal from '@/components/ProductGalleryModal';
 import OrderPage from './OrderPage';
@@ -58,6 +59,15 @@ export default function MainPOS({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
+  // ⚡ AI 검색 토글 — ON이면 오타/초성/동의어/치수흔들림 보정 + 관련도순 정렬 (로컬·즉시). 기본 ON
+  const [aiSearch, setAiSearch] = useState(() => {
+    try { return localStorage.getItem('pos_ai_product_search') !== '0'; } catch { return true; }
+  });
+  const toggleAiSearch = () => setAiSearch((prev) => {
+    const next = !prev;
+    try { localStorage.setItem('pos_ai_product_search', next ? '1' : '0'); } catch { /* noop */ }
+    return next;
+  });
   const [galleryProduct, setGalleryProduct] = useState(null); // 갤러리 모달 대상
   const [expandedCategories, setExpandedCategories] = useState({});
   const [isCartExpanded, setIsCartExpanded] = useState(false);
@@ -115,21 +125,41 @@ export default function MainPOS({
   const cartMap = useMemo(() => new Map(cart.map(item => [item.id, item])), [cart]);
 
   const filteredProducts = useMemo(() => {
+    const q = searchTerm.trim();
+    // ⚡ AI 검색 ON + 검색어 있음 → 관련도순(오타/초성/동의어/치수보정) 랭킹 후 카테고리 필터
+    if (aiSearch && q) {
+      let ranked = searchProductsRanked(q, products);
+      if (selectedCategory !== '전체') ranked = ranked.filter(p => p.category === selectedCategory);
+      return ranked.slice(0, 18); // 관련도순 상위 18개까지만 (너무 많으면 어지러움 — 노이즈는 엔진서 이미 컷)
+    }
+    // 기존 정확검색(부분일치/자모순서) — AI OFF 또는 검색어 없음
     return products.filter(product => {
       const matchesSearch = matchesSearchQuery(product.name, searchTerm);
       const matchesCategory = selectedCategory === '전체' || product.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [searchTerm, selectedCategory, products]);
+  }, [searchTerm, selectedCategory, products, aiSearch]);
+
+  // 🎯 AI 검색 최상위 일치 제품 (관련도 1순위) — 가장 눈에 띄게 강조 + 정확일치 여부
+  const topMatch = useMemo(() => {
+    if (!aiSearch || !searchTerm.trim() || filteredProducts.length === 0) return null;
+    const norm = (s) => String(s || '').toLowerCase().replace(/[\s\-_]/g, '');
+    const top = filteredProducts[0];
+    return { id: top.id, exact: norm(top.name) === norm(searchTerm) };
+  }, [aiSearch, searchTerm, filteredProducts]);
 
   const groupedProducts = useMemo(() => {
+    // ⚡ AI 검색 + 검색어: 카테고리 그룹 대신 관련도순 단일 그룹(최상위 매칭 먼저)
+    if (aiSearch && searchTerm.trim()) {
+      return filteredProducts.length ? { '🔎 관련도순': filteredProducts } : {};
+    }
     const groups = {};
     filteredProducts.forEach(product => {
       if (!groups[product.category]) groups[product.category] = [];
       groups[product.category].push(product);
     });
     return groups;
-  }, [filteredProducts]);
+  }, [filteredProducts, aiSearch, searchTerm]);
 
   const cartWithDiscount = useMemo(() => {
     return cart.map(item => {
@@ -463,10 +493,34 @@ export default function MainPOS({
               <option value="전체">전체</option>
               {dynamicCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
+
+            {/* ⚡ AI 검색 토글 — 오타·초성·동의어·치수 흔들림 보정 + 관련도순 */}
+            <button
+              onClick={toggleAiSearch}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all flex-shrink-0 active:scale-95"
+              style={aiSearch
+                ? { background: 'color-mix(in srgb, var(--warning) 18%, var(--card))', borderColor: 'var(--warning)', color: 'var(--warning)' }
+                : { background: 'var(--muted)', borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+              title={aiSearch ? 'AI 검색 ON — 오타/초성/동의어/치수 보정 (끄려면 클릭)' : 'AI 검색 OFF — 정확검색 (켜려면 클릭)'}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              AI 검색
+              <span
+                className="ml-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                style={aiSearch
+                  ? { background: 'var(--warning)', color: 'white' }
+                  : { background: 'var(--border)', color: 'var(--muted-foreground)' }}
+              >
+                {aiSearch ? 'ON' : 'OFF'}
+              </span>
+            </button>
           </div>
 
           <div className="mt-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
             {filteredProducts.length}개 제품
+            {aiSearch && searchTerm.trim() && (
+              <span className="ml-1.5 font-semibold" style={{ color: 'var(--warning)' }}>· ⚡ 관련도순</span>
+            )}
           </div>
         </div>
 
@@ -509,7 +563,7 @@ export default function MainPOS({
               <p style={{ color: 'var(--muted-foreground)' }}>검색 결과가 없습니다</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${(aiSearch && searchTerm.trim()) ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
               {Object.entries(groupedProducts)
                 // 네이버 자동등록 제품은 검색 시 항상 맨 아래로 (사용자 요청 — 중요도 낮음)
                 .sort(([a], [b]) => {
@@ -555,8 +609,15 @@ export default function MainPOS({
                       ) || isImageDemoMode();
                       // 이미지 있는 제품이 하나라도 있으면 모든 카드가 이미지 레이아웃 사용
                       // 이미지 없는 카드는 placeholder로 채움 → 균일한 그리드
+                      const aiSingle = aiSearch && searchTerm.trim();
+                      // AI 검색(단일 관련도순 그룹)은 PC 폭·높이 꽉 채우기 — 반응형 다열 + 높이제한 해제(바깥이 스크롤)
+                      // AI 검색은 리스트형 — 한 줄에 하나씩 크게(가로 행). 일반은 기존 카드 그리드
+                      const gridColsCls = aiSingle
+                        ? 'grid-cols-1'
+                        : (categoryHasImage ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-2');
+                      const heightCls = aiSingle ? '' : 'max-h-72 overflow-y-auto';
                       return (
-                      <div className={`p-2 grid gap-1.5 max-h-72 overflow-y-auto ${categoryHasImage ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-2'}`}>
+                      <div className={`p-2.5 grid gap-2.5 ${heightCls} ${gridColsCls}`}>
                         {categoryProducts.map(product => {
                           const cartItem = cartMap.get(product.id);
                           const cartQty = cartItem ? cartItem.quantity : 0;
@@ -577,18 +638,19 @@ export default function MainPOS({
                           // ⚠️ 주의사항: 강조 색상 왼쪽 액센트 바 + 메모 배지 (트레일러 타이어 등)
                           const flagColor = FLAG_MAP[product.flag_color] || null;
                           const hasNote = !!(product.note && String(product.note).trim());
+                          const isTopMatch = topMatch && product.id === topMatch.id;
                           return (
                             <div
                               key={product.id}
                               onClick={() => !cartItem && addToCart(product)}
                               title={hasNote ? product.note : undefined}
-                              className={`card-interactive rounded-lg cursor-pointer select-none border overflow-hidden ${
-                                demoImg ? 'flex flex-col md:flex-row md:items-stretch md:min-h-[6rem]' : 'px-3 py-4 min-h-[5.5rem] flex flex-col justify-between'
+                              className={`card-interactive rounded-xl cursor-pointer select-none border overflow-hidden ${
+                                demoImg ? 'flex flex-col md:flex-row md:items-stretch md:min-h-[6rem]' : (aiSingle ? 'px-4 py-3.5 flex flex-row items-center justify-between gap-4' : 'px-3.5 py-4 min-h-[5.5rem] flex flex-col justify-between')
                               } ${
                                 inCart
                                   ? 'ring-2'
                                   : ''
-                              }`}
+                              } ${isTopMatch ? 'top-match-card' : ''}`}
                               style={{
                                 background: inCart
                                   ? 'color-mix(in srgb, var(--primary) 10%, var(--card))'
@@ -636,13 +698,26 @@ export default function MainPOS({
                                   )}
                                 </div>
                               )}
-                              <div className={demoImg ? 'flex-1 min-w-0 px-3 py-2 flex flex-col justify-between' : ''}>
+                              <div className={demoImg ? 'flex-1 min-w-0 px-3 py-2 flex flex-col justify-between' : (aiSingle ? 'flex flex-row items-center justify-between gap-4 flex-1 min-w-0' : '')}>
                               {/* Product name & stock badge */}
-                              <div className="flex items-start justify-between mb-1.5 gap-1">
+                              <div className={`flex items-start gap-1.5 ${aiSingle ? 'flex-1 min-w-0 items-center' : 'justify-between mb-1.5'}`}>
                                 <p
-                                  className="text-sm font-medium flex-1 min-w-0 break-words leading-snug"
+                                  className={`${aiSingle ? 'text-base sm:text-lg font-semibold' : 'text-sm font-medium'} flex-1 min-w-0 break-words leading-snug`}
                                   style={{ color: 'var(--foreground)' }}
                                 >
+                                  {isTopMatch && (
+                                    <span
+                                      className="top-match-badge inline-flex items-center mr-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold align-middle whitespace-nowrap"
+                                      style={{
+                                        background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
+                                        color: 'white',
+                                        boxShadow: '0 2px 9px -2px color-mix(in srgb, #8b5cf6 55%, transparent)',
+                                        letterSpacing: '0.02em',
+                                      }}
+                                    >
+                                      {topMatch.exact ? '✓ 정확' : '🎯 1순위'}
+                                    </span>
+                                  )}
                                   {hasNote && (
                                     <span className="inline-flex items-center mr-1 align-middle" title={product.note} style={{ color: flagColor || 'var(--warning)' }}>⚠️</span>
                                   )}
@@ -724,9 +799,9 @@ export default function MainPOS({
                                   </div>
                                 </div>
                               ) : (
-                                <div className="min-w-0">
+                                <div className={aiSingle ? 'text-right flex-shrink-0' : 'min-w-0'}>
                                   <p
-                                    className="text-lg sm:text-xl font-black whitespace-nowrap leading-tight tabular-nums"
+                                    className={`${aiSingle ? 'text-xl sm:text-2xl' : 'text-lg sm:text-xl'} font-black whitespace-nowrap leading-tight tabular-nums`}
                                     style={{
                                       color: priceType === 'wholesale' ? 'var(--primary)' : 'var(--destructive)',
                                       letterSpacing: '-0.02em',
@@ -734,7 +809,7 @@ export default function MainPOS({
                                   >
                                     {formatPrice(displayPrice)}<span className="text-xs font-bold ml-0.5">원</span>
                                   </p>
-                                  <p className="text-[10px] whitespace-nowrap mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                                  <p className={`${aiSingle ? 'text-xs' : 'text-[10px]'} whitespace-nowrap mt-0.5`} style={{ color: 'var(--muted-foreground)' }}>
                                     VAT제외 {formatPrice(exVatPrice)}원
                                   </p>
                                 </div>

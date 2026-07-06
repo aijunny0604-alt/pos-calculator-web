@@ -126,7 +126,7 @@ export default function OrderConfirmEditable({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 sm:py-10 backdrop-blur-sm overflow-y-auto">
       <div
-        className="movis-glass-card w-full max-w-2xl p-5 sm:p-6 my-6 sm:my-10 min-w-0 flex flex-col"
+        className="movis-glass-card w-full max-w-3xl p-5 sm:p-7 my-6 sm:my-10 min-w-0 flex flex-col"
         style={{
           background: 'rgba(10, 25, 41, 0.96)',
           maxHeight: 'calc(100vh - 80px)', // 모바일/PC 모두 위아래 40px gap 보장
@@ -134,8 +134,8 @@ export default function OrderConfirmEditable({
       >
         {/* 헤더 */}
         <div className="flex items-center gap-2 mb-4 movis-text-primary">
-          <Truck className="w-6 h-6 text-[var(--jarvis-cyan)]" />
-          <h3 className="text-xl font-bold flex-1">주문 등록 확인</h3>
+          <Truck className="w-6 h-6 sm:w-7 sm:h-7 text-[var(--jarvis-cyan)] flex-shrink-0" />
+          <h3 className="text-xl sm:text-2xl font-bold flex-1">주문 등록 확인</h3>
           {/* [수정] 버튼 — 항상 노출 (정상 매칭이어도 사용자가 편집 가능하게) */}
           <button
             type="button"

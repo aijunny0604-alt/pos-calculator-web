@@ -51,21 +51,26 @@ export default class ChunkErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      const isChunk = this.state.isChunkError;
       return (
-        <div className="flex flex-col items-center justify-center h-full p-8 text-center gap-4" style={{ minHeight: 320 }}>
-          <div className="text-4xl">🔄</div>
-          <div className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-            {this.state.isChunkError
-              ? '새 버전이 배포되어 화면을 다시 불러와야 해요'
-              : '화면을 불러오는 중 문제가 생겼어요'}
+        <div className="ub-screen">
+          <div className="ub-loader">
+            <span className="ub-glow" />
+            <span className="ub-ring ub-ring-1" />
+            <span className="ub-ring ub-ring-2" />
+            <span className="ub-core">M</span>
           </div>
-          <button
-            onClick={this.handleRetry}
-            className="px-4 py-2 rounded-lg text-sm font-bold"
-            style={{ background: 'var(--primary)', color: 'white' }}
-          >
-            다시 불러오기
-          </button>
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="ub-title">
+              {isChunk ? '새 버전으로 업데이트' : '화면 복구'}
+              <span className="ub-dots" />
+            </div>
+            <div className="ub-sub">
+              {isChunk ? '최신 버전을 적용하고 있어요 · 잠시만요' : '문제가 생겨 화면을 다시 불러오는 중이에요'}
+            </div>
+          </div>
+          <div className="ub-progress" />
+          <button onClick={this.handleRetry} className="ub-retry">다시 불러오기</button>
         </div>
       );
     }

@@ -313,11 +313,11 @@ export default function Dashboard({
                   <span className="text-xs px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'var(--destructive)', color: 'white' }}>{uncheckedMemos.length}</span>
                 </div>
                 <button
-                  onClick={() => setCurrentPage('orders')}
+                  onClick={() => setCurrentPage('memos')}
                   className="text-xs flex items-center gap-1 hover:underline"
                   style={{ color: 'var(--primary)' }}
                 >
-                  전체보기 <ArrowRight className="w-3 h-3" />
+                  메모 전체보기 <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
               <div className="space-y-2 max-h-64 overflow-y-auto custom-scroll">

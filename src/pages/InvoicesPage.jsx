@@ -5,7 +5,8 @@ import { Printer, Download, Copy, Search, X as XIcon } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 const fmtMMDD = (iso) => (iso || '').slice(5).replace('-', '.');
-const todayISO = () => new Date().toISOString().slice(0, 10);
+// KST 기준 오늘 (UTC+9). new Date().toISOString()(UTC)는 KST 00~09시에 전날로 잡혀 명세서 날짜가 어긋남 [bug-hunt 6]
+const todayISO = () => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const offsetDays = (iso, days) => {
   const d = new Date(iso + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + days);
@@ -89,6 +90,21 @@ export default function InvoicesPage({
       default:          return { from: today, to: today, label: today };
     }
   }, [datePreset, date]);
+
+  // 하루씩 앞/뒤로 이동 — 기준일을 ±1일 한 뒤 단일 날짜('custom') 모드로 고정 (그날 명세서만 표시)
+  const invAnchorDate = () => {
+    const t = todayISO();
+    if (datePreset === 'custom' && date) return date;
+    if (datePreset === 'yesterday') return offsetDays(t, -1);
+    return t; // today / thisWeek / thisMonth / all → 오늘 기준
+  };
+  const stepInvoiceDate = (delta) => {
+    const next = offsetDays(invAnchorDate(), delta);
+    setDate(next);
+    setDatePreset('custom');
+  };
+  const invCanForward = invAnchorDate() < todayISO(); // 미래로는 이동 막음
+  const invMmdd = (d) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : '');
 
   useEffect(() => {
     setLoading(true);
@@ -472,10 +488,14 @@ export default function InvoicesPage({
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
 
+  // 캡처(PNG/카톡) 시 화면용 버튼(.no-print: 입금등록·일괄입금·업체상세·행별 수정/X·안내수정)을 제외
+  // → 진짜 명세서처럼 깔끔하게 저장 (no-print는 @media print 전용이라 캡처엔 그대로 찍히던 문제)
+  const exportFilter = (node) => !(node?.classList?.contains?.('no-print'));
+
   const handlePng = async () => {
     if (!invoiceRef.current) { alert('명세서 요소를 찾을 수 없습니다'); return; }
     try {
-      const dataUrl = await toPng(invoiceRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
+      const dataUrl = await toPng(invoiceRef.current, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter });
       const a = document.createElement('a');
       a.href = dataUrl;
       const nameTag = isAllCustomers
@@ -499,7 +519,7 @@ export default function InvoicesPage({
       return;
     }
     try {
-      const blob = await toBlob(invoiceRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
+      const blob = await toBlob(invoiceRef.current, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter });
       if (!blob) throw new Error('blob 생성 실패');
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       showToast('✅ 클립보드 복사됨 — 카톡에 붙여넣기');
@@ -561,7 +581,28 @@ export default function InvoicesPage({
             {/* 펼쳤을 때: 날짜 프리셋 + 업체 칩 전체 노출 */}
             {!headerCollapsed && (
               <>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  {/* ◀ M/D ▶ 날짜 스테퍼 — 하루씩 이동 (그날 명세서만 표시) */}
+                  <button
+                    onClick={() => stepInvoiceDate(-1)}
+                    title="하루 전"
+                    aria-label="하루 전"
+                    className="w-8 h-8 rounded-md text-base font-bold flex items-center justify-center border bg-[var(--card)] hover:bg-[var(--secondary)]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                  >‹</button>
+                  <span
+                    className="px-2.5 py-1.5 rounded-md text-[13px] font-bold tabular-nums whitespace-nowrap"
+                    style={{ background: 'var(--secondary)', color: 'var(--foreground)' }}
+                    title="현재 기준일 (하루씩 이동)"
+                  >{invMmdd(invAnchorDate())}</span>
+                  <button
+                    onClick={() => stepInvoiceDate(1)}
+                    disabled={!invCanForward}
+                    title="하루 후"
+                    aria-label="하루 후"
+                    className="w-8 h-8 rounded-md text-base font-bold flex items-center justify-center border bg-[var(--card)] hover:bg-[var(--secondary)] disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                  >›</button>
                   {DATE_PRESETS.map((p) => (
                     <button
                       key={p.key}

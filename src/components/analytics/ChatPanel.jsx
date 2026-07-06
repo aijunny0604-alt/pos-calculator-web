@@ -7,67 +7,84 @@ import JarvisStandby from './JarvisStandby';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getPinnedQueries, togglePin } from './MessageActions';
 
-// MOVIS "생각중" 칩 — 단일 라인 컴팩트 (양자 코어 + 도구명 + 진동막대 + X)
-function ThinkingChip({ step, onCancel }) {
+// 작은 양자 코어 (3중 회전 + 펄스) — 현재 진행 중 단계 표시용
+function QuantumCore() {
+  return (
+    <div className="relative w-4 h-4 flex-shrink-0">
+      <svg className="absolute inset-0 animate-jarvis-arc-spin" viewBox="0 0 20 20">
+        <circle cx="10" cy="10" r="9" fill="none" stroke="rgba(0,212,255,0.6)" strokeWidth="1.4" strokeDasharray="2 3" />
+      </svg>
+      <svg className="absolute inset-0 animate-jarvis-arc-spin-rev" viewBox="0 0 20 20">
+        <circle cx="10" cy="10" r="5" fill="none" stroke="rgba(77,255,255,0.75)" strokeWidth="1.2" strokeDasharray="1.5 2.5" />
+      </svg>
+      <div className="absolute inset-0 m-auto w-1.5 h-1.5 rounded-full animate-jarvis-glow-pulse"
+        style={{ background: 'radial-gradient(circle, #ffffff 0%, #4dffff 40%, #00d4ff 100%)', boxShadow: '0 0 6px rgba(0,212,255,0.85)' }} />
+    </div>
+  );
+}
+
+// MOVIS 추론 과정 — Claude/GPT식 단계 누적 트레이스. 진행=양자코어+펄스, 완료=✓ 흐림.
+function ThinkingChip({ step, steps = [], onCancel }) {
+  const list = steps.length > 0 ? steps : [{ id: 'fallback', label: step || '분석 중', status: 'active' }];
   return (
     <div className="flex justify-start my-2 animate-jarvis-card-emerge">
       <div
-        className="movis-glass-card rounded-full pl-2.5 pr-3 py-1.5 flex items-center gap-2.5 max-w-full min-w-0 relative"
+        className="movis-glass-card rounded-2xl px-3 py-2.5 max-w-full min-w-0 relative w-full sm:w-auto sm:min-w-[260px]"
         style={{
           boxShadow: '0 4px 14px rgba(0,0,0,0.32), 0 0 14px rgba(0,212,255,0.10)',
           border: '1px solid rgba(0, 212, 255, 0.26)',
-          background: 'rgba(8,16,30,0.72)',
+          background: 'rgba(8,16,30,0.74)',
         }}
       >
-        {/* 양자 코어 (3중 회전 + 펄스) — 작게 */}
-        <div className="relative w-5 h-5 flex-shrink-0">
-          <svg className="absolute inset-0 animate-jarvis-arc-spin" viewBox="0 0 20 20">
-            <circle cx="10" cy="10" r="9" fill="none" stroke="rgba(0,212,255,0.6)" strokeWidth="1.2" strokeDasharray="2 3" />
-          </svg>
-          <svg className="absolute inset-0 animate-jarvis-arc-spin-rev" viewBox="0 0 20 20">
-            <circle cx="10" cy="10" r="5" fill="none" stroke="rgba(77,255,255,0.75)" strokeWidth="1" strokeDasharray="1.5 2.5" />
-          </svg>
-          <div
-            className="absolute inset-0 m-auto w-1.5 h-1.5 rounded-full animate-jarvis-glow-pulse"
-            style={{
-              background: 'radial-gradient(circle, #ffffff 0%, #4dffff 40%, #00d4ff 100%)',
-              boxShadow: '0 0 6px rgba(0,212,255,0.85)',
-            }}
-          />
+        {/* 헤더: 추론중 + 취소 */}
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <span className="text-[11px] font-bold tracking-wider uppercase font-mono inline-flex items-center gap-1.5"
+            style={{ color: 'var(--jarvis-cyan)', textShadow: '0 0 4px rgba(0,212,255,0.35)' }}>
+            <Sparkles className="w-3 h-3" /> MOVIS 추론 중
+          </span>
+          {onCancel && (
+            <button type="button" onClick={onCancel}
+              className="p-0.5 rounded-full hover:bg-cyan-500/20 flex-shrink-0 transition-colors"
+              aria-label="취소" style={{ color: 'var(--jarvis-text-muted)' }}>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
-
-        {/* 도구명 한 줄 truncate */}
-        <span
-          className="text-xs sm:text-sm font-medium font-mono truncate"
-          style={{
-            color: 'var(--jarvis-cyan)',
-            textShadow: '0 0 4px rgba(0,212,255,0.35)',
-            maxWidth: 'min(60vw, 380px)',
-          }}
-          title={step || '분석 중'}
-        >
-          {step || '분석 중...'}
-        </span>
-
-        {/* 진동 막대 (작게, 3개) */}
-        <span className="inline-flex items-end gap-0.5 flex-shrink-0">
-          <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '0ms', animationDuration: '0.9s' }} />
-          <span className="w-0.5 h-3 rounded-full animate-bounce" style={{ background: '#4dffff', animationDelay: '120ms', animationDuration: '0.9s' }} />
-          <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '240ms', animationDuration: '0.9s' }} />
-        </span>
-
-        {/* 취소 버튼 */}
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="p-1 rounded-full hover:bg-cyan-500/20 flex-shrink-0 transition-colors"
-            aria-label="취소"
-            style={{ color: 'var(--jarvis-text-muted)' }}
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
+        {/* 단계 트레이스 */}
+        <div className="flex flex-col gap-1">
+          {list.map((s) => {
+            const done = s.status === 'done';
+            return (
+              <div key={s.id} className="flex items-center gap-2 animate-jarvis-card-emerge">
+                {done ? (
+                  <span className="w-4 h-4 flex-shrink-0 inline-flex items-center justify-center rounded-full"
+                    style={{ background: 'rgba(34,197,94,0.18)', color: '#22c55e' }}>
+                    <svg viewBox="0 0 12 12" className="w-2.5 h-2.5"><path d="M2 6l2.5 2.5L10 3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </span>
+                ) : (
+                  <QuantumCore />
+                )}
+                <span className={`text-xs sm:text-sm font-mono truncate ${done ? '' : 'font-medium'}`}
+                  style={{
+                    color: done ? 'var(--jarvis-text-muted)' : 'var(--jarvis-cyan)',
+                    textShadow: done ? 'none' : '0 0 4px rgba(0,212,255,0.35)',
+                    maxWidth: 'min(62vw, 360px)',
+                    opacity: done ? 0.6 : 1,
+                  }}
+                  title={s.label}>
+                  {s.label}
+                </span>
+                {!done && (
+                  <span className="inline-flex items-end gap-0.5 flex-shrink-0 ml-0.5">
+                    <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#00d4ff', animationDelay: '0ms', animationDuration: '0.9s' }} />
+                    <span className="w-0.5 h-3 rounded-full animate-bounce" style={{ background: '#4dffff', animationDelay: '120ms', animationDuration: '0.9s' }} />
+                    <span className="w-0.5 h-2 rounded-full animate-bounce" style={{ background: '#a855f7', animationDelay: '240ms', animationDuration: '0.9s' }} />
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -106,6 +123,7 @@ export default function ChatPanel({
   onSend,
   isLoading,
   loadingStep,
+  loadingSteps = [],
   suggestedItems = [],
   onSelectSuggested,
   onClear,
@@ -277,7 +295,7 @@ export default function ChatPanel({
                 />
               );
             })}
-            {isLoading && <ThinkingChip step={loadingStep} onCancel={onCancel} />}
+            {isLoading && <ThinkingChip step={loadingStep} steps={loadingSteps} onCancel={onCancel} />}
             <div ref={bottomRef} />
           </>
         )}

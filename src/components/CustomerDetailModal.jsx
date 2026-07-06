@@ -571,48 +571,50 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                 return (
                   <div
                     key={o.id}
-                    className="rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-[var(--card)] text-sm overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all animate-modal-up"
+                    className="relative rounded-2xl border-2 border-blue-500/25 bg-gradient-to-br from-blue-500/[0.07] to-[var(--card)] overflow-hidden hover:shadow-xl hover:-translate-y-0.5 hover:border-blue-500/40 transition-all animate-modal-up"
                     style={{ animationDelay: `${Math.min(idx * 40, 400)}ms` }}
                   >
+                    {/* 좌측 액센트 바 */}
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ background: 'linear-gradient(180deg, #3b82f6, #22c55e)' }} />
                     <button
                       onClick={() => setExpandedOrder(expanded ? null : o.id)}
-                      className="w-full p-3 text-left hover:bg-[var(--accent)] transition-colors"
+                      className="w-full pl-5 pr-4 py-4 text-left hover:bg-[var(--accent)] transition-colors"
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold flex items-center gap-1.5">
-                            #{o.id}
+                          <div className="font-black text-lg sm:text-xl flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
+                            <span className="text-blue-500">#</span>{o.id}
                             {items.length > 0 && (
-                              expanded ? <ChevronUp className="w-3.5 h-3.5 text-[var(--muted-foreground)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+                              expanded ? <ChevronUp className="w-5 h-5 text-[var(--muted-foreground)]" /> : <ChevronDown className="w-5 h-5 text-[var(--muted-foreground)]" />
                             )}
                           </div>
-                          <div className="text-[11px] text-[var(--muted-foreground)] mt-0.5">
-                            {dateKST(o.created_at)} · {items.length}품목
+                          <div className="text-sm sm:text-base text-[var(--muted-foreground)] mt-1.5 font-medium">
+                            📅 {dateKST(o.created_at)} · {items.length}품목
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <div className="font-bold text-sm">{fmt(o.total)}원</div>
+                          <div className="font-black text-2xl sm:text-3xl tabular-nums" style={{ color: '#2563eb' }}>{fmt(o.total)}<span className="text-base sm:text-lg font-bold ml-0.5">원</span></div>
                           {Number(o.total_returned) > 0 && (
-                            <div className="text-[10px] text-orange-400">환불 {fmt(o.total_returned)}</div>
+                            <div className="text-sm text-orange-400 mt-1 font-semibold">환불 {fmt(o.total_returned)}</div>
                           )}
                         </div>
                       </div>
                       {!expanded && items.length > 0 && (
-                        <p className="text-[11px] text-[var(--muted-foreground)] mt-1 break-words leading-snug">
+                        <p className="text-sm sm:text-base text-[var(--foreground)]/75 mt-2.5 break-words leading-relaxed font-medium">
                           {items.slice(0, 3).map((it) => it.name || it.product_name).filter(Boolean).join(', ')}
-                          {items.length > 3 && ` 외 ${items.length - 3}건`}
+                          {items.length > 3 && <span className="text-[var(--muted-foreground)]">{` 외 ${items.length - 3}건`}</span>}
                         </p>
                       )}
                     </button>
                     {expanded && items.length > 0 && (
                       <div className="px-3 pb-3 pt-1 border-t border-[var(--border)]">
-                        <table className="w-full text-[11px]">
+                        <table className="w-full text-xs sm:text-sm">
                           <thead>
                             <tr className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
-                              <th className="text-left py-1 font-normal">품목</th>
-                              <th className="text-right py-1 font-normal w-10">수량</th>
-                              <th className="text-right py-1 font-normal w-16">단가</th>
-                              <th className="text-right py-1 font-normal w-20">소계</th>
+                              <th className="text-left py-1.5 font-normal">품목</th>
+                              <th className="text-right py-1.5 font-normal w-12">수량</th>
+                              <th className="text-right py-1.5 font-normal w-20">단가</th>
+                              <th className="text-right py-1.5 font-normal w-24">소계</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -621,23 +623,23 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                               const price = Number(it.price || 0);
                               return (
                                 <tr key={i} className="border-b border-[var(--border)]/30 last:border-b-0">
-                                  <td className="py-1.5 break-words leading-snug">{it.name || it.product_name || '-'}</td>
-                                  <td className="text-right py-1.5">{qty}</td>
-                                  <td className="text-right py-1.5">{fmt(price)}</td>
-                                  <td className="text-right py-1.5 font-semibold">{fmt(qty * price)}</td>
+                                  <td className="py-2 break-words leading-snug">{it.name || it.product_name || '-'}</td>
+                                  <td className="text-right py-2">{qty}</td>
+                                  <td className="text-right py-2">{fmt(price)}</td>
+                                  <td className="text-right py-2 font-semibold">{fmt(qty * price)}</td>
                                 </tr>
                               );
                             })}
                           </tbody>
                           <tfoot>
-                            <tr className="border-t border-[var(--border)] font-bold">
-                              <td colSpan="3" className="py-1.5 text-right">합계</td>
-                              <td className="text-right py-1.5 text-[var(--primary)]">{fmt(o.total)}</td>
+                            <tr className="border-t border-[var(--border)] font-bold text-sm sm:text-base">
+                              <td colSpan="3" className="py-2 text-right">합계</td>
+                              <td className="text-right py-2 text-[var(--primary)]">{fmt(o.total)}</td>
                             </tr>
                           </tfoot>
                         </table>
                         {o.memo && (
-                          <p className="mt-2 p-2 rounded bg-[var(--background)] text-[10px] text-[var(--muted-foreground)] break-words">
+                          <p className="mt-2 p-2.5 rounded bg-[var(--background)] text-xs sm:text-sm text-[var(--muted-foreground)] break-words">
                             📝 {o.memo}
                           </p>
                         )}

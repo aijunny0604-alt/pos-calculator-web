@@ -5,6 +5,7 @@ import Toast from '@/components/ui/Toast';
 import Dashboard from '@/pages/Dashboard';
 import MainPOS from '@/pages/MainPOS';
 import OrderHistory from '@/pages/OrderHistory';
+import MemosPage from '@/pages/MemosPage';
 import OrderDetail from '@/pages/OrderDetail';
 import SavedCarts from '@/pages/SavedCarts';
 import CustomerList from '@/pages/CustomerList';
@@ -69,18 +70,34 @@ export default function App() {
   const [cart, setCart] = useState([]);
 
   // ─── Global Undo System ──────────────────────────────────────
-  // Each undo entry: { type, undo: async () => void, label: string }
+  // Each undo entry: { type, undo: async () => void, label: string, toast?: boolean }
   const undoStackRef = useRef([]);
   const MAX_UNDO = 20;
+  // 보이는 실행취소 스낵바 (데스크탑 Ctrl+Z + 태블릿/폰 터치 공용) { id, label }
+  const [undoHint, setUndoHint] = useState(null);
+  const undoHintTimerRef = useRef(null);
+  const undoSeqRef = useRef(0);
 
   const pushUndo = useCallback((entry) => {
     undoStackRef.current = [
       ...undoStackRef.current.slice(-(MAX_UNDO - 1)),
       entry,
     ];
+    // 스낵바는 삭제류 작업에만 노출 (제품 추가/수정·재고·단가 등 비삭제 작업은 Ctrl+Z만 가능, 노이즈 방지).
+    // toast:true면 강제 노출, toast:false면 강제 숨김.
+    const showHint = entry?.toast === true
+      || (entry?.toast !== false && /delete/i.test(String(entry?.type || '')));
+    if (showHint) {
+      const id = ++undoSeqRef.current;
+      setUndoHint({ id, label: entry?.label || '작업' });
+      if (undoHintTimerRef.current) clearTimeout(undoHintTimerRef.current);
+      undoHintTimerRef.current = setTimeout(() => {
+        setUndoHint((cur) => (cur && cur.id === id ? null : cur));
+      }, 10000);
+    }
   }, []);
 
-  // Cart wrapper that auto-pushes undo
+  // Cart wrapper that auto-pushes undo (스낵바는 띄우지 않음 — Ctrl+Z만 가능)
   const setCartWithHistory = useCallback((newCartOrUpdater) => {
     setCart((prev) => {
       const next = typeof newCartOrUpdater === 'function'
@@ -90,6 +107,7 @@ export default function App() {
       pushUndo({
         type: 'cart',
         label: '장바구니 변경',
+        toast: false,
         undo: () => setCart(snapshot),
       });
       return next;
@@ -131,6 +149,24 @@ export default function App() {
     setToast({ message, type });
   }, []);
 
+  // 실행취소 실행 (Ctrl+Z 키 + 스낵바 버튼 공용)
+  const performUndo = useCallback(async () => {
+    if (undoHintTimerRef.current) clearTimeout(undoHintTimerRef.current);
+    setUndoHint(null);
+    if (undoStackRef.current.length === 0) {
+      showToast('되돌릴 작업이 없습니다', 'info');
+      return;
+    }
+    const entry = undoStackRef.current.pop();
+    try {
+      await entry.undo();
+      showToast(`복원됨: ${entry.label}`, 'success');
+    } catch (err) {
+      console.error('Undo failed:', err);
+      showToast('복원에 실패했습니다', 'error');
+    }
+  }, [showToast]);
+
   // ─── Persist notification settings ───────────────────────────
   useEffect(() => {
     localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
@@ -150,23 +186,12 @@ export default function App() {
           return;
         }
         e.preventDefault();
-        if (undoStackRef.current.length === 0) {
-          showToast('되돌릴 작업이 없습니다', 'info');
-          return;
-        }
-        const entry = undoStackRef.current.pop();
-        try {
-          await entry.undo();
-          showToast(`복원됨: ${entry.label}`, 'success');
-        } catch (err) {
-          console.error('Undo failed:', err);
-          showToast('복원에 실패했습니다', 'error');
-        }
+        await performUndo();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showToast]);
+  }, [performUndo]);
 
   // ─── Format order: snake_case → camelCase (이전 버전과 동일) ──
   const formatOrder = useCallback((o) => ({
@@ -361,7 +386,8 @@ export default function App() {
     let cancelled = false;
     const fetchCount = async () => {
       try {
-        const list = await supabase.getExternalOrders({ limit: 200 });
+        // 배지 카운트는 isOrderPending 판정만 하므로 필요한 컬럼만 (raw_payload 제외 → 60초 폴링 가볍게)
+        const list = await supabase.getExternalOrders({ limit: 200, select: 'id,order_status,internal_order_id,naver_dispatch_succeeded_at' });
         if (cancelled) return;
         // 결제완료/발주확인 등 아직 처리 안 한 주문 (배송중/종결 제외). 옛 미처리 주문도 포함.
         const count = (list || []).filter((o) => isOrderPending(o)).length;
@@ -512,11 +538,14 @@ export default function App() {
 
           if (existingOrder) {
             setSavingStep('기존 주문에 합산 중...');
-            // Merge items: match by id + price, accumulate quantities
+            // Merge items: match by id + price + 할인메타. 할인 조건이 다르면 별도 라인 유지 [bug-hunt 5]
             const mergedItems = [...(existingOrder.items || [])];
             for (const newItem of items) {
               const idx = mergedItems.findIndex(
-                (i) => i.id === newItem.id && i.price === newItem.price
+                (i) => i.id === newItem.id
+                  && i.price === newItem.price
+                  && (i.discountType ?? null) === (newItem.discountType ?? null)
+                  && (i.discountValue ?? null) === (newItem.discountValue ?? null)
               );
               if (idx >= 0) {
                 mergedItems[idx] = {
@@ -527,8 +556,9 @@ export default function App() {
                 mergedItems.push(newItem);
               }
             }
+            // price 없는 항목은 wholesale/retail 폴백 (병합 후 0/과소계산 방지) [bug-hunt 4]
             const mergedTotal = mergedItems.reduce(
-              (sum, i) => sum + (i.price || 0) * (i.quantity || 1),
+              (sum, i) => sum + Number(i.price ?? i.wholesale ?? i.retail ?? 0) * (i.quantity || 1),
               0
             );
             const mergeData = {
@@ -537,6 +567,16 @@ export default function App() {
               subtotal: Math.round(mergedTotal / 1.1),
               vat: mergedTotal - Math.round(mergedTotal / 1.1),
             };
+            // 네이버 전환 등 추적정보 보존 — 기존에 없으면 채움(기존값 덮어쓰기 X) [bug-hunt 3]
+            // memo: 송장 발송인=엠파츠·착불/선불·네이버 식별이 memo 마커에 의존하므로 병합 시 유실 방지
+            const incomingMemo = (orderData.memo || '').trim();
+            if (incomingMemo && !(existingOrder.memo || '').includes(incomingMemo)) {
+              mergeData.memo = existingOrder.memo ? `${existingOrder.memo}\n${incomingMemo}` : incomingMemo;
+            }
+            const incomingPhone = orderData.customer_phone || orderData.customerPhone || '';
+            const incomingAddr = orderData.customer_address || orderData.customerAddress || '';
+            if (!existingOrder.customerPhone && incomingPhone) mergeData.customer_phone = incomingPhone;
+            if (!existingOrder.customerAddress && incomingAddr) mergeData.customer_address = incomingAddr;
             const updated = await supabase.updateOrder(existingOrder.id, mergeData);
             if (updated) {
               // 로컬 state 직접 업데이트 (refreshOrders 제거)
@@ -622,6 +662,8 @@ export default function App() {
                 subtotal: Math.round((deletedOrder.totalAmount || 0) / 1.1),
                 vat: (deletedOrder.totalAmount || 0) - Math.round((deletedOrder.totalAmount || 0) / 1.1),
                 memo: deletedOrder.memo || null,
+                // 원래 주문 날짜 보존 (누락 시 DB default=NOW로 오늘 날짜가 됨)
+                ...(deletedOrder.received_at ? { received_at: deletedOrder.received_at } : {}),
               });
               if (restored) await refreshOrders();
             },
@@ -637,13 +679,14 @@ export default function App() {
   const handleDeleteMultipleOrders = useCallback(
     async (ids) => {
       const deletedOrders = orders.filter((o) => ids.includes(o.id));
+      let successOrders = []; // 실제 삭제 성공분 (undo 복원 대상 — 부분실패 시 안 지워진 건 제외)
       try {
         const results = await Promise.allSettled(ids.map((id) => supabase.deleteOrder(id)));
         const successIds = ids.filter((_, i) => results[i].status === 'fulfilled' && results[i].value);
         const failCount = ids.length - successIds.length;
         setOrders((prev) => prev.filter((o) => !successIds.includes(o.id)));
         // 성공 건만 재고 복원
-        const successOrders = deletedOrders.filter(o => successIds.includes(o.id));
+        successOrders = deletedOrders.filter(o => successIds.includes(o.id));
         const allItems = successOrders.flatMap(o => o.items || []);
         if (allItems.length > 0) await restoreStock(allItems);
         if (failCount > 0) {
@@ -655,12 +698,12 @@ export default function App() {
         showToast('삭제 중 오류: ' + err.message, 'error');
         return;
       }
-      if (deletedOrders.length > 0) {
+      if (successOrders.length > 0) {
         pushUndo({
           type: 'orders-delete-multiple',
-          label: `주문 ${deletedOrders.length}건 삭제`,
+          label: `주문 ${successOrders.length}건 삭제`,
           undo: async () => {
-            await Promise.all(deletedOrders.map((o) =>
+            await Promise.all(successOrders.map((o) =>
               supabase.saveOrder({
                 id: o.id,
                 customer_name: o.customerName,
@@ -672,6 +715,8 @@ export default function App() {
                 subtotal: Math.round((o.totalAmount || 0) / 1.1),
                 vat: (o.totalAmount || 0) - Math.round((o.totalAmount || 0) / 1.1),
                 memo: o.memo || null,
+                // 원래 주문 날짜 보존 (누락 시 DB default=NOW로 오늘 날짜가 됨)
+                ...(o.received_at ? { received_at: o.received_at } : {}),
               })
             ));
             await refreshOrders();
@@ -944,6 +989,17 @@ export default function App() {
             onViewOrder={(order) => setSelectedOrder(order)}
             onUpdateOrder={handleUpdateOrder}
             onAiOrder={(text) => { setAiOrderText(text); setCurrentPage('ai-order'); }}
+          />
+        );
+
+      case 'memos':
+        return (
+          <MemosPage
+            orders={orders}
+            products={products}
+            onViewOrder={(order) => setSelectedOrder(order)}
+            onUpdateOrder={handleUpdateOrder}
+            setCurrentPage={setCurrentPage}
           />
         );
 
@@ -1222,6 +1278,7 @@ export default function App() {
               showToast={showToast}
               saveOrder={saveOrder}
               setCurrentPage={setCurrentPage}
+              refreshCustomers={refreshCustomers}
             />
           </Suspense>
         );
@@ -1442,6 +1499,45 @@ export default function App() {
           type={toast.type}
           onClose={() => setToast({ message: '', type: 'info' })}
         />
+      )}
+
+      {/* ↩️ 실행취소 스낵바 — 삭제 등 되돌릴 수 있는 작업 후 노출 (데스크탑 Ctrl+Z + 태블릿/폰 터치 공용) */}
+      {undoHint && (
+        <div
+          className="fixed left-1/2 z-[120] bottom-20 md:bottom-6 w-[calc(100%-2rem)] max-w-sm"
+          style={{ transform: 'translateX(-50%)' }}
+          role="status"
+        >
+          <div
+            className="flex items-center gap-3 rounded-xl px-4 py-3 shadow-2xl border"
+            style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+          >
+            <span className="text-lg flex-shrink-0" aria-hidden>🗑️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold break-words leading-snug" style={{ color: 'var(--foreground)' }}>
+                {undoHint.label}
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                되돌리려면 실행취소 (Ctrl+Z)
+              </p>
+            </div>
+            <button
+              onClick={performUndo}
+              className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-bold transition-all active:scale-95"
+              style={{ background: 'var(--primary)', color: 'white' }}
+            >
+              ↩️ 실행취소
+            </button>
+            <button
+              onClick={() => setUndoHint(null)}
+              className="flex-shrink-0 p-1.5 rounded-full hover:bg-[var(--muted)] text-xs"
+              style={{ color: 'var(--muted-foreground)' }}
+              aria-label="닫기"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
       )}
 
     </>

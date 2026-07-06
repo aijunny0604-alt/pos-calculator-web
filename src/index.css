@@ -487,6 +487,46 @@ html, body {
   transition: padding 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* 작은 화면(갤럭시 S8 등) 모달 잘림 방지 — 내용이 길면 모달 자체가 화면을 넘지 않고 내부 스크롤.
+   100dvh(모바일 브라우저 툴바 반영) 기준으로 높이 상한 + 세로 스크롤. 인라인 모달 카드에 부여. */
+.modal-card-safe {
+  max-height: calc(100dvh - 1.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 🎯 AI 검색 최상위 일치 카드 강조 — 프리미엄 오로라 글로우(블루↔바이올렛 호흡) + 배지 팝
+   PC·모바일 공통, OS 모션 설정과 무관하게 항상 적용(사장님 요청). 라이트 스윕 제거 → 고급스러운 듀얼톤 글로우 */
+@keyframes topMatchAura {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--primary) 88%, transparent),
+      0 3px 12px -3px color-mix(in srgb, var(--primary) 48%, transparent),
+      0 0 24px -6px color-mix(in srgb, var(--primary) 40%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, #8b5cf6 90%, transparent),
+      0 5px 18px -3px color-mix(in srgb, #8b5cf6 50%, transparent),
+      0 0 38px -6px color-mix(in srgb, #6366f1 46%, transparent);
+  }
+}
+@keyframes topMatchBadgePop {
+  0%   { transform: scale(0.4) translateY(-3px); opacity: 0; }
+  60%  { transform: scale(1.14); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.top-match-card {
+  position: relative;
+  z-index: 2;
+  border-color: transparent !important; /* 컬러 테두리는 box-shadow 링이 담당(블루↔바이올렛) */
+  animation: topMatchAura 2.8s ease-in-out infinite;
+}
+.top-match-badge {
+  animation: topMatchBadgePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 /* Admin restricted zone animations */
 @keyframes admin-pulse-ring {
   0% { transform: scale(0.8); opacity: 0; }
@@ -635,6 +675,7 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
 /* Premium card interactions */
 .card-interactive {
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03);
 }
 @media (hover: hover) {
   .card-interactive:hover {
@@ -794,4 +835,64 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
   .order-hover-premium:hover::after { transform: translateX(-120%); }
   .order-row-premium::before { display: none !important; }
   .order-row-premium:hover::before { transform: scaleY(0); }
+}
+
+/* ===== 새 버전 업데이트 로딩 화면 (ChunkErrorBoundary) — 간지나는 애니메이션 (2026-06-16) ===== */
+@keyframes ub-spin { to { transform: rotate(360deg); } }
+@keyframes ub-spin-rev { to { transform: rotate(-360deg); } }
+@keyframes ub-pulse { 0%, 100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes ub-glow { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: .7; transform: scale(1.15); } }
+@keyframes ub-dots { 0% { content: ''; } 25% { content: '·'; } 50% { content: '··'; } 75%, 100% { content: '···'; } }
+@keyframes ub-fadein { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes ub-sheen { 0% { background-position: -160% 0; } 100% { background-position: 160% 0; } }
+@keyframes ub-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
+
+.ub-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+  background: radial-gradient(120% 120% at 50% 35%, #16213e 0%, #0c1020 55%, #07090f 100%);
+  animation: ub-fadein .4s ease both;
+  -webkit-font-smoothing: antialiased;
+}
+.ub-loader { position: relative; width: 96px; height: 96px; }
+.ub-loader .ub-glow {
+  position: absolute; inset: -18px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(59,130,246,.55) 0%, rgba(34,211,238,.18) 45%, transparent 70%);
+  filter: blur(4px); animation: ub-glow 2.2s ease-in-out infinite;
+}
+.ub-loader .ub-ring { position: absolute; border-radius: 50%; border: 3px solid transparent; }
+.ub-loader .ub-ring-1 { inset: 0; border-top-color: #3b82f6; border-right-color: #60a5fa; animation: ub-spin .85s cubic-bezier(.5,.15,.5,.85) infinite; }
+.ub-loader .ub-ring-2 { inset: 14px; border-bottom-color: #22d3ee; border-left-color: #67e8f9; animation: ub-spin-rev 1.25s linear infinite; }
+.ub-loader .ub-core {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 24px; letter-spacing: .5px;
+  color: #fff; text-shadow: 0 2px 12px rgba(59,130,246,.6);
+  animation: ub-pulse 1.7s ease-in-out infinite;
+}
+.ub-title {
+  font-size: 18px; font-weight: 800; letter-spacing: .3px;
+  background: linear-gradient(90deg, #e6edff 25%, #7dd3fc 50%, #e6edff 75%);
+  background-size: 200% auto; -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: ub-sheen 2.6s linear infinite;
+}
+.ub-dots::after { content: ''; animation: ub-dots 1.4s steps(1) infinite; }
+.ub-sub { font-size: 12.5px; color: rgba(255,255,255,.5); animation: ub-fadein .6s .15s ease both; }
+.ub-progress { position: relative; width: 168px; height: 4px; border-radius: 99px; overflow: hidden; background: rgba(255,255,255,.08); }
+.ub-progress::before {
+  content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 40%; border-radius: 99px;
+  background: linear-gradient(90deg, transparent, #3b82f6, #22d3ee, transparent);
+  animation: ub-bar 1.4s cubic-bezier(.45,.05,.55,.95) infinite;
+}
+.ub-retry {
+  margin-top: 4px; padding: 9px 18px; border-radius: 12px; font-size: 13px; font-weight: 700;
+  color: #fff; background: linear-gradient(135deg, #3b82f6, #2563eb); border: 1px solid rgba(255,255,255,.15);
+  box-shadow: 0 4px 16px rgba(37,99,235,.4); cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease; animation: ub-fadein .6s .3s ease both;
+}
+.ub-retry:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(37,99,235,.55); }
+.ub-retry:active { transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .ub-loader .ub-ring-1, .ub-loader .ub-ring-2, .ub-loader .ub-glow, .ub-loader .ub-core,
+  .ub-title, .ub-dots::after, .ub-progress::before { animation-duration: 0s; animation: none; }
 }

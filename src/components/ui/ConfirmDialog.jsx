@@ -9,7 +9,7 @@ export default function ConfirmDialog({ isOpen, title, message, onConfirm, onCan
     >
       <div className="absolute inset-0" onClick={onCancel} />
       <div
-        className="relative rounded-2xl shadow-2xl max-w-md w-full p-6 border animate-modal-up"
+        className="relative rounded-2xl shadow-2xl max-w-md w-full p-6 border animate-modal-up modal-card-safe"
         style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
       >
         <div className="flex items-start gap-4 mb-4">

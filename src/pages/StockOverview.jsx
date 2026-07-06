@@ -10,6 +10,24 @@ function matchesSearchQuery(name, query, extra = '') {
   return tokens.every((t) => hay.includes(t));
 }
 
+// 현재가 대비 초기 원본가 표기 — 얼마나 올렸/내렸는지 모니터링용.
+// 초기값이 없거나 현재가와 같으면 아무것도 표시하지 않음.
+function InitialPriceTag({ current, initial, formatPrice }) {
+  if (initial == null) return null;
+  const cur = Number(current) || 0;
+  const init = Number(initial) || 0;
+  if (cur === init) return null;
+  const delta = cur - init;
+  const up = delta > 0;
+  const pct = init > 0 ? Math.round((delta / init) * 100) : 0;
+  const color = up ? '#e69500' : '#3b82f6'; // 인상=주황, 인하=파랑
+  return (
+    <span className="block text-[10px] sm:text-[11px] mt-0.5 whitespace-nowrap" style={{ color }}>
+      원본 {formatPrice(init)} <span className="font-bold">{up ? '▲' : '▼'}{up ? '+' : ''}{formatPrice(delta)}{pct ? ` (${up ? '+' : ''}${pct}%)` : ''}</span>
+    </span>
+  );
+}
+
 export default function StockOverview({ products = [], categories = [], formatPrice, onBack }) {
   const [selectedCategory, setSelectedCategory] = useState('전체');
   const [stockFilter, setStockFilter] = useState('all');
@@ -323,6 +341,16 @@ export default function StockOverview({ products = [], categories = [], formatPr
                               <span className="block sm:hidden text-[10px] mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
                                 {product.category} · 도 {formatPrice(w)} · 소 {formatPrice(r)}
                                 {r > 0 && <span style={{ color: mColor }}> · 마진 {formatPrice(m)}({rate}%)</span>}
+                                {(() => {
+                                  const iw = product.initial_wholesale, ir = product.initial_retail;
+                                  const wChg = iw != null && Number(iw) !== w;
+                                  const rChg = ir != null && Number(ir) !== r;
+                                  if (!wChg && !rChg) return null;
+                                  const parts = [];
+                                  if (wChg) parts.push(`도 원본 ${formatPrice(Number(iw))}`);
+                                  if (rChg) parts.push(`소 원본 ${formatPrice(Number(ir))}`);
+                                  return <span className="block" style={{ color: '#e69500' }}>↩ {parts.join(' · ')}</span>;
+                                })()}
                               </span>
                             );
                           })()}
@@ -336,11 +364,13 @@ export default function StockOverview({ products = [], categories = [], formatPr
                           <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                             {formatPrice(product.wholesale)}
                           </span>
+                          <InitialPriceTag current={product.wholesale} initial={product.initial_wholesale} formatPrice={formatPrice} />
                         </td>
                         <td className="px-2 sm:px-4 py-3 text-right hidden sm:table-cell">
                           <span className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>
                             {formatPrice(product.retail)}
                           </span>
+                          <InitialPriceTag current={product.retail} initial={product.initial_retail} formatPrice={formatPrice} />
                         </td>
                         <td className="px-2 sm:px-4 py-3 text-right hidden sm:table-cell">
                           {(() => {

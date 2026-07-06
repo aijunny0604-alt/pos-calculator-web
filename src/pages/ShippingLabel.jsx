@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ArrowLeft, Menu, Truck, X, Plus, Search, Trash2, Download, FileText,
-  Printer, Check, Maximize2, Minimize2
+  Printer, Check, Maximize2, Minimize2, MessageCircle, Copy
 } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST } from '@/lib/utils';
@@ -101,6 +101,7 @@ function NaverDispatchPanel({ providerOrderId, showToast }) {
 
 export default function ShippingLabel({ orders = [], customers = [], savedCarts = [], onBack, refreshCustomers, showToast }) {
   const [selectedOrders, setSelectedOrders] = useState([]);
+  const [kakaoCopied, setKakaoCopied] = useState(false);
   const [senderList] = useState(['무브모터스', '엠파츠']);
   const [dateFilter, setDateFilter] = useState('today');
   const [orderSettings, setOrderSettings] = useState({});
@@ -298,16 +299,26 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
     return costs.join(',');
   };
 
-  // 스토어(엠파츠) 주문 식별 — 내부주문 전환 시 memo에 "[엠파츠] [네이버 스마트스토어]" + "배송: 착불/선불" 기록됨
-  const isStoreOrder = (order) =>
-    !!order && typeof order.memo === 'string' &&
-    (order.memo.includes('[엠파츠]') || order.memo.includes('네이버 스마트스토어'));
+  // 스토어(엠파츠) 주문 식별
+  //  1) 내부주문 전환 시 memo에 "[엠파츠] [네이버 스마트스토어]" 마커 기록됨
+  //  2) 마커 유실(과거 병합 등)·수동/저장카트 주문 대비 — 거래처가 '엠파츠' 카테고리면 스토어 주문으로 간주
+  const isEmpartsCustomer = (name) => {
+    if (!name) return false;
+    const c = (customers || []).find((x) => x?.name === name);
+    return !!c && c.category === '엠파츠';
+  };
+  const isStoreOrder = (order) => {
+    if (!order) return false;
+    if (typeof order.memo === 'string' &&
+        (order.memo.includes('[엠파츠]') || order.memo.includes('네이버 스마트스토어'))) return true;
+    return isEmpartsCustomer(order.customerName || order.customer_name);
+  };
 
   const getOrderSetting = (orderNumber, customerName = null, order = null) => {
     if (orderSettings[orderNumber]) return orderSettings[orderNumber]; // 사용자가 직접 바꾼 값 최우선
     // 스토어 주문은 발송인=엠파츠 고정 + 착불/선불은 memo에서 자동 (매장 거래처 설정보다 우선)
     if (isStoreOrder(order)) {
-      const paymentType = /배송:\s*착불/.test(order.memo) ? '착불' : '선불';
+      const paymentType = /배송:\s*착불/.test(order?.memo || '') ? '착불' : '선불';
       return { paymentType, packaging: '박스1', shippingCost: '7300', sender: '엠파츠' };
     }
     if (customerName && savedCustomerSettings[customerName]) return savedCustomerSettings[customerName];
@@ -317,6 +328,46 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
   const getMostExpensiveItem = (items) => {
     if (!items || items.length === 0) return '상품';
     return items.reduce((max, item) => item.price > max.price ? item : max, items[0]).name;
+  };
+
+  // 발송은 "받는사람" 기준 — 전환 memo의 "받는분: 이름 / 전화" 파싱 (없으면 주문자명 사용)
+  const parseReceiver = (order) => {
+    const m = (order?.memo || '').match(/받는분:\s*([^\n/]+?)(?:\s*\/\s*([0-9+\-\s]+))?\s*(?:\n|$)/);
+    if (!m) return null;
+    const name = (m[1] || '').trim();
+    return name ? { name, tel: (m[2] || '').trim() } : null;
+  };
+  // 송장/엑셀/인쇄에 쓸 수령인 이름 (받는분 우선, 없으면 주문자명)
+  const shippingName = (order) => parseReceiver(order)?.name || order?.customerName || '';
+  // 배송메모 (전환 memo의 "배송메모: ...")
+  const parseShippingMemo = (order) => {
+    const m = (order?.memo || '').match(/배송메모:\s*([^\n]+)/);
+    return m ? m[1].trim() : '';
+  };
+  // 송장 배송지 주소 — 주문의 주소(주문 수정 반영) 최우선 → 전환 memo "주소:" → 거래처 레코드 폴백
+  // (이전엔 거래처 레코드 주소만 봐서, 거래처 미등록·주문에만 주소 입력한 건이 "주소 없음"으로 누락됨)
+  const shipAddress = (order, customer) => {
+    const oa = (order?.customerAddress || order?.customer_address || '').trim();
+    if (oa) return oa;
+    const m = (order?.memo || '').match(/주소:\s*([^\n]+)/);
+    if (m && m[1].trim()) return m[1].trim();
+    return customer?.address || '';
+  };
+  // 사장님이 직접 적은 주문 메모 (주문내역에 뜨는 그 메모) — 스토어 자동메모 마커 줄은 제외
+  const getUserNote = (order) => {
+    const raw = (order?.memo || '').trim();
+    if (!raw) return '';
+    const lines = raw.split('\n').map((l) => l.trim()).filter((l) =>
+      l &&
+      !/^\[/.test(l) &&                 // [엠파츠] [네이버 스마트스토어] 마커
+      !/^구매자\s*:/.test(l) &&
+      !/^받는분\s*:/.test(l) &&
+      !/^주소\s*:/.test(l) &&
+      !/^배송메모\s*:/.test(l) &&
+      !/^배송\s*:/.test(l) &&
+      !/네이버\s*스마트스토어/.test(l)
+    );
+    return lines.join(' ').trim();
   };
 
   const updateOrderSetting = (orderNumber, field, value) => {
@@ -438,7 +489,9 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
       if (groupedBySender[sender]) groupedBySender[sender].orders.push(order);
     });
     selectedCustom.forEach(entry => {
-      const sender = entry.sender || senderList[0];
+      // 안전망: 네이버 항목(note에 [네이버) 또는 엠파츠 거래처면 stale sender 무시하고 엠파츠로 강제
+      const isEmp = entry.sender === '엠파츠' || /\[네이버/.test(entry.note || '') || isEmpartsCustomer(entry.name);
+      const sender = isEmp ? '엠파츠' : (entry.sender || senderList[0]);
       if (groupedBySender[sender]) groupedBySender[sender].custom.push(entry);
     });
     return groupedBySender;
@@ -460,10 +513,11 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
         sOrders.forEach((order) => {
           const customer = findCustomer(order.customerName);
           const mostExpensive = getMostExpensiveItem(order.items);
-          const phone = customer?.phone || order.customerPhone || '';
-          const address = customer?.address || '';
+          const recv = parseReceiver(order);
+          const phone = recv?.tel || customer?.phone || order.customerPhone || '';
+          const address = shipAddress(order, customer);
           const setting = getOrderSetting(order.orderNumber, order.customerName, order);
-          csv += `${index},${order.customerName},${setting.paymentType},${setting.packaging},${setting.shippingCost},${mostExpensive},${phone}\n`;
+          csv += `${index},${shippingName(order)},${setting.paymentType},${setting.packaging},${setting.shippingCost},${mostExpensive},${phone}\n`;
           if (address) csv += `${address}\n`;
           index++;
         });
@@ -549,8 +603,9 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
         sOrders.forEach((order) => {
           const customer = order.customerName ? findCustomer(order.customerName) : null;
           const mostExpensive = getMostExpensiveItem(order.items);
-          const phone = customer?.phone || order.customerPhone || '';
-          const address = customer?.address || '';
+          const recv = parseReceiver(order);
+          const phone = recv?.tel || customer?.phone || order.customerPhone || '';
+          const address = shipAddress(order, customer);
           const setting = getOrderSetting(order.orderNumber, order.customerName, order);
           const isPrepaid = setting.paymentType === '선불';
           const packagingValue = String(setting.packaging || '');
@@ -558,7 +613,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
           const packagingDisplay = packagingValue.includes(',') ? packagingValue.split(',').join('\n') : packagingValue;
           const shippingDisplay = shippingCostValue.includes(',') ? shippingCostValue.split(',').join('\n') : shippingCostValue;
           const dataRow = worksheet.getRow(rowNum);
-          const rowData = [dataIndex, order.customerName || '', setting.paymentType, packagingDisplay, shippingDisplay, mostExpensive, phone];
+          const rowData = [dataIndex, shippingName(order) || '', setting.paymentType, packagingDisplay, shippingDisplay, mostExpensive, phone];
           dataIndex++;
           rowData.forEach((value, idx) => {
             const cell = dataRow.getCell(idx + 1);
@@ -684,8 +739,9 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
         sOrders.forEach((order) => {
           const customer = findCustomer(order.customerName);
           const mostExpensive = getMostExpensiveItem(order.items);
-          const phone = customer?.phone || order.customerPhone || '';
-          const address = customer?.address || '';
+          const recv = parseReceiver(order);
+          const phone = recv?.tel || customer?.phone || order.customerPhone || '';
+          const address = shipAddress(order, customer);
           const setting = getOrderSetting(order.orderNumber, order.customerName, order);
           const isPrepaid = setting.paymentType === '선불';
           const rowClass = isPrepaid ? 'prepaid' : '';
@@ -693,7 +749,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
           const shippingDisplay = escapeHtml(String(setting.shippingCost || '')).replace(/,/g, '<br>');
           html += `<tr class="${rowClass}">
             <td class="col-num">${dataIndex}</td>
-            <td class="col-name">${escapeHtml(order.customerName || '')}</td>
+            <td class="col-name">${escapeHtml(shippingName(order) || '')}</td>
             <td class="col-payment">${escapeHtml(setting.paymentType)}</td>
             <td class="col-pack">${packagingDisplay}</td>
             <td class="col-cost">${shippingDisplay}</td>
@@ -729,6 +785,100 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
     if (!printWindow) { if (showToast) showToast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error'); return; }
     printWindow.document.write(html);
     printWindow.document.close();
+  };
+
+  // 카톡용 발송 내역 텍스트 — 오늘 배송(업체/받는분/주소/품명/착불선불) 보기좋게 복붙용
+  // 선택된 주문이 있으면 선택분만, 없으면 화면에 보이는 전체(오늘)를 발송인별로 묶어 출력
+  const buildKakaoText = () => {
+    const useAll = selectedOrders.length === 0;
+    const pickedOrders = useAll ? filteredOrders : filteredOrders.filter(o => selectedOrders.includes(o.orderNumber));
+    const pickedCustom = useAll ? customEntries : customEntries.filter(e => selectedOrders.includes(e.id));
+
+    const grouped = {};
+    senderList.forEach(s => { grouped[s] = { orders: [], custom: [] }; });
+    pickedOrders.forEach(order => {
+      const setting = getOrderSetting(order.orderNumber, order.customerName, order);
+      const sender = setting.sender || senderList[0];
+      if (grouped[sender]) grouped[sender].orders.push(order);
+    });
+    pickedCustom.forEach(entry => {
+      const isEmp = entry.sender === '엠파츠' || /\[네이버/.test(entry.note || '') || isEmpartsCustomer(entry.name);
+      const sender = isEmp ? '엠파츠' : (entry.sender || senderList[0]);
+      if (grouped[sender]) grouped[sender].custom.push(entry);
+    });
+
+    const itemSummary = (items) => {
+      const names = (items || []).map(i => i?.name).filter(Boolean);
+      if (names.length === 0) return '상품';
+      if (names.length <= 2) return names.join(', ');
+      return `${names[0]} 외 ${names.length - 1}건`;
+    };
+
+    const now = new Date();
+    const dLabel = `${now.getMonth() + 1}/${now.getDate()}`;
+    const blocks = [];
+    let grand = 0;
+
+    senderList.forEach(sender => {
+      const { orders: sOrders, custom } = grouped[sender];
+      const count = sOrders.length + custom.length;
+      if (count === 0) return;
+      grand += count;
+      const lines = [`🏷 ${sender} · ${count}건`, ''];
+      let idx = 1;
+      sOrders.forEach(order => {
+        const customer = findCustomer(order.customerName);
+        const recv = parseReceiver(order);
+        const phone = recv?.tel || customer?.phone || order.customerPhone || '';
+        const address = shipAddress(order, customer);
+        const setting = getOrderSetting(order.orderNumber, order.customerName, order);
+        lines.push(`${idx}. ${shippingName(order)}${phone ? `  ${phone}` : ''}`);
+        if (address) lines.push(`   📍 ${address}`);
+        lines.push(`   📦 ${itemSummary(order.items)}`);
+        lines.push(`   📮 ${[setting.packaging, setting.paymentType].filter(Boolean).join('  ·  ')}`);
+        lines.push('');
+        idx++;
+      });
+      custom.forEach(entry => {
+        lines.push(`${idx}. ${entry.name || ''}${entry.phone ? `  ${entry.phone}` : ''}`);
+        if (entry.address) lines.push(`   📍 ${entry.address}`);
+        lines.push(`   📦 ${entry.product || '상품'}`);
+        lines.push(`   📮 ${[entry.packaging, entry.paymentType].filter(Boolean).join('  ·  ')}`);
+        lines.push('');
+        idx++;
+      });
+      blocks.push(lines.join('\n').trimEnd());
+    });
+
+    if (grand === 0) return '';
+    const header = `📦 ${dLabel} 택배 발송  (총 ${grand}건)`;
+    return [header, '━━━━━━━━━━━━━━', ...blocks].join('\n\n');
+  };
+
+  const copyKakaoText = async () => {
+    const text = buildKakaoText();
+    if (!text) { if (showToast) showToast('복사할 발송 내역이 없습니다.', 'error'); return; }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setKakaoCopied(true);
+      setTimeout(() => setKakaoCopied(false), 2000);
+      if (showToast) showToast('카톡용 발송 내역을 복사했습니다 📋', 'success');
+    } catch (e) {
+      if (showToast) showToast('복사 실패 — 아래 버튼 대신 길게 눌러 직접 복사해주세요.', 'error');
+    }
   };
 
   const packagingOptions = ['박스1', '박스2', '박스3', '나체1', '나체2', '나체3'];
@@ -828,7 +978,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
             <div className="space-y-2">
               {filteredOrders.map(order => {
                 const customer = order.customerName ? findCustomer(order.customerName) : null;
-                const hasAddress = customer?.address;
+                const hasAddress = shipAddress(order, customer);
                 const setting = getOrderSetting(order.orderNumber, order.customerName, order);
                 const isSelected = selectedOrders.includes(order.orderNumber);
                 const hasSavedSetting = order.customerName && savedCustomerSettings[order.customerName];
@@ -884,8 +1034,46 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                               </span>
                             )}
                           </div>
-                          <p className="text-[var(--muted-foreground)] text-xs break-words leading-snug">{customer?.address || '주소 미등록'}</p>
-                          <p className="text-[var(--muted-foreground)] text-xs mt-0.5">{order.items?.length || 0}종 · {formatPrice(order.totalAmount)}</p>
+                          <p className="text-[var(--muted-foreground)] text-xs break-words leading-snug">{shipAddress(order, customer) || '주소 미등록'}</p>
+                          {/* 받는분(수령인)·배송메모 — 발송은 받는사람 기준 */}
+                          {(() => {
+                            const recv = parseReceiver(order);
+                            const smemo = parseShippingMemo(order);
+                            const note = getUserNote(order);
+                            if (!recv && !smemo && !note) return null;
+                            return (
+                              <div className="mt-1 space-y-0.5">
+                                {recv && (
+                                  <p className="text-xs font-bold flex items-center gap-1" style={{ color: 'var(--success)' }}>
+                                    🎁 받는분: {recv.name}{recv.tel ? ` · ${recv.tel}` : ''}
+                                    {recv.name !== order.customerName && <span className="px-1 py-0.5 rounded text-[10px] font-bold" style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)' }}>주문자와 다름</span>}
+                                  </p>
+                                )}
+                                {smemo && (
+                                  <p className="text-xs break-words leading-snug" style={{ color: 'var(--warning)' }}>📝 배송메모: {smemo}</p>
+                                )}
+                                {note && (
+                                  <p className="text-xs break-words leading-snug font-semibold px-1.5 py-1 rounded" style={{ color: 'var(--info)', background: 'color-mix(in srgb, var(--info) 10%, transparent)' }}>🗒️ 주문 메모: {note}</p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                          {/* 주문 물품 — 제품명 칩으로 한눈에 (사장님 요청) */}
+                          {order.items?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {order.items.slice(0, 6).map((it, i) => (
+                                <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold break-keep leading-tight"
+                                  style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)', border: '1px solid color-mix(in srgb, var(--primary) 25%, transparent)' }}
+                                  title={`${it.name}${(it.quantity || 1) > 1 ? ` × ${it.quantity}개` : ''}`}>
+                                  📦 {it.name}{(it.quantity || 1) > 1 ? ` ×${it.quantity}` : ''}
+                                </span>
+                              ))}
+                              {order.items.length > 6 && (
+                                <span className="inline-flex items-center px-2 py-0.5 text-[11px] text-[var(--muted-foreground)]">외 {order.items.length - 6}건</span>
+                              )}
+                            </div>
+                          )}
+                          <p className="text-[var(--muted-foreground)] text-xs mt-1">{order.items?.length || 0}종 · {formatPrice(order.totalAmount)}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className="text-[var(--muted-foreground)] text-xs">{customer?.phone || order.customerPhone || '번호 없음'}</p>
@@ -1203,6 +1391,22 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
               })}
             </div>
             </div>
+
+            {/* 카톡용 복사 — 모바일에서 택배사에 그대로 붙여넣기 */}
+            <button
+              onClick={copyKakaoText}
+              className="w-full py-2.5 sm:py-3 mb-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all hover:brightness-95 active:scale-[0.98] text-xs sm:text-sm shadow-sm"
+              style={{ background: kakaoCopied ? '#22c55e' : '#FEE500', color: kakaoCopied ? 'white' : '#3C1E1E' }}
+              title="오늘 발송 내역(업체·주소·품명·착불선불)을 카톡에 붙여넣기 좋게 복사"
+            >
+              {kakaoCopied ? <Check className="w-4 h-4 flex-shrink-0" /> : <MessageCircle className="w-4 h-4 flex-shrink-0" />}
+              {kakaoCopied ? '복사됨!' : (
+                <>
+                  <span className="hidden sm:inline">카톡용 발송내역 복사</span>
+                  <span className="sm:hidden">카톡 복사</span>
+                </>
+              )}
+            </button>
 
             {/* Export buttons - 모바일: 가로 한줄, 데스크톱: 세로 */}
             <div className="grid grid-cols-3 sm:grid-cols-1 gap-2">

@@ -369,15 +369,24 @@ export default function AIAnalytics({
           }
         }
       } else if (pending.action === 'updateCustomer') {
-        const { customerId, customerName, phone, address } = pending.params;
+        const { customerId, customerName, phone, address, name: newName, is_blacklist } = pending.params;
         const patch = {};
         if (phone !== undefined) patch.phone = phone;
         if (address !== undefined) patch.address = address;
+        if (newName !== undefined) patch.name = newName;
+        if (is_blacklist !== undefined) patch.is_blacklist = is_blacklist;
         const updated = await supabase.updateCustomer(customerId, patch);
         if (updated) {
+          // 상호 변경 시 과거 주문/저장카트/반품 이력도 새 상호로 자동 이전 (안 하면 이력 끊김)
+          let movedNote = '';
+          if (newName !== undefined && newName !== customerName && supabase.renameCustomerCascade) {
+            const moved = await supabase.renameCustomerCascade(customerName, newName);
+            const parts = [moved.orders > 0 ? `주문 ${moved.orders}건` : null, moved.carts > 0 ? `카트 ${moved.carts}건` : null, moved.returns > 0 ? `반품 ${moved.returns}건` : null].filter(Boolean);
+            if (parts.length > 0) movedNote = ` (${parts.join('/')} 이력 이전)`;
+          }
           setCustomers?.((prev) => prev.map((c) => c.id === customerId ? { ...c, ...patch } : c));
-          chat.addSystemMessage(`✅ "${customerName}" 정보 변경 완료`);
-          showToast?.(`거래처 수정: ${customerName}`, 'success');
+          chat.addSystemMessage(`✅ "${customerName}" 정보 변경 완료${movedNote}`);
+          showToast?.(`거래처 수정: ${customerName}${movedNote}`, 'success');
         } else {
           chat.addSystemMessage(`❌ "${customerName}" 정보 변경 실패`);
           showToast?.('거래처 수정 실패', 'error');
@@ -446,6 +455,45 @@ export default function AIAnalytics({
         const summary = `✅ 가격 ${okList.length}건 변경 완료${failList.length > 0 ? ` (실패 ${failList.length}건)` : ''}`;
         chat.addSystemMessage(summary);
         showToast?.(summary, okList.length > 0 ? 'success' : 'error');
+      } else if (pending.action === 'updateProductName') {
+        const { productId, oldName, name } = pending.params;
+        const updated = await supabase.updateProduct(productId, { name });
+        if (updated) {
+          setProducts?.((prev) => prev.map((p) => p.id === productId ? { ...p, name } : p));
+          chat.addSystemMessage(`✅ 제품명 변경: "${oldName}" → "${name}"`);
+          showToast?.('제품명 변경됨', 'success');
+        } else {
+          chat.addSystemMessage(`❌ "${oldName}" 제품명 변경 실패`);
+          showToast?.('제품명 변경 실패', 'error');
+        }
+      } else if (pending.action === 'updateOrderMemo') {
+        const { orderId, customerName, memo } = pending.params;
+        const updated = await supabase.updateOrder(orderId, { memo });
+        if (updated) {
+          chat.addSystemMessage(`✅ 주문 ${orderId} (${customerName}) 메모 저장 완료`);
+          showToast?.('주문 메모 저장됨', 'success');
+        } else {
+          chat.addSystemMessage(`❌ 주문 ${orderId} 메모 저장 실패`);
+          showToast?.('메모 저장 실패', 'error');
+        }
+      } else if (pending.action === 'bulkUpdateProductName') {
+        const { updates } = pending.params;
+        const results = await Promise.all(
+          updates.map((u) => supabase.updateProduct(u.productId, { name: u.name })
+            .then((r) => ({ ok: Boolean(r), u }))
+            .catch(() => ({ ok: false, u })))
+        );
+        const okList = results.filter((r) => r.ok);
+        const failCount = results.length - okList.length;
+        if (okList.length > 0) {
+          setProducts?.((prev) => {
+            const map = new Map(okList.map((r) => [r.u.productId, r.u.name]));
+            return prev.map((p) => (map.has(p.id) ? { ...p, name: map.get(p.id) } : p));
+          });
+        }
+        const summary = `✅ 제품명 ${okList.length}건 변경 완료${failCount > 0 ? ` (실패 ${failCount}건)` : ''}`;
+        chat.addSystemMessage(summary);
+        showToast?.(summary, okList.length > 0 ? 'success' : 'error');
       }
     } catch (e) {
       chat.addSystemMessage(`❌ 오류: ${e.message || e}`);
@@ -465,12 +513,17 @@ export default function AIAnalytics({
       updateProductStock: `"${pending.params.productName}" 재고 변경`,
       updateProductPrice: `"${pending.params.productName}" 가격 변경`,
       bulkUpdateProductPrice: `가격 ${pending.params.updates?.length || 0}건 일괄 변경`,
+      updateProductName: `"${pending.params.oldName}" 제품명 변경`,
+      bulkUpdateProductName: `제품명 ${pending.params.updates?.length || 0}건 일괄 변경`,
+      updateOrderMemo: `주문 ${pending.params.orderId} 메모`,
       saveOrder: `"${pending.params.customerName}" 주문 등록`,
       updateCustomer: `"${pending.params.customerName}" 정보 수정`,
       bulkUpdateCustomer: `거래처 ${pending.params.updates?.length || 0}건 정보 일괄 변경`,
     };
-    chat.addSystemMessage(`↩️ ${labelMap[pending.action] || pending.action} 취소됨`);
-    chat.resolvePendingAction(pending.id);
+    const extra = chat.pendingActions.length > 1 ? ` 외 ${chat.pendingActions.length - 1}건` : '';
+    chat.addSystemMessage(`↩️ ${labelMap[pending.action] || pending.action}${extra} 취소됨`);
+    // 잘못 인식돼 여러 건이 큐에 쌓였어도 한 번에 닫는다 (1개씩 제거 시 다음 모달이 떠서 "안 닫힘" 현상 방지)
+    chat.clearPendingActions();
   };
   const [showSettings, setShowSettings] = useState(false);
   const [keyInput, setKeyInput] = useState('');
@@ -614,7 +667,7 @@ export default function AIAnalytics({
       {/* 설정 모달 */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowSettings(false)}>
-          <div className="movis-glass-card max-w-md w-full p-4 sm:p-6 min-w-0" onClick={(e) => e.stopPropagation()}>
+          <div className="movis-glass-card max-w-md w-full p-4 sm:p-6 min-w-0 modal-card-safe" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2 movis-text-primary min-w-0">
                 <Settings className="w-5 h-5" />
@@ -759,6 +812,7 @@ export default function AIAnalytics({
           onSend={(text) => { lastInputWasVoiceRef.current = false; chat.send(text); }}
           isLoading={chat.isLoading}
           loadingStep={chat.loadingStep}
+          loadingSteps={chat.loadingSteps}
           suggestedItems={sortedPrompts}
           onSelectSuggested={(item) => { lastInputWasVoiceRef.current = false; handleSelect(item); }}
           onClear={chat.clear}
@@ -798,41 +852,42 @@ export default function AIAnalytics({
         const meta = titleMap[pending.action] || { title: '작업 확인', Icon: AlertTriangle };
         const Icon = meta.Icon;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="movis-glass-card max-w-md w-full p-4 sm:p-6 min-w-0">
-              <div className="flex items-center gap-2 mb-4 movis-text-primary">
-                <Icon className="w-5 h-5 text-[var(--jarvis-cyan)]" />
-                <h3 className="text-lg font-bold">{meta.title}</h3>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={() => { if (!executing) handleCancelAction(pending); }}>
+            <div className="movis-glass-card max-w-lg sm:max-w-xl w-full p-5 sm:p-7 min-w-0 modal-card-safe" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-5 movis-text-primary">
+                <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-[var(--jarvis-cyan)] flex-shrink-0" />
+                <h3 className="text-xl sm:text-2xl font-bold">{meta.title}</h3>
               </div>
-              <div className="bg-[#0f1a2d]/70 border border-cyan-400/20 rounded-lg p-3 mb-4 text-sm whitespace-pre-line break-words leading-relaxed">
+              <div className="bg-[#0f1a2d]/70 border border-cyan-400/20 rounded-xl p-4 sm:p-5 mb-5 text-base sm:text-lg whitespace-pre-line break-words leading-relaxed">
                 {pending.preview}
               </div>
               {pending.warnings.length > 0 && (
-                <div className="bg-amber-500/10 border border-cyan-400/20 rounded-lg p-3 mb-4">
+                <div className="bg-amber-500/10 border border-amber-400/25 rounded-xl p-4 mb-5">
                   {pending.warnings.map((w, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-amber-300 break-words">
-                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    <div key={i} className="flex items-start gap-2 text-sm text-amber-300 break-words leading-relaxed">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                       <span>{w}</span>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="text-[11px] text-[var(--jarvis-text-muted)] mb-4 break-words leading-snug">
+              <div className="text-xs sm:text-sm text-[var(--jarvis-text-muted)] mb-5 break-words leading-snug">
                 💡 [실행] 누르면 Supabase에 즉시 저장됩니다. 잘못된 경우 관리자 페이지에서 수정/삭제 가능합니다.
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
                   onClick={() => handleExecuteAction(pending)}
                   disabled={executing}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-[var(--jarvis-cyan)] text-[#050b18] font-semibold hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 py-3 sm:py-3.5 rounded-xl bg-[var(--jarvis-cyan)] text-[#050b18] font-bold text-base sm:text-lg hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                  <Check className="w-4 h-4" />
+                  <Check className="w-5 h-5" />
                   {executing ? '실행 중...' : '✅ 실행'}
                 </button>
                 <button
                   onClick={() => handleCancelAction(pending)}
                   disabled={executing}
-                  className="px-4 py-2 rounded-lg border border-cyan-400/20 hover:bg-cyan-500/10 disabled:opacity-50"
+                  className="px-6 py-3 sm:py-3.5 rounded-xl border border-cyan-400/25 text-base sm:text-lg font-medium hover:bg-cyan-500/10 active:scale-[0.98] transition-all disabled:opacity-50"
                 >
                   취소
                 </button>

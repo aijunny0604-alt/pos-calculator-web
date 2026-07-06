@@ -108,6 +108,14 @@ export default function useAIAnalystChat({
   const [messages, setMessages] = useState(() => loadHistory());
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
+  // Claude/GPT식 추론 트레이스 — 단계 누적([{id,label,status:'active'|'done'}]). 새 단계 추가 시 이전은 done.
+  const [loadingSteps, setLoadingSteps] = useState([]);
+  const pushStep = useCallback((label) => {
+    setLoadingSteps((prev) => [
+      ...prev.map((s) => (s.status === 'active' ? { ...s, status: 'done' } : s)),
+      { id: `${Date.now()}_${prev.length}`, label, status: 'active' },
+    ]);
+  }, []);
   const [pendingActions, setPendingActions] = useState([]); // 쓰기 도구 confirm 대기
   const abortRef = useRef(null);
 
@@ -150,6 +158,7 @@ export default function useAIAnalystChat({
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
     setLoadingStep('🤖 MOVIS가 생각 중...');
+    setLoadingSteps([{ id: `${Date.now()}_0`, label: '질문을 이해하는 중', status: 'active' }]);
 
     if (promptId) recordUsage(promptId);
 
@@ -181,13 +190,16 @@ export default function useAIAnalystChat({
           // 특수 신호: 폴백 시작
           if (call?.name === '__fallback__') {
             setLoadingStep('⚡ Gemini 한도 초과 → Groq로 폴백 중...');
+            pushStep('⚡ Groq 엔진으로 전환');
             return;
           }
           const friendly = friendlyToolName(call?.name) || call?.name || '데이터 조회';
           setLoadingStep(`🔍 ${friendly}`);
+          pushStep(`${friendly}`);
         },
       });
 
+      pushStep('답변 정리 중');
       // 캐시 hit 등으로 너무 빠르면 ThinkingChip을 잠깐 더 보여줌
       const elapsed = Date.now() - startedAt;
       if (elapsed < MIN_THINKING_MS) {
@@ -294,14 +306,16 @@ export default function useAIAnalystChat({
     } finally {
       setIsLoading(false);
       setLoadingStep('');
+      setLoadingSteps([]);
       abortRef.current = null;
     }
-  }, [orders, customers, products, savedCarts, aiLearningData, paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts, isLoading, recordUsage]);
+  }, [orders, customers, products, savedCarts, aiLearningData, paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts, isLoading, recordUsage, pushStep]);
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
     setIsLoading(false);
     setLoadingStep('');
+    setLoadingSteps([]);
   }, []);
 
   const clear = useCallback(() => {
@@ -322,13 +336,17 @@ export default function useAIAnalystChat({
   const resolvePendingAction = useCallback((actionId) => {
     setPendingActions((prev) => prev.filter((p) => p.id !== actionId));
   }, []);
+  // 대기 액션 전체 비우기 — 취소 시 한 번에 닫기(여러 건 잘못 인식돼 모달이 안 닫히던 문제 방지)
+  const clearPendingActions = useCallback(() => setPendingActions([]), []);
 
   return {
     messages,
     isLoading,
     loadingStep,
+    loadingSteps,
     pendingActions,
     resolvePendingAction,
+    clearPendingActions,
     addSystemMessage,
     send,
     cancel,

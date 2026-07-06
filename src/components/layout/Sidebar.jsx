@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { LayoutDashboard, ShoppingBag, ClipboardList, ShoppingCart, Users, Package, Truck, Brain, Settings, Calculator, CircleDollarSign, FileText, Sparkles, Store } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, ClipboardList, ShoppingCart, Users, Package, Truck, Brain, Settings, Calculator, CircleDollarSign, FileText, Sparkles, Store, StickyNote } from 'lucide-react';
 import QuickCalculator from '@/pages/QuickCalculator';
 
 const navItems = [
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
   { id: 'pos', label: '제품 주문', icon: ShoppingBag },
   { id: 'orders', label: '주문 내역', icon: ClipboardList },
+  { id: 'memos', label: '메모 모아보기', icon: StickyNote },
   { id: 'saved-carts', label: '저장된 장바구니', icon: ShoppingCart },
   { id: 'shipping', label: '택배 송장', icon: Truck },
   { id: 'customers', label: '거래처 관리', icon: Users },

@@ -91,7 +91,12 @@ export const offsetDateKST = (dateStr, days) => {
 // KST YYYY-MM-DD 문자열에서 월을 빼서 새 YYYY-MM-DD 반환
 export const offsetMonthKST = (dateStr, months) => {
   const d = new Date(dateStr + 'T00:00:00Z');
+  const day = d.getUTCDate();
+  // 월말(3/31 등) overflow 방지: 1일로 옮겨 月 이동 후, 목표 월의 말일로 clamp [bug-hunt 7]
+  d.setUTCDate(1);
   d.setUTCMonth(d.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, lastDay));
   return d.toISOString().split('T')[0];
 };
 

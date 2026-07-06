@@ -139,6 +139,15 @@ const copyToClipboard = async (text) => {
   } catch { return false; }
 };
 
+// 받는사람(배송지 수령인) 이름 — receiver_name 컬럼 우선, 없으면 raw_payload 배송지에서.
+// 택배는 받는사람 기준으로 보내므로 입금자(buyer_name)와 구별해 표기.
+const getReceiverName = (order, items = []) => {
+  if (order?.receiver_name) return order.receiver_name;
+  const po = order?.raw_payload?.productOrder
+    || items.find((i) => i?.raw_payload?.productOrder?.shippingAddress)?.raw_payload?.productOrder;
+  return po?.shippingAddress?.name || null;
+};
+
 // 배송수단 배지 — 방문수령 / 택배 / 직접배송 / 퀵 등 구분.
 // 네이버 deliveryMethod(expectedDeliveryMethod) enum 기준.
 const DELIVERY_METHOD = {
@@ -195,6 +204,28 @@ const STATUS_LABEL = {
   RETURNED: { label: '반품', color: '#ec4899', bg: 'rgba(236,72,153,0.16)' },
   EXCHANGED: { label: '교환', color: '#d946ef', bg: 'rgba(217,70,239,0.16)' },
 };
+
+// 클레임 종류별 색 — 취소요청=주황 / 반품요청=핑크 / 교환요청=마젠타 (STATUS_LABEL 색과 통일)
+const CLAIM_COLORS = { CANCEL: '#fb923c', RETURN: '#ec4899', EXCHANGE: '#d946ef' };
+
+// 구매자 클레임(취소/반품/교환 요청) 감지 — ⚠️ 네이버는 취소요청을 productOrderStatus가 아니라
+// productOrder.claimStatus(CANCEL_REQUEST 등)에 넣고 productOrderStatus는 PAYED/DELIVERED로 둔다.
+// 그래서 order_status만 보면 취소요청이 안 보임 → raw_payload의 claimStatus/claimType을 직접 읽는다.
+// 단건은 order.raw_payload.productOrder, 다건은 items[].raw_payload.productOrder에 있을 수 있어 둘 다 본다.
+function getClaimInfo(order, items = []) {
+  const pos = [order?.raw_payload?.productOrder, ...(items || []).map((it) => it?.raw_payload?.productOrder)].filter(Boolean);
+  for (const po of pos) {
+    const cs = po.claimStatus || '';
+    const ct = po.claimType || '';
+    if (!cs && !ct) continue;
+    // 이미 종결/거부/철회된 클레임은 제외 (order_status가 처리). 진행 중(요청/수거/검수)만 표기.
+    if (/DONE|REJECT|WITHDRAW|COMPLET|CANCEL_NOT|NOT_REQUEST/i.test(cs)) continue;
+    const type = /RETURN/i.test(ct + cs) ? 'RETURN' : /EXCHANGE/i.test(ct + cs) ? 'EXCHANGE' : 'CANCEL';
+    const label = type === 'RETURN' ? '반품요청' : type === 'EXCHANGE' ? '교환요청' : '취소요청';
+    return { type, label, claimStatus: cs, claimType: ct };
+  }
+  return null;
+}
 
 // 발주확인 가능 상태 (네이버 원본 + 내부 status 모두 포함)
 const PENDING_CONFIRM_STATUSES = new Set(['received', 'PAYED', 'PAYMENT_WAITING', 'matched']);
@@ -309,12 +340,42 @@ const PROVIDER_LABEL = {
   mock: { label: '🧪 Mock', color: '#a78bfa' },
 };
 
+// 액션 버튼 고급 디자인 — 아이콘 + 테두리 + 호버 입체감(살짝 떠오름 + 그림자)
+const ACTION_VARIANTS = {
+  primary: { bg: 'var(--primary)', color: '#fff', border: 'transparent', shadow: '0 1px 2px rgba(0,0,0,0.12)' },
+  purple: { bg: 'rgba(167,139,250,0.12)', color: '#7c5cf5', border: 'rgba(167,139,250,0.5)' },
+  green: { bg: 'rgba(3,199,90,0.12)', color: '#06a850', border: 'rgba(3,199,90,0.45)' },
+  blue: { bg: 'rgba(59,130,246,0.10)', color: '#2f7df0', border: 'rgba(59,130,246,0.45)' },
+  red: { bg: 'rgba(255,77,109,0.10)', color: '#ea3a56', border: 'rgba(255,77,109,0.45)' },
+};
+// 카드 뷰 액션 버튼 공통 클래스 (전체폭 그리드 셀, 컴팩트 ActionBtn과 동일 호버 입체감)
+const CARD_ACTION_CLASS = "py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px] border transition-all duration-150 hover:-translate-y-px hover:shadow-md hover:brightness-[1.03] active:translate-y-0 active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1";
+
+// 상세 모달 푸터 버튼 공통 클래스 (flex-1 균등 + 고급 호버, 항상 하단 고정)
+const MODAL_FOOTER_CLASS = "flex-1 min-w-[84px] px-3 py-2.5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-1.5 border transition-all duration-150 hover:-translate-y-px hover:shadow-md hover:brightness-[1.03] active:translate-y-0 active:shadow-none";
+
+function ActionBtn({ onClick, icon: Icon, label, variant = 'purple', title }) {
+  const v = ACTION_VARIANTS[variant] || ACTION_VARIANTS.purple;
+  return (
+    <button
+      onClick={onClick}
+      title={title || label}
+      className="px-3 py-2 lg:px-2.5 lg:py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap inline-flex items-center justify-center gap-1 min-h-[44px] lg:min-h-0 border transition-all duration-150 hover:-translate-y-px hover:shadow-md hover:brightness-[1.03] active:translate-y-0 active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+      style={{ background: v.bg, color: v.color, borderColor: v.border, boxShadow: v.shadow }}
+    >
+      {Icon && <Icon className="w-3.5 h-3.5 flex-shrink-0" />}
+      {label}
+    </button>
+  );
+}
+
 export default function SmartStoreOrders({
   products = [],
   customers = [],
   showToast,
   saveOrder: saveOrderProp,
   setCurrentPage,
+  refreshCustomers,
 }) {
   // 착불/선불 정규화 (네이버 → ShippingLabel 형식)
   const normalizeDeliveryPayType = (policy) => {
@@ -424,6 +485,63 @@ export default function SmartStoreOrders({
   // 매칭 직접 수정 (사용자 요청)
   const [editingItemId, setEditingItemId] = useState(null);
   const [matchSearch, setMatchSearch] = useState('');
+  const [blacklistTarget, setBlacklistTarget] = useState(null); // 블랙리스트 확인 모달 대상 order
+  const [blacklisting, setBlacklisting] = useState(false);
+
+  // 🚫 블랙리스트 — 전화번호 우선 매칭 (동명이인 오차단 방지). buyer_phone 숫자만 비교
+  const digitsOnly = (p) => String(p || '').replace(/\D/g, '');
+  // 전화 숫자 → 블랙리스트 거래처 인덱스 (재주문 경고용, 재계산 최소화)
+  const blacklistPhones = useMemo(() => {
+    const s = new Set();
+    (customers || []).forEach((c) => {
+      if (c?.is_blacklist) { const d = digitsOnly(c.phone); if (d.length >= 8) s.add(d); }
+    });
+    return s;
+  }, [customers]);
+  // 이 주문 구매자가 블랙리스트인가 (전화 우선, 없으면 이름 폴백)
+  const buyerBlacklisted = (order) => {
+    const d = digitsOnly(order?.buyer_phone);
+    if (d.length >= 8 && blacklistPhones.has(d)) return true;
+    // 전화 없을 때만 이름 폴백 (약한 근거)
+    if (!d && order?.buyer_name) {
+      return (customers || []).some((c) => c?.is_blacklist && c?.name && c.name === order.buyer_name);
+    }
+    return false;
+  };
+  // 블랙리스트 지정/해제 실행 — 전화로 거래처 찾아 토글, 없으면 구매자 정보로 거래처 생성 후 블랙 지정
+  const doBlacklist = async (order) => {
+    if (!order || blacklisting) return;
+    setBlacklisting(true);
+    try {
+      const phone = order.buyer_phone || '';
+      const d = digitsOnly(phone);
+      let target = null;
+      if (d.length >= 8) target = (customers || []).find((c) => digitsOnly(c.phone) === d);
+      if (!target && order.buyer_name) target = (customers || []).find((c) => c.name === order.buyer_name && !c.phone);
+      const willBlacklist = !(target && target.is_blacklist);
+      if (target) {
+        const res = await supabase.updateCustomer(target.id, { is_blacklist: willBlacklist });
+        if (!res) throw new Error('update-failed');
+      } else {
+        const res = await supabase.addCustomer({
+          name: order.buyer_name || '구매자',
+          phone,
+          address: order.buyer_address || '',
+          category: '엠파츠',
+          is_blacklist: true,
+        });
+        if (!res) throw new Error('add-failed');
+      }
+      if (refreshCustomers) await refreshCustomers();
+      showToast?.(willBlacklist ? `🚫 ${order.buyer_name || '구매자'} 블랙리스트 지정` : `✅ ${order.buyer_name || '구매자'} 블랙리스트 해제`, willBlacklist ? 'warning' : 'success');
+      setBlacklistTarget(null);
+    } catch (e) {
+      console.error('doBlacklist:', e);
+      showToast?.('블랙리스트 처리 실패', 'error');
+    } finally {
+      setBlacklisting(false);
+    }
+  };
 
   const matchSearchResults = useMemo(() => {
     const q = matchSearch.trim().toLowerCase();
@@ -465,13 +583,20 @@ export default function SmartStoreOrders({
   const [selectedOrderIds, setSelectedOrderIds] = useState(() => new Set());
   const [modalFullscreen, setModalFullscreen] = useState(false); // 주문 상세 모달 전체화면 토글
   const [bulkDispatchOpen, setBulkDispatchOpen] = useState(false);
+  const [bulkConvertOpen, setBulkConvertOpen] = useState(false); // 일괄 내부주문 전환 모달
   const [bulkDispatchCompany, setBulkDispatchCompany] = useState('CJGLS'); // 기본(전체 적용용)
   const [bulkTrackingMap, setBulkTrackingMap] = useState({}); // { orderId: 'tracking' }
   const [bulkCompanyMap, setBulkCompanyMap] = useState({}); // { orderId: companyCode } 주문별 개별 택배사 (네이버처럼)
   // 주문 취소 모달 (Task #108 → C1 fix: window.prompt → 모달 UI)
   const [cancelModalOrder, setCancelModalOrder] = useState(null);
+  // 내부주문 전환 시 "네이버 발주확인도 보낼까요?" 선택 모달
+  const [convertModalOrder, setConvertModalOrder] = useState(null);
+  const [convertSubmitting, setConvertSubmitting] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  // 구매자 취소요청 승인(API 큐) — 비가역. 별도 확인 모달
+  const [approveCancelOrder, setApproveCancelOrder] = useState(null);
+  const [approveCancelSubmitting, setApproveCancelSubmitting] = useState(false);
   const CANCEL_PRESETS = ['상품 품절', '구매자 요청', '배송 지연', '가격 오류', '기타'];
   const [dispatchCompany, setDispatchCompany] = useState('CJGLS');
   const [dispatchTracking, setDispatchTracking] = useState('');
@@ -480,12 +605,10 @@ export default function SmartStoreOrders({
     setLoading(true);
     const list = await supabase.getExternalOrders({ limit: 200 });
     setOrders(list || []);
-    // 모든 주문의 items 일괄 로드
-    const itemsMap = {};
-    await Promise.all((list || []).map(async (o) => {
-      const items = await supabase.getExternalOrderItems(o.id);
-      itemsMap[o.id] = items || [];
-    }));
+    // 모든 주문의 items를 단일 배치 쿼리로 로드 (N+1 제거 — 주문마다 따로 요청하던 게 로딩 지연 원인, 2026-06-22)
+    const itemsMap = await supabase.getExternalOrderItemsByOrders((list || []).map((o) => o.id));
+    // 주문은 있는데 items 없는 경우도 빈 배열로 채워 일관성 유지
+    for (const o of (list || [])) { if (!itemsMap[o.id]) itemsMap[o.id] = []; }
     setItemsByOrder(itemsMap);
     setLoading(false);
   }, []);
@@ -528,18 +651,22 @@ export default function SmartStoreOrders({
     const matched = orders.filter((o) => {
       if (providerFilter !== 'all' && o.provider !== providerFilter) return false;
       // 주문 검색: 구매자 이름·전화·주문번호·주소·상품명. 전화는 숫자만으로도 매칭.
+      // 토큰 AND 매칭 — "머플러팁 89"처럼 여러 단어를 순서·띄어쓰기 무관하게 쳐도 hit ("머플러 팁" 표기차도 공백제거 비교로 흡수)
       if (q) {
         const items = itemsByOrder[o.id] || [];
         const hay = [o.buyer_name, o.buyer_phone, o.provider_order_id, o.buyer_address,
           ...items.map((it) => it.provider_product_name)].filter(Boolean).join(' ').toLowerCase();
+        const hayNoSpace = hay.replace(/\s+/g, '');
         const phoneDigits = String(o.buyer_phone || '').replace(/\D/g, '');
-        if (!(hay.includes(q) || (qDigits.length >= 3 && phoneDigits.includes(qDigits)))) return false;
+        const tokens = q.split(/\s+/).filter(Boolean);
+        const tokenHit = tokens.length > 0 && tokens.every((t) => hayNoSpace.includes(t.replace(/\s+/g, '')));
+        if (!(hay.includes(q) || tokenHit || (qDigits.length >= 3 && phoneDigits.includes(qDigits)))) return false;
       }
       // 상태 필터 = 스텝퍼 5단계(실제 배송상태)와 1:1. 단일 order_status 정확매칭이 아니라
       // 단계(결제완료/발주확인/발송/배송중/배송완료)·취소 그룹으로 판정 (2026-06-03).
       if (statusFilter !== 'all') {
         const { stage: st, canceled: cx } = orderStage(o);
-        if (statusFilter === 'cancel') { if (!cx) return false; }
+        if (statusFilter === 'cancel') { if (!cx && !getClaimInfo(o, itemsByOrder[o.id])) return false; }
         else {
           const wantStage = { s0: 0, s1: 1, s2: 2, s3: 3, s4: 4 }[statusFilter];
           if (cx || st !== wantStage) return false;
@@ -548,12 +675,25 @@ export default function SmartStoreOrders({
       // 종결(배송완료/구매확정/취소/반품/교환) 만 토글 OFF 시 숨김.
       // 내부주문 전환(converted)·발송완료(shipped)·배송중은 아직 추적할 게 있어 계속 표시 (2026-06-02).
       // 단, widgetFilter 또는 상태필터 active 시에는 그쪽 의도가 우선이므로 우회 (배송완료/취소 직접 조회 가능).
-      if (!showCompleted && widgetFilter === 'none' && statusFilter === 'all' && isOrderTerminal(o)) return false;
-      // 날짜 범위 (결제일 = received_at 기준, 네이버 조회기간과 동일)
-      // 단, 미처리(발주확인·발송 대기) 주문은 기간 밖이라도 항상 표시 → 놓치는 주문 0 (2026-06-03).
-      if (dateRange && o.received_at && !needsAction(o)) {
+      // ⚠️ 구매자 클레임(취소/반품/교환 요청)이 걸린 주문은 order_status가 DELIVERED(종결)여도
+      //    사장님 응답이 필요하므로 절대 숨기지 않는다 (반품요청이 종결로 묻혀 안 보이던 문제).
+      const activeClaim = !!getClaimInfo(o, itemsByOrder[o.id]);
+      // 🔍 검색 중엔 종결 숨김·날짜필터 우회 — 옛 주문(대부분 배송완료=종결)도 상품명/이름으로 찾아져야 함
+      // (이전엔 검색 매칭돼도 종결 숨김+날짜필터에 걸려 0건 → "제품명 검색 안 된다" 현상의 원인)
+      const searching = !!q;
+      if (!searching && !showCompleted && widgetFilter === 'none' && statusFilter === 'all' && isOrderTerminal(o) && !activeClaim) return false;
+      // 날짜 필터 — 오늘 페이지에 뜨는 조건 (2026-06-22 사장님 요청 반영):
+      //  ① 그 기간에 결제(received_at)  ② 그 기간에 작업(발주확인/발송/취소 처리시각)
+      //  ③ 아직 확인 안 한 미처리 주문(needsAction = 발주확인·발송 전, 미전환·미종결) → 어제 거라도 오늘 보이게
+      //  ④ 구매자 클레임(취소/반품 요청) → 응답 필요라 항상
+      // ⚠️ "전환된 주문 전체(trackingConverted)" 끌어올림은 제거 — 그게 "오늘에 옛 이력 다 뜨던" 원인.
+      //    (전환 끝난 건은 종결되거나 전체 뷰에서 확인. 미처리만 오늘로 끌어올림)
+      if (!searching && dateRange && o.received_at) {
         const rec = new Date(o.received_at);
-        if (rec < dateRange.from || rec >= dateRange.to) return false;
+        const receivedInRange = rec >= dateRange.from && rec < dateRange.to;
+        const workedInRange = [o.naver_confirm_succeeded_at, o.naver_dispatch_succeeded_at, o.naver_cancel_succeeded_at, o.naver_dispatch_attempted_at]
+          .some((t) => { if (!t) return false; const ts = new Date(t); return ts >= dateRange.from && ts < dateRange.to; });
+        if (!receivedInRange && !workedInRange && !needsAction(o) && !activeClaim) return false;
       }
       // 위젯 필터 (stats 카운트 로직과 1:1 동일)
       if (widgetFilter !== 'none') {
@@ -578,7 +718,9 @@ export default function SmartStoreOrders({
           if (!(o.naver_confirm_succeeded_at && !o.naver_dispatch_succeeded_at && o.order_status !== 'shipped')) return false;
         } else if (widgetFilter === 'cancel') {
           const st = o.order_status;
-          const isCancel = st === 'CANCEL_REQUEST' || st === 'CANCELED' || st === 'cancelled' || /cancel/i.test(o.raw_payload?.cancelRequest || '');
+          const claim = getClaimInfo(o, itemsByOrder[o.id]);
+          const isCancel = st === 'CANCEL_REQUEST' || st === 'CANCELED' || st === 'cancelled'
+            || /cancel/i.test(o.raw_payload?.cancelRequest || '') || !!claim;
           if (!isCancel) return false;
         }
       }
@@ -702,7 +844,8 @@ export default function SmartStoreOrders({
       if (o.needs_naver_confirm || o.needs_naver_dispatch) autoConfirmPending++;
       if (o.naver_confirm_succeeded_at && !o.naver_dispatch_succeeded_at && o.order_status !== 'shipped') newAfterConfirm++;
       const status = o.order_status;
-      if (status === 'CANCEL_REQUEST' || status === 'CANCELED' || /cancel/i.test(o.raw_payload?.cancelRequest || '')) cancelRequest++;
+      // ⚠️ order_status가 PAYED여도 claimStatus=CANCEL_REQUEST면 취소요청 — raw_payload 직접 확인
+      if (status === 'CANCEL_REQUEST' || status === 'CANCELED' || /cancel/i.test(o.raw_payload?.cancelRequest || '') || !!getClaimInfo(o, itemsByOrder[o.id])) cancelRequest++;
     }
     return {
       total: ordersInRange.length,
@@ -716,7 +859,7 @@ export default function SmartStoreOrders({
       dispatchDueD1,
       cancelRequest,
     };
-  }, [ordersInRange]);
+  }, [ordersInRange, itemsByOrder]);
 
   // 진행 단계 실시간 현황 — orderStage(5단계)로 집계. 상태필터 s0~s4와 1:1 (클릭=그 단계만).
   // stats/위젯과 동일하게 ordersInRange(조회기간 적용) 기준 → 날짜 바꾸면 카운트도 따라감.
@@ -725,11 +868,12 @@ export default function SmartStoreOrders({
     let canceled = 0;
     for (const o of ordersInRange) {
       const { stage, canceled: cx } = orderStage(o);
-      if (cx) { canceled++; continue; }
+      // 취소/반품/교환 = order_status 종결 + claimStatus 요청(아직 PAYED/DELIVERED인 진행 클레임) 모두 포함
+      if (cx || getClaimInfo(o, itemsByOrder[o.id])) { canceled++; continue; }
       if (stage >= 0 && stage <= 4) stages[stage]++;
     }
     return { stages, canceled };
-  }, [ordersInRange]);
+  }, [ordersInRange, itemsByOrder]);
 
   // Mock 데이터 주입 (Phase 1 테스트용)
   const injectMockOrder = async () => {
@@ -912,6 +1056,34 @@ export default function SmartStoreOrders({
     }
   };
 
+  // 구매자 취소요청 "승인" — needs_naver_cancel 큐 등록 → 매장PC sync.js가 네이버 취소승인 API 호출 (비가역)
+  const doApproveCancel = async () => {
+    if (!approveCancelOrder) return;
+    setApproveCancelSubmitting(true);
+    try {
+      const ok = await supabase.updateExternalOrder(approveCancelOrder.id, {
+        needs_naver_cancel: true,
+        naver_cancel_reason: '구매자 취소요청 승인',
+        // 재시도 카운터 초기화 (새 시도)
+        naver_cancel_retry_count: 0,
+        naver_cancel_next_retry_at: null,
+        naver_cancel_claimed_at: null,
+        naver_cancel_error: null,
+      });
+      if (ok) {
+        showToast?.('취소 승인 대기열 등록 — 매장PC가 최대 60초 내 네이버에 취소 승인 처리합니다', 'success');
+        setApproveCancelOrder(null);
+        reload();
+      } else {
+        showToast?.('취소 승인 등록 실패 — 다시 시도해주세요', 'error');
+      }
+    } catch (e) {
+      showToast?.(`취소 승인 실패: ${e.message}`, 'error');
+    } finally {
+      setApproveCancelSubmitting(false);
+    }
+  };
+
   // 일괄 발송 — 다수 주문 선택 후 한 번에 등록 (Task #109)
   const toggleOrderSelect = (id) => {
     setSelectedOrderIds((prev) => {
@@ -921,6 +1093,29 @@ export default function SmartStoreOrders({
     });
   };
   const clearSelection = () => { setSelectedOrderIds(new Set()); setBulkTrackingMap({}); setBulkCompanyMap({}); };
+  // 일괄 내부주문 전환 — 대상: 선택 + 네이버 + 미전환 + 미종결
+  const bulkConvertTargets = () => filtered.filter((o) => selectedOrderIds.has(o.id) && o.provider === 'naver' && !o.internal_order_id && !isOrderDone(o));
+  const openBulkConvert = () => {
+    if (selectedOrderIds.size === 0) { showToast?.('선택된 주문이 없어요', 'error'); return; }
+    if (bulkConvertTargets().length === 0) { showToast?.('전환할 주문이 없어요 (이미 전환됨/종결/비네이버)', 'error'); return; }
+    setBulkConvertOpen(true);
+  };
+  const doBulkConvert = async (sendConfirm) => {
+    const targets = bulkConvertTargets();
+    setBulkConvertOpen(false);
+    if (targets.length === 0) return;
+    let ok = 0, fail = 0;
+    for (const o of targets) {
+      const r = await convertToInternalOrder(o, { sendConfirm, silent: true });
+      if (r?.ok) ok++; else fail++;
+    }
+    clearSelection();
+    reload();
+    showToast?.(
+      `일괄 내부주문 ${ok}건 완료${sendConfirm ? ' + 네이버 발주확인 대기열 등록(60초 내 처리)' : ''}${fail ? ` / ${fail}건 실패(항목 미준비 등)` : ''}`,
+      fail ? 'error' : 'success'
+    );
+  };
   // 선택한 주문들(고객+주문내역) 한 번에 카톡용으로 복사
   const copySelectedOrders = async () => {
     const targets = filtered.filter((o) => selectedOrderIds.has(o.id));
@@ -1016,13 +1211,15 @@ export default function SmartStoreOrders({
 
   // 내부 주문으로 전환 — 네이버 스토어 주문은 "엠파츠" 거래처로 통합
   // 매칭 안 된 item 도 네이버 제품명·금액 그대로 freeform 으로 포함 (사용자 정책)
-  const convertToInternalOrder = async (order) => {
+  const convertToInternalOrder = async (order, opts = {}) => {
+    // sendConfirm: 네이버 발주확인 큐 등록 / silent: 일괄 처리 시 개별 토스트·reload 억제(끝에서 한 번만)
+    const { sendConfirm = false, silent = false } = opts;
     const items = itemsByOrder[order.id] || [];
     if (items.length === 0) {
-      showToast?.('주문 항목이 없어요', 'error');
-      return;
+      if (!silent) showToast?.('주문 항목이 없어요', 'error');
+      return { ok: false };
     }
-    if (!saveOrderProp) return;
+    if (!saveOrderProp) return { ok: false };
 
     // 거래처 = 실제 구매자 (기존 매장 거래처와 자동 매칭, 재구매 시 합쳐짐)
     // 네이버 주문 식별은 memo prefix "[엠파츠]" + "[네이버 스마트스토어]" 태그로 처리 (DB 구분)
@@ -1038,8 +1235,27 @@ export default function SmartStoreOrders({
     // 배송 정책(착불/선불) 보존 — 내부주문엔 별도 필드가 없으므로 memo에 기록.
     // ShippingLabel이 이 마커를 읽어 발송인=엠파츠 + 착불/선불을 자동 세팅한다.
     const payLabel = normalizeDeliveryPayType(order.delivery_policy_type); // '착불' | '선불'
+    // 받는분(수령인)·배송메모 — 발송은 주문자가 아니라 받는사람 기준이어야 함. memo에 마커로 보존해
+    // ShippingLabel이 받는사람 이름/배송메모를 쓰도록 한다. (sa.name=수령인, shippingMemo=배송요청)
+    // ⚠️ 단건은 order.raw_payload.productOrder, 다건은 productOrder가 items에만 있을 수 있어 둘 다 본다.
+    const po = order.raw_payload?.productOrder
+      || items.find((it) => it?.raw_payload?.productOrder)?.raw_payload?.productOrder
+      || {};
+    const sa = po.shippingAddress || {};
+    const receiverName = (order.receiver_name || sa.name || '').trim();
+    const receiverTel = (sa.tel1 || sa.tel2 || '').trim();
+    const shippingMemo = (po.shippingMemo
+      || items.find((it) => it?.raw_payload?.productOrder?.shippingMemo)?.raw_payload?.productOrder?.shippingMemo
+      || '').trim();
     const memo = isNaverOrder
-      ? `[엠파츠] [네이버 스마트스토어] ${order.provider_order_id}\n구매자: ${buyerName || '-'} / ${order.buyer_phone || '-'}${order.buyer_address ? `\n주소: ${order.buyer_address}` : ''}\n배송: ${payLabel}`
+      ? [
+          `[엠파츠] [네이버 스마트스토어] ${order.provider_order_id}`,
+          `구매자: ${buyerName || '-'} / ${order.buyer_phone || '-'}`,
+          receiverName ? `받는분: ${receiverName}${receiverTel ? ` / ${receiverTel}` : ''}` : null,
+          order.buyer_address ? `주소: ${order.buyer_address}` : null,
+          shippingMemo ? `배송메모: ${shippingMemo}` : null,
+          `배송: ${payLabel}`,
+        ].filter(Boolean).join('\n')
       : `[${PROVIDER_LABEL[order.provider]?.label || order.provider}] 주문번호: ${order.provider_order_id}`;
 
     // placeholder 제외 (detail 미도착 row 는 안전 차단)
@@ -1047,8 +1263,8 @@ export default function SmartStoreOrders({
       it.provider_product_name && !it.provider_product_name.includes('⏳') && it.provider_product_name !== '확인 필요'
     );
     if (usableItems.length === 0) {
-      showToast?.('주문 항목이 아직 준비 안 됐어요 — 잠시 후 다시 시도', 'error');
-      return;
+      if (!silent) showToast?.('주문 항목이 아직 준비 안 됐어요 — 잠시 후 다시 시도', 'error');
+      return { ok: false };
     }
     // 매칭된 item 은 product DB 연결, 매칭 안 된 item 은 freeform (네이버 제품명·금액 그대로)
     const itemsForOrder = usableItems.map((it) => {
@@ -1083,26 +1299,58 @@ export default function SmartStoreOrders({
       memo,
     });
     if (result) {
-      // 네이버 발주확인 자동화 큐 — 항상 등록 (이미 confirmed 면 sync.js 가 "already" 응답 받고 깔끔히 skip)
+      // ⚠️ saveOrderProp(App.saveOrder)는 신규주문 시 Supabase REST 배열을 반환할 수 있음 → result.id=undefined
+      // 였던 버그(전환 백링크 미기록 → 중복전환 가능) 수정. merged 경로는 객체 반환이라 그대로 통과. (2026-06-16 bug-hunt)
+      const savedOrder = Array.isArray(result) ? result[0] : result;
+      const internalOrderId = savedOrder?.id ?? null;
+      // 네이버 발주확인 큐 — 사용자가 전환 시 "보내기" 선택한 경우에만 등록 (2026-06-15: 자동→선택)
       // Codex 권장: order_status 로컬값 의존 X → 큐 복구 보장
       const alreadyConfirmed = !!order.naver_confirm_succeeded_at;
+      const queueConfirm = sendConfirm && !alreadyConfirmed;
       // ⚠️ order_status 는 건드리지 않는다 — 'converted'로 덮으면 sync.js STATUS_RANK(99)에 막혀
       // 그 뒤 네이버 상태(발송/배송중/배송완료)가 영영 반영 안 됨. 전환 여부는 internal_order_id 로만 표시.
       // (2026-06-02: 메인 상태 칩 = 네이버 실시간 상태 유지가 핵심)
       await supabase.updateExternalOrder(order.id, {
-        internal_order_id: result.id,
-        needs_naver_confirm: !alreadyConfirmed,
+        internal_order_id: internalOrderId,
+        needs_naver_confirm: queueConfirm,
         // retry_count 도 초기화 — 새 시도이므로 backoff 도 처음부터
-        naver_confirm_retry_count: alreadyConfirmed ? undefined : 0,
-        naver_confirm_next_retry_at: alreadyConfirmed ? undefined : null,
+        naver_confirm_retry_count: queueConfirm ? 0 : undefined,
+        naver_confirm_next_retry_at: queueConfirm ? null : undefined,
       });
-      showToast?.(
-        alreadyConfirmed
-          ? '내부 주문으로 전환 완료 (네이버는 이미 확인됨)'
-          : '내부 주문 전환 + 네이버 발주확인 대기열 등록 (최대 60초 내 자동 처리)',
-        'success'
-      );
-      reload();
+      if (!silent) {
+        showToast?.(
+          queueConfirm
+            ? '내부 주문 전환 + 네이버 발주확인 대기열 등록 (최대 60초 내 자동 처리)'
+            : (alreadyConfirmed
+                ? '내부 주문으로 전환 완료 (네이버는 이미 확인됨)'
+                : '내부 주문으로 전환 완료 (네이버 발주확인은 보내지 않음)'),
+          'success'
+        );
+        reload();
+      }
+      return { ok: true };
+    }
+    return { ok: false };
+  };
+
+  // 전환 버튼 진입점 — 네이버 미확인 주문이면 "발주확인도 보낼까요?" 모달, 그 외엔 바로 전환
+  const requestConvert = (order) => {
+    if (order?.provider === 'naver' && !order?.naver_confirm_succeeded_at) {
+      setConvertModalOrder(order);
+      return;
+    }
+    convertToInternalOrder(order, { sendConfirm: false });
+  };
+
+  // 전환 모달의 두 선택지 처리 (전환만 / 전환+발주확인)
+  const doConvertChoice = async (sendConfirm) => {
+    if (!convertModalOrder || convertSubmitting) return;
+    setConvertSubmitting(true);
+    try {
+      await convertToInternalOrder(convertModalOrder, { sendConfirm });
+    } finally {
+      setConvertSubmitting(false);
+      setConvertModalOrder(null);
     }
   };
 
@@ -1250,8 +1498,8 @@ export default function SmartStoreOrders({
               hint="발주확인 완료, 아직 발송 미처리"
               active={widgetFilter === 'newAfterConfirm'}
               onClick={() => { setWidgetFilter((f) => f === 'newAfterConfirm' ? 'none' : 'newAfterConfirm'); setStatusFilter('all'); setDatePreset('all'); }} />
-            <NaverStatBox icon="❌" label="취소 요청" value={stats.cancelRequest} alert={stats.cancelRequest > 0}
-              hint="구매자가 취소 요청한 주문 (네이버/내부 모든 cancel 상태)"
+            <NaverStatBox icon="🚨" label="취소·반품 요청" value={stats.cancelRequest} alert={stats.cancelRequest > 0}
+              hint="구매자가 취소·반품·교환을 요청한 주문 — 클릭하면 전체 기간에서 모아보기 (claimStatus 포함)"
               active={widgetFilter === 'cancel'}
               onClick={() => { setWidgetFilter((f) => f === 'cancel' ? 'none' : 'cancel'); setStatusFilter('all'); setDatePreset('all'); }} />
             <NaverStatBox icon="📅" label="발송마감 D-1" value={stats.dispatchDueD1} accent="#ffaa00" alert={stats.dispatchDueD1 > 0}
@@ -1448,6 +1696,12 @@ export default function SmartStoreOrders({
                   title="선택한 주문 전체를 고객정보+주문내역 카톡용으로 복사">
                   <Copy className="w-3.5 h-3.5" />전체 복사
                 </button>
+                <button onClick={openBulkConvert}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1"
+                  style={{ background: 'var(--primary)', color: 'white' }}
+                  title="선택한 네이버 주문을 한 번에 내부주문으로 전환 (+ 발주확인 선택)">
+                  <ArrowRight className="w-3.5 h-3.5" />일괄 내부주문
+                </button>
                 <button onClick={openBulkDispatch}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"
                   style={{ background: '#00ff88', color: '#001a1a' }}>
@@ -1459,7 +1713,7 @@ export default function SmartStoreOrders({
               </div>
             )}
             {/* 컴팩트 헤더 (데스크탑만) — 체크박스 컬럼 추가. 헤더 정렬을 각 셀과 일치시킴 */}
-            <div className="hidden sm:grid grid-cols-[34px_minmax(0,2fr)_88px_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,1.5fr)] gap-3 px-3 py-2.5 text-xs font-bold opacity-70 border-b uppercase tracking-wide items-center"
+            <div className="hidden lg:grid grid-cols-[34px_minmax(0,2.2fr)_88px_minmax(0,0.85fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.75fr)] gap-3 px-3 py-2.5 text-xs font-bold opacity-70 border-b uppercase tracking-wide items-center"
               style={{ borderColor: 'var(--border)' }}>
               <span className="text-center">
                 <input type="checkbox" className="w-4 h-4"
@@ -1475,7 +1729,7 @@ export default function SmartStoreOrders({
               <span className="text-center">상태</span>
               <span className="text-right">금액</span>
               <span className="text-center">주문일</span>
-              <span className="text-right">액션</span>
+              <span className="text-left">액션</span>
             </div>
             {filtered.map((order) => {
               const itemsForOrder = itemsByOrder[order.id] || [];
@@ -1485,12 +1739,17 @@ export default function SmartStoreOrders({
               const statusMeta = STATUS_LABEL[order.order_status] || { label: order.order_status || '-', color: '#7e9cb8', bg: 'rgba(126,156,184,0.15)' };
               const isCash = order.delivery_policy_type === '착불' || /cash/i.test(order.delivery_policy_type || '');
               const dm = getDeliveryMethod(order, itemsForOrder);
+              const recvName = getReceiverName(order, itemsForOrder);
+              const diffRecv = recvName && recvName !== (order.buyer_name || '');
               const isExpanded = expandedCompactId === order.id;
               const meta = isExpanded ? parseNaverMeta(order, itemsForOrder) : null;
+              // 클레임(취소/반품/교환 요청) 행은 좌측 색 액센트 + 배경 틴트로 차별화
+              const rowClaim = getClaimInfo(order, itemsForOrder);
+              const rowClaimColor = rowClaim ? (CLAIM_COLORS[rowClaim.type] || '#ff4d6d') : null;
               return (
-                <div key={order.id} className="border-b" style={{ borderColor: 'var(--border)' }}>
+                <div key={order.id} className="border-b" style={{ borderColor: 'var(--border)', borderLeft: rowClaimColor ? `4px solid ${rowClaimColor}` : undefined, background: rowClaimColor ? `color-mix(in srgb, ${rowClaimColor} 10%, transparent)` : undefined }}>
                 <div
-                  className="order-row-premium flex flex-wrap items-center gap-x-2 gap-y-2 sm:grid sm:grid-cols-[34px_minmax(0,2fr)_88px_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,1.5fr)] sm:gap-3 px-3 py-3 text-sm sm:items-center hover:bg-[var(--accent)]/30 cursor-pointer"
+                  className="order-row-premium flex flex-wrap items-center gap-x-2 gap-y-2 lg:grid lg:grid-cols-[34px_minmax(0,2.2fr)_88px_minmax(0,0.85fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.75fr)] lg:gap-3 px-3 py-3 text-sm lg:items-center hover:bg-[var(--accent)]/30 cursor-pointer"
                   onClick={(e) => {
                     if (e.target.closest('button[title]')) return;
                     if (e.target.closest('input[type="checkbox"]')) return;
@@ -1503,10 +1762,17 @@ export default function SmartStoreOrders({
                       onChange={() => toggleOrderSelect(order.id)}
                       title="선택" />
                   </span>
-                  <div className="min-w-[88px] flex-1 sm:min-w-0 sm:flex-none">
-                    <div className="font-bold text-[15px] flex items-center gap-1.5">
+                  <div className="min-w-[88px] flex-1 lg:min-w-0 lg:flex-none">
+                    <div className="font-bold text-[15px] flex items-center gap-1.5 flex-wrap">
                       {order.provider === 'naver' && <span className="text-[11px] px-1 rounded" style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a' }}>N</span>}
-                      <span className="truncate">{order.buyer_name || '구매자'}</span>
+                      <span className="truncate" title="구매자(입금자)">{order.buyer_name || '구매자'}</span>
+                      {recvName && (
+                        <span className="text-[12px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap inline-flex items-center gap-0.5"
+                          style={{ background: diffRecv ? 'rgba(245,158,11,0.18)' : 'rgba(59,130,246,0.14)', color: diffRecv ? '#e69500' : '#3b82f6' }}
+                          title={diffRecv ? '받는사람(주문자와 다름)' : '받는사람'}>
+                          🎁 {recvName}
+                        </span>
+                      )}
                       <span className="text-[11px] opacity-40" title="클릭하면 상세 보기">🔍</span>
                     </div>
                     <div className="text-xs opacity-70 truncate mt-0.5">{productSummary}</div>
@@ -1528,10 +1794,18 @@ export default function SmartStoreOrders({
                   </div>
                   {/* 상태 */}
                   <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                    <span className="px-2.5 py-1 rounded-md text-[13px] font-bold whitespace-nowrap text-center sm:w-full"
+                    <span className="px-2.5 py-1 rounded-md text-[13px] font-bold whitespace-nowrap text-center"
                       style={{ background: statusMeta.bg, color: statusMeta.color }}>
                       {statusMeta.label}
                     </span>
+                    {(() => {
+                      const claim = getClaimInfo(order, itemsForOrder);
+                      return claim ? (
+                        <span className="px-1.5 py-0.5 rounded text-[11px] font-extrabold whitespace-nowrap text-center animate-pulse"
+                          style={{ background: 'rgba(255,77,109,0.2)', color: '#ff4d6d', border: '1px solid rgba(255,77,109,0.5)' }}
+                          title={`구매자 ${claim.label} — 판매자센터에서 처리`}>🚨 {claim.label}</span>
+                      ) : null;
+                    })()}
                     {order.naver_dispatch_succeeded_at ? (
                       <span className="text-[11px] font-bold text-center" style={{ color: '#03c75a' }} title="네이버 발송완료">✓ 발송</span>
                     ) : order.naver_confirm_succeeded_at ? (
@@ -1549,26 +1823,29 @@ export default function SmartStoreOrders({
                   </div>
                   {/* 주문일 (결제일=received_at) */}
                   <div className="text-base font-medium opacity-80 whitespace-nowrap text-center flex-shrink-0">{fmtDate(order.received_at)}</div>
-                  {/* 액션 — 텍스트 배지. 모바일은 전체폭 한 줄, 데스크탑은 우측 정렬. 내부주문을 맨 앞에 배치 */}
-                  <div className="flex gap-1.5 flex-wrap items-center basis-full w-full justify-start sm:basis-auto sm:w-auto sm:justify-end pt-1.5 sm:pt-0 border-t border-[var(--border)]/40 sm:border-0">
+                  {/* 액션 — 아이콘 배지. 모바일은 전체폭 한 줄, 데스크탑은 좌측 정렬(행마다 첫 버튼 세로 일치). 내부주문을 맨 앞에 배치 */}
+                  <div className="flex gap-1.5 flex-wrap items-center basis-full w-full justify-start lg:basis-auto lg:w-auto lg:justify-start pt-1.5 lg:pt-0 border-t border-[var(--border)]/40 lg:border-0">
                     {!order.internal_order_id && !isOrderDone(order) && (
-                      <button onClick={() => convertToInternalOrder(order)} className="px-3 py-2 sm:px-2.5 sm:py-1 rounded text-xs font-bold whitespace-nowrap inline-flex items-center justify-center min-h-[44px] sm:min-h-0"
-                        style={{ background: 'var(--primary)', color: 'white' }} title="내부주문 전환">내부주문</button>
+                      <ActionBtn onClick={() => requestConvert(order)} icon={ArrowRight} label="내부주문" variant="primary" title="내부주문 전환" />
                     )}
                     {PENDING_CONFIRM_STATUSES.has(order.order_status) && !order.naver_confirm_succeeded_at && (
-                      <button onClick={() => confirmOrder(order)} className="px-3 py-2 sm:px-2.5 sm:py-1 rounded text-xs font-bold whitespace-nowrap inline-flex items-center justify-center min-h-[44px] sm:min-h-0"
-                        style={{ background: 'rgba(167,139,250,0.2)', color: '#a78bfa' }} title="네이버 발주확인">발주확인</button>
+                      <ActionBtn onClick={() => confirmOrder(order)} icon={ClipboardCheck} label="발주확인" variant="purple" title="네이버 발주확인" />
                     )}
                     {!isOrderDone(order) && (
-                      <button onClick={() => openDispatch(order)} className="px-3 py-2 sm:px-2.5 sm:py-1 rounded text-xs font-bold whitespace-nowrap inline-flex items-center justify-center min-h-[44px] sm:min-h-0"
-                        style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a' }} title="발송처리">발송</button>
+                      <ActionBtn onClick={() => openDispatch(order)} icon={Truck} label="발송" variant="green" title="발송처리" />
                     )}
-                    <button onClick={() => handleCreateShippingLabel(order)} className="px-3 py-2 sm:px-2.5 sm:py-1 rounded text-xs font-bold whitespace-nowrap inline-flex items-center justify-center min-h-[44px] sm:min-h-0"
-                      style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }} title="택배 송장">송장</button>
+                    <ActionBtn onClick={() => handleCreateShippingLabel(order)} icon={Printer} label="송장" variant="blue" title="택배 송장" />
                     {!isOrderDone(order) && (
-                      <button onClick={() => cancelOrder(order)} className="px-3 py-2 sm:px-2.5 sm:py-1 rounded text-xs font-bold whitespace-nowrap inline-flex items-center justify-center min-h-[44px] sm:min-h-0"
-                        style={{ background: 'rgba(255,77,109,0.15)', color: '#ff4d6d' }} title="주문 취소">취소</button>
+                      <ActionBtn onClick={() => cancelOrder(order)} icon={Ban} label="취소" variant="red" title="주문 취소(로컬 표시)" />
                     )}
+                    {/* 구매자 취소요청 승인 — 네이버 API 호출(환불 확정). CANCEL 클레임 있을 때만 */}
+                    {(() => {
+                      const claim = getClaimInfo(order, itemsForOrder);
+                      if (claim?.type !== 'CANCEL') return null;
+                      if (order.naver_cancel_succeeded_at) return <span className="text-[11px] font-bold px-2 py-1 rounded" style={{ color: '#22c55e', background: 'rgba(34,197,94,0.12)' }}>✓ 취소승인됨</span>;
+                      if (order.needs_naver_cancel) return <span className="text-[11px] font-bold px-2 py-1 rounded animate-pulse" style={{ color: '#fb923c', background: 'rgba(251,146,60,0.12)' }}>취소승인 처리중…</span>;
+                      return <ActionBtn onClick={() => setApproveCancelOrder(order)} icon={ClipboardCheck} label="취소 승인" variant="red" title="구매자 취소요청을 네이버에 승인 — 환불 확정(비가역)" />;
+                    })()}
                   </div>
                 </div>
                 {/* 상세 모달 — 컴팩트 행 클릭 시 크게 표시 (폰트↑, 깔끔) */}
@@ -1589,14 +1866,29 @@ export default function SmartStoreOrders({
                         <button onClick={() => setModalFullscreen((v) => !v)} className="hidden sm:flex p-2 rounded-lg hover:bg-[var(--accent)]" title={modalFullscreen ? '창 모드' : '전체화면'}>
                           {modalFullscreen ? <Minimize2 className="w-5 h-5 opacity-60" /> : <Maximize2 className="w-5 h-5 opacity-60" />}
                         </button>
-                        <button onClick={() => setExpandedCompactId(null)} className="p-2 rounded-lg hover:bg-[var(--accent)]" title="닫기"><X className="w-6 h-6 opacity-60" /></button>
+                        <button onClick={() => setExpandedCompactId(null)}
+                          className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors hover:brightness-95"
+                          style={{ background: 'rgba(255,77,109,0.12)', color: '#ea3a56', border: '1px solid rgba(255,77,109,0.35)' }}
+                          title="닫기"><X className="w-6 h-6" /></button>
                       </div>
                       {/* 본문 스크롤 */}
                       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
                     {/* 👤 고객정보 카드 — 이름·전화·주소·주문번호 한 곳에 모음 + 복사 */}
                     <div className="rounded-xl border p-4 space-y-2.5" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
                       <div className="flex items-start gap-2 flex-wrap">
-                        <div className="text-2xl font-bold leading-tight flex-1 min-w-0">{order.buyer_name || '구매자'}</div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] font-bold px-1.5 py-0.5 rounded inline-block mb-1" style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa' }}>💳 입금자</span>
+                          <div className="text-2xl font-bold leading-tight flex items-center gap-2 flex-wrap">
+                            {order.buyer_name || '구매자'}
+                            {buyerBlacklisted(order) && (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-extrabold flex items-center gap-1"
+                                style={{ background: 'color-mix(in srgb, var(--destructive) 18%, transparent)', color: 'var(--destructive)', border: '1px solid color-mix(in srgb, var(--destructive) 45%, transparent)' }}
+                                title="블랙리스트 구매자">
+                                <Ban className="w-3.5 h-3.5" /> 블랙리스트
+                              </span>
+                            )}
+                          </div>
+                        </div>
                         {dm && (
                           <span className="px-2.5 py-1 rounded-lg text-sm font-bold flex-shrink-0"
                             style={{ background: dm.bg, color: dm.color }} title={`배송수단: ${dm.label}`}>
@@ -1609,6 +1901,15 @@ export default function SmartStoreOrders({
                           style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }}
                           title="이름·전화·주소만 복사">
                           <Copy className="w-3.5 h-3.5" /> 고객
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); if (buyerBlacklisted(order)) { doBlacklist(order); } else { setBlacklistTarget(order); } }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold flex-shrink-0"
+                          style={buyerBlacklisted(order)
+                            ? { background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)' }
+                            : { background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)', border: '1px solid color-mix(in srgb, var(--destructive) 35%, transparent)' }}
+                          title={buyerBlacklisted(order) ? '블랙리스트 해제' : '이 구매자를 블랙리스트로 지정'}>
+                          <Ban className="w-3.5 h-3.5" /> {buyerBlacklisted(order) ? '블랙 해제' : '블랙리스트'}
                         </button>
                       </div>
                       <div className="flex items-center gap-2.5 text-lg">
@@ -1662,7 +1963,12 @@ export default function SmartStoreOrders({
                       <div className="text-[11px] font-semibold" style={{ color: '#00ff88' }}>
                         ✓ 네이버 발송완료 — {fmtDate(order.naver_dispatch_succeeded_at)}
                         {order.naver_dispatch_company_name && order.naver_dispatch_tracking && (
-                          <span className="ml-2 opacity-80">{order.naver_dispatch_company_name} · {order.naver_dispatch_tracking}</span>
+                          <a href={trackingUrl(order.naver_dispatch_company_name, order.naver_dispatch_tracking)}
+                            target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                            className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold hover:underline"
+                            style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }} title="배송조회">
+                            {order.naver_dispatch_company_name} · {order.naver_dispatch_tracking}<Search className="w-3 h-3" />
+                          </a>
                         )}
                       </div>
                     )}
@@ -1677,9 +1983,11 @@ export default function SmartStoreOrders({
                         return (
                           <div key={it.id} className="p-2.5 rounded border text-sm"
                             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-                            <div className="font-semibold text-[15px] break-keep mb-0.5">{it.provider_product_name}</div>
+                            <div className="font-bold text-[16px] break-keep mb-1">{it.provider_product_name}</div>
                             {it.provider_product_option && (
-                              <div className="text-xs opacity-60">옵션: {it.provider_product_option}</div>
+                              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[15px] font-bold break-keep" style={{ background: 'rgba(59,130,246,0.12)', color: '#2f7df0', border: '1px solid rgba(59,130,246,0.3)' }}>
+                                🎚️ {it.provider_product_option}
+                              </div>
                             )}
                             {naverProductUrl(it) && (
                               <a href={naverProductUrl(it)} target="_blank" rel="noopener noreferrer"
@@ -1690,9 +1998,12 @@ export default function SmartStoreOrders({
                                 <ExternalLink className="w-3 h-3" /> 상품페이지
                               </a>
                             )}
-                            <div className="flex justify-between items-center mt-1.5">
-                              <span className="opacity-80 text-sm">×{it.quantity} · 단가 {fmtNum(it.unit_price)}원</span>
-                              <span className="font-bold text-base" style={{ color: 'var(--primary)' }}>{fmtNum(lineTotal)}원</span>
+                            <div className="flex justify-between items-center mt-2 gap-2">
+                              <span className="inline-flex items-center gap-2 flex-wrap">
+                                <span className="px-2.5 py-1 rounded-lg text-[17px] font-extrabold leading-none" style={{ background: 'var(--primary)', color: '#fff' }} title="수량">×{it.quantity}</span>
+                                <span className="text-sm opacity-70 whitespace-nowrap">단가 {fmtNum(it.unit_price)}원</span>
+                              </span>
+                              <span className="font-extrabold text-lg whitespace-nowrap" style={{ color: 'var(--primary)' }}>{fmtNum(lineTotal)}원</span>
                             </div>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               {matched && (
@@ -1776,21 +2087,40 @@ export default function SmartStoreOrders({
                       );
                     })()}
                       </div>{/* 본문 스크롤 끝 */}
-                      {/* 액션 푸터 */}
-                      <div className="flex gap-1.5 flex-wrap px-4 py-3 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+                      {/* 액션 푸터 — 항상 하단 고정(flex-shrink-0). 고급 버튼 + 닫기 명시 */}
+                      <div className="flex gap-2 flex-wrap px-4 py-3 border-t flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
                         {!order.internal_order_id && !isOrderDone(order) && (
-                          <button onClick={() => { setExpandedCompactId(null); convertToInternalOrder(order); }} className="flex-1 min-w-[88px] px-3 py-2.5 rounded-lg text-sm font-bold" style={{ background: 'var(--primary)', color: 'white' }}>내부주문</button>
+                          <button onClick={() => { setExpandedCompactId(null); requestConvert(order); }} className={MODAL_FOOTER_CLASS}
+                            style={{ background: ACTION_VARIANTS.primary.bg, color: ACTION_VARIANTS.primary.color, borderColor: ACTION_VARIANTS.primary.border, boxShadow: ACTION_VARIANTS.primary.shadow }}>
+                            <ArrowRight className="w-4 h-4" />내부주문
+                          </button>
                         )}
                         {PENDING_CONFIRM_STATUSES.has(order.order_status) && !order.naver_confirm_succeeded_at && (
-                          <button onClick={() => { setExpandedCompactId(null); confirmOrder(order); }} className="flex-1 min-w-[88px] px-3 py-2.5 rounded-lg text-sm font-bold" style={{ background: 'rgba(167,139,250,0.2)', color: '#a78bfa' }}>발주확인</button>
+                          <button onClick={() => { setExpandedCompactId(null); confirmOrder(order); }} className={MODAL_FOOTER_CLASS}
+                            style={{ background: ACTION_VARIANTS.purple.bg, color: ACTION_VARIANTS.purple.color, borderColor: ACTION_VARIANTS.purple.border }}>
+                            <ClipboardCheck className="w-4 h-4" />발주확인
+                          </button>
                         )}
                         {!isOrderDone(order) && (
-                          <button onClick={() => { setExpandedCompactId(null); openDispatch(order); }} className="flex-1 min-w-[88px] px-3 py-2.5 rounded-lg text-sm font-bold" style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a' }}>발송</button>
+                          <button onClick={() => { setExpandedCompactId(null); openDispatch(order); }} className={MODAL_FOOTER_CLASS}
+                            style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}>
+                            <Truck className="w-4 h-4" />발송
+                          </button>
                         )}
-                        <button onClick={() => { setExpandedCompactId(null); handleCreateShippingLabel(order); }} className="flex-1 min-w-[88px] px-3 py-2.5 rounded-lg text-sm font-bold" style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }}>송장</button>
+                        <button onClick={() => { setExpandedCompactId(null); handleCreateShippingLabel(order); }} className={MODAL_FOOTER_CLASS}
+                          style={{ background: ACTION_VARIANTS.blue.bg, color: ACTION_VARIANTS.blue.color, borderColor: ACTION_VARIANTS.blue.border }}>
+                          <Printer className="w-4 h-4" />송장
+                        </button>
                         {!isOrderDone(order) && (
-                          <button onClick={() => { setExpandedCompactId(null); cancelOrder(order); }} className="flex-1 min-w-[88px] px-3 py-2.5 rounded-lg text-sm font-bold" style={{ background: 'rgba(255,77,109,0.15)', color: '#ff4d6d' }}>취소</button>
+                          <button onClick={() => { setExpandedCompactId(null); cancelOrder(order); }} className={MODAL_FOOTER_CLASS}
+                            style={{ background: ACTION_VARIANTS.red.bg, color: ACTION_VARIANTS.red.color, borderColor: ACTION_VARIANTS.red.border }}>
+                            <Ban className="w-4 h-4" />취소
+                          </button>
                         )}
+                        <button onClick={() => setExpandedCompactId(null)} className={MODAL_FOOTER_CLASS}
+                          style={{ background: 'var(--muted)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}>
+                          <X className="w-4 h-4" />닫기
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1817,18 +2147,48 @@ export default function SmartStoreOrders({
           const cardDm = getDeliveryMethod(order, items);
           // 조회기간 밖이지만 미처리라 끌어올려진 주문 → 카드에도 표시 (배너 카운트와 동일 헬퍼)
           const pendingOutOfRange = isPendingOutOfRange(order, dateRange);
+          // 구매자 클레임(취소/반품/교환 요청)이면 카드 전체를 종류별 색으로 차별화 (한눈에 구분)
+          const cardClaim = getClaimInfo(order, items);
+          const claimColor = cardClaim ? (CLAIM_COLORS[cardClaim.type] || '#ff4d6d') : null;
+          // 🚫 블랙리스트 구매자 — 카드 전체 진한 빨강 차별화 (클레임 색보다 우선. 즉시 눈에 띄게)
+          const isBlackBuyer = buyerBlacklisted(order);
+          const accentColor = isBlackBuyer ? '#dc2626' : claimColor;
 
           return (
-            <div key={order.id} className="order-hover-premium rounded-xl border overflow-hidden shadow-sm"
-              style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+            <div key={order.id} className="order-hover-premium rounded-xl border-2 overflow-hidden shadow-sm relative"
+              style={accentColor ? {
+                background: `color-mix(in srgb, ${accentColor} ${isBlackBuyer ? 14 : 12}%, var(--card))`,
+                borderColor: accentColor,
+                boxShadow: `0 0 0 1px ${accentColor}66, 0 6px 20px ${accentColor}44`,
+              } : { background: 'var(--card)', borderColor: 'var(--border)', borderWidth: '1px' }}>
+              {/* 블랙리스트/클레임 상단 강조 바 */}
+              {accentColor && (
+                <div className="h-1.5 w-full flex items-center" style={{ background: `linear-gradient(90deg, ${accentColor}, ${accentColor}88)` }} />
+              )}
+              {isBlackBuyer && (
+                <div className="px-4 py-1.5 flex items-center gap-1.5 text-xs font-extrabold" style={{ background: 'color-mix(in srgb, #dc2626 22%, var(--card))', color: '#fca5a5' }}>
+                  <Ban className="w-3.5 h-3.5" /> 블랙리스트 구매자 — 주의
+                </div>
+              )}
 
               {/* ① 상단 — 상태(크게) + provider + 발주확인/발송완료 마커 + 날짜 */}
               <div className="px-4 py-3 flex items-center gap-2 flex-wrap border-b"
-                style={{ background: statusMeta.bg, borderColor: 'var(--border)' }}>
+                style={{ background: accentColor ? `color-mix(in srgb, ${accentColor} 18%, var(--card))` : statusMeta.bg, borderColor: 'var(--border)' }}>
                 <span className="px-3 py-1 rounded-md text-sm font-bold tracking-wide flex items-center gap-1.5"
                   style={{ background: 'rgba(0,0,0,0.25)', color: statusMeta.color }}>
                   ● {statusMeta.label}
                 </span>
+                {/* 구매자 클레임(취소/반품/교환 요청) — order_status가 PAYED여도 claimStatus로 잡아 강조 */}
+                {(() => {
+                  const claim = getClaimInfo(order, items);
+                  return claim ? (
+                    <span className="px-2.5 py-1 rounded-md text-sm font-extrabold flex items-center gap-1 animate-pulse"
+                      style={{ background: 'rgba(255,77,109,0.2)', color: '#ff4d6d', border: '1px solid rgba(255,77,109,0.5)' }}
+                      title={`구매자 ${claim.label} (네이버 claimStatus=${claim.claimStatus || claim.claimType}) — 판매자센터에서 처리하세요`}>
+                      🚨 {claim.label}
+                    </span>
+                  ) : null;
+                })()}
                 <span className="px-2 py-0.5 rounded text-[11px] font-bold"
                   style={{ background: `${providerMeta.color}20`, color: providerMeta.color }}>
                   {providerMeta.label}
@@ -1883,8 +2243,26 @@ export default function SmartStoreOrders({
               {/* ② 구매자 블록 — 큰 글씨 우선 + 복사 */}
               <div className="px-4 py-3 space-y-1">
                 <div className="flex items-start gap-2">
-                  <div className="text-xl font-bold leading-snug flex-1">
-                    {order.buyer_name || '구매자'}
+                  <div className="text-xl font-bold leading-snug flex-1 flex items-center gap-2 flex-wrap">
+                    <span title="구매자(입금자)">{order.buyer_name || '구매자'}</span>
+                    {buyerBlacklisted(order) && (
+                      <span className="text-xs font-extrabold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                        style={{ background: 'color-mix(in srgb, var(--destructive) 18%, transparent)', color: 'var(--destructive)', border: '1px solid color-mix(in srgb, var(--destructive) 45%, transparent)' }}
+                        title="블랙리스트 구매자">
+                        <Ban className="w-3 h-3" /> 블랙리스트
+                      </span>
+                    )}
+                    {(() => {
+                      const recvName = getReceiverName(order, items);
+                      const diffRecv = recvName && recvName !== (order.buyer_name || '');
+                      return recvName ? (
+                        <span className="text-sm font-extrabold px-2.5 py-1 rounded-lg whitespace-nowrap inline-flex items-center gap-1"
+                          style={{ background: diffRecv ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.16)', color: diffRecv ? '#e69500' : '#2f7df0', border: `1px solid ${diffRecv ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.4)'}` }}
+                          title={diffRecv ? '받는사람 (주문자와 다름)' : '받는사람'}>
+                          🎁 받는분 {recvName}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                   <button
                     onClick={async (e) => { e.stopPropagation(); const ok = await copyToClipboard(buildCustomerCopyText(order)); showToast?.(ok ? '👤 고객정보 복사됨' : '복사 실패', ok ? 'success' : 'error'); }}
@@ -1892,6 +2270,15 @@ export default function SmartStoreOrders({
                     style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }}
                     title="이름·전화·주소만 복사">
                     <Copy className="w-3 h-3" /> 고객
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); if (buyerBlacklisted(order)) { doBlacklist(order); } else { setBlacklistTarget(order); } }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold flex-shrink-0"
+                    style={buyerBlacklisted(order)
+                      ? { background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)' }
+                      : { background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)', border: '1px solid color-mix(in srgb, var(--destructive) 35%, transparent)' }}
+                    title={buyerBlacklisted(order) ? '블랙리스트 해제' : '이 구매자를 블랙리스트로 지정'}>
+                    <Ban className="w-3 h-3" /> {buyerBlacklisted(order) ? '해제' : '블랙'}
                   </button>
                 </div>
                 <div className="text-base opacity-90 font-mono font-semibold">
@@ -1926,13 +2313,15 @@ export default function SmartStoreOrders({
                   return (
                     <div key={it.id} className="space-y-1">
                       <div className="flex items-start gap-2">
-                        <Package className="w-4 h-4 mt-0.5 opacity-60 flex-shrink-0" />
-                        <div className="flex-1 text-[15px] font-semibold leading-snug break-keep">
+                        <Package className="w-4 h-4 mt-1 opacity-60 flex-shrink-0" />
+                        <div className="flex-1 text-[16px] font-bold leading-snug break-keep">
                           {it.provider_product_name}
                         </div>
                       </div>
                       {it.provider_product_option && (
-                        <div className="text-xs opacity-60 ml-6">옵션: {it.provider_product_option}</div>
+                        <div className="ml-6 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[15px] font-bold break-keep" style={{ background: 'rgba(59,130,246,0.12)', color: '#2f7df0', border: '1px solid rgba(59,130,246,0.3)' }}>
+                          🎚️ {it.provider_product_option}
+                        </div>
                       )}
                       {naverProductUrl(it) && (
                         <a href={naverProductUrl(it)} target="_blank" rel="noopener noreferrer"
@@ -1942,11 +2331,12 @@ export default function SmartStoreOrders({
                           <ExternalLink className="w-3 h-3" /> 상품페이지
                         </a>
                       )}
-                      <div className="ml-6 flex items-center justify-between text-sm">
-                        <span className="opacity-80">×{it.quantity} · 단가 {fmtNum(it.unit_price)}원</span>
-                        <span className="font-bold text-[15px]" style={{ color: 'var(--primary)' }}>
-                          {fmtNum(lineTotal)}원
+                      <div className="ml-6 flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-1 rounded-lg text-[17px] font-extrabold leading-none" style={{ background: 'var(--primary)', color: '#fff' }} title="수량">×{it.quantity}</span>
+                          <span className="text-sm opacity-70 whitespace-nowrap">단가 {fmtNum(it.unit_price)}원</span>
                         </span>
+                        <span className="font-extrabold text-lg whitespace-nowrap" style={{ color: 'var(--primary)' }}>{fmtNum(lineTotal)}원</span>
                       </div>
                       <div className="ml-6 flex items-center gap-1.5 text-[11px] flex-wrap">
                         {matched && (
@@ -2119,14 +2509,14 @@ export default function SmartStoreOrders({
                 </div>
               )}
 
-              {/* ⑤ 액션 버튼 — 모바일 2열, 데스크탑 4열 */}
+              {/* ⑤ 액션 버튼 — 모바일 2열, 데스크탑 4열. 컴팩트 행과 동일한 고급 팔레트(ACTION_VARIANTS)+호버 입체감 */}
               <div className="px-3 py-3 border-t grid grid-cols-2 sm:grid-cols-4 gap-2"
                 style={{ borderColor: 'var(--border)' }}>
                 {!order.internal_order_id && !isOrderDone(order) && (
                   <button
-                    onClick={() => convertToInternalOrder(order)}
-                    className="py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"
-                    style={{ background: 'var(--primary)', color: 'white' }}
+                    onClick={() => requestConvert(order)}
+                    className={CARD_ACTION_CLASS}
+                    style={{ background: ACTION_VARIANTS.primary.bg, color: ACTION_VARIANTS.primary.color, borderColor: ACTION_VARIANTS.primary.border, boxShadow: ACTION_VARIANTS.primary.shadow }}
                   >
                     <ArrowRight className="w-4 h-4" />내부주문
                   </button>
@@ -2134,8 +2524,8 @@ export default function SmartStoreOrders({
                 {PENDING_CONFIRM_STATUSES.has(order.order_status) && !order.naver_confirm_succeeded_at && (
                   <button
                     onClick={() => confirmOrder(order)}
-                    className="py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"
-                    style={{ background: 'rgba(167,139,250,0.2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)' }}
+                    className={CARD_ACTION_CLASS}
+                    style={{ background: ACTION_VARIANTS.purple.bg, color: ACTION_VARIANTS.purple.color, borderColor: ACTION_VARIANTS.purple.border }}
                   >
                     <ClipboardCheck className="w-4 h-4" />발주확인
                   </button>
@@ -2143,16 +2533,16 @@ export default function SmartStoreOrders({
                 {!isOrderDone(order) && (
                   <button
                     onClick={() => openDispatch(order)}
-                    className="py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"
-                    style={{ background: 'rgba(0,255,136,0.15)', color: '#00ff88', border: '1px solid rgba(0,255,136,0.4)' }}
+                    className={CARD_ACTION_CLASS}
+                    style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}
                   >
                     <Truck className="w-4 h-4" />발송처리
                   </button>
                 )}
                 <button
                   onClick={() => handleCreateShippingLabel(order)}
-                  className="py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"
-                  style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)' }}
+                  className={CARD_ACTION_CLASS}
+                  style={{ background: ACTION_VARIANTS.blue.bg, color: ACTION_VARIANTS.blue.color, borderColor: ACTION_VARIANTS.blue.border }}
                   title="택배 송장 페이지로 자동 이동 + 구매자 정보 prefill"
                 >
                   <Printer className="w-4 h-4" />송장
@@ -2160,13 +2550,34 @@ export default function SmartStoreOrders({
                 {!isOrderDone(order) && (
                   <button
                     onClick={() => cancelOrder(order)}
-                    className="py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"
-                    style={{ background: 'rgba(255,77,109,0.15)', color: '#ff4d6d', border: '1px solid rgba(255,77,109,0.4)' }}
+                    className={CARD_ACTION_CLASS}
+                    style={{ background: ACTION_VARIANTS.red.bg, color: ACTION_VARIANTS.red.color, borderColor: ACTION_VARIANTS.red.border }}
                     title="주문 취소 — 네이버 취소 큐 등록 (사유 입력 필요)"
                   >
                     <Ban className="w-4 h-4" />주문취소
                   </button>
                 )}
+                {/* 구매자 취소요청 승인 — 네이버 API(환불 확정). CANCEL 클레임 있을 때만 */}
+                {(() => {
+                  const claim = getClaimInfo(order, items);
+                  if (claim?.type !== 'CANCEL') return null;
+                  if (order.naver_cancel_succeeded_at) return (
+                    <div className="col-span-2 sm:col-span-4 py-2 text-center text-sm font-bold" style={{ color: '#22c55e' }}>✓ 취소 승인 완료 (네이버 환불 확정)</div>
+                  );
+                  if (order.needs_naver_cancel) return (
+                    <div className="col-span-2 sm:col-span-4 py-2 text-center text-sm font-bold animate-pulse" style={{ color: '#fb923c' }}>취소 승인 처리 중… (매장PC가 네이버에 전송)</div>
+                  );
+                  return (
+                    <button
+                      onClick={() => setApproveCancelOrder(order)}
+                      className={`${CARD_ACTION_CLASS} col-span-2 sm:col-span-4`}
+                      style={{ background: 'rgba(255,77,109,0.16)', color: '#ff4d6d', borderColor: 'rgba(255,77,109,0.5)' }}
+                      title="구매자 취소요청을 네이버에 승인 — 환불 확정(비가역)"
+                    >
+                      🚨 <ClipboardCheck className="w-4 h-4" />취소요청 승인 (환불 확정)
+                    </button>
+                  );
+                })()}
                 {order.order_status === 'shipped' && (
                   <div className="col-span-2 sm:col-span-4 py-2 text-center text-xs" style={{ color: '#00ff88' }}>
                     ✓ 발송 완료
@@ -2240,7 +2651,7 @@ export default function SmartStoreOrders({
       {/* 발송처리 모달 */}
       {dispatchModalOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setDispatchModalOrder(null)}>
-          <div className="rounded-xl w-full max-w-md p-5 border" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-xl w-full max-w-md p-5 border modal-card-safe" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-4">
               <Truck className="w-5 h-5" style={{ color: '#03c75a' }} />
               <h3 className="text-lg font-bold flex-1">발송 처리 <span className="text-xs font-bold" style={{ color: '#03c75a' }}>· 네이버 연동</span></h3>
@@ -2256,10 +2667,20 @@ export default function SmartStoreOrders({
               {DELIVERY_COMPANIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
             </select>
             <label className="block text-xs font-mono uppercase mb-1.5 opacity-70">송장번호</label>
-            <input type="text" value={dispatchTracking} onChange={(e) => setDispatchTracking(e.target.value)}
-              placeholder="예: 1234-5678-9012"
-              className="w-full px-3 py-2 rounded-lg border text-sm mb-4 font-mono"
-              style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+            <div className="flex gap-2 mb-4">
+              <input type="text" value={dispatchTracking} onChange={(e) => setDispatchTracking(e.target.value)}
+                placeholder="예: 1234-5678-9012"
+                className="flex-1 px-3 py-2 rounded-lg border text-sm font-mono"
+                style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+              {dispatchTracking.trim() && (
+                <a href={trackingUrl(DELIVERY_COMPANIES.find((c) => c.code === dispatchCompany)?.name, dispatchTracking.trim())}
+                  target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap inline-flex items-center gap-1"
+                  style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }} title="배송조회">
+                  <Search className="w-3.5 h-3.5" /> 조회
+                </a>
+              )}
+            </div>
             <div className="text-[11px] mb-4 p-2 rounded-lg" style={{ background: 'color-mix(in srgb, #03c75a 10%, transparent)', color: '#03c75a' }}>
               🟢 매장 PC가 <b>60초 내 네이버에 발송처리(송장 등록)를 자동 연동</b>합니다. 발주확인이 안 됐으면 발주확인까지 함께 처리돼요.
             </div>
@@ -2283,7 +2704,7 @@ export default function SmartStoreOrders({
         const readyCount = eligible.filter((o) => (bulkTrackingMap[o.id] || '').trim().length > 0).length;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setBulkDispatchOpen(false)}>
-            <div className="rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col border" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="rounded-xl w-full max-w-2xl flex flex-col border" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-2 p-4 border-b" style={{ borderColor: 'var(--border)' }}>
                 <Truck className="w-5 h-5" style={{ color: '#03c75a' }} />
                 <h3 className="text-lg font-bold flex-1">일괄 발송 처리 ({eligible.length}건) <span className="text-xs font-bold" style={{ color: '#03c75a' }}>· 네이버 연동</span></h3>
@@ -2335,6 +2756,14 @@ export default function SmartStoreOrders({
                         className="flex-1 min-w-0 px-3 py-2 rounded border text-sm"
                         style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
                       />
+                      {(bulkTrackingMap[o.id] || '').trim() && (
+                        <a href={trackingUrl(DELIVERY_COMPANIES.find((c) => c.code === (bulkCompanyMap[o.id] || bulkDispatchCompany))?.name, bulkTrackingMap[o.id].trim())}
+                          target="_blank" rel="noopener noreferrer"
+                          className="flex-shrink-0 px-2.5 py-2 rounded border text-xs font-bold inline-flex items-center gap-1"
+                          style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6', borderColor: 'rgba(59,130,246,0.3)' }} title="배송조회">
+                          <Search className="w-3.5 h-3.5" />
+                        </a>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -2360,7 +2789,7 @@ export default function SmartStoreOrders({
       {/* 주문 취소 모달 (C1 fix: window.prompt → 모달 UI) */}
       {cancelModalOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => !cancelSubmitting && setCancelModalOrder(null)}>
-          <div className="rounded-2xl w-full max-w-md p-5 border" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl w-full max-w-md p-5 border modal-card-safe" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-3">
               <Ban className="w-5 h-5" style={{ color: '#ff4d6d' }} />
               <h3 className="text-lg font-bold flex-1">주문 취소 표시 <span className="text-xs font-normal opacity-60">(화면 전용)</span></h3>
@@ -2420,6 +2849,178 @@ export default function SmartStoreOrders({
               <button onClick={() => setCancelModalOrder(null)} disabled={cancelSubmitting}
                 className="px-4 py-2.5 rounded-lg border disabled:opacity-40"
                 style={{ borderColor: 'var(--border)' }}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 내부주문 전환 — 네이버 발주확인 동반 여부 선택 모달 (2026-06-15) */}
+      {convertModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !convertSubmitting && setConvertModalOrder(null)}>
+          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
+            {/* 헤더 — 아이콘 칩 + 제목/부제 */}
+            <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--card)), var(--card))' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }}>
+                <ArrowRight className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold leading-tight">내부주문으로 전환</h3>
+                <p className="text-[12px] opacity-60 mt-0.5">네이버 발주확인을 함께 보낼지 선택하세요</p>
+              </div>
+              <button onClick={() => !convertSubmitting && setConvertModalOrder(null)} disabled={convertSubmitting}
+                className="w-8 h-8 -mr-1 -mt-1 rounded-lg flex items-center justify-center hover:bg-[var(--muted)] transition-colors disabled:opacity-40">
+                <X className="w-4 h-4 opacity-60" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              {/* 주문 정보 */}
+              <div className="text-[13px] mb-3 p-3 rounded-xl border space-y-1" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
+                <div className="flex justify-between gap-2"><span className="opacity-55">구매자</span> <span className="font-bold">{convertModalOrder.buyer_name || '구매자'}</span></div>
+                <div className="flex justify-between gap-2"><span className="opacity-55">주문번호</span> <span className="font-semibold tabular-nums">#{convertModalOrder.provider_order_id}</span></div>
+              </div>
+              {/* 안내 */}
+              <div className="mb-4 p-3 rounded-xl border text-[12px] leading-relaxed flex gap-2" style={{ background: 'rgba(167,139,250,0.1)', borderColor: 'rgba(167,139,250,0.4)' }}>
+                <ClipboardCheck className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#7c5cf5' }} />
+                <div>
+                  이 주문은 <b>아직 네이버 발주확인 전</b>입니다. 전환하면서 <b>네이버에도 발주확인을 보낼까요?</b>
+                  <div className="opacity-70 mt-1">보내면 매장 PC가 60초 내 자동 처리합니다. 나중에 [발주확인] 버튼으로도 가능해요.</div>
+                </div>
+              </div>
+              {/* 선택 버튼 */}
+              <div className="flex flex-col gap-2">
+                <button onClick={() => doConvertChoice(true)} disabled={convertSubmitting}
+                  className="w-full py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 border transition-all duration-150 hover:-translate-y-px hover:shadow-md hover:brightness-[1.03] active:translate-y-0 active:shadow-none disabled:opacity-40 disabled:hover:translate-y-0"
+                  style={{ background: 'var(--primary)', color: '#fff', borderColor: 'transparent', boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
+                  <ClipboardCheck className="w-4 h-4" />{convertSubmitting ? '처리 중…' : '전환 + 네이버 발주확인 보내기'}
+                </button>
+                <button onClick={() => doConvertChoice(false)} disabled={convertSubmitting}
+                  className="w-full py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 border-2 transition-all duration-150 hover:-translate-y-px hover:shadow-sm active:translate-y-0 disabled:opacity-40 disabled:hover:translate-y-0"
+                  style={{ borderColor: 'var(--primary)', color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 6%, transparent)' }}>
+                  <ArrowRight className="w-4 h-4" />전환만 (발주확인 안 보냄)
+                </button>
+                <button onClick={() => setConvertModalOrder(null)} disabled={convertSubmitting}
+                  className="w-full py-2 rounded-lg text-sm opacity-60 hover:opacity-100 transition-opacity disabled:opacity-40">
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 일괄 내부주문 전환 — 발주확인 동반 여부 선택 모달 */}
+      {bulkConvertOpen && (() => {
+        const targets = bulkConvertTargets();
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => setBulkConvertOpen(false)}>
+            <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--card)), var(--card))' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }}>
+                  <ArrowRight className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-bold leading-tight">일괄 내부주문 전환</h3>
+                  <p className="text-[12px] opacity-60 mt-0.5">선택한 <b style={{ color: 'var(--primary)' }}>{targets.length}건</b>을 내부주문으로 전환합니다</p>
+                </div>
+                <button onClick={() => setBulkConvertOpen(false)} className="w-8 h-8 -mr-1 -mt-1 rounded-lg flex items-center justify-center hover:bg-[var(--muted)] transition-colors">
+                  <X className="w-4 h-4 opacity-60" />
+                </button>
+              </div>
+              <div className="p-5">
+                <div className="mb-4 p-3 rounded-xl border text-[12px] leading-relaxed flex gap-2" style={{ background: 'rgba(167,139,250,0.1)', borderColor: 'rgba(167,139,250,0.4)' }}>
+                  <ClipboardCheck className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#7c5cf5' }} />
+                  <div>네이버에도 <b>발주확인</b>을 함께 보낼까요? (이미 확인된 주문은 자동 건너뜀)</div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button onClick={() => doBulkConvert(true)}
+                    className="w-full py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 border transition-all duration-150 hover:-translate-y-px hover:shadow-md active:translate-y-0"
+                    style={{ background: 'var(--primary)', color: '#fff', borderColor: 'transparent', boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
+                    <ClipboardCheck className="w-4 h-4" />{targets.length}건 전환 + 발주확인 보내기
+                  </button>
+                  <button onClick={() => doBulkConvert(false)}
+                    className="w-full py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 border-2 transition-all duration-150 hover:-translate-y-px hover:shadow-sm active:translate-y-0"
+                    style={{ borderColor: 'var(--primary)', color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 6%, transparent)' }}>
+                    <ArrowRight className="w-4 h-4" />전환만 (발주확인 안 보냄)
+                  </button>
+                  <button onClick={() => setBulkConvertOpen(false)}
+                    className="w-full py-2 rounded-lg text-sm opacity-60 hover:opacity-100 transition-opacity">
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 구매자 취소요청 승인 확인 모달 — 비가역(환불 확정) */}
+      {approveCancelOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !approveCancelSubmitting && setApproveCancelOrder(null)}>
+          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'rgba(255,77,109,0.08)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,77,109,0.18)', color: '#ff4d6d' }}>
+                <Ban className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold leading-tight">취소요청 승인</h3>
+                <p className="text-[12px] opacity-60 mt-0.5">{approveCancelOrder.buyer_name} · #{approveCancelOrder.provider_order_id}</p>
+              </div>
+            </div>
+            <div className="p-5">
+              <div className="mb-4 p-3 rounded-xl border text-[13px] leading-relaxed" style={{ background: 'rgba(255,77,109,0.08)', borderColor: 'rgba(255,77,109,0.35)' }}>
+                구매자의 <b>취소요청을 네이버에 승인</b>합니다. 승인하면 <b style={{ color: '#ff4d6d' }}>환불이 확정되어 되돌릴 수 없습니다.</b><br />
+                <span className="opacity-70 text-[12px]">매장PC(sync.js)가 최대 60초 내 네이버 API로 처리하며, 실패 시 주문 카드에 사유가 표시됩니다.</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button onClick={doApproveCancel} disabled={approveCancelSubmitting}
+                  className="w-full py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 border transition-all duration-150 hover:-translate-y-px hover:shadow-md active:translate-y-0 disabled:opacity-50"
+                  style={{ background: '#ff4d6d', color: '#fff', borderColor: 'transparent' }}>
+                  <ClipboardCheck className="w-4 h-4" />{approveCancelSubmitting ? '등록 중…' : '취소 승인 (환불 확정)'}
+                </button>
+                <button onClick={() => setApproveCancelOrder(null)} disabled={approveCancelSubmitting}
+                  className="w-full py-2 rounded-lg text-sm opacity-60 hover:opacity-100 transition-opacity disabled:opacity-40">
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🚫 블랙리스트 지정 확인 모달 (전화 우선 매칭 → 거래처 없으면 생성) */}
+      {blacklistTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !blacklisting && setBlacklistTarget(null)}>
+          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-hidden animate-modal-up modal-card-safe" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'rgba(255,77,109,0.08)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,77,109,0.18)', color: '#ff4d6d' }}>
+                <Ban className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold leading-tight">블랙리스트 지정</h3>
+                <p className="text-[12px] opacity-60 mt-0.5">{blacklistTarget.buyer_name || '구매자'}{blacklistTarget.buyer_phone ? ` · ${blacklistTarget.buyer_phone}` : ''}</p>
+              </div>
+            </div>
+            <div className="p-5">
+              <div className="mb-4 p-3 rounded-xl border text-[13px] leading-relaxed" style={{ background: 'rgba(255,77,109,0.08)', borderColor: 'rgba(255,77,109,0.35)' }}>
+                이 구매자를 <b style={{ color: '#ff4d6d' }}>블랙리스트</b>로 지정합니다.<br />
+                <span className="opacity-70 text-[12px]">
+                  {digitsOnly(blacklistTarget.buyer_phone).length >= 8
+                    ? '전화번호 기준으로 거래처를 찾아 표시하며, 미등록이면 이 구매자 정보로 거래처를 새로 만들어 지정합니다. 같은 번호로 재주문 시 자동 경고됩니다.'
+                    : '⚠️ 이 주문엔 전화번호가 없어 이름으로만 처리됩니다(동명이인 주의). 거래처 관리에서 확인해 주세요.'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button onClick={() => doBlacklist(blacklistTarget)} disabled={blacklisting}
+                  className="w-full py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 border transition-all duration-150 hover:-translate-y-px hover:shadow-md active:translate-y-0 disabled:opacity-50"
+                  style={{ background: '#ff4d6d', color: '#fff', borderColor: 'transparent' }}>
+                  <Ban className="w-4 h-4" />{blacklisting ? '처리 중…' : '블랙리스트 지정'}
+                </button>
+                <button onClick={() => setBlacklistTarget(null)} disabled={blacklisting}
+                  className="w-full py-2 rounded-lg text-sm opacity-60 hover:opacity-100 transition-opacity disabled:opacity-40">
+                  닫기
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2490,7 +3091,7 @@ function parseNaverMeta(order, items = []) {
   // 수수료는 결제수수료만이 아니라 전체(결제+매출연동+판매+채널)를 합산해야 실수령액이 정확.
   // 정산예정금액(expectedSettlementAmount)이 있으면 그게 네이버 공식 실수령액 → 우선 사용.
   let commission = 0, prodDiscount = 0, settlement = 0, hasSettlement = false;
-  let shipAddr = null, inflow = null, sellerCode = null;
+  let shipAddr = null, inflow = null, sellerCode = null, shipMemo = null;
   const feeOf = (po) => Number(po.paymentCommission || 0) + Number(po.saleCommission || 0)
     + Number(po.channelCommission || 0) + Number(po.knowledgeShoppingSellingInterlockCommission || 0);
   for (const it of items) {
@@ -2502,6 +3103,7 @@ function parseNaverMeta(order, items = []) {
     if (!shipAddr && po.shippingAddress) shipAddr = po.shippingAddress;
     if (!inflow && po.inflowPath && po.inflowPath !== 'null') inflow = po.inflowPath;
     if (!sellerCode && po.sellerProductCode) sellerCode = po.sellerProductCode;
+    if (!shipMemo && po.shippingMemo) shipMemo = po.shippingMemo;
   }
   const po0 = order?.raw_payload?.productOrder;
   if (po0) {
@@ -2509,12 +3111,14 @@ function parseNaverMeta(order, items = []) {
     if (!hasSettlement && po0.expectedSettlementAmount != null) { settlement = Number(po0.expectedSettlementAmount || 0); hasSettlement = true; }
     if (!prodDiscount) prodDiscount = Number(po0.productDiscountAmount || 0);
     if (!shipAddr) shipAddr = po0.shippingAddress;
+    if (!shipMemo && po0.shippingMemo) shipMemo = po0.shippingMemo;
     if (!inflow && po0.inflowPath && po0.inflowPath !== 'null') inflow = po0.inflowPath;
     if (!sellerCode) sellerCode = po0.sellerProductCode;
   }
   const total = Number(order?.total_amount || 0);
-  const ordererName = ord.ordererName || null;
-  const receiverName = shipAddr?.name || null;
+  // 입금자/받는사람 비교 기준을 컴팩트 배지(getReceiverName/buyer_name)와 일치시키기 위해 컬럼 폴백.
+  const ordererName = ord.ordererName || order?.buyer_name || null;
+  const receiverName = shipAddr?.name || order?.receiver_name || null;
   // 실수령액 = 네이버 정산예정금액(공식) 우선, 없으면 주문금액 − 전체수수료
   const netAmount = hasSettlement ? settlement : (commission > 0 ? total - commission : null);
   return {
@@ -2526,6 +3130,7 @@ function parseNaverMeta(order, items = []) {
     receiverZip: shipAddr?.zipCode || null,
     receiverAddr: shipAddr ? [shipAddr.baseAddress, shipAddr.detailedAddress].filter(Boolean).join(' ') : null,
     inflow, sellerCode,
+    shippingMemo: (shipMemo || '').trim() || null,
     paymentMeans: ord.paymentMeans || null,
     device: ord.payLocationType || null,
     discountTotal: Number(ord.orderDiscountAmount || 0) + prodDiscount + Number(ord.naverMileagePaymentAmount || 0),
@@ -2535,7 +3140,7 @@ function parseNaverMeta(order, items = []) {
 // 네이버 주문 추가정보 블록 (펼침/카드 공용) — 네이버 초록 톤, 실수령액 강조 카드 + 아이콘 행
 function NaverOrderMeta({ order, items }) {
   const m = parseNaverMeta(order, items);
-  if (m.netAmount == null && !m.ordererName && !m.inflow && !m.receiverName) return null;
+  if (m.netAmount == null && !m.ordererName && !m.inflow && !m.receiverName && !m.shippingMemo) return null;
   const Row = ({ icon, label, children }) => (
     <div className="flex items-start justify-between gap-2 py-1 border-t" style={{ borderColor: 'var(--border)' }}>
       <span className="opacity-60 flex-shrink-0 flex items-center gap-1.5"><span className="text-[13px] leading-none">{icon}</span>{label}</span>
@@ -2566,6 +3171,14 @@ function NaverOrderMeta({ order, items }) {
             style={{ background: 'rgba(255,170,0,0.1)', border: '1px solid rgba(255,170,0,0.3)', color: 'var(--foreground)' }}>
             <span className="flex-shrink-0">👤</span>
             <span><b>{m.ordererName}</b> 주문 → <b>{m.receiverName}</b> 받음 <span className="opacity-50">(주문자≠받는분)</span></span>
+          </div>
+        )}
+        {/* 배송메모(주문자 배송요청사항) — 포장/발송 전 반드시 확인하도록 강조 박스 */}
+        {m.shippingMemo && (
+          <div className="flex items-start gap-1.5 rounded-lg px-2.5 py-2 mb-2 text-[12px] leading-snug break-keep"
+            style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.35)' }}>
+            <span className="flex-shrink-0">📝</span>
+            <span><span className="font-bold" style={{ color: '#2f7df0' }}>배송메모</span> <span className="font-medium">{m.shippingMemo}</span></span>
           </div>
         )}
         <div>

@@ -5,6 +5,7 @@ import {
   ShoppingBag, Maximize2, Minimize2, ChevronDown, Percent
 } from 'lucide-react';
 import QuickCalculator from './QuickCalculator';
+import QuickItemBar from '@/components/ui/QuickItemBar';
 import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
@@ -1074,6 +1075,11 @@ export default function OrderPage({
                   );
                 })
               )}
+            </div>
+
+            {/* 택배비/퀵비/수수료 등 부가 항목 즉석 추가 (주문 등록 단계에서도 청구 가능) */}
+            <div className="mt-3">
+              <QuickItemBar onAddLine={(line) => onAddItem(line)} />
             </div>
           </div>
 

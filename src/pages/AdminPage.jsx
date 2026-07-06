@@ -117,7 +117,7 @@ function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-5xl' }) {
         className="relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition"
         style={{
           maxWidth: isFullscreen ? '100vw' : ({ 'max-w-md': '28rem', 'max-w-lg': '32rem', 'max-w-xl': '36rem', 'max-w-2xl': '42rem', 'max-w-3xl': '48rem', 'max-w-4xl': '56rem', 'max-w-5xl': '64rem' }[maxWidth] || '64rem'),
-          maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 1.5rem)',
+          maxHeight: isFullscreen ? '100dvh' : 'calc(100dvh - 1.5rem)',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
         }}
@@ -133,7 +133,9 @@ function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-5xl' }) {
             </button>
           </div>
         </div>
-        <div className="overflow-y-auto p-4 sm:p-5 flex-1">{children}</div>
+        {/* min-h-0: flex 자식 기본 min-height:auto 때문에 콘텐츠로 부풀어 모달이 화면 밖으로 넘치던 버그 fix.
+            pb-24 md:pb-5: 모바일 하단 MobileNav(약 64px)에 마지막 저장/추가 버튼이 가려지지 않도록 여백. */}
+        <div className="overflow-y-auto p-4 sm:p-5 pb-24 md:pb-5 flex-1 min-h-0">{children}</div>
       </div>
     </div>
   );
@@ -359,6 +361,28 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
       setBatchCategory('');
     } catch (err) {
       showToast('카테고리 변경 실패: ' + err.message, 'error');
+    } finally {
+      setBatchApplying(false);
+    }
+  };
+
+  // 일괄 삭제 — 선택한 제품 전체 삭제 (관리자 정리용)
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const idsArr = [...selectedIds];
+    if (!window.confirm(`선택한 ${idsArr.length}개 제품을 삭제할까요?\n\n⚠️ 되돌릴 수 없습니다. (이미 저장된 주문 내역에는 영향 없음)`)) return;
+    setBatchApplying(true);
+    try {
+      if (supabaseConnected && supabase?.deleteProduct) {
+        for (const id of idsArr) {
+          await supabase.deleteProduct(id);
+        }
+      }
+      setProducts(displayProducts.filter(p => !idsArr.includes(p.id)));
+      showToast(`${idsArr.length}개 제품 삭제 완료`, 'success');
+      setSelectedIds(new Set());
+    } catch (err) {
+      showToast('삭제 실패: ' + err.message, 'error');
     } finally {
       setBatchApplying(false);
     }
@@ -699,7 +723,16 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
             className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-30"
             style={{ background: 'var(--primary)', color: 'white' }}
           >
-            {batchApplying ? '변경중...' : '변경'}
+            {batchApplying ? '변경중...' : '카테고리 변경'}
+          </button>
+          <button
+            onClick={handleBatchDelete}
+            disabled={selectedIds.size === 0 || batchApplying}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all disabled:opacity-30 inline-flex items-center gap-1"
+            style={{ background: 'var(--destructive)', color: 'white' }}
+            title="선택한 제품 일괄 삭제"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> 선택 삭제
           </button>
         </div>
       )}
@@ -1172,6 +1205,9 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
       };
       const isNew = !editTarget?.id;
       const { blacklist: _bl, ...dbPayload } = payload;
+      // 상호(이름) 변경 감지 — 과거 주문/저장카트/반품 이력도 새 상호로 자동 이전 (안 하면 이력 끊김)
+      const oldName = !isNew ? String(editTarget?.name || '').trim() : '';
+      const nameChanged = !isNew && oldName && oldName !== payload.name;
       if (supabaseConnected && supabase?.saveCustomer) {
         const saved = await supabase.saveCustomer(isNew ? dbPayload : { ...dbPayload, id: editTarget.id });
         if (!saved) throw new Error('서버 응답 오류');
@@ -1179,6 +1215,17 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
           setCustomers(prev => [...prev, saved]);
         } else {
           setCustomers(prev => prev.map(c => c.id === editTarget.id ? saved : c));
+        }
+        if (nameChanged && supabase.renameCustomerCascade) {
+          const moved = await supabase.renameCustomerCascade(oldName, payload.name);
+          const parts = [
+            moved.orders > 0 ? `주문 ${moved.orders}건` : null,
+            moved.carts > 0 ? `저장카트 ${moved.carts}건` : null,
+            moved.returns > 0 ? `반품 ${moved.returns}건` : null,
+          ].filter(Boolean);
+          showToast(parts.length > 0
+            ? `🔁 상호 변경: "${oldName}" → "${payload.name}" (${parts.join(' / ')} 이력 이전됨)`
+            : `🔁 상호 변경: "${oldName}" → "${payload.name}" (이전할 과거 이력 없음)`, 'success');
         }
       } else {
         if (isNew) {
@@ -3297,6 +3344,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
   const [adjustType, setAdjustType] = useState('percent');
   const [adjustDir, setAdjustDir] = useState('up');
   const [adjustValue, setAdjustValue] = useState('');
+  const [roundUnit, setRoundUnit] = useState(100); // 반올림 단위(원): 0=없음 / 1·10·100·1000
   const [target, setTarget] = useState('wholesale');
   const [showPreview, setShowPreview] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -3311,10 +3359,21 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
   }, [displayProducts]);
 
   const filteredCats = useMemo(() => {
-    if (!catSearch) return categories;
-    const s = catSearch.toLowerCase();
-    return categories.filter(c => c.toLowerCase().includes(s));
-  }, [categories, catSearch]);
+    let cats = categories;
+    if (catSearch) {
+      const s = catSearch.toLowerCase();
+      cats = cats.filter(c => c.toLowerCase().includes(s));
+    }
+    // 제품 검색 — 해당 제품명을 가진 카테고리만 노출 (검색 시 자동 펼침)
+    if (productSearch.trim()) {
+      const ps = productSearch.toLowerCase();
+      const hit = new Set(
+        displayProducts.filter(p => (p.name || '').toLowerCase().includes(ps)).map(p => p.category).filter(Boolean)
+      );
+      cats = cats.filter(c => hit.has(c));
+    }
+    return cats;
+  }, [categories, catSearch, productSearch, displayProducts]);
 
   const toggleCat = (cat) => {
     setSelectedCats(prev => {
@@ -3378,16 +3437,23 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
     ).slice(0, 20);
   }, [displayProducts, productSearch, selectedCats]);
 
+  // 반올림 단위 적용 — 0=없음(원본), 1=정수(소수점 제거), 10/100/1000=해당 단위로 반올림
+  const applyRound = (n) => {
+    if (n == null) return n;
+    if (!roundUnit) return n;          // 없음
+    if (roundUnit === 1) return Math.round(n);
+    return Math.round(n / roundUnit) * roundUnit;
+  };
   const calcNewPrice = (price) => {
     if (price == null || !adjustValue) return price;
     const val = parseFloat(adjustValue);
     if (isNaN(val) || val === 0) return price;
     if (adjustType === 'percent') {
       const mult = adjustDir === 'up' ? (1 + val / 100) : (1 - val / 100);
-      return price * mult;
+      return applyRound(price * mult);
     } else {
       const delta = adjustDir === 'up' ? val : -val;
-      return Math.max(0, price + delta);
+      return applyRound(Math.max(0, price + delta));
     }
   };
 
@@ -3398,7 +3464,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
       newWholesale: (target === 'wholesale' || target === 'both') ? calcNewPrice(p.wholesale) : p.wholesale,
       newRetail: (target === 'retail' || target === 'both') ? calcNewPrice(p.retail) : p.retail,
     }));
-  }, [affectedProducts, adjustValue, adjustType, adjustDir, target]);
+  }, [affectedProducts, adjustValue, adjustType, adjustDir, target, roundUnit]);
 
   const handleApply = async () => {
     if (previewData.length === 0) return;
@@ -3455,7 +3521,24 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
     <div className="space-y-5">
       <div>
         <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>단가 일괄 조정</h2>
-        <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>카테고리를 선택하고 원하는 만큼 가격을 올리거나 내릴 수 있습니다</p>
+        <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>제품을 검색하거나 카테고리를 선택해 가격을 올리거나 내릴 수 있습니다</p>
+      </div>
+
+      {/* 🔍 제품 검색 — 최상단 메인. 입력 시 해당 제품이 있는 카테고리만 자동 펼쳐 표시 */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
+        <input
+          value={productSearch}
+          onChange={e => setProductSearch(e.target.value)}
+          placeholder="제품명으로 검색…  (예: 인테이크, FL 54)"
+          className="w-full pl-12 pr-10 py-3.5 text-base rounded-2xl border-2 bg-[var(--card)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] shadow-sm"
+          style={{ borderColor: productSearch ? 'var(--primary)' : 'var(--border)' }}
+        />
+        {productSearch && (
+          <button onClick={() => setProductSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-[var(--accent)]" title="검색 지우기">
+            <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+          </button>
+        )}
       </div>
 
       {/* Step 1: 카테고리 + 제품 선택 */}
@@ -3483,9 +3566,12 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
           <div className="space-y-1 max-h-[50vh] overflow-y-auto custom-scroll">
             {filteredCats.map(cat => {
               const isSelected = selectedCats.has(cat);
-              const catProducts = displayProducts.filter(p => p.category === cat);
+              const psActive = productSearch.trim().length > 0;
+              const ps = productSearch.toLowerCase();
+              // 제품 검색 중이면 그 카테고리 내 매칭 제품만 보여줌
+              const catProducts = displayProducts.filter(p => p.category === cat && (!psActive || (p.name || '').toLowerCase().includes(ps)));
               const excludedCount = catProducts.filter(p => excludedIds.has(p.id)).length;
-              const isExpanded = expandedCat === cat;
+              const isExpanded = expandedCat === cat || psActive; // 검색 중엔 자동 펼침
               return (
                 <div key={cat}>
                   <div className="flex items-center gap-2">
@@ -3514,20 +3600,22 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
                     <div className="ml-7 mt-1 mb-2 space-y-0.5 max-h-72 overflow-y-auto custom-scroll rounded-lg border border-[var(--border)] bg-[var(--background)]">
                       {catProducts.map(p => {
                         const isExcluded = excludedIds.has(p.id);
-                        const active = isSelected && !isExcluded;
+                        // 카테고리 선택 시: 제외 토글 / 카테고리 미선택 시: 개별 선택(selectedIds) 토글
+                        const indiv = !isSelected && selectedIds.has(p.id);
+                        const active = isSelected ? !isExcluded : indiv;
                         return (
                           <button
                             key={p.id}
-                            onClick={() => isSelected ? toggleProductInCat(p.id) : null}
-                            className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-all ${isSelected ? 'hover:bg-[var(--accent)] cursor-pointer' : 'opacity-50 cursor-default'}`}
+                            onClick={() => isSelected ? toggleProductInCat(p.id) : toggleIndividualProduct(p.id)}
+                            className="w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-all hover:bg-[var(--accent)] cursor-pointer"
+                            title={isSelected ? '클릭하여 이 제품만 제외/포함' : '클릭하여 개별 선택'}
                           >
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <div
                                 className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border"
                                 style={{
-                                  background: active ? 'var(--primary)' : 'transparent',
-                                  borderColor: active ? 'var(--primary)' : 'var(--border)',
-                                  opacity: isSelected ? 1 : 0.3,
+                                  background: active ? (indiv ? 'var(--success)' : 'var(--primary)') : 'transparent',
+                                  borderColor: active ? (indiv ? 'var(--success)' : 'var(--primary)') : 'var(--border)',
                                 }}
                               >
                                 {active && <Check className="w-2.5 h-2.5 text-white" />}
@@ -3709,6 +3797,34 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
                   >{opt.label}</button>
                 ))}
               </div>
+            </div>
+
+            {/* 반올림 단위 — % 조정 시 소수점 정리 */}
+            <div>
+              <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--muted-foreground)' }}>반올림 (소수점 정리)</label>
+              <div className="flex gap-1.5">
+                {[
+                  { value: 0, label: '없음' },
+                  { value: 1, label: '1원' },
+                  { value: 10, label: '10원' },
+                  { value: 100, label: '100원' },
+                  { value: 1000, label: '1,000원' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setRoundUnit(opt.value)}
+                    className="flex-1 py-2 rounded-lg text-xs font-medium border transition-all"
+                    style={{
+                      background: roundUnit === opt.value ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : 'var(--background)',
+                      borderColor: roundUnit === opt.value ? 'var(--primary)' : 'var(--border)',
+                      color: roundUnit === opt.value ? 'var(--primary)' : 'var(--muted-foreground)',
+                    }}
+                  >{opt.label}</button>
+                ))}
+              </div>
+              <p className="text-[11px] mt-1.5" style={{ color: 'var(--muted-foreground)' }}>
+                예: 35,317원 → {roundUnit === 0 ? '35,317원 (그대로)' : roundUnit === 1 ? '35,317원' : `${formatPrice(applyRound(35317))}원`}
+              </p>
             </div>
 
             {/* 수치 입력 시 미리보기 자동 표시 */}
