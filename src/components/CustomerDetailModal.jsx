@@ -562,9 +562,9 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
           )}
 
           {!loading && tab === 'orders' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3.5">
               {orders.length === 0 ? (
-                <p className="col-span-full text-sm text-center text-[var(--muted-foreground)] py-12">주문 내역 없음</p>
+                <p className="col-span-full text-base text-center text-[var(--muted-foreground)] py-12">주문 내역 없음</p>
               ) : orders.slice(0, 50).map((o, idx) => {
                 const items = Array.isArray(o.items) ? o.items : [];
                 const expanded = expandedOrder === o.id;
@@ -578,43 +578,43 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                     <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ background: 'linear-gradient(180deg, #3b82f6, #22c55e)' }} />
                     <button
                       onClick={() => setExpandedOrder(expanded ? null : o.id)}
-                      className="w-full pl-5 pr-4 py-4 text-left hover:bg-[var(--accent)] transition-colors"
+                      className="w-full pl-6 pr-5 py-5 text-left hover:bg-[var(--accent)] transition-colors"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0 flex-1">
-                          <div className="font-black text-lg sm:text-xl flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
+                          <div className="font-black text-xl sm:text-2xl flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
                             <span className="text-blue-500">#</span>{o.id}
                             {items.length > 0 && (
-                              expanded ? <ChevronUp className="w-5 h-5 text-[var(--muted-foreground)]" /> : <ChevronDown className="w-5 h-5 text-[var(--muted-foreground)]" />
+                              expanded ? <ChevronUp className="w-6 h-6 text-[var(--muted-foreground)]" /> : <ChevronDown className="w-6 h-6 text-[var(--muted-foreground)]" />
                             )}
                           </div>
-                          <div className="text-sm sm:text-base text-[var(--muted-foreground)] mt-1.5 font-medium">
+                          <div className="text-base text-[var(--muted-foreground)] mt-2 font-medium">
                             📅 {dateKST(o.created_at)} · {items.length}품목
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <div className="font-black text-2xl sm:text-3xl tabular-nums" style={{ color: '#2563eb' }}>{fmt(o.total)}<span className="text-base sm:text-lg font-bold ml-0.5">원</span></div>
+                          <div className="font-black text-3xl sm:text-4xl tabular-nums leading-none" style={{ color: '#2563eb' }}>{fmt(o.total)}<span className="text-lg sm:text-xl font-bold ml-1">원</span></div>
                           {Number(o.total_returned) > 0 && (
-                            <div className="text-sm text-orange-400 mt-1 font-semibold">환불 {fmt(o.total_returned)}</div>
+                            <div className="text-base text-orange-400 mt-1.5 font-semibold">환불 {fmt(o.total_returned)}</div>
                           )}
                         </div>
                       </div>
                       {!expanded && items.length > 0 && (
-                        <p className="text-sm sm:text-base text-[var(--foreground)]/75 mt-2.5 break-words leading-relaxed font-medium">
+                        <p className="text-base sm:text-lg text-[var(--foreground)]/80 mt-3 break-words leading-relaxed font-medium">
                           {items.slice(0, 3).map((it) => it.name || it.product_name).filter(Boolean).join(', ')}
                           {items.length > 3 && <span className="text-[var(--muted-foreground)]">{` 외 ${items.length - 3}건`}</span>}
                         </p>
                       )}
                     </button>
                     {expanded && items.length > 0 && (
-                      <div className="px-3 pb-3 pt-1 border-t border-[var(--border)]">
-                        <table className="w-full text-xs sm:text-sm">
+                      <div className="px-5 pb-4 pt-2 border-t border-[var(--border)]">
+                        <table className="w-full text-sm sm:text-base">
                           <thead>
                             <tr className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
-                              <th className="text-left py-1.5 font-normal">품목</th>
-                              <th className="text-right py-1.5 font-normal w-12">수량</th>
-                              <th className="text-right py-1.5 font-normal w-20">단가</th>
-                              <th className="text-right py-1.5 font-normal w-24">소계</th>
+                              <th className="text-left py-2 font-normal">품목</th>
+                              <th className="text-right py-2 font-normal w-14">수량</th>
+                              <th className="text-right py-2 font-normal w-24">단가</th>
+                              <th className="text-right py-2 font-normal w-28">소계</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -623,23 +623,23 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                               const price = Number(it.price || 0);
                               return (
                                 <tr key={i} className="border-b border-[var(--border)]/30 last:border-b-0">
-                                  <td className="py-2 break-words leading-snug">{it.name || it.product_name || '-'}</td>
-                                  <td className="text-right py-2">{qty}</td>
-                                  <td className="text-right py-2">{fmt(price)}</td>
-                                  <td className="text-right py-2 font-semibold">{fmt(qty * price)}</td>
+                                  <td className="py-2.5 break-words leading-snug">{it.name || it.product_name || '-'}</td>
+                                  <td className="text-right py-2.5 tabular-nums">{qty}</td>
+                                  <td className="text-right py-2.5 tabular-nums">{fmt(price)}</td>
+                                  <td className="text-right py-2.5 font-semibold tabular-nums">{fmt(qty * price)}</td>
                                 </tr>
                               );
                             })}
                           </tbody>
                           <tfoot>
-                            <tr className="border-t border-[var(--border)] font-bold text-sm sm:text-base">
-                              <td colSpan="3" className="py-2 text-right">합계</td>
-                              <td className="text-right py-2 text-[var(--primary)]">{fmt(o.total)}</td>
+                            <tr className="border-t border-[var(--border)] font-bold text-base sm:text-lg">
+                              <td colSpan="3" className="py-2.5 text-right">합계</td>
+                              <td className="text-right py-2.5 text-[var(--primary)] tabular-nums">{fmt(o.total)}</td>
                             </tr>
                           </tfoot>
                         </table>
                         {o.memo && (
-                          <p className="mt-2 p-2.5 rounded bg-[var(--background)] text-xs sm:text-sm text-[var(--muted-foreground)] break-words">
+                          <p className="mt-3 p-3 rounded-lg bg-[var(--background)] text-sm sm:text-base text-[var(--muted-foreground)] break-words leading-relaxed">
                             📝 {o.memo}
                           </p>
                         )}
@@ -649,7 +649,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                 );
               })}
               {orders.length > 50 && (
-                <p className="text-[11px] text-center text-[var(--muted-foreground)] pt-2">
+                <p className="text-sm text-center text-[var(--muted-foreground)] pt-3">
                   최근 50건만 표시 (전체 {orders.length}건)
                 </p>
               )}
