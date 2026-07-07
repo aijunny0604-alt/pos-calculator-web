@@ -1907,9 +1907,9 @@ export default function SmartStoreOrders({
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold flex-shrink-0"
                           style={buyerBlacklisted(order)
                             ? { background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)' }
-                            : { background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)', border: '1px solid color-mix(in srgb, var(--destructive) 35%, transparent)' }}
+                            : { background: 'transparent', color: 'var(--muted-foreground)', border: '1px dashed var(--border)' }}
                           title={buyerBlacklisted(order) ? '블랙리스트 해제' : '이 구매자를 블랙리스트로 지정'}>
-                          <Ban className="w-3.5 h-3.5" /> {buyerBlacklisted(order) ? '블랙 해제' : '블랙리스트'}
+                          <Ban className="w-3.5 h-3.5" /> {buyerBlacklisted(order) ? '블랙 해제' : '블랙 지정'}
                         </button>
                       </div>
                       <div className="flex items-center gap-2.5 text-lg">
@@ -2276,9 +2276,9 @@ export default function SmartStoreOrders({
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold flex-shrink-0"
                     style={buyerBlacklisted(order)
                       ? { background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)', border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)' }
-                      : { background: 'color-mix(in srgb, var(--destructive) 12%, transparent)', color: 'var(--destructive)', border: '1px solid color-mix(in srgb, var(--destructive) 35%, transparent)' }}
+                      : { background: 'transparent', color: 'var(--muted-foreground)', border: '1px dashed var(--border)' }}
                     title={buyerBlacklisted(order) ? '블랙리스트 해제' : '이 구매자를 블랙리스트로 지정'}>
-                    <Ban className="w-3 h-3" /> {buyerBlacklisted(order) ? '해제' : '블랙'}
+                    <Ban className="w-3 h-3" /> {buyerBlacklisted(order) ? '해제' : '블랙 지정'}
                   </button>
                 </div>
                 <div className="text-base opacity-90 font-mono font-semibold">
