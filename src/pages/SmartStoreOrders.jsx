@@ -5,7 +5,7 @@
 // - Mock 데이터 주입 (Phase 1 — API 키 받기 전 테스트용)
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu, Ban, Copy, Maximize2, Minimize2 } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu, Ban, Copy, Maximize2, Minimize2, Store } from 'lucide-react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/components/StoreOrderAlerts';
 import { matchCustomer } from '@/lib/fuzzyMatch';
@@ -170,6 +170,19 @@ const getDeliveryMethod = (order, items = []) => {
   }
   if (!code) return null;
   return DELIVERY_METHOD[code] || { label: String(code), icon: '📦', color: '#7e9cb8', bg: 'rgba(126,156,184,0.14)' };
+};
+// 방문수령 주문 여부 (네이버 expectedDeliveryMethod === VISIT_RECEIPT) — 발송 버튼을 방문수령 처리로 스왑
+const isVisitReceiptOrder = (order, items = []) => {
+  let code = order?.raw_payload?.productOrder?.expectedDeliveryMethod
+    || order?.raw_payload?.delivery?.deliveryMethod || null;
+  if (!code) {
+    for (const it of (items || [])) {
+      code = it?.raw_payload?.productOrder?.expectedDeliveryMethod
+        || it?.raw_payload?.delivery?.deliveryMethod;
+      if (code) break;
+    }
+  }
+  return code === 'VISIT_RECEIPT';
 };
 
 // 상태별 색상 — 수명주기 단계가 한눈에 구분되도록 단계별로 고유 색 부여.
@@ -347,6 +360,7 @@ const ACTION_VARIANTS = {
   green: { bg: 'rgba(3,199,90,0.12)', color: '#06a850', border: 'rgba(3,199,90,0.45)' },
   blue: { bg: 'rgba(59,130,246,0.10)', color: '#2f7df0', border: 'rgba(59,130,246,0.45)' },
   red: { bg: 'rgba(255,77,109,0.10)', color: '#ea3a56', border: 'rgba(255,77,109,0.45)' },
+  amber: { bg: 'rgba(245,158,11,0.14)', color: '#d97706', border: 'rgba(245,158,11,0.5)' },
 };
 // 카드 뷰 액션 버튼 공통 클래스 (전체폭 그리드 셀, 컴팩트 ActionBtn과 동일 호버 입체감)
 const CARD_ACTION_CLASS = "py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 min-h-[44px] border transition-all duration-150 hover:-translate-y-px hover:shadow-md hover:brightness-[1.03] active:translate-y-0 active:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1";
@@ -579,6 +593,8 @@ export default function SmartStoreOrders({
 
   // 발송처리 모달
   const [dispatchModalOrder, setDispatchModalOrder] = useState(null);
+  // 방문수령 처리 확인 모달 대상 order
+  const [visitReceiptOrder, setVisitReceiptOrder] = useState(null);
   // 일괄 발송 multi-select (Task #109)
   const [selectedOrderIds, setSelectedOrderIds] = useState(() => new Set());
   const [modalFullscreen, setModalFullscreen] = useState(false); // 주문 상세 모달 전체화면 토글
@@ -989,6 +1005,36 @@ export default function SmartStoreOrders({
     setDispatchModalOrder(order);
     setDispatchCompany('CJGLS');
     setDispatchTracking('');
+  };
+
+  // 🏬 방문수령 처리 — 송장번호 없이 네이버에 deliveryMethod=VISIT_RECEIPT 로 발송처리.
+  // 큐/실패 안전망은 택배 발송과 동일 재사용. sync.js가 company_code==='VISIT_RECEIPT' 를 방문수령으로 인식.
+  const submitVisitReceipt = async () => {
+    if (!visitReceiptOrder) return;
+    const order = visitReceiptOrder;
+    const needsConfirm = !order.naver_confirm_succeeded_at;
+    const patch = {
+      needs_naver_dispatch: true,
+      naver_dispatch_company_code: 'VISIT_RECEIPT', // 센티널 — sync.js가 방문수령 페이로드로 전송
+      naver_dispatch_company_name: '방문수령',
+      naver_dispatch_tracking: null,
+      naver_dispatch_retry_count: 0,
+      naver_dispatch_next_retry_at: null,
+    };
+    if (needsConfirm) {
+      patch.needs_naver_confirm = true;
+      patch.naver_confirm_retry_count = 0;
+      patch.naver_confirm_next_retry_at = null;
+    }
+    await supabase.updateExternalOrder(order.id, patch);
+    showToast?.(
+      needsConfirm
+        ? '발주확인 + 방문수령 처리 대기열 등록 — 60초 내 순차 자동 처리'
+        : '방문수령 처리 대기열 등록 — 60초 내 자동 처리',
+      'success'
+    );
+    setVisitReceiptOrder(null);
+    reload();
   };
 
   const submitDispatch = async () => {
@@ -1832,7 +1878,9 @@ export default function SmartStoreOrders({
                       <ActionBtn onClick={() => confirmOrder(order)} icon={ClipboardCheck} label="발주확인" variant="purple" title="네이버 발주확인" />
                     )}
                     {!isOrderDone(order) && (
-                      <ActionBtn onClick={() => openDispatch(order)} icon={Truck} label="발송" variant="green" title="발송처리" />
+                      isVisitReceiptOrder(order, itemsForOrder)
+                        ? <ActionBtn onClick={() => setVisitReceiptOrder(order)} icon={Store} label="방문수령" variant="amber" title="방문수령 발송처리 (송장 불필요)" />
+                        : <ActionBtn onClick={() => openDispatch(order)} icon={Truck} label="발송" variant="green" title="발송처리" />
                     )}
                     <ActionBtn onClick={() => handleCreateShippingLabel(order)} icon={Printer} label="송장" variant="blue" title="택배 송장" />
                     {!isOrderDone(order) && (
@@ -2102,10 +2150,17 @@ export default function SmartStoreOrders({
                           </button>
                         )}
                         {!isOrderDone(order) && (
-                          <button onClick={() => { setExpandedCompactId(null); openDispatch(order); }} className={MODAL_FOOTER_CLASS}
-                            style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}>
-                            <Truck className="w-4 h-4" />발송
-                          </button>
+                          isVisitReceiptOrder(order, itemsByOrder[order.id]) ? (
+                            <button onClick={() => { setExpandedCompactId(null); setVisitReceiptOrder(order); }} className={MODAL_FOOTER_CLASS}
+                              style={{ background: ACTION_VARIANTS.amber.bg, color: ACTION_VARIANTS.amber.color, borderColor: ACTION_VARIANTS.amber.border }}>
+                              <Store className="w-4 h-4" />방문수령
+                            </button>
+                          ) : (
+                            <button onClick={() => { setExpandedCompactId(null); openDispatch(order); }} className={MODAL_FOOTER_CLASS}
+                              style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}>
+                              <Truck className="w-4 h-4" />발송
+                            </button>
+                          )
                         )}
                         <button onClick={() => { setExpandedCompactId(null); handleCreateShippingLabel(order); }} className={MODAL_FOOTER_CLASS}
                           style={{ background: ACTION_VARIANTS.blue.bg, color: ACTION_VARIANTS.blue.color, borderColor: ACTION_VARIANTS.blue.border }}>
@@ -2531,13 +2586,23 @@ export default function SmartStoreOrders({
                   </button>
                 )}
                 {!isOrderDone(order) && (
-                  <button
-                    onClick={() => openDispatch(order)}
-                    className={CARD_ACTION_CLASS}
-                    style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}
-                  >
-                    <Truck className="w-4 h-4" />발송처리
-                  </button>
+                  isVisitReceiptOrder(order, items) ? (
+                    <button
+                      onClick={() => setVisitReceiptOrder(order)}
+                      className={CARD_ACTION_CLASS}
+                      style={{ background: ACTION_VARIANTS.amber.bg, color: ACTION_VARIANTS.amber.color, borderColor: ACTION_VARIANTS.amber.border }}
+                    >
+                      <Store className="w-4 h-4" />방문수령 처리
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => openDispatch(order)}
+                      className={CARD_ACTION_CLASS}
+                      style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}
+                    >
+                      <Truck className="w-4 h-4" />발송처리
+                    </button>
+                  )
                 )}
                 <button
                   onClick={() => handleCreateShippingLabel(order)}
@@ -2691,6 +2756,39 @@ export default function SmartStoreOrders({
                 <Check className="w-4 h-4 inline mr-1" />네이버 발송 등록
               </button>
               <button onClick={() => setDispatchModalOrder(null)}
+                className="px-4 py-2.5 rounded-lg border"
+                style={{ borderColor: 'var(--border)' }}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🏬 방문수령 처리 확인 모달 (송장 불필요) */}
+      {visitReceiptOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setVisitReceiptOrder(null)}>
+          <div className="rounded-xl w-full max-w-md p-5 border modal-card-safe" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-4">
+              <Store className="w-5 h-5" style={{ color: '#d97706' }} />
+              <h3 className="text-lg font-bold flex-1">방문수령 처리 <span className="text-xs font-bold" style={{ color: '#d97706' }}>· 네이버 연동</span></h3>
+              <button onClick={() => setVisitReceiptOrder(null)}><X className="w-4 h-4 opacity-60" /></button>
+            </div>
+            <div className="text-sm mb-3">
+              주문 <b>#{visitReceiptOrder.provider_order_id}</b> · {visitReceiptOrder.buyer_name}
+            </div>
+            <div className="text-[13px] mb-4 p-3 rounded-lg leading-relaxed" style={{ background: 'color-mix(in srgb, #f59e0b 12%, transparent)', color: '#b45309' }}>
+              🏬 이 주문은 <b>방문수령</b> 건입니다. <b>송장번호 없이</b> 네이버에 <b>방문수령 발송처리</b>로 전송됩니다.<br />
+              매장 PC가 60초 내 자동 연동해요. (발주확인이 안 됐으면 발주확인까지 함께 처리)
+            </div>
+            <div className="text-[11px] mb-4 opacity-70">
+              ⚠️ 방문수령 발송처리는 네이버에 실제 반영됩니다. 손님이 매장에서 수령한 게 맞을 때만 눌러주세요.
+            </div>
+            <div className="flex gap-2">
+              <button onClick={submitVisitReceipt}
+                className="flex-1 py-2.5 rounded-lg font-semibold"
+                style={{ background: '#d97706', color: 'white' }}>
+                <Check className="w-4 h-4 inline mr-1" />방문수령 처리
+              </button>
+              <button onClick={() => setVisitReceiptOrder(null)}
                 className="px-4 py-2.5 rounded-lg border"
                 style={{ borderColor: 'var(--border)' }}>취소</button>
             </div>
