@@ -10,6 +10,33 @@ function getSynth() {
   return window.speechSynthesis || null;
 }
 
+// 🔊 발화용 텍스트 정제 — 마크다운/이모지/장식기호를 읽지 않게 제거해 자연스럽게
+// (기존엔 "**볼드**"를 "별표별표..."로, 이모지·구분선까지 읽어서 이상했음)
+function sanitizeForSpeech(text) {
+  if (!text) return '';
+  let s = String(text);
+  // 코드블록/인라인 코드
+  s = s.replace(/```[\s\S]*?```/g, ' ').replace(/`([^`]*)`/g, '$1');
+  // 마크다운 강조/취소선/헤더/링크
+  s = s.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+  s = s.replace(/__([^_]+)__/g, '$1').replace(/~~([^~]+)~~/g, '$1');
+  s = s.replace(/^\s{0,3}#{1,6}\s*/gm, '');
+  s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+  s = s.replace(/https?:\/\/\S+/g, '');
+  // 이모지 및 기호(픽토그램/화살표/도형/별 등) 제거
+  s = s.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{2500}-\u{25FF}️‍]/gu, ' ');
+  s = s.replace(/[•·▶►◆■□●○★☆✔✕✓|>]/g, ' ');
+  // 구분선(───, ---, ===)
+  s = s.replace(/[-=─━_]{3,}/g, ' ');
+  // 불릿(- 또는 * 로 시작하는 줄) → 쉼표로 자연스럽게
+  s = s.replace(/^\s*[-*]\s+/gm, ', ');
+  // 줄바꿈 → 문장 쉼
+  s = s.replace(/\n{2,}/g, '. ').replace(/\n/g, ', ');
+  // 다중 공백/중복 구두점 정리
+  s = s.replace(/\s{2,}/g, ' ').replace(/\s*([.,])(\s*[.,])+/g, '$1').trim();
+  return s;
+}
+
 // 한국어 voice 우선순위 선택. 한국어 voice가 없으면 null (영어 voice로 한국어 읽으면 이상함 → 침묵)
 function pickKoreanFemaleVoice(voices) {
   if (!Array.isArray(voices) || voices.length === 0) return null;
@@ -87,6 +114,9 @@ export default function useTextToSpeech({ defaultEnabled = false } = {}) {
       console.warn('TTS: 빈 텍스트');
       return false;
     }
+    // 🔊 마크다운/이모지/기호 제거 후 발화 (자연스러움)
+    const spoken = sanitizeForSpeech(text);
+    if (!spoken) return false;
     // 이전 발화 중단
     try { synth.cancel(); } catch {}
 
@@ -108,10 +138,10 @@ export default function useTextToSpeech({ defaultEnabled = false } = {}) {
       }
     }
 
-    const utter = new SpeechSynthesisUtterance(text);
+    const utter = new SpeechSynthesisUtterance(spoken);
     utter.lang = options.lang || 'ko-KR';
-    utter.rate = options.rate ?? 1.0;
-    utter.pitch = options.pitch ?? 1.1;
+    utter.rate = options.rate ?? 1.02;   // 살짝 자연스러운 속도
+    utter.pitch = options.pitch ?? 1.0;  // 1.1은 톤이 붕떠 부자연 → 1.0 중립
     utter.volume = options.volume ?? 1.0;
     if (voice) utter.voice = voice;
 
