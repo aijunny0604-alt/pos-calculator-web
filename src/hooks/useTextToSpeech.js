@@ -33,7 +33,7 @@ function sanitizeForSpeech(text) {
   // 줄바꿈 → 문장 쉼
   s = s.replace(/\n{2,}/g, '. ').replace(/\n/g, ', ');
   // 다중 공백/중복 구두점 정리
-  s = s.replace(/\s{2,}/g, ' ').replace(/\s*([.,])(\s*[.,])+/g, '$1').trim();
+  s = s.replace(/\s{2,}/g, ' ').replace(/\s*([.,])(\s*[.,])+/g, '$1').replace(/^[\s,.·]+/, '').trim();
   return s;
 }
 

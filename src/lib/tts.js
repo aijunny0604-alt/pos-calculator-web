@@ -28,7 +28,7 @@ function sanitizeForSpeech(text) {
   s = s.replace(/^\s{0,3}#{1,6}\s*/gm, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '');
   s = s.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{2500}-\u{25FF}️‍]/gu, ' ');
   s = s.replace(/[•·▶►◆■□●○★☆✔✕✓|>]/g, ' ').replace(/[-=─━_]{3,}/g, ' ').replace(/^\s*[-*]\s+/gm, ', ');
-  s = s.replace(/\n{2,}/g, '. ').replace(/\n/g, ', ').replace(/\s{2,}/g, ' ').replace(/\s*([.,])(\s*[.,])+/g, '$1').trim();
+  s = s.replace(/\n{2,}/g, '. ').replace(/\n/g, ', ').replace(/\s{2,}/g, ' ').replace(/\s*([.,])(\s*[.,])+/g, '$1').replace(/^[\s,.·]+/, '').trim();
   return s;
 }
 

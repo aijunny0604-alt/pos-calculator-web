@@ -1728,6 +1728,14 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
     if (isStockAction && isPriceAction) {
       return { ok: false, error: '재고 변경과 가격 변경은 한 번에 같이 못 해요. 하나씩 요청해주세요.' };
     }
+    // P3: 설정(setStock)과 증감(addStock) 동시 지정 방지
+    if (setStock != null && addStock != null) {
+      return { ok: false, error: '재고를 특정 값으로 설정(예: 30개로)과 증감(예: +10개)은 한 번에 못 해요. 하나만 알려주세요.' };
+    }
+    // P2: NaN/비정상 숫자 방어
+    if (setStock != null && !Number.isFinite(Number(setStock))) return { ok: false, error: '재고 값이 올바른 숫자가 아닙니다.' };
+    if (addStock != null && !Number.isFinite(Number(addStock))) return { ok: false, error: '재고 증감 값이 올바른 숫자가 아닙니다.' };
+    if (pricePercent != null && !Number.isFinite(Number(pricePercent))) return { ok: false, error: '가격 조정 %가 올바른 숫자가 아닙니다.' };
     if (isPriceAction && priceType !== 'wholesale' && priceType !== 'retail') {
       return { ok: true, data: { __clarification: true, question: `💬 ${pricePercent > 0 ? `${pricePercent}% 인상` : `${Math.abs(pricePercent)}% 인하`}을 **도매가**로 할까요, **소비자가**로 할까요?` } };
     }
@@ -1755,6 +1763,10 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
       return { ok: false, error: `대상이 ${targets.length}개로 너무 많습니다(상한 ${HARD_CAP}). 조건을 더 좁혀주세요.` };
     }
     const won = (n) => Number(n || 0).toLocaleString('ko-KR');
+    // 조건 설명 — 재고/가격 공통 (실제 필터와 일치, P2 preview 불일치 수정)
+    const condDesc = [category ? `카테고리 "${category}"` : null, nameContains ? `이름에 "${nameContains}"` : null,
+      stockBelow != null ? `재고 ${stockBelow}개 미만` : null, stockAtMost != null ? `재고 ${stockAtMost}개 이하` : null,
+      (allProducts && !hasCondition) ? '전체 제품' : null].filter(Boolean).join(' + ') || '조건 대상';
     if (isStockAction) {
       const updates = targets.map((p) => {
         const oldStock = Number(p.stock) || 0;
@@ -1765,9 +1777,6 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
       });
       const changed = updates.filter((u) => u.diff !== 0);
       if (changed.length === 0) return { ok: false, error: '대상 제품들이 이미 그 재고라 바뀔 게 없습니다.' };
-      const condDesc = [category ? `카테고리 "${category}"` : null, nameContains ? `이름에 "${nameContains}"` : null,
-        stockBelow != null ? `재고 ${stockBelow}개 미만` : null, stockAtMost != null ? `재고 ${stockAtMost}개 이하` : null,
-        allProducts && !hasCondition ? '전체 제품' : null].filter(Boolean).join(' + ');
       const actDesc = setStock != null ? `재고를 ${setStock}개로 설정` : (addStock >= 0 ? `재고 +${addStock}개씩` : `재고 ${addStock}개씩`);
       const previewLines = changed.slice(0, 20).map((u) => `${u.diff > 0 ? '↑' : '↓'} ${u.productName}: ${u.oldStock} → ${u.newStock}`).join('\n');
       const more = changed.length > 20 ? `\n… 외 ${changed.length - 20}개` : '';
@@ -1781,19 +1790,25 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
     }
     // 가격 % 조정 — 100원 단위 반올림(매장 관례)
     const pct = Number(pricePercent);
+    let zeroSkipped = 0; // P1: 0원 이하로 떨어질 제품은 제외(안전)
     const updates = targets.map((p) => {
       const oldPrice = Number(p[priceType]) || 0;
       const raw = oldPrice * (1 + pct / 100);
       const newPrice = Math.max(0, Math.round(raw / 100) * 100);
       return { productId: p.id, productName: p.name, oldPrice, [priceType]: newPrice, diff: newPrice - oldPrice };
-    }).filter((u) => u.oldPrice > 0 && u.diff !== 0);
-    if (updates.length === 0) return { ok: false, error: '가격이 있는 대상 제품이 없거나 변동이 없습니다.' };
-    const condDesc = [category ? `카테고리 "${category}"` : null, nameContains ? `이름에 "${nameContains}"` : null,
-      allProducts && !hasCondition ? '전체 제품' : null].filter(Boolean).join(' + ') || '조건 대상';
+    }).filter((u) => {
+      if (u.oldPrice <= 0) return false;         // 원가 0원 제품 제외
+      if (u[priceType] <= 0) { zeroSkipped++; return false; } // 0원 이하가 될 제품 제외
+      return u.diff !== 0;
+    });
+    if (updates.length === 0) {
+      return { ok: false, error: `가격이 있는 대상 제품이 없거나 변동이 없습니다.${zeroSkipped > 0 ? ` (0원 이하가 될 ${zeroSkipped}개 제외 — 인하 %를 확인하세요)` : ''}` };
+    }
     const ptLabel = priceType === 'wholesale' ? '도매가' : '소비자가';
     const previewLines = updates.slice(0, 20).map((u) => `• ${u.productName}: ${won(u.oldPrice)} → ${won(u[priceType])}원 (${u.diff > 0 ? '+' : ''}${won(u.diff)})`).join('\n');
     const more = updates.length > 20 ? `\n… 외 ${updates.length - 20}개` : '';
     const warnings = [`⚠️ ${updates.length}개 제품 ${ptLabel}를 ${pct > 0 ? `${pct}% 인상` : `${Math.abs(pct)}% 인하`}합니다(100원 반올림). 대상을 꼭 확인하세요.`];
+    if (zeroSkipped > 0) warnings.push(`⚠️ 0원 이하가 되는 ${zeroSkipped}개는 자동 제외됐어요.`);
     return { ok: true, data: {
       __pending: true, action: 'bulkUpdateProductPrice',
       params: { updates },
