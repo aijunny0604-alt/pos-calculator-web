@@ -269,6 +269,8 @@ export default function useAIAnalystChat({
         }));
       if (pending.length > 0) {
         setPendingActions((prev) => [...prev, ...pending]);
+      } else if (result.needsClarification) {
+        // 🤔 되물음(Clarification): 추측 실행 대신 확인 질문 — pending/합성 스킵, 질문만 표시
       } else {
         // 🔧 폴백: AI가 답변에 쓰기 미리보기를 텍스트로만 작성하고 functionCall 누락한 경우
         // 텍스트에서 거래처/제품/수량 파싱 → saveOrder pendingAction 합성 (Codex 권장)

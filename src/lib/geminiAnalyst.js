@@ -122,10 +122,10 @@ const WRITE_INTENT_PATTERNS = [
   { re: /(가격|금액|단가|도매가|소매가|소비자가|판매가)[\s\S]{0,25}(변경|수정|바꿔|올려|내려|업데이트|인상|인하|로\s*해)|(변경|수정|바꿔|올려|내려|인상|인하)[\s\S]{0,25}(가격|금액|단가|도매가|소매가|소비자가|판매가)/, tools: ['updateProductPrice', 'bulkUpdateProductPrice'] },
   // 제품명/이름 수정·이어붙이기 — "제품명 X로 바꿔", "이름 뒤에 (무정전 타입) 붙여줘/추가"
   { re: /(제품명|상품명|이름|품명)[\s\S]{0,20}(바꿔|변경|수정|붙여|덧붙|추가|뒤에|앞에|로\s*해|으로\s*해)|(붙여|덧붙|추가)[\s\S]{0,12}(줘|주세요|해)/, tools: ['updateProductName'] },
-  // 블랙리스트 지정/해제 — "세븐카 블랙리스트 지정", "블랙 해제해줘"
-  { re: /(블랙리스트|블랙)[\s\S]{0,12}(지정|등록|추가|해제|풀어|빼|넣어|해줘)/, tools: ['updateCustomer'] },
-  // 상호(거래처명) 변경 — "동래YB 상호 YB모터스로 변경" (과거 이력 자동 이전)
-  { re: /(상호|업체명|거래처명|거래처\s*이름)[\s\S]{0,25}(변경|바꿔|수정|로\s*해|으로\s*해)/, tools: ['updateCustomer'] },
+  // 블랙리스트 지정/해제 — "세븐카 블랙리스트 지정", "A랑 B 둘 다 블랙 지정" (다건은 bulk)
+  { re: /(블랙리스트|블랙)[\s\S]{0,12}(지정|등록|추가|해제|풀어|빼|넣어|해줘)/, tools: ['updateCustomer', 'bulkUpdateCustomer'] },
+  // 상호(거래처명) 변경 — "동래YB 상호 YB모터스로 변경" (과거 이력 자동 이전, 다건은 bulk)
+  { re: /(상호|업체명|거래처명|거래처\s*이름)[\s\S]{0,25}(변경|바꿔|수정|로\s*해|으로\s*해)/, tools: ['updateCustomer', 'bulkUpdateCustomer'] },
   // 주문 메모 — "김철수 주문에 메모 남겨줘/적어줘"
   { re: /주문[\s\S]{0,15}(메모|노트)[\s\S]{0,15}(남겨|적어|추가|써|기록|달아)|(메모|노트)[\s\S]{0,10}(남겨|적어|달아)[\s\S]{0,6}(줘|주세요)/, tools: ['updateOrderMemo'] },
 ];
@@ -399,6 +399,19 @@ export async function askAnalyst(question, context, options = {}) {
           }],
         });
       });
+
+      // 🤔 Clarification: 도구 dry-run이 되물음을 요청하면 추가 모델 호출 없이 질문을 바로 답변으로 반환
+      // (모호한 쓰기를 추측 실행하는 대신 사용자에게 1회 확인 — 토큰 절약 + 오작동 방지)
+      const clarify = results.find(({ result }) => result?.ok && result?.data?.__clarification);
+      if (clarify) {
+        return {
+          answer: clarify.result.data.question,
+          toolCalls,
+          iterations: iterations + 1,
+          cached: false,
+          needsClarification: true,
+        };
+      }
 
       iterations++;
     }

@@ -394,13 +394,22 @@ export default function AIAnalytics({
       } else if (pending.action === 'bulkUpdateCustomer') {
         const { updates } = pending.params;
         const results = await Promise.all(
-          updates.map((u) => {
+          updates.map(async (u) => {
             const patch = {};
             if (u.phone !== undefined) patch.phone = u.phone;
             if (u.address !== undefined) patch.address = u.address;
-            return supabase.updateCustomer(u.customerId, patch)
-              .then((updated) => ({ ok: Boolean(updated), update: u, patch }))
-              .catch(() => ({ ok: false, update: u, patch }));
+            if (u.newName !== undefined) patch.name = u.newName;
+            if (u.isBlacklist !== undefined) patch.is_blacklist = u.isBlacklist;
+            try {
+              const updated = await supabase.updateCustomer(u.customerId, patch);
+              // 상호 변경 시 과거 주문/카트/반품 이력도 새 상호로 이전
+              if (updated && u.newName !== undefined && u.newName !== u.customerName && supabase.renameCustomerCascade) {
+                await supabase.renameCustomerCascade(u.customerName, u.newName);
+              }
+              return { ok: Boolean(updated), update: u, patch };
+            } catch {
+              return { ok: false, update: u, patch };
+            }
           })
         );
         const okList = results.filter((r) => r.ok);
@@ -411,7 +420,10 @@ export default function AIAnalytics({
             return prev.map((c) => (map.has(c.id) ? { ...c, ...map.get(c.id) } : c));
           });
         }
-        const summary = `✅ 거래처 ${okList.length}건 정보 변경 완료${failList.length > 0 ? ` (실패 ${failList.length}건)` : ''}`;
+        const blackCount = okList.filter((r) => r.patch.is_blacklist === true).length;
+        const renameCount = okList.filter((r) => r.patch.name !== undefined).length;
+        const extra = [blackCount > 0 ? `블랙 ${blackCount}` : null, renameCount > 0 ? `상호 ${renameCount}` : null].filter(Boolean).join('·');
+        const summary = `✅ 거래처 ${okList.length}건 변경 완료${extra ? ` (${extra})` : ''}${failList.length > 0 ? ` · 실패 ${failList.length}건` : ''}`;
         chat.addSystemMessage(summary);
         showToast?.(summary, okList.length > 0 ? 'success' : 'error');
       } else if (pending.action === 'updateProductPrice') {
