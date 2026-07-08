@@ -1,9 +1,38 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-06 (택배송장 카톡복사 + 주문내역 제품명검색 + 주문수정 확인모달 + MOVIS 도구확장/모달확대 + 제품그리드 디자인)
+> 마지막 업데이트: 2026-07-08 (MOVIS 대규모 고도화 + 방문수령 발송 + 거래처 카드 리디자인 + 블랙버튼/TTS)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-07-08 — MOVIS 대규모 고도화(Claude+Codex 협업) + 방문수령 발송 + 거래처 카드 + 블랙버튼/TTS
+
+### 🤖 MOVIS AI 능력 대폭 확장 ([geminiTools.js](src/lib/geminiTools.js) + [geminiAnalyst.js](src/lib/geminiAnalyst.js) + [AIAnalytics.jsx](src/pages/AIAnalytics.jsx) + [useAIAnalystChat.js](src/hooks/useAIAnalystChat.js) + [MessageBubble.jsx](src/components/analytics/MessageBubble.jsx))
+- **멀티엔티티 일괄 쓰기**: `bulkUpdateCustomer`에 `newName`(상호변경)·`isBlacklist` 추가 → "A랑 B 둘 다 블랙 지정/상호 변경"을 **한 번의 confirm**으로. 상호변경 시 `renameCustomerCascade`로 주문/카트/반품 이력 자동 이전. WRITE_INTENT 블랙/상호 패턴에 bulkUpdateCustomer 허용
+- **되묻기(Clarification)**: 도구 dry-run이 `{ __clarification, question }` 반환 → 에이전트 루프가 **추가 모델호출 없이 질문 즉시 반환**(short-circuit, 토큰 절약). `updateProductPrice` 도매/소매 불명확 시 되물음. useAIAnalystChat가 `needsClarification`이면 pending/주문합성 스킵
+- **조건부 일괄** `bulkUpdateProductsByCondition`: 조건(category/nameContains/stockBelow/stockAtMost/allProducts)으로 **로컬 필터**(토큰 절약) → 재고(setStock/addStock) 또는 가격(pricePercent+priceType, 100원 반올림) → 기존 `bulkUpdateProductStock/Price` apply 핸들러 **action 재사용**. "재고 10개 미만 전부 30개로", "○카테고리 5% 인상". ⚠️ Codex 리뷰로 버그 5건 수정(0원가격 방어·NaN검증·조건설명 통일·setStock+addStock 동시금지·HARD_CAP 500)
+- **메시지/문서 자동작성** `draftMessage`(읽기): 미수 안내문·재구매 제안·**견적서/발주서** → 데이터 조회 후 완성 텍스트를 `{ __messageDraft }` 반환 → MessageBubble이 **채팅 인라인 복사 카드**로 렌더(모달 아님). DB·발송·저장 없음
+- **오늘 마감 요약** `getDailyClose`(읽기): "오늘 정리/마감" → 오늘 주문·매출·입금·반품·재고부족·스토어 미처리 종합
+- **안 나가는 재고(데드스톡)** `getDeadStock`(읽기, [inventory.js](src/lib/analytics/inventory.js)): 최근 N개월 판매 0 + 재고 있는 제품을 묶인금액(재고×도매가)순
+- **질문 이해도 강화**(시스템프롬프트): 지시대명사/생략("그거/방금/그 업체")→직전 대화 대상 유지, 한글숫자(오만원=50000·삼개=3·반값=×0.5), 읽기 현장표현 사전, 복합요청 도구 연쇄, **"뭐 할 수 있어?" 역량 안내**(발견성)
+- **확인 UX 다건 개선**: pending 여러 건일 때 헤더 "확인 대기 N건·1번째" + **[건너뛰기](이 건만)/[전체 취소]** 분리(기존 취소=전체취소만). MOVIS 확인모달 사이즈·폰트 확대(본문 text-base~lg)
+- **발견성**: 첫 진입 예시 칩에 "📅 오늘 마감 정리"·"✉️ 미수 안내 문자 작성" 추가
+- ⚠️ **임베딩 의미검색**(`embedText`/`cosineSim`/VectorIndexer) 인프라는 존재하나 MOVIS 검색엔 미연결(findProductSmart 퍼지매칭만) — 다음 후보(벡터 인덱스 사전구축 필요)
+
+### 🔊 TTS 자연화 ([useTextToSpeech.js](src/hooks/useTextToSpeech.js) + [lib/tts.js](src/lib/tts.js))
+- 발화 전 `sanitizeForSpeech`로 **마크다운·이모지·장식기호·구분선 제거** → "별표별표"·이모지 읽던 문제 해결. pitch 1.1→1.0(붕뜸 해소), rate 자연화. 앞 구두점 정리
+
+### 🏬 방문수령 발송처리 ([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx) + 매장PC [sync.js](../naver-sync-bridge/sync.js))
+- 네이버 방문수령 주문(`expectedDeliveryMethod===VISIT_RECEIPT`)을 **송장 없이 발송처리**. 방문수령 주문이면 [발송] 버튼→**[🏬 방문수령]**으로 스왑(카드/컴팩트/상세 3곳). `submitVisitReceipt`가 `naver_dispatch_company_code='VISIT_RECEIPT'` 센티널+tracking=null 큐 등록
+- **sync.js**: `company_code==='VISIT_RECEIPT'` → `deliveryMethod:'VISIT_RECEIPT'` 페이로드(택배사/송장 면제), 필수값 검증 방문수령 예외. ⚠️ 네이버 VISIT_RECEIPT dispatch 계약 best-guess — **1건 라이브 검증 필요**(실패 시 안전히 에러기록, 오발송 표기 방지). watchdog가 stale코드 자동 재시작 확인
+
+### 🚫 스토어 블랙리스트 지정 버튼 혼동 수정 ([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx))
+- 미지정 구매자 버튼이 빨강+🚫+"블랙리스트"라 이미 등록된 것처럼 오인 → **미지정=회색 점선+"블랙 지정"(행동)**, 지정됨=초록 "블랙 해제". 실제 블랙 등록 고객은 빨간 배지+카드 유지
+
+### 🏢 거래처 관리 업체 주문이력 카드 리디자인 ([CustomerList.jsx](src/pages/CustomerList.jsx))
+- **콤팩트 카드 그리드**(사용자 선택): 예전 큰 카드보다 작게, 품목 최대 3줄 표시 + 미수/복사 하단. md 2컬럼/2xl 3컬럼. 금액 24px, 좌측 액센트바. (리스트↔카드 왕복 후 콤팩트 카드로 확정)
+- **상세 모달 확대**: 폭 672→832px(52rem), 제목 16→24px, 총금액/공급/부가 18→30px, 품목명 14→16px
+- ⚠️ 참고: `CustomerDetailModal.jsx`(별도 모달)도 폰트 확대돼 있으나 이 화면과 다른 곳(대시보드 미수 클릭 등)에서 쓰임
 
 ## 🆕 v2026-07-06 — 택배송장 카톡복사 + 주문검색/수정확인 + 메모페이지 + MOVIS 도구확장·모달확대 + 그리드 디자인
 
