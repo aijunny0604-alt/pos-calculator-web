@@ -42,7 +42,8 @@ import { supabase } from '@/lib/supabase';
 
 // 추천 질문 14개 (좌7 + 우7 분할)
 const DEFAULT_PROMPTS = [
-  // 좌측 7개 — 매출/VIP/제품 중심
+  // 좌측 — 매출/VIP/제품 중심
+  { id: 'dailyClose', label: '📅 오늘 마감 정리', icon: BarChart3, side: 'left', query: '오늘 마감 정리해줘' },
   { id: 'summary', label: '이번 달 전체 요약', icon: BarChart3, side: 'left' },
   { id: 'topRevenue', label: '이번 달 매출 TOP 5', icon: Crown, side: 'left' },
   { id: 'vipSegments', label: 'VIP 세그먼트 분석', icon: Users, side: 'left' },
@@ -50,7 +51,8 @@ const DEFAULT_PROMPTS = [
   { id: 'category', label: '카테고리별 매출 분석', icon: LayoutGrid, side: 'left' },
   { id: 'productTrend', label: '최근 3개월 매출 추이', icon: TrendingUp, side: 'left' },
   { id: 'reactivate', label: '재주문 유도 추천 액션', icon: RefreshCw, side: 'left' },
-  // 우측 7개 — 운영/위험/재고 중심
+  // 우측 — 운영/위험/재고 중심
+  { id: 'collectMsg', label: '✉️ 미수 안내 문자 작성', icon: MessageSquare, side: 'right', query: '미수 오래된 거래처 한 곳 골라서 정산 안내 문자 초안 만들어줘' },
   { id: 'lowStock', label: '재고 부족한 제품', icon: PackageX, side: 'right' },
   { id: 'restock', label: '재주문 추천 (시급도)', icon: Package, side: 'right' },
   { id: 'overdue', label: '미수 30일 이상 거래처', icon: DollarSign, side: 'right' },
