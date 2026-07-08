@@ -665,10 +665,10 @@ export default function CustomerList({
                   title="주문 이력이 없습니다"
                 />
               ) : (
-                <div className="space-y-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
                   {getCustomerOrders(selectedCustomer.name).map(order => {
                     const net = (order.totalAmount || 0) - (order.totalReturned || 0);
-                    const itemSummary = (order.items || []).map(it => `${it.name}×${it.quantity}`).join(', ');
+                    const items = order.items || [];
                     return (
                     <div
                       key={order.orderNumber}
@@ -683,50 +683,74 @@ export default function CustomerList({
                       {/* 좌측 액센트 바 */}
                       <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ background: order.totalReturned > 0 ? 'var(--warning)' : 'linear-gradient(180deg, #22c55e, #3b82f6)' }} />
 
-                      {/* 메인 행: 날짜·품목요약 ←→ 금액 */}
-                      <div className="pl-4 pr-2.5 py-3 flex items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
+                      <div className="pl-4 pr-3 py-3">
+                        {/* 상단: 날짜 ←→ 금액 */}
+                        <div className="flex items-start justify-between gap-2 mb-2.5">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                             <span className="text-base sm:text-lg font-bold whitespace-nowrap">{formatDate(order.createdAt)}</span>
                             {order.totalReturned > 0 && (
-                              <span className="px-2 py-0.5 text-xs rounded-md font-bold" style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)' }}>반품</span>
+                              <span className="px-1.5 py-0.5 text-[11px] rounded-md font-bold" style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)' }}>반품</span>
                             )}
                             {order.memo && (
-                              <span className="px-2 py-0.5 text-xs rounded-md font-bold" style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }} title={order.memo}>📝 메모</span>
+                              <span className="px-1.5 py-0.5 text-[11px] rounded-md font-bold" style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }} title={order.memo}>📝</span>
                             )}
                           </div>
-                          <p className="text-sm sm:text-base text-[var(--muted-foreground)] mt-1 truncate font-medium" title={itemSummary}>{itemSummary || '-'}</p>
+                          <div className="text-right flex-shrink-0">
+                            {order.totalReturned > 0 && (
+                              <p className="text-[var(--muted-foreground)] text-xs line-through leading-none mb-0.5">{formatPrice(order.totalAmount)}</p>
+                            )}
+                            <p className="font-black text-xl sm:text-2xl tabular-nums leading-none" style={{ color: 'var(--success)' }}>{formatPrice(net)}<span className="text-sm font-bold ml-0.5">원</span></p>
+                            <div className="mt-1"><SubPrice total={net} layout="supply-only" size="xs" /></div>
+                          </div>
                         </div>
-                        <div className="text-right flex-shrink-0">
-                          {order.totalReturned > 0 && (
-                            <p className="text-[var(--muted-foreground)] text-xs line-through leading-none mb-0.5">{formatPrice(order.totalAmount)}</p>
-                          )}
-                          <p className="font-black text-xl sm:text-2xl tabular-nums leading-none" style={{ color: 'var(--success)' }}>{formatPrice(net)}<span className="text-sm font-bold ml-0.5">원</span></p>
-                          <div className="mt-1"><SubPrice total={net} layout="supply-only" size="xs" /></div>
-                        </div>
-                        <ChevronRight className="w-5 h-5 flex-shrink-0 text-[var(--muted-foreground)]" />
-                      </div>
 
-                      {/* 하단 슬림 바: 결제상태 + 입금등록/복사 */}
-                      <div className="pl-4 pr-2.5 pb-2.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex-1 min-w-0">
-                          <OrderPaymentInline
-                            payment={paymentsByOrder[String(order.id)]}
-                            onRegister={(e) => {
-                              e.stopPropagation();
-                              const pay = paymentsByOrder[String(order.id)];
-                              setRegPrefill({ customerId: selectedCustomer.id, recordId: pay?.record?.id || null });
-                              setRegModalOpen(true);
-                            }}
-                          />
+                        {/* 품목: 최대 3줄 (한 줄씩 콤팩트) */}
+                        <div className="bg-[var(--secondary)] rounded-lg px-2.5 py-2 mb-2.5 space-y-1">
+                          {items.slice(0, 3).map((item, idx) => {
+                            const lineTotal = (item.price ?? item.wholesale ?? item.retail ?? 0) * item.quantity;
+                            const isDiscounted = !!item.discountType && Number(item.discountValue) > 0;
+                            return (
+                              <div key={idx} className="flex justify-between gap-2 text-sm">
+                                <span className="flex-1 min-w-0 truncate font-medium">
+                                  {item.name} <span className="text-[var(--muted-foreground)]">×{item.quantity}</span>
+                                  {isDiscounted && <span className="ml-1 text-[10px] font-bold" style={{ color: 'var(--warning)' }}>🏷</span>}
+                                </span>
+                                <span className="flex-shrink-0 tabular-nums font-semibold">{formatPrice(lineTotal)}</span>
+                              </div>
+                            );
+                          })}
+                          {items.length > 3 && (
+                            <p className="text-xs text-[var(--muted-foreground)] font-medium">외 {items.length - 3}개 상품</p>
+                          )}
+                          {order.returns && order.returns.length > 0 && (
+                            <p className="text-xs font-bold pt-1" style={{ color: 'var(--warning)' }}>↩ 반품 {order.returns.length}건 · -{formatPrice(order.totalReturned)}</p>
+                          )}
+                          {order.memo && (
+                            <p className="text-xs truncate pt-1 border-t border-[var(--border)] mt-1" style={{ color: 'var(--primary)' }} title={order.memo}>📝 {order.memo}</p>
+                          )}
                         </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); copyOrderText(order); }}
-                          className="flex-shrink-0 px-3 py-2 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors text-sm font-medium flex items-center gap-1.5 self-start"
-                          title="주문 내용 복사"
-                        >
-                          <Copy className="w-4 h-4" /> 복사
-                        </button>
+
+                        {/* 하단: 결제상태 + 복사 */}
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex-1 min-w-0">
+                            <OrderPaymentInline
+                              payment={paymentsByOrder[String(order.id)]}
+                              onRegister={(e) => {
+                                e.stopPropagation();
+                                const pay = paymentsByOrder[String(order.id)];
+                                setRegPrefill({ customerId: selectedCustomer.id, recordId: pay?.record?.id || null });
+                                setRegModalOpen(true);
+                              }}
+                            />
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); copyOrderText(order); }}
+                            className="flex-shrink-0 px-2.5 py-2 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors text-sm font-medium flex items-center gap-1 self-start"
+                            title="주문 내용 복사"
+                          >
+                            <Copy className="w-4 h-4" /> 복사
+                          </button>
+                        </div>
                       </div>
                     </div>
                     );
@@ -876,7 +900,7 @@ export default function CustomerList({
         >
           <div
             className="bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col animate-modal-up modal-fs-transition"
-            style={{ maxWidth: isDetailFullscreen ? '100vw' : '42rem', maxHeight: isDetailFullscreen ? '100vh' : '90vh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+            style={{ maxWidth: isDetailFullscreen ? '100vw' : '52rem', maxHeight: isDetailFullscreen ? '100vh' : '92vh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal header */}
@@ -886,19 +910,19 @@ export default function CustomerList({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
-                    <Receipt className="w-5 h-5 text-white" />
+                  <div className="w-11 h-11 bg-white/20 rounded-lg flex items-center justify-center">
+                    <Receipt className="w-6 h-6 text-white" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-base font-bold text-white">주문 상세</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold text-white">주문 상세</h2>
                       {detailOrder.totalReturned > 0 && (
-                        <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs text-white font-medium flex items-center gap-1">
-                          <RotateCcw className="w-3 h-3" /> 반품
+                        <span className="px-2 py-0.5 bg-white/20 rounded-full text-sm text-white font-medium flex items-center gap-1">
+                          <RotateCcw className="w-3.5 h-3.5" /> 반품
                         </span>
                       )}
                     </div>
-                    <p className="text-sm" style={{ color: detailOrder.totalReturned > 0 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.8)' }}>
+                    <p className="text-base" style={{ color: 'rgba(255,255,255,0.85)' }}>
                       {formatDate(detailOrder.createdAt)}
                     </p>
                   </div>
@@ -925,44 +949,44 @@ export default function CustomerList({
             {/* Modal content */}
             <div className="p-5 overflow-y-auto flex-1">
               {/* Amount summary */}
-              <div className="bg-[var(--secondary)] rounded-lg p-4 mb-4">
+              <div className="bg-[var(--secondary)] rounded-xl p-5 mb-5">
                 <div className={`grid gap-4 text-center ${detailOrder.totalReturned > 0 ? 'grid-cols-2' : 'grid-cols-3'}`}>
                   <div>
-                    <p className="text-[var(--muted-foreground)] text-xs mb-1">총 금액</p>
-                    <p className="font-bold text-lg" style={{ color: 'var(--success)' }}>{formatPrice(detailOrder.totalAmount)}</p>
+                    <p className="text-[var(--muted-foreground)] text-sm mb-1.5">총 금액</p>
+                    <p className="font-black text-2xl sm:text-3xl tabular-nums" style={{ color: 'var(--success)' }}>{formatPrice(detailOrder.totalAmount)}</p>
                   </div>
                   {detailOrder.totalReturned > 0 ? (
                     <div>
-                      <p className="text-[var(--muted-foreground)] text-xs mb-1">반품 금액</p>
-                      <p className="font-bold text-lg" style={{ color: 'var(--warning)' }}>-{formatPrice(detailOrder.totalReturned)}</p>
+                      <p className="text-[var(--muted-foreground)] text-sm mb-1.5">반품 금액</p>
+                      <p className="font-black text-2xl sm:text-3xl tabular-nums" style={{ color: 'var(--warning)' }}>-{formatPrice(detailOrder.totalReturned)}</p>
                     </div>
                   ) : (
                     <>
                       <div>
-                        <p className="text-[var(--muted-foreground)] text-xs mb-1">공급가액</p>
-                        <p className="font-bold text-lg" style={{ color: 'var(--primary)' }}>{formatPrice(calcExVat(detailOrder.totalAmount))}</p>
+                        <p className="text-[var(--muted-foreground)] text-sm mb-1.5">공급가액</p>
+                        <p className="font-bold text-xl sm:text-2xl tabular-nums" style={{ color: 'var(--primary)' }}>{formatPrice(calcExVat(detailOrder.totalAmount))}</p>
                       </div>
                       <div>
-                        <p className="text-[var(--muted-foreground)] text-xs mb-1">부가세</p>
-                        <p className="font-bold text-lg" style={{ color: 'var(--purple)' }}>{formatPrice(detailOrder.totalAmount - calcExVat(detailOrder.totalAmount))}</p>
+                        <p className="text-[var(--muted-foreground)] text-sm mb-1.5">부가세</p>
+                        <p className="font-bold text-xl sm:text-2xl tabular-nums" style={{ color: 'var(--purple)' }}>{formatPrice(detailOrder.totalAmount - calcExVat(detailOrder.totalAmount))}</p>
                       </div>
                     </>
                   )}
                 </div>
                 {detailOrder.totalReturned > 0 && (
-                  <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                  <div className="mt-4 pt-4 border-t border-[var(--border)]">
                     <div className="flex justify-between items-center">
-                      <span className="text-[var(--muted-foreground)] text-sm">실결제액</span>
-                      <span className="text-[var(--primary)] font-bold text-xl">{formatPrice(detailOrder.totalAmount - detailOrder.totalReturned)}</span>
+                      <span className="text-[var(--muted-foreground)] text-base font-medium">실결제액</span>
+                      <span className="text-[var(--primary)] font-black text-2xl sm:text-3xl tabular-nums">{formatPrice(detailOrder.totalAmount - detailOrder.totalReturned)}</span>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Items */}
-              <div className="mb-4">
-                <p className="text-[var(--muted-foreground)] text-xs mb-2 font-medium">상품 목록 ({(detailOrder.items || []).length}종)</p>
-                <div className="bg-[var(--background)] rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+              <div className="mb-5">
+                <p className="text-[var(--muted-foreground)] text-sm mb-2.5 font-semibold">상품 목록 ({(detailOrder.items || []).length}종)</p>
+                <div className="bg-[var(--background)] rounded-xl border border-[var(--border)] divide-y divide-[var(--border)]">
                   {(detailOrder.items || []).map((item, idx) => {
                     const returnedQty = (detailOrder.returns || []).reduce((sum, ret) => {
                       if (ret.itemId === item.id || ret.itemName === item.name) {
@@ -973,15 +997,15 @@ export default function CustomerList({
                     return (
                       <div
                         key={idx}
-                        className="flex justify-between items-center p-3"
+                        className="flex justify-between items-center gap-3 p-3.5"
                         style={returnedQty > 0 ? { background: 'color-mix(in srgb, var(--warning) 12%, transparent)' } : undefined}
                       >
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium">{item.name}</p>
+                            <p className="text-base font-semibold break-words leading-snug">{item.name}</p>
                             {returnedQty > 0 && (
                               <span
-                                className="px-1.5 py-0.5 text-[10px] rounded font-medium"
+                                className="px-2 py-0.5 text-xs rounded font-bold flex-shrink-0"
                                 style={{
                                   background: 'color-mix(in srgb, var(--warning) 20%, transparent)',
                                   color: 'var(--warning)'
@@ -991,20 +1015,20 @@ export default function CustomerList({
                               </span>
                             )}
                           </div>
-                          <p className="text-[var(--muted-foreground)] text-xs">
+                          <p className="text-[var(--muted-foreground)] text-sm mt-0.5">
                             수량: {item.quantity}개 × {formatPrice(item.price ?? item.wholesale ?? item.retail ?? 0)}원
-                            <span className="ml-1 text-[10px] opacity-75">(공급 {formatPrice(calcExVat(item.price ?? item.wholesale ?? item.retail ?? 0))}원)</span>
+                            <span className="ml-1 text-xs opacity-75">(공급 {formatPrice(calcExVat(item.price ?? item.wholesale ?? item.retail ?? 0))}원)</span>
                             {(item.price == null || Number(item.price) === 0) && (
-                              <span className="ml-1 text-[10px] text-red-500 font-bold">⚠️ 단가 누락</span>
+                              <span className="ml-1 text-xs text-red-500 font-bold">⚠️ 단가 누락</span>
                             )}
                           </p>
                         </div>
                         <p
-                          className={`font-semibold text-right ${returnedQty > 0 ? 'line-through' : ''}`}
+                          className={`font-bold text-lg sm:text-xl text-right tabular-nums flex-shrink-0 ${returnedQty > 0 ? 'line-through' : ''}`}
                           style={{ color: returnedQty > 0 ? 'var(--warning)' : 'var(--success)' }}
                         >
                           {formatPrice((Number(item.price) || Number(item.wholesale) || Number(item.retail) || 0) * item.quantity)}
-                          <span className="block text-[10px] font-normal leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat((Number(item.price) || Number(item.wholesale) || Number(item.retail) || 0) * item.quantity))}</span>
+                          <span className="block text-xs font-normal leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat((Number(item.price) || Number(item.wholesale) || Number(item.retail) || 0) * item.quantity))}</span>
                         </p>
                       </div>
                     );
@@ -1072,8 +1096,8 @@ export default function CustomerList({
                     borderStyle: 'solid'
                   }}
                 >
-                  <p className="text-xs font-medium mb-1" style={{ color: 'var(--primary)' }}>메모</p>
-                  <p className="text-sm">{detailOrder.memo}</p>
+                  <p className="text-sm font-bold mb-1.5" style={{ color: 'var(--primary)' }}>메모</p>
+                  <p className="text-base leading-relaxed break-words">{detailOrder.memo}</p>
                 </div>
               )}
             </div>
