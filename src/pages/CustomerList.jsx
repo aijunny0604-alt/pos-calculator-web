@@ -665,137 +665,72 @@ export default function CustomerList({
                   title="주문 이력이 없습니다"
                 />
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {getCustomerOrders(selectedCustomer.name).map(order => (
+                <div className="space-y-2.5">
+                  {getCustomerOrders(selectedCustomer.name).map(order => {
+                    const net = (order.totalAmount || 0) - (order.totalReturned || 0);
+                    const itemSummary = (order.items || []).map(it => `${it.name}×${it.quantity}`).join(', ');
+                    return (
                     <div
                       key={order.orderNumber}
                       onClick={() => setDetailOrder(order)}
-                      className="card-interactive bg-[var(--card)] rounded-2xl p-5 border-2 cursor-pointer relative overflow-hidden"
+                      className="card-interactive bg-[var(--card)] rounded-xl border cursor-pointer relative overflow-hidden"
                       style={
                         order.totalReturned > 0
-                          ? { borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))' }
-                          : { borderColor: 'color-mix(in srgb, var(--success) 22%, var(--border))' }
+                          ? { borderColor: 'color-mix(in srgb, var(--warning) 45%, var(--border))' }
+                          : { borderColor: 'var(--border)' }
                       }
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = order.totalReturned > 0
-                          ? 'color-mix(in srgb, var(--warning) 70%, var(--border))'
-                          : 'color-mix(in srgb, var(--success) 70%, var(--border))';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = order.totalReturned > 0
-                          ? 'color-mix(in srgb, var(--warning) 40%, var(--border))'
-                          : 'var(--border)';
-                      }}
                     >
                       {/* 좌측 액센트 바 */}
                       <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ background: order.totalReturned > 0 ? 'var(--warning)' : 'linear-gradient(180deg, #22c55e, #3b82f6)' }} />
-                      {/* Card top: date + amount */}
-                      <div className="flex items-start justify-between mb-3.5">
-                        <div>
-                          <span className="text-base sm:text-lg font-bold">{formatDate(order.createdAt)}</span>
-                          {order.totalReturned > 0 && (
-                            <span
-                              className="ml-2 px-2 py-0.5 text-xs rounded-md font-bold align-middle"
-                              style={{
-                                background: 'color-mix(in srgb, var(--warning) 20%, transparent)',
-                                color: 'var(--warning)'
-                              }}
-                            >반품</span>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          {order.totalReturned > 0 ? (
-                            <>
-                              <p className="text-[var(--muted-foreground)] text-sm line-through">{formatPrice(order.totalAmount)}</p>
-                              <p className="font-black text-2xl sm:text-3xl tabular-nums leading-none" style={{ color: 'var(--success)' }}>{formatPrice(order.totalAmount - order.totalReturned)}</p>
-                            </>
-                          ) : (
-                            <p className="font-black text-2xl sm:text-3xl tabular-nums leading-none" style={{ color: 'var(--success)' }}>{formatPrice(order.totalAmount)}</p>
-                          )}
-                          <SubPrice
-                            total={(order.totalAmount || 0) - (order.totalReturned || 0)}
-                            layout="stacked"
-                            size="sm"
-                            className="mt-1"
-                          />
-                        </div>
-                      </div>
 
-                      {/* Card middle: items */}
-                      <div className="bg-[var(--secondary)] rounded-xl p-3 mb-3">
-                        <div className="space-y-1.5">
-                          {(order.items || []).slice(0, 3).map((item, idx) => {
-                            const lineTotal = (item.price ?? item.wholesale ?? item.retail ?? 0) * item.quantity;
-                            const isDiscounted = !!item.discountType && Number(item.discountValue) > 0;
-                            const dLabel = isDiscounted
-                              ? (item.discountType === 'percent' ? `${item.discountValue}%` : item.discountType === 'amount' ? `${formatPrice(item.discountValue)}원` : '특가')
-                              : '';
-                            return (
-                              <div key={idx} className="flex justify-between text-sm sm:text-base gap-2">
-                                <span className="text-[var(--foreground)] flex-1 min-w-0 break-words mr-2 font-medium">
-                                  {item.name} <span className="text-[var(--muted-foreground)]">x{item.quantity}</span>
-                                  {isDiscounted && (
-                                    <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold align-middle"
-                                      style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)' }}>
-                                      🏷 {dLabel}
-                                    </span>
-                                  )}
-                                </span>
-                                <span className="flex-shrink-0 text-right tabular-nums">
-                                  <span className="text-[var(--foreground)] font-semibold">{formatPrice(lineTotal)}</span>
-                                  <span className="block text-[11px] opacity-75 leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat(lineTotal))}</span>
-                                </span>
-                              </div>
-                            );
-                          })}
-                          {(order.items || []).length > 3 && (
-                            <p className="text-[var(--muted-foreground)] text-sm font-medium">외 {order.items.length - 3}개 상품</p>
-                          )}
-                        </div>
-                        {/* Returns summary */}
-                        {order.returns && order.returns.length > 0 && (
-                          <div className="mt-2 pt-2" style={{ borderTop: '1px solid color-mix(in srgb, var(--warning) 40%, var(--border))' }}>
-                            <p className="text-sm font-bold mb-1" style={{ color: 'var(--warning)' }}>반품:</p>
-                            {order.returns.slice(0, 2).map((r, idx) => (
-                              <div key={idx} className="flex justify-between text-sm">
-                                <span className="flex-1 min-w-0 break-words mr-2" style={{ color: 'var(--warning)' }}>{r.itemName} x{r.quantity}</span>
-                                <span className="flex-shrink-0 tabular-nums" style={{ color: 'var(--warning)' }}>-{formatPrice(r.total)}</span>
-                              </div>
-                            ))}
-                            {order.returns.length > 2 && (
-                              <p className="text-sm" style={{ color: 'var(--warning)' }}>외 {order.returns.length - 2}건</p>
+                      {/* 메인 행: 날짜·품목요약 ←→ 금액 */}
+                      <div className="pl-4 pr-2.5 py-3 flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-base sm:text-lg font-bold whitespace-nowrap">{formatDate(order.createdAt)}</span>
+                            {order.totalReturned > 0 && (
+                              <span className="px-2 py-0.5 text-xs rounded-md font-bold" style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)' }}>반품</span>
+                            )}
+                            {order.memo && (
+                              <span className="px-2 py-0.5 text-xs rounded-md font-bold" style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }} title={order.memo}>📝 메모</span>
                             )}
                           </div>
-                        )}
-                        {order.memo && (
-                          <p className="text-sm mt-2 pt-2 border-t border-[var(--border)] break-words leading-relaxed" style={{ color: 'var(--primary)' }}>{order.memo}</p>
-                        )}
+                          <p className="text-sm sm:text-base text-[var(--muted-foreground)] mt-1 truncate font-medium" title={itemSummary}>{itemSummary || '-'}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          {order.totalReturned > 0 && (
+                            <p className="text-[var(--muted-foreground)] text-xs line-through leading-none mb-0.5">{formatPrice(order.totalAmount)}</p>
+                          )}
+                          <p className="font-black text-xl sm:text-2xl tabular-nums leading-none" style={{ color: 'var(--success)' }}>{formatPrice(net)}<span className="text-sm font-bold ml-0.5">원</span></p>
+                          <div className="mt-1"><SubPrice total={net} layout="supply-only" size="xs" /></div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 flex-shrink-0 text-[var(--muted-foreground)]" />
                       </div>
 
-                      {/* Card: 결제 섹션 */}
-                      <OrderPaymentInline
-                        payment={paymentsByOrder[String(order.id)]}
-                        onRegister={(e) => {
-                          e.stopPropagation();
-                          const pay = paymentsByOrder[String(order.id)];
-                          setRegPrefill({
-                            customerId: selectedCustomer.id,
-                            recordId: pay?.record?.id || null,
-                          });
-                          setRegModalOpen(true);
-                        }}
-                      />
-
-                      {/* Card bottom: copy button */}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); copyOrderText(order); }}
-                        className="w-full py-2.5 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors text-sm font-medium flex items-center justify-center gap-1.5"
-                      >
-                        <Copy className="w-4 h-4" />
-                        주문 복사
-                      </button>
+                      {/* 하단 슬림 바: 결제상태 + 입금등록/복사 */}
+                      <div className="pl-4 pr-2.5 pb-2.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex-1 min-w-0">
+                          <OrderPaymentInline
+                            payment={paymentsByOrder[String(order.id)]}
+                            onRegister={(e) => {
+                              e.stopPropagation();
+                              const pay = paymentsByOrder[String(order.id)];
+                              setRegPrefill({ customerId: selectedCustomer.id, recordId: pay?.record?.id || null });
+                              setRegModalOpen(true);
+                            }}
+                          />
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); copyOrderText(order); }}
+                          className="flex-shrink-0 px-3 py-2 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors text-sm font-medium flex items-center gap-1.5 self-start"
+                          title="주문 내용 복사"
+                        >
+                          <Copy className="w-4 h-4" /> 복사
+                        </button>
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>
