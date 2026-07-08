@@ -241,6 +241,14 @@ export default function useAIAnalystChat({
           : 'assistant';
       // 추천 후속 질문 자동 생성 (도구 호출 결과 + 질문 기반)
       const followUps = generateFollowUpQuestions(question, result.toolCalls || fallbackToolCalls);
+      // ✉️ 메시지 초안(draftMessage) 추출 → 복사 가능한 인라인 카드로 렌더 (모달 아님)
+      const messageDrafts = (result.toolCalls || [])
+        .filter((tc) => tc?.result?.ok && tc?.result?.data?.__messageDraft)
+        .map((tc) => ({
+          recipientName: tc.result.data.recipientName,
+          purpose: tc.result.data.purpose,
+          message: tc.result.data.message,
+        }));
       const assistantMsg = {
         id: newId(),
         role,
@@ -253,6 +261,7 @@ export default function useAIAnalystChat({
         provider: result.provider, // 'gemini' | 'groq' | 'gemini→groq'
         fallback: fallbackUsed,
         followUps,
+        messageDrafts,
       };
       setMessages((prev) => [...prev, assistantMsg]);
 

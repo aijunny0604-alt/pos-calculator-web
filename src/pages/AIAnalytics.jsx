@@ -869,7 +869,12 @@ export default function AIAnalytics({
             <div className="movis-glass-card max-w-lg sm:max-w-xl w-full p-5 sm:p-7 min-w-0 modal-card-safe" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-3 mb-5 movis-text-primary">
                 <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-[var(--jarvis-cyan)] flex-shrink-0" />
-                <h3 className="text-xl sm:text-2xl font-bold">{meta.title}</h3>
+                <h3 className="text-xl sm:text-2xl font-bold flex-1 min-w-0">{meta.title}</h3>
+                {chat.pendingActions.length > 1 && (
+                  <span className="flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: 'rgba(0,212,255,0.15)', color: 'var(--jarvis-cyan)', border: '1px solid rgba(0,212,255,0.3)' }}>
+                    확인 대기 {chat.pendingActions.length}건 · 1번째
+                  </span>
+                )}
               </div>
               <div className="bg-[#0f1a2d]/70 border border-cyan-400/20 rounded-xl p-4 sm:p-5 mb-5 text-base sm:text-lg whitespace-pre-line break-words leading-relaxed">
                 {pending.preview}
@@ -896,12 +901,22 @@ export default function AIAnalytics({
                   <Check className="w-5 h-5" />
                   {executing ? '실행 중...' : '✅ 실행'}
                 </button>
+                {chat.pendingActions.length > 1 && (
+                  <button
+                    onClick={() => chat.resolvePendingAction(pending.id)}
+                    disabled={executing}
+                    className="px-4 py-3 sm:py-3.5 rounded-xl border border-cyan-400/25 text-sm sm:text-base font-medium hover:bg-cyan-500/10 active:scale-[0.98] transition-all disabled:opacity-50 whitespace-nowrap"
+                    title="이 건만 건너뛰고 다음 건으로"
+                  >
+                    건너뛰기
+                  </button>
+                )}
                 <button
                   onClick={() => handleCancelAction(pending)}
                   disabled={executing}
-                  className="px-6 py-3 sm:py-3.5 rounded-xl border border-cyan-400/25 text-base sm:text-lg font-medium hover:bg-cyan-500/10 active:scale-[0.98] transition-all disabled:opacity-50"
+                  className="px-5 py-3 sm:py-3.5 rounded-xl border border-cyan-400/25 text-base sm:text-lg font-medium hover:bg-cyan-500/10 active:scale-[0.98] transition-all disabled:opacity-50 whitespace-nowrap"
                 >
-                  취소
+                  {chat.pendingActions.length > 1 ? '전체 취소' : '취소'}
                 </button>
               </div>
             </div>

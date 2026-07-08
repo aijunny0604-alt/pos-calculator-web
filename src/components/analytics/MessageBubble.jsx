@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import MessageActions from './MessageActions';
-import { Sparkles, AlertCircle, ChevronDown, ChevronUp, Volume2, Square } from 'lucide-react';
+import { Sparkles, AlertCircle, ChevronDown, ChevronUp, Volume2, Square, Copy, Check, MessageSquare } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import useTypewriter from '@/hooks/useTypewriter';
 import ResultRenderer from './ResultRenderer';
@@ -70,7 +70,21 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
   const [showTools, setShowTools] = useState(false);
   const bubbleRef = useRef(null);
   if (!message) return null;
-  const { role, content, ts, toolCalls, cached, followUps, fallback } = message;
+  const { role, content, ts, toolCalls, cached, followUps, fallback, messageDrafts } = message;
+  const [copiedDraft, setCopiedDraft] = useState(-1);
+  const copyDraft = async (text, idx) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+      else {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      setCopiedDraft(idx);
+      setTimeout(() => setCopiedDraft((v) => (v === idx ? -1 : v)), 2000);
+    } catch { /* noop */ }
+  };
 
   // assistant 메시지에만 타이프라이터 효과 (캐시된 답변은 즉시)
   const isAssistant = role === 'assistant';
@@ -204,6 +218,37 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
             </>
           )}
         </div>
+
+        {/* ✉️ 메시지 초안 카드 — 복사해서 문자/카톡으로 바로 보내기 (모달 아님, 인라인) */}
+        {isAssistant && Array.isArray(messageDrafts) && messageDrafts.length > 0 && (
+          <div className="mt-3 space-y-2.5">
+            {messageDrafts.map((d, i) => (
+              <div key={i} className="rounded-xl overflow-hidden border" style={{ borderColor: 'rgba(0,212,255,0.28)', background: 'rgba(6,20,36,0.6)' }}>
+                <div className="flex items-center justify-between gap-2 px-3 py-2" style={{ background: 'rgba(0,212,255,0.10)', borderBottom: '1px solid rgba(0,212,255,0.18)' }}>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <MessageSquare className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--jarvis-cyan)' }} />
+                    <span className="text-xs font-bold truncate" style={{ color: 'var(--jarvis-cyan)' }}>
+                      {d.purpose || '메시지'}{d.recipientName ? ` · ${d.recipientName}` : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyDraft(d.message, i)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all active:scale-95"
+                    style={copiedDraft === i
+                      ? { background: '#22c55e', color: 'white' }
+                      : { background: 'var(--jarvis-cyan)', color: '#04121f' }}
+                  >
+                    {copiedDraft === i ? <><Check className="w-3.5 h-3.5" /> 복사됨</> : <><Copy className="w-3.5 h-3.5" /> 복사</>}
+                  </button>
+                </div>
+                <p className="px-3 py-2.5 text-sm whitespace-pre-wrap break-words leading-relaxed" style={{ color: 'var(--jarvis-text)' }}>
+                  {d.message}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 차트 자동 렌더링 */}
         {hasCharts && <ResultRenderer toolCalls={toolCalls} />}
