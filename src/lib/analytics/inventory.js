@@ -134,6 +134,44 @@ export function getProductsByStockStatus(products, { status = 'incoming', limit 
 // 재주문 추천 — 재고 부족 + 최근 판매 활발 (우선순위 점수)
 // params: { stockThreshold, salesPeriod, limit }
 // 점수 = (최근 판매량 / 재고+1) * 가중치 — 잘 팔리는데 재고 적은 순
+// 안 나가는 재고(데드스톡) — 재고는 있는데 최근 N개월 판매가 없거나 매우 적은 제품
+// params: { months(기본3), minStock(기본1), limit }
+export function getDeadStock(products, orders, { months = 3, minStock = 1, limit = 20 } = {}) {
+  if (!Array.isArray(products) || products.length === 0) {
+    return { total: 0, results: [], message: '제품 데이터가 없습니다.' };
+  }
+  const period = `${Math.max(1, Math.round(months))}M`;
+  const recentOrders = filterByPeriod(orders, period);
+  const salesByProduct = groupByProduct(recentOrders, { excludeCustom: true });
+  const rows = [];
+  for (const p of products) {
+    const stock = Number(p?.stock) || 0;
+    if (stock < minStock) continue;               // 재고 있는 것만
+    const recentQty = salesByProduct.get(p.id)?.qty || 0;
+    if (recentQty > 0) continue;                  // 최근 판매 있으면 데드 아님
+    const wholesale = Number(p?.wholesale) || 0;
+    rows.push({
+      productId: p.id,
+      name: p.name,
+      category: p.category || '미분류',
+      stock,
+      wholesale,
+      tiedUpValue: stock * wholesale,             // 묶인 금액(재고×도매가)
+    });
+  }
+  rows.sort((a, b) => b.tiedUpValue - a.tiedUpValue);
+  const totalTiedUp = rows.reduce((s, r) => s + r.tiedUpValue, 0);
+  return {
+    total: rows.length,
+    periodMonths: months,
+    totalTiedUp,
+    results: rows.slice(0, limit),
+    message: rows.length === 0
+      ? `최근 ${months}개월 안 나간 재고 없음 — 회전 양호합니다.`
+      : `최근 ${months}개월 판매 0건인 재고 ${rows.length}종 (묶인 금액 약 ${totalTiedUp.toLocaleString('ko-KR')}원). 상위 제품 정리·할인·반품 검토 추천.`,
+  };
+}
+
 export function getRestockRecommendations(products, orders, { stockThreshold = 5, salesPeriod = '1M', limit = 20 } = {}) {
   if (!Array.isArray(products) || products.length === 0) {
     return { total: 0, results: [], message: '제품 데이터가 없습니다.' };
