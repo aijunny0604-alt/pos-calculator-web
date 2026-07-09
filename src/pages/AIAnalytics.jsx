@@ -134,6 +134,7 @@ export default function AIAnalytics({
   const chat = useAIAnalystChat({
     orders, customers, products, savedCarts, aiLearningData,
     paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts,
+    onNavigate: (page) => { try { setCurrentPage?.(page); showToast?.(`${page} 페이지로 이동`, 'success'); } catch { /* noop */ } },
   });
   const [executing, setExecuting] = useState(false);
 
@@ -862,6 +863,8 @@ export default function AIAnalytics({
           updateCustomer: { title: '거래처 정보 수정 확인', Icon: Users },
           bulkUpdateCustomer: { title: '거래처 정보 일괄 변경 확인', Icon: Users },
           bulkUpdateProductStock: { title: '재고 일괄 변경 확인', Icon: PackageX },
+          revertProductPrice: { title: '가격 원복 확인', Icon: DollarSign },
+          bulkUpdateProductName: { title: '제품명 일괄 변경 확인', Icon: Package },
         };
         const meta = titleMap[pending.action] || { title: '작업 확인', Icon: AlertTriangle };
         const Icon = meta.Icon;

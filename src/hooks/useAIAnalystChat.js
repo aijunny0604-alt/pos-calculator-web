@@ -104,6 +104,7 @@ export default function useAIAnalystChat({
   customerReturns = [],
   externalOrders = [],
   externalProducts = [],
+  onNavigate,   // (pageKey) => void — MOVIS 페이지 이동 도구 콜백
 } = {}) {
   const [messages, setMessages] = useState(() => loadHistory());
   const [isLoading, setIsLoading] = useState(false);
@@ -249,6 +250,11 @@ export default function useAIAnalystChat({
           purpose: tc.result.data.purpose,
           message: tc.result.data.message,
         }));
+      // 🧭 페이지 이동 도구(navigatePage) — 부작용 없어 바로 실행
+      const navTarget = (result.toolCalls || []).find((tc) => tc?.result?.ok && tc?.result?.data?.__navigate);
+      if (navTarget && typeof onNavigate === 'function') {
+        try { onNavigate(navTarget.result.data.page); } catch { /* noop */ }
+      }
       const assistantMsg = {
         id: newId(),
         role,
