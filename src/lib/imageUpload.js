@@ -112,6 +112,43 @@ export async function uploadProductImage(file, productId) {
   };
 }
 
+// ===== 거래처 사업자등록증(이미지/PDF) 업로드 =====
+const CERT_MAX = 1600;      // 사업자등록증 글자 읽히게 고해상 유지
+const CERT_QUALITY = 0.88;
+
+/**
+ * 사업자등록증 파일 업로드 → { url, path, isPdf, size }
+ * - 이미지: Canvas 리사이즈(1600px) + WebP 변환
+ * - PDF: 원본 그대로 업로드
+ * @param {File} file
+ * @param {number|string} customerId
+ */
+export async function uploadCustomerCert(file, customerId) {
+  if (!file) throw new Error('파일이 없습니다');
+  if (!customerId) throw new Error('거래처 ID 누락');
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+  const isImage = /^image\//.test(file.type || '') || /\.(jpe?g|png|webp|gif|bmp|heic)$/i.test(file.name || '');
+  if (!isPdf && !isImage) throw new Error('이미지 또는 PDF 파일만 올릴 수 있어요');
+
+  const ts = Date.now();
+  const rand = Math.floor(Math.random() * 10000);
+  let blob, ext, contentType;
+  if (isPdf) {
+    blob = file; ext = 'pdf'; contentType = 'application/pdf';
+  } else {
+    const img = await loadImage(file);
+    blob = await resizeToBlob(img, CERT_MAX, CERT_QUALITY);
+    ext = 'webp'; contentType = 'image/webp';
+  }
+  const path = `business-cert/${customerId}/${ts}-${rand}.${ext}`;
+  const { error } = await supabaseClient.storage
+    .from(BUCKET)
+    .upload(path, blob, { contentType, cacheControl: '31536000', upsert: false });
+  if (error) throw new Error(`업로드 실패: ${error.message}`);
+  const { data: pub } = supabaseClient.storage.from(BUCKET).getPublicUrl(path);
+  return { url: pub.publicUrl, path, isPdf, size: blob.size };
+}
+
 /**
  * 여러 파일을 순차 업로드
  * @param {File[]} files

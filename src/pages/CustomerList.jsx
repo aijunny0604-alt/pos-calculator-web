@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Menu, Building, Search, Phone, MapPin, ChevronDown, ChevronRight,
-  Receipt, Copy, RotateCcw, X, Minus, Plus, Maximize2, Minimize2
+  Receipt, Copy, RotateCcw, X, Minus, Plus, Maximize2, Minimize2, FileText, Upload, Trash2
 } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
@@ -13,6 +13,7 @@ import { formatPrice, formatDate, calcExVat, handleSearchFocus } from '@/lib/uti
 import SubPrice from '@/components/ui/SubPrice';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import { supabase } from '@/lib/supabase';
+import { uploadCustomerCert, deleteImages } from '@/lib/imageUpload';
 import { CircleDollarSign } from 'lucide-react';
 
 const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
@@ -33,6 +34,8 @@ export default function CustomerList({
   // 카테고리 필터 (사용자 정책: 네이버=엠파츠 카테고리 분류)
   const [categoryFilter, setCategoryFilter] = useState('all'); // 'all' | 'none' | <category name>
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [certUploading, setCertUploading] = useState(false); // 사업자등록증 업로드 중
+  const [certViewer, setCertViewer] = useState(null);         // 사업자등록증 이미지 확대 보기 URL
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [detailOrder, setDetailOrder] = useState(null);
   const [blacklistFilter, setBlacklistFilter] = useState('all');
@@ -241,6 +244,45 @@ export default function CustomerList({
     setReturnItems([]);
 
     if (showToast) showToast(`반품 처리 완료 (${returnedItems.length}건)`);
+  };
+
+  // -- 사업자등록증 업로드/교체/삭제 (기존 있으면 최신으로 교체) --
+  const handleCertUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file || !selectedCustomer) return;
+    setCertUploading(true);
+    try {
+      const oldPath = selectedCustomer.business_cert_path;
+      const { url, path } = await uploadCustomerCert(file, selectedCustomer.id);
+      const res = await supabase.setCustomerCert(selectedCustomer.id, url, path);
+      if (!res.ok) {
+        await deleteImages([path]).catch(() => {}); // 방금 올린 새 파일 정리
+        if (res.needsMigration) {
+          showToast?.('DB에 사업자등록증 컬럼이 아직 없어요. 안내드린 SQL을 Supabase에 실행 후 다시 시도해주세요.', 'error');
+        } else {
+          showToast?.(`저장 실패: ${res.error || ''}`, 'error');
+        }
+        return;
+      }
+      if (oldPath && oldPath !== path) await deleteImages([oldPath]).catch(() => {}); // 기존 것 삭제(최신 교체)
+      setSelectedCustomer((prev) => prev ? { ...prev, business_cert_url: url, business_cert_path: path } : prev);
+      showToast?.('사업자등록증 저장 완료', 'success');
+    } catch (err) {
+      showToast?.(err?.message || '업로드 실패', 'error');
+    } finally {
+      setCertUploading(false);
+    }
+  };
+
+  const handleCertDelete = async () => {
+    if (!selectedCustomer?.business_cert_url) return;
+    const oldPath = selectedCustomer.business_cert_path;
+    const res = await supabase.setCustomerCert(selectedCustomer.id, null, null);
+    if (!res.ok) { showToast?.('삭제 실패', 'error'); return; }
+    if (oldPath) await deleteImages([oldPath]).catch(() => {});
+    setSelectedCustomer((prev) => prev ? { ...prev, business_cert_url: null, business_cert_path: null } : prev);
+    showToast?.('사업자등록증 삭제됨', 'success');
   };
 
   // -- Copy helpers --
@@ -635,6 +677,49 @@ export default function CustomerList({
                 );
               })()}
 
+              {/* 사업자등록증 */}
+              {(() => {
+                const certUrl = selectedCustomer.business_cert_url;
+                const isPdf = /\.pdf($|\?)/i.test(selectedCustomer.business_cert_path || certUrl || '');
+                return (
+                  <div className="mb-4 rounded-xl border border-[var(--border)] p-4">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <p className="text-base font-bold flex items-center gap-1.5">
+                        <FileText className="w-5 h-5" style={{ color: 'var(--primary)' }} /> 사업자등록증
+                      </p>
+                      {certUrl && (
+                        <button onClick={handleCertDelete} className="text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1 transition-colors hover:bg-[var(--accent)]" style={{ color: 'var(--destructive)' }}>
+                          <Trash2 className="w-3.5 h-3.5" /> 삭제
+                        </button>
+                      )}
+                    </div>
+                    {certUrl ? (
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {isPdf ? (
+                          <a href={certUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-3 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] transition-colors font-medium text-sm">
+                            <FileText className="w-5 h-5" style={{ color: 'var(--destructive)' }} /> 📄 PDF 열람
+                          </a>
+                        ) : (
+                          <img src={certUrl} alt="사업자등록증" onClick={() => setCertViewer(certUrl)}
+                            className="w-28 h-28 object-cover rounded-lg border border-[var(--border)] cursor-zoom-in hover:brightness-105 transition" />
+                        )}
+                        <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--border)] hover:bg-[var(--accent)] cursor-pointer text-sm font-medium transition-colors self-start" style={certUploading ? { opacity: 0.5 } : undefined}>
+                          <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleCertUpload} disabled={certUploading} />
+                          <Upload className="w-4 h-4" /> {certUploading ? '업로드 중…' : '교체'}
+                        </label>
+                      </div>
+                    ) : (
+                      <label className="inline-flex items-center gap-2 px-4 py-3 rounded-lg cursor-pointer text-sm font-bold transition-all hover:brightness-95 active:scale-[0.98]" style={{ background: certUploading ? 'var(--muted)' : 'var(--primary)', color: certUploading ? 'var(--muted-foreground)' : 'white' }}>
+                        <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleCertUpload} disabled={certUploading} />
+                        <Upload className="w-4 h-4" /> {certUploading ? '업로드 중…' : '사업자등록증 올리기'}
+                      </label>
+                    )}
+                    <p className="text-xs mt-2.5" style={{ color: 'var(--muted-foreground)' }}>이미지(사진) 또는 PDF · 새로 올리면 기존 것은 최신 버전으로 교체됩니다</p>
+                  </div>
+                );
+              })()}
+
               {/* Order history header */}
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[var(--foreground)] text-base sm:text-lg font-bold">주문 이력</p>
@@ -892,6 +977,16 @@ export default function CustomerList({
       </div>
 
       {/* Order detail modal */}
+      {/* 사업자등록증 이미지 확대 보기 */}
+      {certViewer && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setCertViewer(null)}>
+          <button onClick={() => setCertViewer(null)} className="absolute top-4 right-4 p-2 rounded-full bg-white/15 hover:bg-white/25 transition-colors" title="닫기">
+            <X className="w-6 h-6 text-white" />
+          </button>
+          <img src={certViewer} alt="사업자등록증" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+
       {detailOrder && (
         <div
           className="fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition"

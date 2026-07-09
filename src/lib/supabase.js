@@ -322,6 +322,23 @@ export const supabase = {
       return Array.isArray(data) ? data[0] : data;
     } catch (e) { console.error('updateCustomer:', e); return null; }
   },
+  // 사업자등록증 URL/경로 저장 (business_cert_url, business_cert_path 컬럼). 컬럼 미존재 시 needsMigration=true
+  async setCustomerCert(id, url, path) {
+    try {
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/customers?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn,
+        body: JSON.stringify({ business_cert_url: url ?? null, business_cert_path: path ?? null }),
+      });
+      return { ok: true, data: Array.isArray(data) ? data[0] : data };
+    } catch (e) {
+      const msg = String(e?.message || e);
+      if (/business_cert|PGRST204|42703|column .* does not exist|schema cache/i.test(msg)) {
+        return { ok: false, needsMigration: true, error: msg };
+      }
+      console.error('setCustomerCert:', e);
+      return { ok: false, error: msg };
+    }
+  },
   // 상호(거래처명) 변경 시 과거 이력 이전 — orders/saved_carts/customer_returns의 customer_name을 새 이름으로 일괄 PATCH.
   // ⚠️ 주문·이력이 customer_name '텍스트'로 연결돼 있어서, 이걸 안 하면 이름 변경 즉시 과거 주문이 거래처에서 끊긴다.
   // payment_records는 customer_id(UUID) 연결이라 이름 변경 무관. 반환: { orders, carts, returns } 이전 건수.
