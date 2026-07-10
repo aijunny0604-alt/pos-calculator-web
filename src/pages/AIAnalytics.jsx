@@ -39,6 +39,7 @@ import { hasGroqKey, saveGroqKey, getGroqKey, getProviderPreference, setProvider
 import { sfxMicOn, sfxMicOff, sfxMessageArrive, sfxAnswerComplete, sfxError, isMuted, setMuted, unlockAudio } from '@/lib/jarvisSound';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { supabase } from '@/lib/supabase';
+import { uploadCertToLibrary, deleteImages } from '@/lib/imageUpload';
 
 // 추천 질문 14개 (좌7 + 우7 분할)
 const DEFAULT_PROMPTS = [
@@ -137,6 +138,62 @@ export default function AIAnalytics({
     onNavigate: (page) => { try { setCurrentPage?.(page); showToast?.(`${page} 페이지로 이동`, 'success'); } catch { /* noop */ } },
   });
   const [executing, setExecuting] = useState(false);
+
+  // 📄 사업자등록증 인식 결과 → 거래처 등록 + 등록증 보관함 저장 (CertRegisterCard 콜백)
+  const handleCertRegister = async ({ mode, customerId, data, dataUrl }) => {
+    let createdCustomerId = null; // 롤백용(신규 생성 후 실패 시 삭제)
+    let uploadedPath = null;      // 롤백용(업로드 후 실패 시 Storage 정리)
+    try {
+      // 1) 먼저 이미지 업로드 (가장 실패 가능성 높은 단계를 앞에 → 실패 시 거래처 안 만듦)
+      const [head, b64] = String(dataUrl).split(',');
+      const mime = (head.match(/data:([^;]+)/) || [, 'image/jpeg'])[1];
+      const bin = atob(b64); const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const file = new File([arr], `${(data.name || 'cert').replace(/[^\w가-힣]/g, '_')}.jpg`, { type: mime });
+      const up = await uploadCertToLibrary(file);
+      uploadedPath = up.path;
+
+      // 2) 거래처 결정(기존) 또는 생성(신규)
+      let cust; let createdNew = false;
+      if (mode === 'existing') {
+        cust = customers.find((c) => String(c.id) === String(customerId));
+        if (!cust) throw new Error('거래처를 찾을 수 없어요');
+      } else {
+        const memo = [
+          data.bizNo && `사업자등록번호: ${data.bizNo}`,
+          data.owner && `대표: ${data.owner}`,
+          data.bizType && `업태: ${data.bizType}`,
+          data.bizItem && `종목: ${data.bizItem}`,
+        ].filter(Boolean).join(' / ');
+        const created = await supabase.addCustomer({ name: data.name, phone: data.phone || '', address: data.address || '', memo });
+        if (!created?.id) throw new Error('거래처 등록 실패');
+        cust = created; createdNew = true; createdCustomerId = created.id;
+      }
+
+      // 3) 1거래처=1등록증 — 같은 거래처를 가리키던 기존 등록증 행 연결 해제
+      await supabase.clearCustomerCertLinks(cust.id);
+      // 4) business_certs 행 생성(연결)
+      const added = await supabase.addBusinessCert({ name: data.name, storagePath: up.path, url: up.url, customerId: cust.id });
+      if (!added.ok) throw new Error(added.error || '보관함 저장 실패');
+      // 5) 거래처 상세 링크
+      const setRes = await supabase.setCustomerCert(cust.id, up.url, up.path);
+      if (!setRes.ok && !setRes.needsMigration) throw new Error(setRes.error || '거래처 링크 실패');
+
+      // 성공 후에야 화면 반영(불완전 상태 노출 방지)
+      if (createdNew) setCustomers?.((prev) => (prev.some((c) => c.id === cust.id) ? prev : [...prev, cust]));
+      const msg = `✅ ${createdNew ? '신규 거래처 등록 + ' : ''}사업자등록증 저장 완료: ${cust.name}`;
+      chat.addSystemMessage(msg);
+      showToast?.(msg, 'success');
+      return { ok: true, name: cust.name, createdNew };
+    } catch (e) {
+      // 롤백 — 부분 성공 잔여물 정리
+      if (createdCustomerId) { try { await supabase.deleteCustomer(createdCustomerId); } catch { /* noop */ } }
+      if (uploadedPath) { try { await deleteImages([uploadedPath]); } catch { /* noop */ } }
+      const m = e?.message || '등록 실패';
+      showToast?.(m, 'error');
+      return { ok: false, error: m };
+    }
+  };
 
   // 자율 분석 + 자동 인사이트 = OFF (사용자 요청 — 페이지 진입 시 자동 메시지 안 나오게)
   // 사용자가 명시적으로 질문 시작하도록 변경. 빅뱅 인트로만 정상 표시.
@@ -491,6 +548,29 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ 주문 ${orderId} 메모 저장 실패`);
           showToast?.('메모 저장 실패', 'error');
         }
+      } else if (pending.action === 'markOrderPaid') {
+        const { orderId, customerName, method, amount } = pending.params;
+        const order = orders.find((o) => String(o.orderNumber || o.id) === String(orderId)) || null;
+        const res = await supabase.syncOrderPaidRecord(orderId, method, order, customers);
+        if (res?.success !== false) {
+          const label = { card: '카드', cash: '현금', transfer: '계좌이체', other: '기타' }[method] || method;
+          chat.addSystemMessage(`✅ "${customerName}" 주문(${orderId}) 완불 처리 완료 — ${Number(amount || 0).toLocaleString('ko-KR')}원 (${label})`);
+          showToast?.('완불 처리됨', 'success');
+        } else {
+          const reason = res?.reason === 'no_customer' ? '거래처 매핑 실패 (완불 기록 안 됨)' : '완불 처리 실패';
+          chat.addSystemMessage(`❌ ${reason}`);
+          showToast?.(reason, 'error');
+        }
+      } else if (pending.action === 'createReturn') {
+        const { customerName, itemName, quantity, row } = pending.params;
+        const saved = await supabase.addCustomerReturn(row);
+        if (saved) {
+          chat.addSystemMessage(`✅ "${customerName}" ${itemName} ${quantity}개 반품 처리 완료 (주문 ${row.order_number})`);
+          showToast?.('반품 처리됨', 'success');
+        } else {
+          chat.addSystemMessage(`❌ ${itemName} 반품 처리 실패`);
+          showToast?.('반품 처리 실패', 'error');
+        }
       } else if (pending.action === 'bulkUpdateProductName') {
         const { updates } = pending.params;
         const results = await Promise.all(
@@ -832,6 +912,9 @@ export default function AIAnalytics({
           onSelectSuggested={(item) => { lastInputWasVoiceRef.current = false; handleSelect(item); }}
           onClear={chat.clear}
           onCancel={chat.cancel}
+          onSendImage={(file) => { lastInputWasVoiceRef.current = false; chat.sendImage(file); }}
+          onCertRegister={handleCertRegister}
+          customers={customers}
           disabled={!dataReady}
           voice={voice}
           tts={tts}
@@ -865,6 +948,8 @@ export default function AIAnalytics({
           bulkUpdateProductStock: { title: '재고 일괄 변경 확인', Icon: PackageX },
           revertProductPrice: { title: '가격 원복 확인', Icon: DollarSign },
           bulkUpdateProductName: { title: '제품명 일괄 변경 확인', Icon: Package },
+          markOrderPaid: { title: '완불(입금) 처리 확인', Icon: Wallet },
+          createReturn: { title: '반품 처리 확인', Icon: Undo2 },
         };
         const meta = titleMap[pending.action] || { title: '작업 확인', Icon: AlertTriangle };
         const Icon = meta.Icon;

@@ -17,6 +17,7 @@ import { uploadCustomerCert, deleteImages } from '@/lib/imageUpload';
 import { CircleDollarSign } from 'lucide-react';
 
 const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
+const CertLibrary = lazy(() => import('@/pages/CertLibrary'));
 
 export default function CustomerList({
   customers,
@@ -29,7 +30,7 @@ export default function CustomerList({
   onGoToInvoices,
   showToast
 }) {
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'payments'
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'payments' | 'certs'
   const [searchTerm, setSearchTerm] = useState('');
   // 카테고리 필터 (사용자 정책: 네이버=엠파츠 카테고리 분류)
   const [categoryFilter, setCategoryFilter] = useState('all'); // 'all' | 'none' | <category name>
@@ -338,6 +339,16 @@ export default function CustomerList({
         >
           <CircleDollarSign className="w-4 h-4" />페이먼트
         </button>
+        <button
+          onClick={() => setViewMode('certs')}
+          className="px-3 py-2 text-sm font-bold flex items-center gap-1.5 transition-colors"
+          style={{
+            color: viewMode === 'certs' ? 'var(--primary)' : 'var(--muted-foreground)',
+            borderBottom: viewMode === 'certs' ? '2px solid var(--primary)' : '2px solid transparent',
+          }}
+        >
+          <FileText className="w-4 h-4" />사업자등록증
+        </button>
       </div>
 
       {/* 페이먼트 탭 */}
@@ -345,6 +356,15 @@ export default function CustomerList({
         <div className="flex-1 overflow-auto">
           <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>페이먼트 로드 중...</div>}>
             <PaymentsContainer customers={customers} onGoToInvoices={onGoToInvoices} />
+          </Suspense>
+        </div>
+      )}
+
+      {/* 사업자등록증 보관함 탭 */}
+      {viewMode === 'certs' && (
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>보관함 로드 중...</div>}>
+            <CertLibrary customers={customers} showToast={showToast} />
           </Suspense>
         </div>
       )}

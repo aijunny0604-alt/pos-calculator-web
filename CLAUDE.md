@@ -1,9 +1,42 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-08 (MOVIS 대규모 고도화 + 방문수령 발송 + 거래처 카드 리디자인 + 블랙버튼/TTS)
+> 마지막 업데이트: 2026-07-09 (사업자등록증 보관함 — 73개 일괄 업로드 + 거래처 자동매칭 + 보관함 탭)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-07-09 — 사업자등록증 보관함 (Claude+Codex 협업)
+
+사장님이 `D:\업무\사업자 등록증\`에 모아둔 74개 등록증(파일명=상호명)을 프로그램에서 검색·열람. 절반이 미등록 업체라 **거래처 종속이 아닌 독립 보관함** 방식.
+
+### 데이터/적재 (일회성, scratchpad 스크립트)
+- **73개**(명함 1개 제외) Supabase Storage `product-images/business-cert/library/{n}.jpg` 업로드
+- 파일명↔거래처 **퍼지매칭 + 수동검수** → **연결 36 / 미연결 37**. (그립→더그립, 타이어플레잇그→타이어플레이스(오타), 동래YB신주소→YB모터스(최신주소본) 등 보정)
+- ⚠️ 애매 2건 미매칭 보류: 화성YK모터스(거래처에 `YK 모터스`/`YK모터스` 중복 존재), 랩하우스/김호랩하우스(거래처엔 `김포 랩 하우스` 하나뿐)
+
+### 테이블 `business_certs` (마이그: 사장님 SQL 수동실행 완료)
+- `id bigserial, name text, storage_path text, url text, customer_id text REFERENCES customers(id) ON DELETE SET NULL, created_at`. RLS anon/authenticated FOR ALL (내부앱 정책)
+- 🚨 **`customers.id`는 uuid가 아니라 text 타입** — FK를 `customer_id uuid`로 만들면 42804(incompatible types). `text`로 맞춰야 함
+- 매칭 36개는 `customers.business_cert_url/path`에도 세팅 → 거래처 상세에서도 열람(기존 기능 재사용)
+
+### UI ([CertLibrary.jsx](src/pages/CertLibrary.jsx) 신규 + [CustomerList.jsx](src/pages/CustomerList.jsx) 탭)
+- 거래처관리 상단 **[📄 사업자등록증]** 탭(lazy). 상호명 검색 + 필터(전체/연결됨/미연결) + 썸네일 그리드 + 클릭 확대모달(거래처 연결 select·원본·삭제) + **[등록증 추가]**(새 파일 업로드)
+- 헬퍼: [supabase.js](src/lib/supabase.js) getBusinessCerts(임베드 실패 시 임베드없이 재조회 폴백)/add/update/deleteBusinessCert, [imageUpload.js](src/lib/imageUpload.js) uploadCertToLibrary
+- **Codex 리뷰 Major 6건 수정**: ①1거래처=1등록증(연결 시 같은 거래처 가리키던 다른 행 해제) ②삭제 시 같은거래처 다른등록증 있으면 링크유지 ③연속클릭 in-flight 잠금(linking) ④setCustomerCert 실패 표면화 ⑤deleteBusinessCert fetch.ok 검증 ⑥임베드 실패 폴백. 라이브검증(73썸네일 로드·연결36·모달·콘솔0)
+### 📷 MOVIS 이미지 인식 — 사업자등록증/주문 자동 처리 (무료 flash vision, 2026-07-09 추가)
+- **MOVIS 채팅에 📎 이미지 첨부** → gemini-2.5-flash vision(**무료**, 이미지입력 무과금)이 **자동 판별**: 사업자등록증 / 주문 / 기타 ([certVision.js](src/lib/certVision.js) `analyzeImage` — 분류+추출 1콜)
+- **사업자등록증**: 상호·사업자번호·대표자·주소·업태·종목 추출 → [CertRegisterCard.jsx](src/components/analytics/CertRegisterCard.jsx) 확인/수정 카드(신규 거래처 등록 또는 기존 연결) → 거래처 생성 + 등록증 보관함 저장 + 거래처 상세 연결. 라이브 검증(JB모터스 실제 추출·2J모터스 연결 등록·원복)
+- **주문 사진**(손글씨·카톡·견적): 거래처명·품목·수량 추출 → 기존 **OrderConfirmEditable 확인모달**로 연결(제품/거래처 퍼지매칭 재사용). 라이브 검증(명성모터스 3품목 인식→모달)
+- **vision 전 캔버스 1600px 리사이즈**([certVision.js](src/lib/certVision.js) `fileToScaledBase64`) — 요청크기/메모리 폭증 방지
+- 배선: [useAIAnalystChat.js](src/hooks/useAIAnalystChat.js) `sendImage`(분류 라우팅), [ChatPanel.jsx](src/components/analytics/ChatPanel.jsx) 첨부버튼, [MessageBubble.jsx](src/components/analytics/MessageBubble.jsx) 카드/썸네일, [AIAnalytics.jsx](src/pages/AIAnalytics.jsx) `handleCertRegister`
+- **Codex 리뷰 Major 7 수정**: 업로드-선행 순서+단계별 ok검증+실패 롤백(신규거래처 삭제·Storage 정리), 1거래처=1등록증 정리(`clearCustomerCertLinks`), 중복감지 정확일치만 자동선택(유사는 경고), 이미지 리사이즈
+- 🚨 vision 호출은 **브라우저 전용**(임베드 키 referrer 제한 — node직접 403). 무료 flash라 개별 등록엔 한도 여유
+
+### 💵 MOVIS 완불·반품 처리 도구 (2026-07-09)
+- **markOrderPaid**: "명성 방금 주문 입금 처리", "계좌이체로 완불" → 주문 매칭 → 확인모달 → `syncOrderPaidRecord`(card/cash/transfer/other). 되돌리기 가능(revokeAutoPaidHistory)
+- **createReturn**: "명성 실리콘엘보 2개 반품" → 주문·항목 매칭(orderNumber/거래처 최근주문/제품명) → 확인모달 → `addCustomerReturn`(order_number/return_id/item_id/quantity/price/total). 되돌리기 가능(deleteCustomerReturn). 수량>주문수량 방어
+- 둘 다 updateOrderMemo 패턴 미러링(6단계: 정의+buildPendingAction+WRITE_TOOLS+apply+titleMap+WRITE_INTENT)
+- ⏭️ 남은 MOVIS 쓰기 갭: 주문 항목수정(복잡)·주문삭제(Ctrl+Z 우회 위험이라 보류)·**네이버 발주확인/발송/취소승인/내부주문전환**(비가역 — Codex 권고대로 매장PC sync.js 큐 + 공용 서비스 추출 선행 필요). 카트생성=saveOrder와 중복이라 스킵
 
 ## 🆕 v2026-07-08 — MOVIS 대규모 고도화(Claude+Codex 협업) + 방문수령 발송 + 거래처 카드 + 블랙버튼/TTS
 

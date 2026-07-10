@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { askAI, clearAnalystCache } from '../lib/aiAnalyst';
+import { analyzeImage, fileToScaledBase64 } from '../lib/certVision';
 
 const HISTORY_KEY = 'pos_ai_analytics_history_v1';
 const USAGE_KEY = 'pos_ai_quick_prompts_usage_v1';
@@ -328,6 +329,62 @@ export default function useAIAnalystChat({
     }
   }, [orders, customers, products, savedCarts, aiLearningData, paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts, isLoading, recordUsage, pushStep]);
 
+  // 📷 이미지 첨부 → flash vision 분류(사업자등록증/주문/기타) → 사업자등록증=등록카드, 주문=주문등록 확인모달
+  const sendImage = useCallback(async (file) => {
+    if (!file || isLoading) return;
+    let img;
+    try { img = await fileToScaledBase64(file); } catch { return; }
+    const userMsg = { id: newId(), role: 'user', content: '📷 이미지', image: img.dataUrl, ts: Date.now() };
+    setMessages((prev) => [...prev, userMsg]);
+    setIsLoading(true);
+    setLoadingStep('📷 이미지 인식 중...');
+    setLoadingSteps([{ id: `${Date.now()}_0`, label: '이미지 분석 중 (무료 flash vision)', status: 'active' }]);
+    try {
+      const res = await analyzeImage(img.base64, img.mimeType);
+      if (!res.ok) {
+        setMessages((prev) => [...prev, {
+          id: newId(), role: 'assistant', ts: Date.now(),
+          content: `⚠️ 인식에 실패했어요: ${res.error || ''}\n더 선명한 사진으로 다시 시도해주세요.`,
+        }]);
+      } else if (res.type === 'businessCert' && res.cert?.name) {
+        setMessages((prev) => [...prev, {
+          id: newId(), role: 'assistant', ts: Date.now(),
+          content: '📄 사업자등록증을 인식했어요. 아래 정보를 확인하고 거래처로 등록해주세요.',
+          certExtract: { data: res.cert, dataUrl: img.dataUrl },
+        }]);
+      } else if (res.type === 'order' && res.order?.items?.length > 0) {
+        const o = res.order;
+        const assistantMsg = {
+          id: newId(), role: 'assistant', ts: Date.now(),
+          content: `📷 주문 사진을 인식했어요 (품목 ${o.items.length}개). 아래 확인 창에서 거래처·제품·수량을 확인하고 등록하세요.`,
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        const preview = `🛒 주문 등록 (사진 인식)\n• 거래처: ${o.customerName || '(미지정 — 확인 창에서 선택)'}\n• 품목 ${o.items.length}개:\n${o.items.map((i) => `  - ${i.name} × ${i.quantity}`).join('\n')}${o.memo ? `\n• 메모: ${o.memo}` : ''}`;
+        setPendingActions((prev) => [...prev, {
+          id: newId(), messageId: assistantMsg.id, action: 'saveOrder',
+          params: {
+            customerName: o.customerName || '',
+            priceType: 'wholesale',
+            items: o.items.map((i) => ({ productName: i.name, quantity: i.quantity })),
+          },
+          preview,
+          warnings: ['📷 사진에서 인식했어요. 거래처·제품·수량이 맞는지 꼭 확인하고 등록하세요.'],
+        }]);
+      } else {
+        setMessages((prev) => [...prev, {
+          id: newId(), role: 'assistant', ts: Date.now(),
+          content: '🤔 사업자등록증도 주문서도 아닌 것 같아요. 사업자등록증 또는 주문 내역이 담긴 사진을 올려주세요.',
+        }]);
+      }
+    } catch (e) {
+      setMessages((prev) => [...prev, { id: newId(), role: 'error', content: e?.message || '인식 실패', ts: Date.now() }]);
+    } finally {
+      setIsLoading(false);
+      setLoadingStep('');
+      setLoadingSteps([]);
+    }
+  }, [isLoading]);
+
   const cancel = useCallback(() => {
     abortRef.current?.abort();
     setIsLoading(false);
@@ -366,6 +423,7 @@ export default function useAIAnalystChat({
     clearPendingActions,
     addSystemMessage,
     send,
+    sendImage,
     cancel,
     clear,
     clearCache,
@@ -915,6 +973,8 @@ function friendlyToolName(name) {
     updateProductPrice: '가격 변경 준비',
     updateCustomer: '거래처 정보 수정 준비',
     saveOrder: '주문 등록 준비',
+    markOrderPaid: '완불(입금) 처리 준비',
+    createReturn: '반품 처리 준비',
     bulkAddProduct: '제품 일괄 등록 준비',
     bulkAddCustomer: '거래처 일괄 등록 준비',
     bulkUpdateProductStock: '재고 일괄 변경 준비',

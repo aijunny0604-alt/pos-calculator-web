@@ -581,35 +581,36 @@ export default function OrderDetail({
         {/* Header - sticky for scroll visibility */}
         <div
           {...dragHandleProps}
-          className="px-6 py-4 flex items-center justify-between flex-shrink-0 sticky top-0 z-10"
+          className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 flex-shrink-0 sticky top-0 z-10"
           style={{ background: 'var(--primary)', color: 'var(--primary-foreground)', ...(dragHandleProps.style || {}) }}
           onDoubleClick={isDraggable ? toggleFullscreen : undefined}
           title={isDraggable ? '드래그해서 이동 · 더블클릭 = 전체화면 · 가장자리 드래그 = 크기 변경' : undefined}
         >
-          <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6" />
-            <div>
-              <h2 className="text-xl font-bold">주문 상세</h2>
-              <p className="text-sm opacity-80">{order.orderNumber}</p>
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold leading-tight">주문 상세</h2>
+              <p className="text-xs sm:text-sm opacity-80 truncate">{order.orderNumber}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all hover:brightness-105 shadow-sm"
-                style={{ background: 'white', color: 'var(--primary)' }}
+                className="px-3 sm:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 whitespace-nowrap transition-all hover:brightness-105 active:scale-95 shadow-md ring-1 ring-white/50"
+                style={{ background: 'linear-gradient(135deg, #ffffff, #eef2ff)', color: 'var(--primary)' }}
                 title="주문 내용(제품·단가·수량 등) 수정"
               >
                 <Edit3 className="w-4 h-4" />
-                주문 수정
+                <span className="sm:hidden">수정</span>
+                <span className="hidden sm:inline">주문 수정</span>
               </button>
             )}
             {isEditing && (
               <button
                 onClick={handleSave}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors bg-white"
-                style={{ color: 'var(--primary)' }}
+                className="px-3 sm:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 whitespace-nowrap transition-all hover:brightness-105 active:scale-95 shadow-md ring-1 ring-white/50 bg-white"
+                style={{ background: 'linear-gradient(135deg, #ffffff, #eef2ff)', color: 'var(--primary)' }}
               >
                 <Check className="w-4 h-4" />
                 저장
@@ -629,7 +630,7 @@ export default function OrderDetail({
             <div className="flex items-center gap-0.5 ml-2 rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.12)' }}>
               <button
                 onClick={toggleFullscreen}
-                className="p-2 transition-colors hover:bg-white/10"
+                className="p-2 transition-colors hover:bg-white/10 hidden sm:flex items-center"
                 title={isFullscreen ? '원래 크기' : '전체화면'}
               >
                 {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}

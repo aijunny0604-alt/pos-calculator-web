@@ -4,6 +4,7 @@ import { Sparkles, AlertCircle, ChevronDown, ChevronUp, Volume2, Square, Copy, C
 import { formatTime } from '@/lib/utils';
 import useTypewriter from '@/hooks/useTypewriter';
 import ResultRenderer from './ResultRenderer';
+import CertRegisterCard from './CertRegisterCard';
 
 // 간단 마크다운 → HTML 파서 (의존성 없이 최소 처리)
 function renderInline(text) {
@@ -66,11 +67,11 @@ function MarkdownLite({ content }) {
   return <div className="leading-relaxed break-keep">{blocks}</div>;
 }
 
-export default function MessageBubble({ message, enableTypewriter = true, tts, onFollowUpClick, userQuery }) {
+export default function MessageBubble({ message, enableTypewriter = true, tts, onFollowUpClick, userQuery, customers = [], onCertRegister }) {
   const [showTools, setShowTools] = useState(false);
   const bubbleRef = useRef(null);
   if (!message) return null;
-  const { role, content, ts, toolCalls, cached, followUps, fallback, messageDrafts } = message;
+  const { role, content, ts, toolCalls, cached, followUps, fallback, messageDrafts, certExtract, image } = message;
   const [copiedDraft, setCopiedDraft] = useState(-1);
   const copyDraft = async (text, idx) => {
     try {
@@ -205,6 +206,11 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
           </div>
         )}
 
+        {/* 첨부 이미지 썸네일 (사업자등록증 등) */}
+        {image && (
+          <img src={image} alt="첨부" className="mb-1.5 max-w-[160px] max-h-[160px] rounded-lg border object-cover" style={{ borderColor: 'var(--border)' }} />
+        )}
+
         {/* 본문 */}
         <div className={`text-sm min-w-0 ${isUser ? 'break-words leading-snug' : 'break-words'}`}>
           {isUser ? (
@@ -218,6 +224,11 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
             </>
           )}
         </div>
+
+        {/* 📄 사업자등록증 인식 결과 → 거래처 등록 카드 */}
+        {isAssistant && certExtract && (
+          <CertRegisterCard extract={certExtract} customers={customers} onRegister={onCertRegister} />
+        )}
 
         {/* ✉️ 메시지 초안 카드 — 복사해서 문자/카톡으로 바로 보내기 (모달 아님, 인라인) */}
         {isAssistant && Array.isArray(messageDrafts) && messageDrafts.length > 0 && (

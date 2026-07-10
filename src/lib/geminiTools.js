@@ -566,6 +566,33 @@ export const GEMINI_TOOLS = [
     },
   },
   {
+    name: 'markOrderPaid',
+    description: '주문을 완불(전액 입금) 처리합니다. "명성 방금 주문 입금 처리해줘", "강남오토 어제 주문 계좌이체로 완불", "이 주문 현금 받았어" 같은 의도일 때 호출. orderNumber를 알면 직접, 모르면 customerName의 가장 최근 주문에 적용. method는 결제수단(카드/현금/계좌이체/기타). 사용자 confirm 후 적용되며 나중에 되돌릴 수 있음.',
+    parameters: {
+      type: 'object',
+      properties: {
+        orderNumber: { type: 'string', description: '주문번호 (선택)' },
+        customerName: { type: 'string', description: '거래처 이름 — 이 거래처의 가장 최근 주문에 적용 (orderNumber 없을 때)' },
+        method: { type: 'string', enum: ['card', 'cash', 'transfer', 'other'], description: '결제수단: card=카드, cash=현금, transfer=계좌이체(기본), other=기타' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'createReturn',
+    description: '주문의 특정 제품을 반품 처리합니다. "명성 실리콘엘보 2개 반품", "강남오토 어제 주문 밴딩 1개 반품해줘" 같은 의도일 때 호출. orderNumber를 알면 직접, 모르면 customerName의 그 제품이 든 가장 최근 주문에서 찾음. 사용자 confirm 후 적용되며 되돌릴 수 있음.',
+    parameters: {
+      type: 'object',
+      properties: {
+        itemName: { type: 'string', description: '반품할 제품명 (필수)' },
+        quantity: { type: 'integer', description: '반품 수량 (필수, 1 이상)' },
+        orderNumber: { type: 'string', description: '주문번호 (선택)' },
+        customerName: { type: 'string', description: '거래처 이름 (orderNumber 없을 때 — 이 거래처의 해당 제품 최근 주문에서 반품)' },
+      },
+      required: ['itemName', 'quantity'],
+    },
+  },
+  {
     name: 'addProduct',
     description: '신규 제품을 등록합니다. 사용자가 "제품 추가해줘", "신상품 등록", "OO 제품 추가" 같은 의도일 때 호출. 실제 DB 변경은 사용자 확인 후 적용됨. 카테고리 모를 때는 "미분류"로 두지 말고 사용자에게 되묻기.',
     parameters: {
@@ -882,6 +909,8 @@ export const WRITE_TOOLS = new Set([
   'revertProductPrice',
   'updateProductName',
   'updateOrderMemo',
+  'markOrderPaid',
+  'createReturn',
   'saveOrder',
   'updateCustomer',
   'bulkUpdateCustomer',
@@ -2044,6 +2073,87 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
         params: { orderId: target.orderNumber || target.id, customerName: target.customerName || target.customer_name || '', memo: finalMemo },
         warnings: [],
         preview: `📝 주문 메모 ${mode === 'replace' ? '교체' : '추가'}\n• 주문: ${target.orderNumber || target.id} (${target.customerName || ''})\n• 내용: ${newMemoText}${oldMemo && mode !== 'replace' ? `\n(기존 메모 뒤에 추가됨)` : ''}`,
+      },
+    };
+  }
+  if (name === 'markOrderPaid') {
+    const { orderNumber, customerName, method } = args;
+    const methodKey = ['card', 'cash', 'transfer', 'other'].includes(method) ? method : 'transfer';
+    const methodLabel = { card: '카드', cash: '현금', transfer: '계좌이체', other: '기타' }[methodKey];
+    let target = null;
+    if (orderNumber) {
+      const on = String(orderNumber).trim();
+      target = orders.find((o) => String(o.orderNumber || o.id) === on);
+    }
+    if (!target && customerName) {
+      const nq = String(customerName).trim().toLowerCase();
+      target = [...orders]
+        .filter((o) => String(o.customerName || o.customer_name || '').toLowerCase().includes(nq))
+        .sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0))[0] || null;
+    }
+    if (!target) return { ok: false, error: `주문을 찾을 수 없습니다 (${orderNumber || customerName || '조건 없음'}). 주문번호나 거래처명을 알려주세요.` };
+    const amount = Number(target.total ?? target.total_amount ?? 0);
+    return {
+      ok: true,
+      data: {
+        __pending: true,
+        action: 'markOrderPaid',
+        params: {
+          orderId: target.orderNumber || target.id,
+          customerName: target.customerName || target.customer_name || '',
+          method: methodKey,
+          amount,
+        },
+        warnings: [],
+        preview: `💵 완불(전액 입금) 처리\n• 주문: ${target.orderNumber || target.id} (${target.customerName || ''})\n• 금액: ${amount.toLocaleString('ko-KR')}원\n• 수단: ${methodLabel}\n(나중에 되돌릴 수 있어요)`,
+      },
+    };
+  }
+  if (name === 'createReturn') {
+    const { itemName, quantity, orderNumber, customerName } = args;
+    if (!itemName || !String(itemName).trim()) return { ok: false, error: '반품할 제품명이 필요합니다.' };
+    const qty = Math.floor(Number(quantity) || 0);
+    if (!(qty > 0)) return { ok: false, error: '반품 수량은 1개 이상이어야 합니다.' };
+    const inq = String(itemName).toLowerCase().replace(/\s+/g, '');
+    const hasItem = (o) => (o.items || []).some((it) => String(it.name || it.productName || '').toLowerCase().replace(/\s+/g, '').includes(inq));
+    const recent = (list) => [...list].sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0))[0] || null;
+    let target = null;
+    if (orderNumber) target = orders.find((o) => String(o.orderNumber || o.id) === String(orderNumber).trim());
+    if (!target && customerName) {
+      const nq = String(customerName).trim().toLowerCase();
+      target = recent(orders.filter((o) => String(o.customerName || o.customer_name || '').toLowerCase().includes(nq) && hasItem(o)));
+    }
+    if (!target && !orderNumber) target = recent(orders.filter(hasItem)); // 제품명만 준 경우 그 제품 최근 주문
+    if (!target) return { ok: false, error: `반품할 주문을 찾을 수 없습니다 (${customerName || orderNumber || itemName}). 거래처명이나 주문번호를 알려주세요.` };
+    const item = (target.items || []).find((it) => String(it.name || it.productName || '').toLowerCase().replace(/\s+/g, '').includes(inq));
+    if (!item) return { ok: false, error: `주문 ${target.orderNumber || target.id}에서 "${itemName}" 제품을 찾을 수 없습니다.` };
+    const orderedQty = Number(item.quantity || item.qty || 0);
+    if (orderedQty > 0 && qty > orderedQty) return { ok: false, error: `반품 수량(${qty})이 주문 수량(${orderedQty})보다 많습니다.` };
+    const price = Number(item.price || item.wholesale || item.retail || 0);
+    const returnId = `RET-${Date.now()}`;
+    const cName = target.customerName || target.customer_name || '';
+    return {
+      ok: true,
+      data: {
+        __pending: true,
+        action: 'createReturn',
+        params: {
+          customerName: cName,
+          itemName: item.name || item.productName,
+          quantity: qty,
+          row: {
+            order_number: target.orderNumber || target.id,
+            return_id: returnId,
+            item_id: item.id ?? null,
+            item_name: item.name || item.productName,
+            quantity: qty,
+            price,
+            total: price * qty,
+            returned_at: new Date().toISOString(),
+          },
+        },
+        warnings: [],
+        preview: `↩️ 반품 처리\n• 거래처: ${cName}\n• 주문: ${target.orderNumber || target.id}\n• 제품: ${item.name || item.productName} × ${qty}개 (주문 ${orderedQty}개)\n• 금액: ${(price * qty).toLocaleString('ko-KR')}원\n(나중에 되돌릴 수 있어요)`,
       },
     };
   }

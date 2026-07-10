@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Sparkles, Trash2, Loader2, X, Star } from 'lucide-react';
+import { Send, Sparkles, Trash2, Loader2, X, Star, Paperclip } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import SuggestedQuestions from './SuggestedQuestions';
 import VoiceButton from './VoiceButton';
@@ -128,11 +128,15 @@ export default function ChatPanel({
   onSelectSuggested,
   onClear,
   onCancel,
+  onSendImage,   // (file) => void — 사업자등록증 이미지 첨부 → vision 인식
+  onCertRegister, // ({mode,customerId,data,dataUrl}) => Promise<{ok,name}>
+  customers = [],
   disabled,
   voice, // useVoiceInput 훅 결과 { isListening, interim, supported, permissionDenied, start, stop, error }
   tts,   // useTextToSpeech 훅 결과 { speak, cancel, supported, isSpeaking, ... }
 }) {
   const [text, setText] = useState('');
+  const imageInputRef = useRef(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [pinnedQueries, setPinnedQueries] = useState([]);
   const scrollRef = useRef(null);
@@ -281,6 +285,8 @@ export default function ChatPanel({
                   key={m.id}
                   message={m}
                   tts={tts}
+                  customers={customers}
+                  onCertRegister={onCertRegister}
                   onFollowUpClick={(q) => {
                     // 사용 빈도 기록 (다음번 추천 정렬에 활용)
                     try {
@@ -357,6 +363,33 @@ export default function ChatPanel({
           <div className="mb-2 text-xs text-[var(--destructive)] px-2 break-keep">{voice.error}</div>
         )}
         <div className="flex items-stretch gap-2">
+          {/* 📎 사업자등록증 이미지 첨부 → vision 자동 인식 */}
+          {onSendImage && (
+            <div className="flex-shrink-0 flex items-center">
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={disabled || isLoading}
+                title="사진 올리기 — 사업자등록증·주문서 자동 인식"
+                aria-label="이미지 첨부"
+                className="w-11 h-11 rounded-xl flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
+                style={{ background: 'rgba(0,212,255,0.12)', border: '1px solid rgba(0,212,255,0.28)', color: 'var(--jarvis-cyan)' }}
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (imageInputRef.current) imageInputRef.current.value = '';
+                  if (file) onSendImage(file);
+                }}
+              />
+            </div>
+          )}
           {voice && (
             <div className="flex-shrink-0 flex items-center">
               <VoiceButton

@@ -6,6 +6,7 @@ const CACHE_KEY = 'pos_ai_cache_v2'; // v1 → v2 (시스템 프롬프트 변경
 const CACHE_TTL = 300000;
 const MAX_CACHE_ENTRIES = 100;
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+export const GEMINI_VISION_MODELS = MODELS; // vision(사업자등록증 OCR)도 동일 무료 flash 모델 재사용
 
 // 사용자에게 부정적인 답변(기능 부재/거절)은 캐시하지 않음 — 시스템 프롬프트 개선 후 새 답변 받게.
 const NEGATIVE_PATTERNS = [
@@ -21,7 +22,7 @@ const isNegativeAnswer = (answer) => {
   return NEGATIVE_PATTERNS.some((re) => re.test(answer));
 };
 
-const getGeminiKeys = () => {
+export const getGeminiKeys = () => {
   const keys = [];
   // 내장 키 (프로젝트별 분리, 할당량 분산용 최신 키 우선)
   try { keys.push(atob('QUl6YVN5REpkWGxXMUx5MUVFOTJGZ2NUMmloemszcjV0Z040MGdz')); } catch {} // 프로젝트D
@@ -130,6 +131,10 @@ const WRITE_INTENT_PATTERNS = [
   { re: /(상호|업체명|거래처명|거래처\s*이름)[\s\S]{0,25}(변경|바꿔|수정|로\s*해|으로\s*해)/, tools: ['updateCustomer', 'bulkUpdateCustomer'] },
   // 주문 메모 — "김철수 주문에 메모 남겨줘/적어줘"
   { re: /주문[\s\S]{0,15}(메모|노트)[\s\S]{0,15}(남겨|적어|추가|써|기록|달아)|(메모|노트)[\s\S]{0,10}(남겨|적어|달아)[\s\S]{0,6}(줘|주세요)/, tools: ['updateOrderMemo'] },
+  // 완불/입금 처리 — "명성 방금 주문 입금 처리", "강남오토 완불", "계좌이체로 받았어"
+  { re: /(완불|전액\s*입금|입금\s*(처리|완료|받았|됐|완))|(입금|결제|송금|계좌이체|현금|카드)[\s\S]{0,10}(받았|처리|완료|해줘|했어|됐어)/, tools: ['markOrderPaid'] },
+  // 반품 처리 — "명성 실리콘엘보 2개 반품", "밴딩 1개 반품해줘"
+  { re: /반품[\s\S]{0,6}(처리|해줘|해|등록|접수)|[가-힣A-Za-z0-9]{2,}[\s\S]{0,12}\d+\s*개?[\s\S]{0,6}반품/, tools: ['createReturn'] },
 ];
 function detectWriteIntent(question) {
   if (!question) return null;

@@ -339,6 +339,73 @@ export const supabase = {
       return { ok: false, error: msg };
     }
   },
+  // ===== 사업자등록증 보관함 (business_certs) =====
+  // 전체 조회(최신순) + 매칭 거래처명 임베드. 테이블 미생성 시 needsMigration 힌트 포함해 빈 배열.
+  async getBusinessCerts() {
+    // 테이블 자체가 없을 때만 needsMigration. 관계(임베드) 실패는 임베드 없이 재시도.
+    const isTableMissing = (msg) => /PGRST205|42P01|Could not find the table|relation .* does not exist/i.test(msg);
+    try {
+      const data = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/business_certs?select=*,customers(name)&order=name.asc`,
+        { headers }
+      );
+      return Array.isArray(data) ? data : [];
+    } catch (e1) {
+      const msg1 = String(e1?.message || e1);
+      if (isTableMissing(msg1)) return { needsMigration: true, error: msg1, certs: [] };
+      // 임베드(customers 관계) 실패 → 임베드 없이 재조회 (거래처명은 프론트에서 customers prop으로 해결)
+      try {
+        const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/business_certs?select=*&order=name.asc`, { headers });
+        return Array.isArray(data) ? data : [];
+      } catch (e2) {
+        const msg2 = String(e2?.message || e2);
+        if (isTableMissing(msg2)) return { needsMigration: true, error: msg2, certs: [] };
+        console.error('getBusinessCerts:', e2);
+        return [];
+      }
+    }
+  },
+  async addBusinessCert({ name, storagePath, url, customerId = null }) {
+    try {
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/business_certs`, {
+        method: 'POST', headers: headersWithReturn,
+        body: JSON.stringify({ name, storage_path: storagePath, url, customer_id: customerId }),
+      });
+      return { ok: true, data: Array.isArray(data) ? data[0] : data };
+    } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+  },
+  async updateBusinessCert(id, patch) {
+    try {
+      const body = {};
+      if ('customerId' in patch) body.customer_id = patch.customerId ?? null;
+      if ('name' in patch) body.name = patch.name;
+      if ('url' in patch) body.url = patch.url;
+      if ('storagePath' in patch) body.storage_path = patch.storagePath;
+      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/business_certs?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(body),
+      });
+      return { ok: true, data: Array.isArray(data) ? data[0] : data };
+    } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+  },
+  // 특정 거래처에 연결된 모든 사업자등록증 행의 연결 해제(1거래처=1등록증 유지용).
+  async clearCustomerCertLinks(customerId, exceptId = null) {
+    try {
+      let q = `customer_id=eq.${encodeURIComponent(customerId)}`;
+      if (exceptId != null) q += `&id=neq.${exceptId}`;
+      await fetch(`${SUPABASE_URL}/rest/v1/business_certs?${q}`, {
+        method: 'PATCH', headers: { ...headersNoContent, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ customer_id: null }),
+      });
+      return { ok: true };
+    } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+  },
+  async deleteBusinessCert(id) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/business_certs?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      if (!r.ok) { const body = await r.text().catch(() => ''); return { ok: false, error: `${r.status} ${body.slice(0, 120)}` }; }
+      return { ok: true };
+    } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+  },
   // 상호(거래처명) 변경 시 과거 이력 이전 — orders/saved_carts/customer_returns의 customer_name을 새 이름으로 일괄 PATCH.
   // ⚠️ 주문·이력이 customer_name '텍스트'로 연결돼 있어서, 이걸 안 하면 이름 변경 즉시 과거 주문이 거래처에서 끊긴다.
   // payment_records는 customer_id(UUID) 연결이라 이름 변경 무관. 반환: { orders, carts, returns } 이전 건수.

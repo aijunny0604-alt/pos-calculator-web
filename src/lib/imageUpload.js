@@ -150,6 +150,36 @@ export async function uploadCustomerCert(file, customerId) {
 }
 
 /**
+ * 사업자등록증 보관함(거래처 무관) 업로드 → { url, path, isPdf, size }
+ * - business-cert/library/uploaded/ 경로. 새 등록증을 보관함에 직접 추가하거나 MOVIS 자동등록에 사용.
+ * @param {File} file
+ */
+export async function uploadCertToLibrary(file) {
+  if (!file) throw new Error('파일이 없습니다');
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+  const isImage = /^image\//.test(file.type || '') || /\.(jpe?g|png|webp|gif|bmp|heic)$/i.test(file.name || '');
+  if (!isPdf && !isImage) throw new Error('이미지 또는 PDF 파일만 올릴 수 있어요');
+
+  const ts = Date.now();
+  const rand = Math.floor(Math.random() * 10000);
+  let blob, ext, contentType;
+  if (isPdf) {
+    blob = file; ext = 'pdf'; contentType = 'application/pdf';
+  } else {
+    const img = await loadImage(file);
+    blob = await resizeToBlob(img, CERT_MAX, CERT_QUALITY);
+    ext = 'webp'; contentType = 'image/webp';
+  }
+  const path = `business-cert/library/uploaded/${ts}-${rand}.${ext}`;
+  const { error } = await supabaseClient.storage
+    .from(BUCKET)
+    .upload(path, blob, { contentType, cacheControl: '31536000', upsert: false });
+  if (error) throw new Error(`업로드 실패: ${error.message}`);
+  const { data: pub } = supabaseClient.storage.from(BUCKET).getPublicUrl(path);
+  return { url: pub.publicUrl, path, isPdf, size: blob.size };
+}
+
+/**
  * 여러 파일을 순차 업로드
  * @param {File[]} files
  * @param {number|string} productId
