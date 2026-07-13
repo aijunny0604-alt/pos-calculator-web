@@ -5,6 +5,11 @@
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
 
+## 🆕 v2026-07-13 — 제품교체 모달 · 택배 발송인 버그 · MOVIS 재고리스트 선택
+- **제품 교체 모달 재설계**([OrderDetail.jsx](src/pages/OrderDetail.jsx)): 작은 검색창 → 큰 모달(max-w-3xl) + **관련제품(같은 카테고리) 검색 전 기본 노출** + 2컬럼 카드(재고 배지)+간지 헤더. 🚨 useMemo를 `if(!isOpen)return null` **뒤**에 둬서 React #310(Hooks 순서) 흰화면 크래시 발생 → **useMemo는 반드시 early return 앞**으로. (배포 전 실브라우저 확인으로 발견)
+- **택배 발송인 유실 버그**([ShippingLabel.jsx](src/pages/ShippingLabel.jsx)): 엠파츠 주문의 포장/금액을 **처음 편집하면 발송인이 무브모터스로** 덮어써지던 버그(updateOrderSetting이 override 없을 때 하드코딩 `sender:senderList[0]`로 초기화). 수정: `getOrderSetting`이 **스토어 주문은 override가 있어도 발송인 항상 엠파츠로 강제**(커스텀 항목 isEmp와 동일 정책) + updateOrderSetting base=계산된 기본값
+- **MOVIS 재고부족 리스트 선택**([ResultRenderer.jsx](src/components/analytics/ResultRenderer.jsx) LowStockTable): 체크박스+전체선택+재고 입력 → 선택분을 "재고 N개로 변경" 메시지로 MOVIS에 일괄 요청(bulkUpdateProductStock 확인모달). onAction=onFollowUpClick(=onSend) 전달
+
 ## 🆕 v2026-07-09 — 사업자등록증 보관함 (Claude+Codex 협업)
 
 사장님이 `D:\업무\사업자 등록증\`에 모아둔 74개 등록증(파일명=상호명)을 프로그램에서 검색·열람. 절반이 미등록 업체라 **거래처 종속이 아닌 독립 보관함** 방식.
