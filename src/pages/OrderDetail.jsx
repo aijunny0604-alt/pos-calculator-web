@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X, FileText, Package, Plus, Minus, Trash2, Edit3, RotateCcw,
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
-  ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2, Tag, Percent, Replace
+  ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2, Tag, Percent, Replace, Search, Layers
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
@@ -183,6 +183,34 @@ export default function OrderDetail({
     filteredProducts, handleAddProduct, showProductSearch && filteredProducts.length > 0
   );
 
+  // 교체 대상 라인 + 관련(연관) 제품 — ⚠️ Hooks는 반드시 early return 앞에 (React #310 방지)
+  const replacingItem = replacingItemIndex !== null ? editedOrder?.items?.[replacingItemIndex] : null;
+  const relatedProducts = useMemo(() => {
+    if (!replacingItem) return [];
+    const curId = replacingItem.id;
+    const curProduct = products.find(p => p.id === curId);
+    const curCat = curProduct?.category || replacingItem.category || '';
+    const seen = new Set([curId]);
+    const out = [];
+    if (curCat) {
+      for (const p of products) {
+        if (seen.has(p.id) || p.category !== curCat) continue;
+        seen.add(p.id); out.push(p);
+      }
+    }
+    if (out.length < 8 && replacingItem.name) {
+      const toks = String(replacingItem.name).toLowerCase().replace(/[^0-9a-z가-힣\s]/g, ' ').split(/\s+/).filter(t => t.length >= 2);
+      if (toks.length) {
+        for (const p of products) {
+          if (seen.has(p.id)) continue;
+          const pn = String(p.name || '').toLowerCase();
+          if (toks.some(t => pn.includes(t))) { seen.add(p.id); out.push(p); }
+        }
+      }
+    }
+    return out.slice(0, 40);
+  }, [replacingItem, products]);
+
   if (!isOpen || !order || !editedOrder) return null;
 
   const currentItems = isEditing ? editedOrder.items : order.items;
@@ -196,7 +224,9 @@ export default function OrderDetail({
   const replaceFilteredProducts = products.filter(product => {
     if (!replaceSearchTerm) return false;
     return matchesSearchQuery(product.name, replaceSearchTerm);
-  }).slice(0, 10);
+  }).slice(0, 30);
+
+  const replaceListToShow = replaceSearchTerm ? replaceFilteredProducts : relatedProducts;
 
   const getReturnedQuantity = (itemId) => {
     return (order.returns || [])
@@ -943,68 +973,98 @@ export default function OrderDetail({
             {/* Product replace search modal */}
             {replacingItemIndex !== null && (
               <div
-                className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-                style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
+                className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4"
+                style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+                onClick={() => { setReplacingItemIndex(null); setReplaceSearchTerm(''); }}
               >
                 <div
-                  className="w-full max-w-lg rounded-xl border shadow-2xl overflow-hidden"
-                  style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+                  className="w-full max-w-3xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col"
+                  style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100vh - 2rem)' }}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
-                    <h4 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>
-                      제품 교체 - {editedOrder.items[replacingItemIndex]?.name}
-                    </h4>
+                  {/* 헤더 */}
+                  <div className="px-5 py-4 flex items-start justify-between gap-3 flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 78%, #000))', color: 'var(--primary-foreground)' }}>
+                    <div className="min-w-0 flex items-center gap-2.5">
+                      <Replace className="w-6 h-6 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <h4 className="font-black text-lg leading-tight">제품 교체</h4>
+                        <p className="text-sm opacity-90 truncate">현재: {editedOrder.items[replacingItemIndex]?.name}</p>
+                      </div>
+                    </div>
                     <button
                       onClick={() => { setReplacingItemIndex(null); setReplaceSearchTerm(''); }}
-                      className="p-1 rounded hover:bg-[var(--accent)] transition-colors"
+                      className="p-2 rounded-lg hover:bg-white/15 transition-colors flex-shrink-0"
                     >
-                      <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+                      <X className="w-5 h-5" />
                     </button>
                   </div>
-                  <div className="p-3">
-                    <input
-                      type="text"
-                      value={replaceSearchTerm}
-                      onChange={(e) => setReplaceSearchTerm(e.target.value)}
-                      onFocus={handleSearchFocus}
-                      placeholder="교체할 제품 검색..."
-                      className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 mb-2"
-                      style={{
-                        background: 'var(--background)',
-                        borderColor: 'var(--border)',
-                        color: 'var(--foreground)',
-                      }}
-                      autoFocus
-                    />
-                    <div className="max-h-60 overflow-y-auto">
-                      {replaceSearchTerm && replaceFilteredProducts.map(product => {
-                        const price = order.priceType === 'wholesale'
-                          ? product.wholesale
-                          : (product.retail || product.wholesale);
-                        return (
-                          <button
-                            key={product.id}
-                            onClick={() => handleReplaceProduct(product)}
-                            className="w-full px-3 py-2 text-left transition-colors hover:bg-[var(--accent)] rounded-lg"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="text-sm" style={{ color: 'var(--foreground)' }}>{product.name}</div>
-                                <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{product.category}</div>
-                              </div>
-                              <span className="font-medium text-sm" style={{ color: 'var(--primary)' }}>
-                                {formatPrice(price)}원
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                      {replaceSearchTerm && replaceFilteredProducts.length === 0 && (
-                        <p className="text-center py-4 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                          검색 결과가 없습니다
-                        </p>
-                      )}
+
+                  {/* 검색 */}
+                  <div className="px-5 pt-4 pb-2 flex-shrink-0">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted-foreground)' }} />
+                      <input
+                        type="text"
+                        value={replaceSearchTerm}
+                        onChange={(e) => setReplaceSearchTerm(e.target.value)}
+                        onFocus={handleSearchFocus}
+                        placeholder="교체할 제품 검색 (제품명·규격)..."
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2"
+                        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                        autoFocus
+                      />
                     </div>
+                    {/* 섹션 라벨 */}
+                    <div className="flex items-center gap-1.5 mt-3 mb-1 text-xs font-bold" style={{ color: 'var(--muted-foreground)' }}>
+                      {replaceSearchTerm
+                        ? (<><Search className="w-3.5 h-3.5" />검색 결과 {replaceListToShow.length}건</>)
+                        : (<><Layers className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />관련 제품 (같은 카테고리) {replaceListToShow.length}건</>)}
+                    </div>
+                  </div>
+
+                  {/* 제품 리스트 (2컬럼 카드) */}
+                  <div className="px-5 pb-5 overflow-y-auto flex-1 min-h-0">
+                    {replaceListToShow.length === 0 ? (
+                      <p className="text-center py-10 text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                        {replaceSearchTerm ? '검색 결과가 없습니다' : '관련 제품이 없어요 — 위에서 검색해보세요'}
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {replaceListToShow.map(product => {
+                          const price = order.priceType === 'wholesale'
+                            ? product.wholesale
+                            : (product.retail || product.wholesale);
+                          const stock = Number(product.stock || 0);
+                          return (
+                            <button
+                              key={product.id}
+                              onClick={() => handleReplaceProduct(product)}
+                              className="text-left rounded-xl border p-3 transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-[var(--primary)]"
+                              style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-bold leading-snug break-words" style={{ color: 'var(--foreground)' }}>{product.name}</div>
+                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                    {product.category && (
+                                      <span className="text-[11px] px-1.5 py-0.5 rounded-md" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>{product.category}</span>
+                                    )}
+                                    <span className="text-[11px] px-1.5 py-0.5 rounded-md font-medium"
+                                      style={{ background: stock > 0 ? 'rgba(34,197,94,0.14)' : 'rgba(239,68,68,0.14)', color: stock > 0 ? '#16a34a' : '#dc2626' }}>
+                                      재고 {stock}
+                                    </span>
+                                  </div>
+                                </div>
+                                <span className="font-black text-sm whitespace-nowrap" style={{ color: 'var(--primary)' }}>
+                                  {formatPrice(price)}원
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

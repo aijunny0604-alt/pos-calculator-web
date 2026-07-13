@@ -315,9 +315,15 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
   };
 
   const getOrderSetting = (orderNumber, customerName = null, order = null) => {
-    if (orderSettings[orderNumber]) return orderSettings[orderNumber]; // 사용자가 직접 바꾼 값 최우선
+    const override = orderSettings[orderNumber]; // 사용자가 직접 바꾼 값
+    const storeOrder = isStoreOrder(order);
+    if (override) {
+      // 🚨 스토어(엠파츠) 주문은 발송인을 항상 엠파츠로 강제 — 포장/금액만 바꿔도 발송인이 무브모터스로
+      //    유실되던 버그 방지(커스텀 항목과 동일 정책). packaging/paymentType 등 나머지 override는 존중.
+      return storeOrder ? { ...override, sender: '엠파츠' } : override;
+    }
     // 스토어 주문은 발송인=엠파츠 고정 + 착불/선불은 memo에서 자동 (매장 거래처 설정보다 우선)
-    if (isStoreOrder(order)) {
+    if (storeOrder) {
       const paymentType = /배송:\s*착불/.test(order?.memo || '') ? '착불' : '선불';
       return { paymentType, packaging: '박스1', shippingCost: '7300', sender: '엠파츠' };
     }
@@ -371,8 +377,11 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
   };
 
   const updateOrderSetting = (orderNumber, field, value) => {
+    const order = filteredOrders.find(o => o.orderNumber === orderNumber) || null;
     setOrderSettings(prev => {
-      const current = prev[orderNumber] || { paymentType: '착불', packaging: '박스1', shippingCost: '7300', sender: senderList[0] };
+      // ⚠️ override 없을 때 하드코딩 기본(무브모터스) 대신 '계산된 기본값'을 base로 —
+      //    스토어=엠파츠/저장고객 설정의 발송인이 첫 편집에서 유실되던 버그 수정
+      const current = prev[orderNumber] || getOrderSetting(orderNumber, order?.customerName || null, order);
       let updated = { ...current, [field]: value };
       if (field === 'packaging') updated.shippingCost = calculateShippingCost(value);
       return { ...prev, [orderNumber]: updated };

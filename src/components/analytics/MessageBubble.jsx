@@ -261,8 +261,8 @@ export default function MessageBubble({ message, enableTypewriter = true, tts, o
           </div>
         )}
 
-        {/* 차트 자동 렌더링 */}
-        {hasCharts && <ResultRenderer toolCalls={toolCalls} />}
+        {/* 차트 자동 렌더링 — onFollowUpClick(=onSend)을 넘겨 재고부족 리스트 선택→일괄 재고변경 요청 지원 */}
+        {hasCharts && <ResultRenderer toolCalls={toolCalls} onAction={onFollowUpClick} />}
 
         {/* 추천 후속 질문 칩 (assistant only) — 카테고리별 아이콘/색상 */}
         {isAssistant && Array.isArray(followUps) && followUps.length > 0 && onFollowUpClick && (

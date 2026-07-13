@@ -9,7 +9,7 @@
 //   getCompositeSummary → KpiCards
 //   getDormantCustomers / getCustomerProductAffinity / getRepeatPurchaseGap → 단순 표
 
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 
 const TopNBarChart = lazy(() => import('./charts/TopNBarChart'));
 const TrendLineChart = lazy(() => import('./charts/TrendLineChart'));
@@ -18,7 +18,7 @@ const KpiCards = lazy(() => import('./charts/KpiCards'));
 
 const FALLBACK = <div className="text-xs text-[var(--muted-foreground)] py-2">차트 로드 중...</div>;
 
-function renderOne(tc) {
+function renderOne(tc, onAction) {
   if (!tc?.result?.ok) return null;
   const data = tc.result.data;
   if (!data) return null;
@@ -115,7 +115,7 @@ function renderOne(tc) {
     }
     case 'getLowStockProducts': {
       if (!data.results?.length) return null;
-      return <LowStockTable data={data.results} threshold={data.threshold} />;
+      return <LowStockTable data={data.results} threshold={data.threshold} onAction={onAction} />;
     }
     case 'getStockSummary': {
       return <StockSummaryCards data={data} />;
@@ -752,14 +752,40 @@ function LearningStatsCards({ data }) {
   );
 }
 
-// 재고 부족 표
-function LowStockTable({ data, threshold }) {
+// 재고 부족 표 — onAction 있으면 항목 선택 → 선택분 MOVIS에 일괄 재고변경 요청
+function LowStockTable({ data, threshold, onAction }) {
+  const [selected, setSelected] = useState(() => new Set());
+  const [newStock, setNewStock] = useState('30');
+  const selectable = typeof onAction === 'function';
+  const names = data.map((p) => p.name);
+  const allSelected = selected.size > 0 && selected.size === names.length;
+  const toggle = (name) => setSelected((prev) => {
+    const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n;
+  });
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(names));
+  const applyBulk = () => {
+    const picked = names.filter((n) => selected.has(n));
+    if (!picked.length) return;
+    const qty = Math.max(0, Math.floor(Number(newStock) || 0));
+    onAction(`다음 제품들 재고를 ${qty}개로 변경해줘: ${picked.join(', ')}`);
+    setSelected(new Set());
+  };
   return (
     <div className="jarvis-glass rounded-lg p-3 sm:p-4 overflow-x-auto">
-      <div className="text-sm font-semibold mb-2 break-keep">📦 재고 부족 제품 (≤ {threshold}개)</div>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="text-sm font-semibold break-keep">📦 재고 부족 제품 (≤ {threshold}개)</div>
+        {selectable && data.length > 0 && (
+          <button onClick={toggleAll}
+            className="text-[11px] px-2 py-1 rounded-md border font-bold flex-shrink-0"
+            style={{ borderColor: 'var(--border)', color: 'var(--jarvis-cyan, #00b4d8)' }}>
+            {allSelected ? '전체 해제' : '전체 선택'}
+          </button>
+        )}
+      </div>
       <table className="w-full text-xs">
         <thead className="text-[var(--muted-foreground)] border-b border-[var(--border)]">
           <tr>
+            {selectable && <th className="w-6 py-1.5"></th>}
             <th className="text-left py-1.5 pr-2">제품명</th>
             <th className="text-left py-1.5 pr-2 hidden sm:table-cell">카테고리</th>
             <th className="text-right py-1.5 pr-2">현재 재고</th>
@@ -767,18 +793,45 @@ function LowStockTable({ data, threshold }) {
           </tr>
         </thead>
         <tbody>
-          {data.map((p, i) => (
-            <tr key={i} className="border-b border-[var(--border)]/50">
-              <td className="py-1.5 pr-2 break-keep">{p.name}</td>
-              <td className="py-1.5 pr-2 hidden sm:table-cell text-[var(--muted-foreground)]">{p.category}</td>
-              <td className={`text-right py-1.5 pr-2 tabular-nums font-semibold ${p.stock === 0 ? 'text-[var(--destructive)]' : p.stock <= 2 ? 'text-amber-600' : ''}`}>
-                {p.stock === 0 ? '품절' : `${p.stock}개`}
-              </td>
-              <td className="text-right py-1.5 tabular-nums">{p.recentSoldQty}개</td>
-            </tr>
-          ))}
+          {data.map((p, i) => {
+            const on = selected.has(p.name);
+            return (
+              <tr key={i}
+                onClick={selectable ? () => toggle(p.name) : undefined}
+                className={`border-b border-[var(--border)]/50 ${selectable ? 'cursor-pointer' : ''}`}
+                style={on ? { background: 'rgba(0,212,255,0.10)' } : undefined}>
+                {selectable && (
+                  <td className="py-1.5 pr-1">
+                    <input type="checkbox" checked={on} readOnly className="pointer-events-none accent-cyan-500" />
+                  </td>
+                )}
+                <td className="py-1.5 pr-2 break-keep">{p.name}</td>
+                <td className="py-1.5 pr-2 hidden sm:table-cell text-[var(--muted-foreground)]">{p.category}</td>
+                <td className={`text-right py-1.5 pr-2 tabular-nums font-semibold ${p.stock === 0 ? 'text-[var(--destructive)]' : p.stock <= 2 ? 'text-amber-600' : ''}`}>
+                  {p.stock === 0 ? '품절' : `${p.stock}개`}
+                </td>
+                <td className="text-right py-1.5 tabular-nums">{p.recentSoldQty}개</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      {selectable && selected.size > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 p-2.5 rounded-lg" style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.22)' }}>
+          <span className="text-xs font-bold" style={{ color: 'var(--jarvis-cyan, #00b4d8)' }}>{selected.size}개 선택</span>
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>· 재고를</span>
+          <input type="number" min="0" value={newStock} onChange={(e) => setNewStock(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            className="w-16 px-2 py-1 rounded-md border text-xs text-center"
+            style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>개로</span>
+          <button onClick={applyBulk}
+            className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold text-white flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #00b4d8, #0077b6)' }}>
+            MOVIS에 일괄 변경 요청
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -999,10 +1052,10 @@ function RepeatGapCard({ data }) {
   );
 }
 
-export default function ResultRenderer({ toolCalls = [] }) {
+export default function ResultRenderer({ toolCalls = [], onAction }) {
   if (!Array.isArray(toolCalls) || toolCalls.length === 0) return null;
   const charts = toolCalls.map((tc, i) => {
-    const rendered = renderOne(tc);
+    const rendered = renderOne(tc, onAction);
     if (!rendered) return null;
     return <div key={i} className="mt-3">{rendered}</div>;
   }).filter(Boolean);
