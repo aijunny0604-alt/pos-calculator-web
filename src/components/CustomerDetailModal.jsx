@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { FileSpreadsheet, Printer, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileSpreadsheet, Printer, ChevronDown, ChevronUp, FileText, Maximize2 } from 'lucide-react';
 // 주문 상세 경량 뷰 — 큰 모달 + 정가/할인 표시
 const OrderDetailPopup = ({ order, onClose }) => {
   if (!order) return null;
@@ -152,7 +152,11 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
 
   // 주문 상세 팝업 + 수동 완불 (공용 훅 사용)
   const [orderDetail, setOrderDetail] = useState(null);
+  const [certViewer, setCertViewer] = useState(null); // 사업자등록증 원본 열람
   const { map: manualPaid, setPaid, clearPaid } = useManualPaid();
+
+  // 거래처 관리에서 이미 쓰는 컬럼 재사용 — 등록증 보관함에서 매칭된 36건이 여기에 세팅돼 있다
+  const certUrl = customer?.business_cert_url || null;
 
   const openOrderDetail = async (orderId) => {
     if (!orderId) return;
@@ -303,15 +307,41 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
         <div className="p-5 sm:p-6 border-b border-[var(--border)]" style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, var(--card)) 0%, var(--card) 100%)' }}>
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
-                style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: 'white' }}
-              >
-                <span className="text-2xl">🏢</span>
-              </div>
+              {/* 사업자등록증이 연동된 거래처는 아바타 자리에 등록증 썸네일을 띄운다.
+                  연동 여부가 한눈에 보이고, 클릭하면 원본 크기로 확인 가능. 없으면 기존 🏢. (2026-07-15) */}
+              {certUrl ? (
+                <button
+                  onClick={() => setCertViewer(certUrl)}
+                  className="w-12 h-12 rounded-xl flex-shrink-0 shadow-md overflow-hidden border-2 relative group"
+                  style={{ borderColor: 'var(--primary)', background: 'white' }}
+                  title="사업자등록증 — 클릭하면 크게 보기"
+                >
+                  <img src={certUrl} alt="사업자등록증" className="w-full h-full object-cover" />
+                  <span className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                </button>
+              ) : (
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
+                  style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: 'white' }}
+                >
+                  <span className="text-2xl">🏢</span>
+                </div>
+              )}
               <div className="min-w-0 flex-1">
-                <h3 className="text-xl font-bold break-keep leading-tight">
+                <h3 className="text-xl font-bold break-keep leading-tight flex items-center gap-2">
                   {customer.name || `#${customer.id}`}
+                  {certUrl && (
+                    <button
+                      onClick={() => setCertViewer(certUrl)}
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 flex-shrink-0"
+                      style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}
+                      title="사업자등록증 보기"
+                    >
+                      <FileText className="w-3 h-3" /> 사업자등록증
+                    </button>
+                  )}
                 </h3>
                 <p className="text-xs text-[var(--muted-foreground)] break-keep mt-1 flex items-center gap-3 flex-wrap">
                   {customer.phone && <span className="flex items-center gap-1">📞 {customer.phone}</span>}
@@ -670,6 +700,28 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
           onClearPaid={() => clearPaid(orderDetail.id)}
           onClose={() => setOrderDetail(null)}
         />
+      )}
+
+      {/* 사업자등록증 원본 열람 */}
+      {certViewer && (
+        <div
+          className="fixed inset-0 z-[80] flex flex-col items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.85)' }}
+          onClick={() => setCertViewer(null)}
+        >
+          <div className="flex items-center gap-3 mb-3 text-white" onClick={(e) => e.stopPropagation()}>
+            <FileText className="w-5 h-5" />
+            <span className="font-bold">{customer.name} — 사업자등록증</span>
+            <a href={certViewer} target="_blank" rel="noreferrer" className="px-2 py-1 rounded text-xs font-bold" style={{ background: 'rgba(255,255,255,0.25)' }}>원본</a>
+            <button onClick={() => setCertViewer(null)} className="p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.2)' }}>✕</button>
+          </div>
+          <img
+            src={certViewer}
+            alt="사업자등록증"
+            className="max-w-full max-h-[85vh] object-contain rounded-lg bg-white"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
     </div>
   );
