@@ -26,6 +26,7 @@ const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
 const InvoicesContainer = lazy(() => import('@/pages/InvoicesContainer'));
 const AIAnalytics = lazy(() => import('@/pages/AIAnalytics'));
 const SmartStoreOrders = lazy(() => import('@/pages/SmartStoreOrders'));
+const PurchaseOrders = lazy(() => import('@/pages/PurchaseOrders'));
 
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
@@ -1279,6 +1280,16 @@ export default function App() {
               saveOrder={saveOrder}
               setCurrentPage={setCurrentPage}
               refreshCustomers={refreshCustomers}
+            />
+          </Suspense>
+        );
+
+      case 'purchase-orders':
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>매입 발주 로드 중...</div>}>
+            <PurchaseOrders
+              showToast={showToast}
+              setCurrentPage={setCurrentPage}
             />
           </Suspense>
         );

@@ -457,6 +457,35 @@ export const supabase = {
     } catch (e) { console.error('deleteCustomerReturn:', e); return false; }
   },
 
+  // ===== 매입 발주 (purchase_orders) =====
+  // ⚠️ 판매 측 "발주확인"(네이버 주문상태)과 다른 개념 — 이건 매입처(JSR 등)에 발주한 건.
+  // 마이그008 미적용 시 조회는 null 반환 → 페이지가 "마이그레이션 필요" 안내를 띄운다(빈 목록과 구분).
+  async getPurchaseOrders() {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/purchase_orders?order=order_date.desc`, { headers });
+    } catch (e) { console.error('getPurchaseOrders:', e); return null; }
+  },
+  async addPurchaseOrder(po) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/purchase_orders`, {
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify(po)
+      });
+    } catch (e) { console.error('addPurchaseOrder:', e); return null; }
+  },
+  async updatePurchaseOrder(id, patch) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/purchase_orders?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(patch)
+      });
+    } catch (e) { console.error('updatePurchaseOrder:', e); return null; }
+  },
+  async deletePurchaseOrder(id) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/purchase_orders?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      return r.ok;
+    } catch (e) { console.error('deletePurchaseOrder:', e); return false; }
+  },
+
   // ===== 저장된 장바구니 =====
   async getSavedCarts() {
     try {
