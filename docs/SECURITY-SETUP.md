@@ -35,6 +35,14 @@ http://localhost:4173/*
 - `localhost:*/*` 같은 포트 와일드카드는 **Google이 거부**. 포트를 명시해야 함
 - 설정 반영까지 **최대 5분** 소요
 
+### 🚨 등록 안 된 포트 = Gemini 403 (2026-07-15 확인)
+허용 목록에 **5173/4173만** 있다. `npx vite --port 5241` 처럼 **다른 포트로 띄우면 모든 키가 403**이 난다(키 4개 × 모델 2개 전부 시도 후 실패).
+
+- **증상**: 콘솔에 `generativelanguage.googleapis.com … 403` 이 키 개수만큼 반복. 앱은 안 죽고 "판독 실패" 토스트만 뜸(폴백 로테이션은 정상 동작)
+- **영향 기능**: MOVIS 이미지 인식, 사업자등록증 vision([certVision.js](../src/lib/certVision.js)), **발주서 사진 판독**([quoteVision.js](../src/lib/quoteVision.js))
+- **대응**: vision 기능 검증은 **배포본(github.io)에서** 할 것. 로컬 테스트가 꼭 필요하면 5173/4173으로 띄우거나 해당 포트를 referrer 목록에 추가
+- node에서 직접 호출해도 403 (referrer 헤더 없음) → **브라우저 전용**
+
 ---
 
 ## 2. Vite 포트 정보

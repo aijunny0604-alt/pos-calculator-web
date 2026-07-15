@@ -114,6 +114,67 @@
 | customer_name | 고객명 |
 | created_at | 생성일시 |
 
+### purchase_orders (v2026-07-15, 마이그008)
+매입 발주 — 매입처(JSR)에 **우리가** 발주한 건. 🚨 네이버 "발주확인"(판매 주문상태)과 정반대 개념. 판매 `orders`와 무관.
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | BIGINT | 자동 증가 PK |
+| po_number | TEXT | 비즈니스 키 `PO-YYMMDD` (**UNIQUE** — 중복 등록 시 409). 같은 날 2건이면 `-2` 접미 |
+| supplier_name | TEXT | 매입처명 (기본 'JSR'). FK 아님 — 매입처 마스터 생기면 supplier_id UUID FK로 승격 |
+| order_date | DATE | 발주일 (NOT NULL) |
+| title | TEXT | 견적서 제목 원문 |
+| items | JSONB | `[{name, spec, unit_price, qty, received_qty, note, status_override}]` |
+| memo | TEXT | 메모 |
+| quote_no | TEXT | 견적서 관리번호 (마이그009에서 ALTER 추가). 2장이면 쉼표 나열 |
+| quote_url | TEXT | 발주서 이미지 공개 URL (증빙). 쉼표 다중 |
+| quote_path | TEXT | Storage 경로. 쉼표 다중 |
+| created_at / updated_at | TIMESTAMPTZ | updated_at은 트리거 자동 갱신 |
+
+> **주의**: **상태 컬럼이 없다** — 프론트에서 계산(입고0=미입고 / 입고<수량=부분입고 / else 완료). `status_override`가 있으면 그게 우선(시트의 수동 "주문 취소" 재현).
+> **주의**: `items[].qty` **음수 허용** (취소분 차감 행). **공급가액 = 단가 × 발주수량**(입고수량 아님) — 시트와 동일해야 합계가 맞음.
+> **증빙**: 발주서 원본은 Storage `product-images/purchase-quotes/{관리번호}.png`.
+
+### supplier_prices (v2026-07-15, 마이그009)
+매입 단가표 — 매입처 견적서에서 판독한 규격별 단가 **이력**. 최신단가 = 같은 spec 중 `quoted_at` 최대 행.
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | BIGINT | 자동 증가 PK |
+| supplier_name | TEXT | 매입처 (기본 'JSR') |
+| item_name | TEXT | 품목명 |
+| spec | TEXT | 규격명 — 발주서 표기가 정답 (`N100R_200L_64`) |
+| unit_price | NUMERIC | 단가 |
+| quoted_at | DATE | 견적서 작성일 |
+| quote_no | TEXT | 출처 견적서 관리번호 (증빙 추적) |
+| note | TEXT | 비고 |
+| created_at | TIMESTAMPTZ | 생성일시 |
+
+> **주의**: 여긴 **JSR 매입가**(우리가 지불). `products.wholesale`(업체에 파는 도매가)과 **완전 별개**이며 이름 체계도 다름(규격코드 vs 제품명).
+> **주의**: `UNIQUE(supplier_name, spec, quoted_at, unit_price)` — 재실행/재판독 시 중복 방지.
+> **제외 규칙**: 단가 0원(미출고품 무상보전이라 단가 아님)·수량 음수(취소차감)·더미행(자동차_부품)은 단가표에 넣지 않음.
+
+### supplier_ledger (v2026-07-15, 마이그010)
+매입처 수불 장부 — 빌려준 물건 / 예전 미입고 / 불량품 누적. ⚠️ `purchase_orders` 미입고와 별개(거긴 발주서 건의 입고 잔량, 여긴 발주서와 무관하게 오간 것).
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | BIGINT | 자동 증가 PK |
+| supplier_name | TEXT | 매입처 (기본 'JSR') |
+| kind | TEXT | **CHECK**: `lent`(빌려줌·돌려받을 것) / `pending`(미입고) / `done`(완료) / `defect`(불량품) |
+| occurred_on | DATE | 발생일. **불량품은 NULL** |
+| item_name | TEXT | 품목 |
+| spec | TEXT | 규격 (nullable) |
+| qty | NUMERIC | 수량 |
+| unit | TEXT | 단위 ('개' / '세트') |
+| note | TEXT | 비고 |
+| resolved | BOOLEAN | 정리 완료 여부 |
+| resolved_at | TIMESTAMPTZ | 정리 일시 |
+| created_at / updated_at | TIMESTAMPTZ | updated_at은 트리거 자동 갱신 |
+
+> **주의**: **비즈니스 유니크키가 없다** → seed는 "테이블에 데이터 있으면 건너뜀" 방식으로 재실행 안전성 확보.
+> **정책**: 돌려받거나 입고되면 **삭제 대신 `resolved` 토글** (이력 보존).
+
 ### ai_learning (신규)
 | 컬럼 | 타입 | 설명 |
 |------|------|------|
