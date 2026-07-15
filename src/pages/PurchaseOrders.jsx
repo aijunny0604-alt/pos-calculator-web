@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { PackagePlus, Plus, Search, ArrowLeft, Trash2, X, AlertTriangle, PackageCheck, Database, Printer, FileSpreadsheet, FileDown, Copy, Check } from 'lucide-react';
+import { PackagePlus, Plus, Search, ArrowLeft, Trash2, X, AlertTriangle, PackageCheck, Database, Printer, FileSpreadsheet, FileDown, Copy, Check, FileImage, Clock, TruckIcon } from 'lucide-react';
 import { formatPrice, getTodayKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import {
@@ -7,6 +7,7 @@ import {
   buildPurchaseCSV, buildPendingCSV, downloadCSV,
   buildPendingKakaoText, copyText,
   printPurchaseOrders, printPendingItems, exportPurchaseExcel,
+  daysSince, ageLevel,
 } from '@/lib/purchaseExport';
 
 // 매입 발주 — 매입처(JSR 등)에 발주한 건과 입고 진행 현황.
@@ -35,6 +36,24 @@ function StatusBadge({ status, size = 'sm' }) {
 }
 
 const emptyItem = () => ({ name: '', spec: '', unit_price: 0, qty: 0, received_qty: 0, note: '' });
+
+const AGE_STYLE = {
+  critical: { bg: 'var(--destructive)', fg: '#fff' },
+  warn:     { bg: 'var(--warning)',     fg: '#fff' },
+  ok:       { bg: 'var(--muted)',       fg: 'var(--muted-foreground)' },
+};
+
+// 발주 후 며칠 묵었는지 — JSR이 물건을 늦게 보내는 게 반복돼서 이게 제일 중요한 신호다
+function AgeBadge({ date, size = 'sm' }) {
+  const d = daysSince(date);
+  const st = AGE_STYLE[ageLevel(d)];
+  const cls = size === 'lg' ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-[11px]';
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full font-black whitespace-nowrap ${cls}`} style={{ background: st.bg, color: st.fg }}>
+      <Clock className={size === 'lg' ? 'w-4 h-4' : 'w-3 h-3'} />{d}일
+    </span>
+  );
+}
 
 // 툴바 버튼 — 아이콘+라벨 공통
 function ToolBtn({ onClick, icon: Icon, children, tone = 'default', disabled }) {
@@ -66,6 +85,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [copied, setCopied] = useState(false);
   const [excelBusy, setExcelBusy] = useState(false);
+  const [receiving, setReceiving] = useState(null); // { po, item, qty } — 미입고 탭에서 바로 입고 처리
+  const [viewQuote, setViewQuote] = useState(null); // 발주서 원본 이미지 열람
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,15 +100,18 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
 
   // ESC로 모달 닫기 (저장 중에는 무시)
   useEffect(() => {
-    if (!editing && !confirmDelete) return;
+    if (!editing && !confirmDelete && !receiving && !viewQuote) return;
+    // 위에 뜬 것부터 닫는다 (발주서 열람 > 삭제확인/입고 > 편집모달)
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
+      if (viewQuote) { setViewQuote(null); return; }
       if (confirmDelete) { setConfirmDelete(null); return; }
+      if (receiving) { if (!saving) setReceiving(null); return; }
       if (!saving) setEditing(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editing, confirmDelete, saving]);
+  }, [editing, confirmDelete, receiving, viewQuote, saving]);
 
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -107,12 +131,19 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
     return out.sort((a, b) => String(a.po.order_date).localeCompare(String(b.po.order_date)));
   }, [filtered]);
 
-  const summary = useMemo(() => ({
-    count: pos.length,
-    total: pos.reduce((s, po) => s + poTotal(po), 0),
-    openCount: pos.filter((po) => poOpenItems(po).length > 0).length,
-    openAmount: pos.reduce((s, po) => s + poOpenItems(po).reduce((t, it) => t + num(it.unit_price) * itemRemaining(it), 0), 0),
-  }), [pos]);
+  const summary = useMemo(() => {
+    const open = pos.filter((po) => poOpenItems(po).length > 0);
+    // 가장 오래 묵은 미입고 — JSR이 몇 달째 안 보낸 게 있으면 이걸로 바로 드러난다
+    const oldest = open.reduce((a, po) => (!a || String(po.order_date) < String(a.order_date) ? po : a), null);
+    return {
+      count: pos.length,
+      total: pos.reduce((s, po) => s + poTotal(po), 0),
+      openCount: open.length,
+      openAmount: pos.reduce((s, po) => s + poOpenItems(po).reduce((t, it) => t + num(it.unit_price) * itemRemaining(it), 0), 0),
+      oldestDays: oldest ? daysSince(oldest.order_date) : 0,
+      oldest,
+    };
+  }, [pos]);
 
   // 같은 날 두 건 발주(시트의 05/12·05/13 케이스)도 충돌 없게 번호 뒤에 -2, -3 부여
   const makePoNumber = useCallback((dateStr) => {
@@ -176,6 +207,33 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
   const patchItem = (idx, patch) => {
     setEditing((prev) => ({ ...prev, items: prev.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)) }));
   };
+
+  // 미입고 탭에서 바로 입고 처리 — 물건 왔을 때 모달 열고 품목 찾아 들어가는 수고를 없앤다.
+  // 금액(단가·수량)은 절대 안 건드리고 입고수량만 올린다.
+  const handleReceive = async () => {
+    if (!receiving) return;
+    const { po, item } = receiving;
+    const add = num(receiving.qty);
+    const rem = itemRemaining(item);
+    if (add <= 0) { showToast?.('입고 수량을 입력해주세요', 'error'); return; }
+    if (add > rem) { showToast?.(`남은 수량(${rem}개)보다 많이 입력했습니다`, 'error'); return; }
+
+    const items = (po.items || []).map((it) =>
+      it.spec === item.spec && num(it.qty) === num(item.qty) && num(it.unit_price) === num(item.unit_price)
+        ? { ...it, received_qty: num(it.received_qty) + add }
+        : it
+    );
+    setSaving(true);
+    const res = await supabase.updatePurchaseOrder(po.id, { items });
+    setSaving(false);
+    if (!res) { showToast?.('입고 처리 실패', 'error'); return; }
+    const done = add === rem;
+    showToast?.(done ? `${item.spec} 전량 입고 완료 ✅` : `${item.spec} ${add}개 입고 (잔여 ${rem - add}개)`, 'success');
+    setReceiving(null);
+    load();
+  };
+
+  const quoteUrls = (po) => String(po?.quote_url || '').split(',').map((s) => s.trim()).filter(Boolean);
 
   // ── 내보내기 ──
   const onCopyKakao = async () => {
@@ -243,12 +301,18 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           {[
             { label: '발주 건수', value: `${summary.count}건` },
             { label: '총 발주액', value: `₩${formatPrice(summary.total)}` },
-            { label: '미완료 발주', value: `${summary.openCount}건`, alert: summary.openCount > 0 },
             { label: '미입고 금액', value: `₩${formatPrice(summary.openAmount)}`, alert: summary.openAmount > 0 },
+            {
+              label: '가장 오래 묵은 미입고',
+              value: summary.oldest ? `${summary.oldestDays}일` : '없음',
+              sub: summary.oldest ? `${summary.oldest.order_date} 발주` : null,
+              alert: summary.oldestDays >= 30,
+            },
           ].map((c) => (
-            <div key={c.label} className="px-3 py-2 rounded-xl border" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+            <div key={c.label} className="px-3 py-2 rounded-xl border" style={{ background: 'var(--card)', borderColor: c.alert ? 'var(--destructive)' : 'var(--border)' }}>
               <div className="text-[11px] font-bold" style={{ color: 'var(--muted-foreground)' }}>{c.label}</div>
               <div className="text-lg font-black" style={{ color: c.alert ? 'var(--destructive)' : 'var(--foreground)' }}>{c.value}</div>
+              {c.sub && <div className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{c.sub}</div>}
             </div>
           ))}
         </div>
@@ -334,9 +398,14 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-xs font-bold font-mono" style={{ color: 'var(--muted-foreground)' }}>{po.po_number}</span>
                           <StatusBadge status={st} />
+                          {/* 미완료 발주만 묵은 기간 노출 — 완료된 건 며칠 됐는지 알 필요 없다 */}
+                          {open.length > 0 && <AgeBadge date={po.order_date} />}
                           <span className="ml-auto text-xs font-bold" style={{ color: 'var(--muted-foreground)' }}>{po.supplier_name}</span>
                         </div>
-                        <div className="text-sm font-bold mb-2 truncate" style={{ color: 'var(--foreground)' }}>{po.order_date} 발주</div>
+                        <div className="text-sm font-bold mb-2 truncate flex items-center gap-1.5" style={{ color: 'var(--foreground)' }}>
+                          {po.order_date} 발주
+                          {po.quote_url && <FileImage className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} title="발주서 있음" />}
+                        </div>
                         <div className="space-y-0.5 mb-2">
                           {(po.items || []).slice(0, 3).map((it, i) => (
                             <div key={i} className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
@@ -369,31 +438,45 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           </div>
         ) : (
           <div className="rounded-xl border overflow-x-auto" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-            <table className="w-full text-sm" style={{ minWidth: 760 }}>
+            <table className="w-full text-sm" style={{ minWidth: 940 }}>
               <thead>
                 <tr style={{ background: 'var(--muted)' }}>
-                  {['발주', '품명', '규격명', '단가', '수량', '입고', '남은', '미입고 금액', '상태'].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-xs font-bold whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{h}</th>
+                  {['발주', '묵은 기간', '품명', '규격명', '단가', '수량', '입고', '남은', '미입고 금액', '상태', '처리'].map((h) => (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-bold whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {pendingItems.map(({ po, item }, i) => (
-                  <tr key={`${po.id}-${i}`} className="border-t" style={{ borderColor: 'var(--border)' }}>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <button onClick={() => openPo(po)} className="font-mono text-xs font-bold underline" style={{ color: 'var(--primary)' }}>{po.po_number}</button>
-                      <div className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>{po.order_date}</div>
-                    </td>
-                    <td className="px-3 py-2 font-bold" style={{ color: 'var(--foreground)' }}>{item.name}</td>
-                    <td className="px-3 py-2" style={{ color: 'var(--muted-foreground)' }}>{item.spec}</td>
-                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>₩{formatPrice(item.unit_price)}</td>
-                    <td className="px-3 py-2">{num(item.qty)}</td>
-                    <td className="px-3 py-2">{num(item.received_qty)}</td>
-                    <td className="px-3 py-2 font-bold" style={{ color: 'var(--destructive)' }}>{itemRemaining(item)}</td>
-                    <td className="px-3 py-2 font-bold whitespace-nowrap" style={{ color: 'var(--destructive)' }}>₩{formatPrice(num(item.unit_price) * itemRemaining(item))}</td>
-                    <td className="px-3 py-2"><StatusBadge status={itemStatus(item)} /></td>
-                  </tr>
-                ))}
+                {pendingItems.map(({ po, item }, i) => {
+                  const lv = ageLevel(daysSince(po.order_date));
+                  return (
+                    <tr key={`${po.id}-${i}`} className="border-t" style={{ borderColor: 'var(--border)', background: lv === 'critical' ? 'color-mix(in srgb, var(--destructive) 7%, transparent)' : undefined }}>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <button onClick={() => openPo(po)} className="font-mono text-xs font-bold underline" style={{ color: 'var(--primary)' }}>{po.po_number}</button>
+                        <div className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>{po.order_date}</div>
+                      </td>
+                      <td className="px-3 py-2.5"><AgeBadge date={po.order_date} /></td>
+                      <td className="px-3 py-2.5 font-bold" style={{ color: 'var(--foreground)' }}>{item.name}</td>
+                      <td className="px-3 py-2.5 font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>{item.spec}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap tabular-nums" style={{ color: 'var(--muted-foreground)' }}>₩{formatPrice(item.unit_price)}</td>
+                      <td className="px-3 py-2.5 tabular-nums">{num(item.qty)}</td>
+                      <td className="px-3 py-2.5 tabular-nums">{num(item.received_qty)}</td>
+                      <td className="px-3 py-2.5 text-lg font-black tabular-nums" style={{ color: 'var(--destructive)' }}>{itemRemaining(item)}</td>
+                      <td className="px-3 py-2.5 font-black whitespace-nowrap tabular-nums" style={{ color: 'var(--destructive)' }}>₩{formatPrice(num(item.unit_price) * itemRemaining(item))}</td>
+                      <td className="px-3 py-2.5"><StatusBadge status={itemStatus(item)} /></td>
+                      <td className="px-3 py-2.5">
+                        {/* 물건 오면 여기서 바로 — 모달 열고 찾아 들어갈 필요 없이 */}
+                        <button
+                          onClick={() => setReceiving({ po, item, qty: itemRemaining(item) })}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white whitespace-nowrap"
+                          style={{ background: 'var(--success)' }}
+                        >
+                          <TruckIcon className="w-3.5 h-3.5" /> 입고
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -416,6 +499,18 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
               </h2>
               <span className="text-sm font-mono font-bold px-2.5 py-1 rounded-lg" style={{ background: 'var(--card)', color: 'var(--muted-foreground)' }}>{editing.po_number}</span>
               {editing.id && <StatusBadge status={poStatus(editing)} size="lg" />}
+              {editing.id && <AgeBadge date={editing.order_date} size="lg" />}
+              {/* 증빙 원본 — 숫자가 의심되면 바로 발주서를 펴서 대조 */}
+              {quoteUrls(editing).length > 0 && (
+                <button
+                  onClick={() => setViewQuote({ urls: quoteUrls(editing), po: editing, idx: 0 })}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border"
+                  style={{ background: 'var(--card)', borderColor: 'var(--primary)', color: 'var(--primary)' }}
+                >
+                  <FileImage className="w-4 h-4" /> 발주서 보기
+                  {editing.quote_no && <span className="font-mono text-xs opacity-70">{editing.quote_no}</span>}
+                </button>
+              )}
               <button onClick={() => setEditing(null)} className="ml-auto p-2 rounded-lg hover:bg-[var(--accent)]" style={{ color: 'var(--muted-foreground)' }}>
                 <X className="w-6 h-6" />
               </button>
@@ -565,6 +660,90 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 빠른 입고 처리 — 물건 오면 미입고 탭에서 바로 */}
+      {receiving && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => !saving && setReceiving(null)}>
+          <div className="w-full max-w-lg rounded-2xl border p-6" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-4">
+              <TruckIcon className="w-6 h-6" style={{ color: 'var(--success)' }} />
+              <h3 className="text-2xl font-black" style={{ color: 'var(--foreground)' }}>입고 처리</h3>
+              <AgeBadge date={receiving.po.order_date} size="lg" />
+            </div>
+
+            <div className="rounded-xl border p-4 mb-4" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
+              <div className="text-xl font-black mb-1" style={{ color: 'var(--foreground)' }}>{receiving.item.name}</div>
+              <div className="font-mono text-sm mb-3" style={{ color: 'var(--muted-foreground)' }}>{receiving.item.spec}</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  { l: '발주', v: num(receiving.item.qty) },
+                  { l: '기존 입고', v: num(receiving.item.received_qty) },
+                  { l: '남은', v: itemRemaining(receiving.item), alert: true },
+                ].map((c) => (
+                  <div key={c.l} className="py-2 rounded-lg" style={{ background: 'var(--muted)' }}>
+                    <div className="text-[11px] font-bold" style={{ color: 'var(--muted-foreground)' }}>{c.l}</div>
+                    <div className="text-xl font-black tabular-nums" style={{ color: c.alert ? 'var(--destructive)' : 'var(--foreground)' }}>{c.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                {receiving.po.order_date} 발주 ({receiving.po.quote_no || receiving.po.po_number})
+              </div>
+            </div>
+
+            <label className="block mb-4">
+              <span className="text-sm font-bold" style={{ color: 'var(--muted-foreground)' }}>이번에 몇 개 들어왔나요?</span>
+              <input
+                type="number" autoFocus
+                value={receiving.qty}
+                onChange={(e) => setReceiving({ ...receiving, qty: e.target.value })}
+                className="mt-1.5 w-full px-4 py-3 rounded-xl text-2xl font-black border-2 outline-none text-right tabular-nums"
+                style={{ background: 'var(--background)', borderColor: 'var(--success)', color: 'var(--foreground)' }}
+              />
+              <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>남은 {itemRemaining(receiving.item)}개까지 입력할 수 있습니다</span>
+            </label>
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setReceiving(null)} className="px-5 py-2.5 rounded-xl text-base font-bold border"
+                style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>취소</button>
+              <button onClick={handleReceive} disabled={saving}
+                className="px-6 py-2.5 rounded-xl text-base font-bold text-white disabled:opacity-60" style={{ background: 'var(--success)' }}>
+                {saving ? '처리 중...' : '입고 확정'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 발주서 원본 열람 — 증빙 */}
+      {viewQuote && (
+        <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setViewQuote(null)}>
+          <div className="flex items-center gap-3 mb-3 text-white" onClick={(e) => e.stopPropagation()}>
+            <FileImage className="w-5 h-5" />
+            <span className="font-bold">{viewQuote.po.po_number} 발주서</span>
+            <span className="font-mono text-sm opacity-70">{viewQuote.po.quote_no}</span>
+            {viewQuote.urls.length > 1 && (
+              <div className="flex gap-1">
+                {viewQuote.urls.map((_, i) => (
+                  <button key={i} onClick={() => setViewQuote({ ...viewQuote, idx: i })}
+                    className="px-2 py-1 rounded text-xs font-bold"
+                    style={{ background: i === viewQuote.idx ? '#fff' : 'rgba(255,255,255,0.25)', color: i === viewQuote.idx ? '#000' : '#fff' }}>
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+            )}
+            <a href={viewQuote.urls[viewQuote.idx]} target="_blank" rel="noreferrer" className="px-2 py-1 rounded text-xs font-bold" style={{ background: 'rgba(255,255,255,0.25)' }}>원본</a>
+            <button onClick={() => setViewQuote(null)} className="p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.2)' }}><X className="w-5 h-5" /></button>
+          </div>
+          <img
+            src={viewQuote.urls[viewQuote.idx]}
+            alt="발주서"
+            className="max-w-full max-h-[85vh] object-contain rounded-lg bg-white"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 

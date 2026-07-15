@@ -15,6 +15,19 @@ export const itemStatus = (it) => {
 };
 export const itemSupply = (it) => num(it?.unit_price) * num(it?.qty);
 export const itemRemaining = (it) => num(it?.qty) - num(it?.received_qty);
+
+// 발주일로부터 며칠 지났나 — JSR이 물건을 늦게 보내는 게 반복돼서, 얼마나 묵었는지가 제일 중요한 정보다.
+// KST 기준 날짜 문자열(YYYY-MM-DD)끼리 비교. new Date('YYYY-MM-DD')는 UTC 자정이라 양쪽 다 같은 기준으로 뺀다.
+export function daysSince(dateStr) {
+  if (!dateStr) return 0;
+  const d = new Date(`${dateStr}T00:00:00Z`).getTime();
+  if (!Number.isFinite(d)) return 0;
+  const now = new Date();
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.max(0, Math.round((todayUTC - d) / 86400000));
+}
+// 묵은 정도 — 30일 넘으면 주의, 90일 넘으면 심각(분기 넘게 안 온 것)
+export const ageLevel = (days) => (days >= 90 ? 'critical' : days >= 30 ? 'warn' : 'ok');
 export const poTotal = (po) => (po?.items || []).reduce((s, it) => s + itemSupply(it), 0);
 export const poOpenItems = (po) =>
   (po?.items || []).filter((it) => !it.status_override && num(it.qty) > 0 && itemRemaining(it) > 0);
@@ -88,16 +101,22 @@ export function buildPendingKakaoText(pendingItems, { supplier = '' } = {}) {
   const lines = [];
   const title = supplier ? `[${supplier} 미입고 현황]` : '[미입고 현황]';
   lines.push(title);
+  lines.push(`(${new Date().toLocaleDateString('ko-KR')} 기준)`);
   lines.push('');
   let total = 0;
-  for (const { po, items } of byPo.values()) {
-    lines.push(`📌 ${po.order_date} 발주 (${po.po_number})`);
+  // 오래 묵은 발주부터 — 제일 급한 걸 위에
+  const ordered = [...byPo.values()].sort((a, b) => String(a.po.order_date).localeCompare(String(b.po.order_date)));
+  for (const { po, items } of ordered) {
+    const days = daysSince(po.order_date);
+    const lv = ageLevel(days);
+    const mark = lv === 'critical' ? '🚨' : lv === 'warn' ? '⚠️' : '📌';
+    lines.push(`${mark} ${po.order_date} 발주 — ${days}일 경과 (${po.quote_no || po.po_number})`);
     for (const it of items) {
       const rem = itemRemaining(it);
       const amt = num(it.unit_price) * rem;
       total += amt;
       const recv = num(it.received_qty);
-      const detail = recv > 0 ? `${num(it.qty)}개 중 ${recv}개 입고 → 잔여 ${rem}개` : `${num(it.qty)}개 전량 미입고`;
+      const detail = recv > 0 ? `${num(it.qty)}개 중 ${recv}개만 입고 → 잔여 ${rem}개` : `${num(it.qty)}개 전량 미입고`;
       lines.push(`  · ${it.name}${it.spec ? ` / ${it.spec}` : ''}`);
       lines.push(`    ${detail} (${won(amt)})`);
     }
