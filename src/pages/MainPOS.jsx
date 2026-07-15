@@ -881,12 +881,12 @@ export default function MainPOS({
         style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
       >
         {/* Cart Header */}
-        <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+        <div className="px-4 py-3.5 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-            <h2 className="font-semibold text-sm" style={{ color: 'var(--foreground)' }}>주문 목록</h2>
+            <h2 className="font-black text-lg" style={{ color: 'var(--foreground)' }}>주문 목록</h2>
             <span
-              className="text-xs px-2 py-0.5 rounded-full"
+              className="text-xs font-bold px-2 py-0.5 rounded-full"
               style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}
             >
               {cart.length}종 / {totalQuantity}개
@@ -909,7 +909,9 @@ export default function MainPOS({
               <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>주문 목록이 비어있습니다</p>
             </div>
           ) : (
-            <div className="p-2 grid grid-cols-2 gap-1.5">
+            // 1열 — 400px 패널에 2열이면 카드가 190px라 폰트를 9~12px까지 줄여야 해서 안 보였다.
+            // 1열로 폭을 2배 확보하고 제품명/금액을 읽을 수 있는 크기로 키움 (2026-07-15)
+            <div className="p-2.5 space-y-2">
               {cartWithDiscount.map(item => {
                 const baseStock = item.stock !== undefined ? item.stock : 50;
                 const remainingStock = baseStock - item.quantity;
@@ -917,40 +919,40 @@ export default function MainPOS({
                 return (
                   <div
                     key={item.id}
-                    className="rounded-lg p-2 group relative border transition-colors hover:bg-[var(--accent)]"
+                    className="rounded-xl p-3 group relative border-2 transition-colors hover:bg-[var(--accent)]"
                     style={{
                       background: hasDiscount
                         ? 'color-mix(in srgb, var(--warning) 6%, var(--card))'
                         : 'var(--secondary)',
                       borderColor: hasDiscount
-                        ? 'color-mix(in srgb, var(--warning) 30%, var(--border))'
+                        ? 'color-mix(in srgb, var(--warning) 40%, var(--border))'
                         : 'var(--border)',
                     }}
                   >
                     {/* Delete button */}
                     <button
                       onClick={() => removeFromCart(item.id)}
-                      className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-full transition-all"
+                      className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-full transition-all"
                       style={{ background: 'var(--destructive)', color: 'white' }}
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
 
                     {/* Name + stock/discount badge */}
-                    <div className="flex items-start justify-between pr-5 mb-2">
-                      <p className="text-xs font-medium flex-1 min-w-0 break-words leading-snug" style={{ color: 'var(--foreground)' }}>
+                    <div className="flex items-start gap-2 pr-7 mb-2.5">
+                      <p className="text-base font-bold flex-1 min-w-0 break-words leading-snug" style={{ color: 'var(--foreground)' }}>
                         {item.name}
                       </p>
                       {hasDiscount ? (
                         <span
-                          className="text-[9px] px-1 py-0.5 rounded font-medium flex-shrink-0"
+                          className="text-[11px] px-1.5 py-0.5 rounded-md font-bold flex-shrink-0 whitespace-nowrap"
                           style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)' }}
                         >
                           {item.appliedTier.type === 'percent' ? `${item.appliedTier.value}%↓` : `${formatPrice(item.appliedTier.value)}↓`}
                         </span>
                       ) : (
                         <span
-                          className="text-[9px] px-1 py-0.5 rounded flex-shrink-0"
+                          className="text-[11px] px-1.5 py-0.5 rounded-md font-bold flex-shrink-0 whitespace-nowrap"
                           style={{
                             background: remainingStock <= 0
                               ? 'color-mix(in srgb, var(--destructive) 20%, transparent)'
@@ -958,22 +960,22 @@ export default function MainPOS({
                             color: remainingStock <= 0 ? 'var(--destructive)' : 'var(--muted-foreground)',
                           }}
                         >
-                          {remainingStock <= 0 ? '마지막' : `잔여${remainingStock}`}
+                          {remainingStock <= 0 ? '마지막' : `잔여 ${remainingStock}`}
                         </span>
                       )}
                     </div>
 
                     {/* Quantity + amount */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <div
-                        className="flex items-center gap-0.5 rounded-lg px-1 border"
+                        className="flex items-center gap-1 rounded-xl px-1.5 py-1 border"
                         style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
                       >
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--accent)] transition-colors"
+                          className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[var(--accent)] transition-colors"
                         >
-                          <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                          <Minus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                         </button>
                         <input
                           type="number"
@@ -983,29 +985,29 @@ export default function MainPOS({
                             if (!isNaN(val) && val >= 0) updateQuantity(item.id, val);
                           }}
                           onFocus={(e) => e.target.select()}
-                          className="w-9 h-6 text-center text-sm font-bold bg-transparent border-none focus:outline-none"
+                          className="w-12 h-9 text-center text-xl font-black bg-transparent border-none focus:outline-none tabular-nums"
                           style={{ color: 'var(--foreground)' }}
                         />
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--accent)] transition-colors"
+                          className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[var(--accent)] transition-colors"
                         >
-                          <Plus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
+                          <Plus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
                         </button>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right min-w-0">
                         {hasDiscount && (
-                          <p className="text-[9px] line-through" style={{ color: 'var(--muted-foreground)' }}>
+                          <p className="text-xs line-through" style={{ color: 'var(--muted-foreground)' }}>
                             {formatPrice(item.originalTotal)}원
                           </p>
                         )}
                         <p
-                          className="text-xs font-semibold"
+                          className="text-2xl font-black leading-tight tabular-nums whitespace-nowrap"
                           style={{ color: hasDiscount ? 'var(--warning)' : 'var(--primary)' }}
                         >
-                          {formatPrice(item.finalTotal)}원
+                          {formatPrice(item.finalTotal)}<span className="text-sm font-bold">원</span>
                         </p>
-                        <p className="text-[9px] leading-tight" style={{ color: 'var(--muted-foreground)' }}>
+                        <p className="text-xs leading-tight tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
                           공급 {formatPrice(calcExVat(item.finalTotal))}
                         </p>
                       </div>
