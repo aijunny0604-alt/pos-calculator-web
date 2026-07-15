@@ -27,6 +27,9 @@ const STATUS_STYLE = {
 const overrideStyle = { bg: 'var(--muted)', fg: 'var(--muted-foreground)' };
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const isAutoStatus = (s) => Object.prototype.hasOwnProperty.call(STATUS_STYLE, s) || s === '-';
+// 규격 표기가 제각각이라(TVB64Y L / TVB64Y_L_C / 100 200 64) 매칭은 정규화해서 비교.
+// ⚠️ 이건 "단가 제안"에만 쓴다 — 데이터 정정에 이름 매칭 쓰다가 금액 2배 될 뻔한 적 있음(단가+수량으로 매칭할 것)
+const normSpec = (s) => String(s || '').replace(/[_\s()]/g, '').toUpperCase();
 
 function StatusBadge({ status, size = 'sm' }) {
   const st = STATUS_STYLE[status] || overrideStyle;
@@ -92,6 +95,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
   const [viewQuote, setViewQuote] = useState(null); // 발주서 원본 이미지 열람
   const [scanning, setScanning] = useState(false);  // 발주서 사진 판독 중
   const [scan, setScan] = useState(null);           // { data, file, imgUrl } — 판독 결과 확인 대기
+  const [prices, setPrices] = useState([]);         // 단가표 — 규격 입력 시 단가 자동채움용
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,6 +106,29 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // 단가표 — 규격만 치면 최근 단가가 자동으로 들어오게. 없어도 발주 기능은 그대로 동작(선택적 보조).
+  useEffect(() => {
+    (async () => {
+      const rows = await supabase.getSupplierPrices();
+      if (Array.isArray(rows)) setPrices(rows);
+    })();
+  }, []);
+
+  // 규격 → 최신 단가. 같은 규격이 여러 발주일에 있으면 quoted_at 최신 것.
+  const priceBySpec = useMemo(() => {
+    const m = new Map();
+    for (const r of prices) {
+      const k = normSpec(r.spec);
+      const prev = m.get(k);
+      if (!prev || String(r.quoted_at) > String(prev.quoted_at)) {
+        m.set(k, { name: r.item_name, price: num(r.unit_price), quoted_at: r.quoted_at, spec: r.spec });
+      }
+    }
+    return m;
+  }, [prices]);
+
+  const specOptions = useMemo(() => [...priceBySpec.values()].map((v) => v.spec).sort(), [priceBySpec]);
 
   // ESC로 모달 닫기 (저장 중에는 무시)
   useEffect(() => {
@@ -673,8 +700,35 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
                               className="w-48 px-3 py-2 rounded-lg text-base border outline-none" style={inputStyle} />
                           </td>
                           <td className="px-2.5 py-2">
-                            <input value={it.spec || ''} onChange={(e) => patchItem(idx, { spec: e.target.value })}
-                              className="w-40 px-3 py-2 rounded-lg text-base border outline-none" style={inputStyle} />
+                            {/* 규격만 치면 단가표에서 최근 단가·품명이 따라온다.
+                                이미 입력된 단가는 덮지 않는다 — 사장님이 고친 값을 뺏으면 안 되니까 */}
+                            <input
+                              value={it.spec || ''}
+                              list="po-spec-options"
+                              onChange={(e) => {
+                                const spec = e.target.value;
+                                const hit = priceBySpec.get(normSpec(spec));
+                                const p = { spec };
+                                if (hit) {
+                                  if (num(it.unit_price) === 0) p.unit_price = hit.price;
+                                  if (!(it.name || '').trim()) p.name = hit.name;
+                                }
+                                patchItem(idx, p);
+                              }}
+                              className="w-40 px-3 py-2 rounded-lg text-base border outline-none font-mono text-sm" style={inputStyle}
+                              placeholder="규격명"
+                            />
+                            {(() => {
+                              const hit = priceBySpec.get(normSpec(it.spec));
+                              if (!hit) return null;
+                              const diff = num(it.unit_price) - hit.price;
+                              return (
+                                <div className="text-[10px] mt-0.5 whitespace-nowrap" style={{ color: diff === 0 ? 'var(--muted-foreground)' : 'var(--warning)' }}>
+                                  최근 ₩{formatPrice(hit.price)} ({String(hit.quoted_at).slice(2)})
+                                  {diff !== 0 && num(it.unit_price) > 0 && ` · ${diff > 0 ? '+' : ''}${formatPrice(diff)}`}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-2.5 py-2">
                             <input type="number" value={it.unit_price ?? 0} onChange={(e) => patchItem(idx, { unit_price: e.target.value })}
@@ -744,8 +798,14 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
                 <Plus className="w-5 h-5" /> 품목 추가
               </button>
 
+              {/* 규격 자동완성 후보 — 단가표에 있는 규격들 */}
+              <datalist id="po-spec-options">
+                {specOptions.map((s) => <option key={s} value={s} />)}
+              </datalist>
+
               <p className="mt-3 text-sm" style={{ color: 'var(--muted-foreground)' }}>
                 공급가액은 시트와 동일하게 <b>발주수량</b> 기준입니다(입고수량 아님). 취소분 차감은 수량을 음수로 입력하세요.
+                {specOptions.length > 0 && <> · 규격명을 입력하면 <b>단가표({specOptions.length}종)</b>에서 최근 단가가 자동으로 들어옵니다.</>}
               </p>
             </div>
 
