@@ -486,6 +486,28 @@ export const supabase = {
     } catch (e) { console.error('deletePurchaseOrder:', e); return false; }
   },
 
+  // ===== 매입 단가표 (supplier_prices) =====
+  // 매입처 견적서에서 뽑은 규격별 단가 이력. 최신단가 = 같은 spec 중 quoted_at 가장 큰 행.
+  // 마이그009 미적용 시 null 반환 → 페이지가 안내 표시(빈 목록과 구분)
+  async getSupplierPrices() {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/supplier_prices?order=spec,quoted_at.desc`, { headers });
+    } catch (e) { console.error('getSupplierPrices:', e); return null; }
+  },
+  async addSupplierPrice(row) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/supplier_prices`, {
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify(row)
+      });
+    } catch (e) { console.error('addSupplierPrice:', e); return null; }
+  },
+  async deleteSupplierPrice(id) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/supplier_prices?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      return r.ok;
+    } catch (e) { console.error('deleteSupplierPrice:', e); return false; }
+  },
+
   // ===== 저장된 장바구니 =====
   async getSavedCarts() {
     try {
