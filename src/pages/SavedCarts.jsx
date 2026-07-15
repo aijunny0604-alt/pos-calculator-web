@@ -543,15 +543,11 @@ export default function SavedCarts({
                   <span className="hidden sm:inline">수정</span>
                 </button>
               ) : (
-                <button
-                  onClick={saveEditedDetail}
-                  className="px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors bg-white"
-                  style={{ color: 'var(--primary)' }}
-                  aria-label="저장"
-                >
-                  <Check className="w-4 h-4" />
-                  <span className="hidden sm:inline">저장</span>
-                </button>
+                // 편집 중엔 헤더에 저장 버튼을 두지 않는다 — 푸터에 큰 [저장]이 이미 있어서
+                // 같은 동작 버튼이 두 개면 "뭘 눌러야 하지?"가 된다 (2026-07-15 어수선함 정리)
+                <span className="px-2.5 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>
+                  편집 중
+                </span>
               )}
               <button
                 onClick={toggleDetailFullscreen}
@@ -786,11 +782,12 @@ export default function SavedCarts({
                             setReplaceLineIdx(isReplacing ? null : idx);
                             setReplaceSearchTerm('');
                           }}
-                          className="flex-shrink-0 h-9 px-2.5 rounded-lg border flex items-center gap-1 text-xs font-bold transition-colors"
+                          // 보조 동작이라 테두리 빼고 조용하게 — 눌러야 할 것(제품명/수량/단가)이 먼저 보이게.
+                          // 활성일 때만 색으로 튀어나온다. (2026-07-15 어수선함 정리)
+                          className="flex-shrink-0 h-9 px-2.5 rounded-lg flex items-center gap-1 text-xs font-bold transition-all hover:bg-[var(--accent)]"
                           style={{
-                            borderColor: isReplacing ? 'var(--primary)' : 'var(--border)',
-                            background: isReplacing ? 'var(--primary)' : 'var(--background)',
-                            color: isReplacing ? 'white' : 'var(--primary)',
+                            background: isReplacing ? 'var(--primary)' : 'transparent',
+                            color: isReplacing ? 'white' : 'var(--muted-foreground)',
                           }}
                           title="잘못 주문한 제품을 다른 제품으로 교체 (수량 유지)"
                         >
@@ -801,8 +798,10 @@ export default function SavedCarts({
                             const newItems = currentCart.items.filter((_, i) => i !== idx);
                             setEditedDetailCart({ ...editedDetailCart, items: newItems });
                           }}
-                          className="flex-shrink-0 w-9 h-9 border rounded-lg flex items-center justify-center transition-colors"
-                          style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
+                          className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:bg-[color-mix(in_srgb,var(--destructive)_12%,transparent)]"
+                          style={{ color: 'var(--muted-foreground)' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--destructive)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--muted-foreground)'; }}
                           aria-label="제품 삭제"
                         >
                           <Trash2 className="w-4 h-4" />

@@ -52,8 +52,10 @@ export default function QuickItemBar({ onAddLine, compact = false }) {
   };
 
   return (
-    <div className="rounded-lg border" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
-      <div className="flex items-center justify-between px-3 py-2 gap-2 flex-wrap">
+    // 보조 도구라 카드 박스를 두르지 않는다 — 테두리+배경이 있으면 품목 목록과 같은 위계로 보여서 어수선하다.
+    // 칩 자체가 이미 테두리를 가지고 있어 구분은 충분함. (2026-07-15)
+    <div>
+      <div className="flex items-center justify-between px-0 py-1 gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs font-bold" style={{ color: 'var(--muted-foreground)' }}>빠른 추가:</span>
           {items.map((p) => {
