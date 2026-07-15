@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { PackagePlus, Plus, Search, ArrowLeft, Trash2, X, AlertTriangle, PackageCheck, Database, Printer, FileSpreadsheet, FileDown, Copy, Check, FileImage, Clock, TruckIcon } from 'lucide-react';
+import { PackagePlus, Plus, Search, ArrowLeft, Trash2, X, AlertTriangle, PackageCheck, Database, Printer, FileSpreadsheet, FileDown, Copy, Check, FileImage, Clock, TruckIcon, Camera, Loader2 } from 'lucide-react';
 import { formatPrice, getTodayKST } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
+import { extractPurchaseQuote } from '@/lib/quoteVision';
+import { fileToScaledBase64 } from '@/lib/certVision';
+import QuoteScanModal from '@/components/purchase/QuoteScanModal';
 import {
   itemStatus, itemSupply, itemRemaining, poTotal, poOpenItems, poStatus,
   buildPurchaseCSV, buildPendingCSV, downloadCSV,
@@ -87,6 +90,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
   const [excelBusy, setExcelBusy] = useState(false);
   const [receiving, setReceiving] = useState(null); // { po, item, qty } — 미입고 탭에서 바로 입고 처리
   const [viewQuote, setViewQuote] = useState(null); // 발주서 원본 이미지 열람
+  const [scanning, setScanning] = useState(false);  // 발주서 사진 판독 중
+  const [scan, setScan] = useState(null);           // { data, file, imgUrl } — 판독 결과 확인 대기
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -235,6 +240,104 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
 
   const quoteUrls = (po) => String(po?.quote_url || '').split(',').map((s) => s.trim()).filter(Boolean);
 
+  // ── 발주서 사진 → 자동 판독 ──
+  // 무료 gemini flash vision. 판독만 하고 저장은 확인 모달을 거친다(매입 증빙이라 자동 저장 금지).
+  const onPickQuote = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일 재선택 가능하게
+    if (!file) return;
+    setScanning(true);
+    try {
+      // vision 전 1600px 리사이즈 — 요청크기/메모리 폭증 방지 (certVision과 동일 정책)
+      const { base64, mimeType } = await fileToScaledBase64(file, 1600);
+      const res = await extractPurchaseQuote(base64, mimeType);
+      if (!res.ok) { showToast?.(`판독 실패: ${res.error}`, 'error'); return; }
+      if (!res.data.items.length) { showToast?.('발주서에서 품목을 찾지 못했습니다', 'error'); return; }
+      setScan({ data: res.data, file, imgUrl: URL.createObjectURL(file) });
+    } catch (err) {
+      console.error('onPickQuote:', err);
+      showToast?.('사진을 읽지 못했습니다', 'error');
+    } finally { setScanning(false); }
+  };
+
+  // 확인 모달에서 [발주 등록] — 이미지 업로드 → 발주 생성 → 무상보전 연결분 입고 처리
+  const onConfirmScan = async (q, fills) => {
+    setSaving(true);
+    try {
+      const items = (q.items || []).filter((it) => (it.name || '').trim() || (it.spec || '').trim());
+      if (!items.length) { showToast?.('품목이 없습니다', 'error'); return; }
+      if (!q.order_date) { showToast?.('발주일을 입력해주세요', 'error'); return; }
+
+      // 1) 증빙 원본을 Storage에 — 실패해도 발주 등록은 진행(증빙은 나중에 붙일 수 있음)
+      let url = null, path = null;
+      try {
+        const ext = (scan.file.name.match(/\.(jpe?g|png|webp)$/i) || [, 'png'])[1];
+        path = `purchase-quotes/${(q.quote_no || `scan-${Date.now()}`).replace(/[^\w.-]/g, '_')}.${ext}`;
+        const r = await fetch(`${SUPABASE_URL}/storage/v1/object/product-images/${path}`, {
+          method: 'POST',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': scan.file.type || 'image/png', 'x-upsert': 'true' },
+          body: scan.file,
+        });
+        if (r.ok) url = `${SUPABASE_URL}/storage/v1/object/public/product-images/${path}`;
+        else { console.warn('quote upload:', r.status); path = null; }
+      } catch (e) { console.warn('quote upload:', e); path = null; }
+
+      // 2) 발주 생성. 무상보전(0원) 행은 이미 받은 물건이라 입고 완료로.
+      const poNo = makePoNumber(q.order_date);
+      const payload = {
+        po_number: poNo,
+        supplier_name: (q.supplier || 'JSR').trim(),
+        order_date: q.order_date,
+        title: q.quote_no ? `${q.supplier || 'JSR'} 제품견적서 ${q.quote_no}` : null,
+        memo: '발주서 사진 자동 판독으로 등록',
+        quote_no: q.quote_no || null,
+        quote_url: url,
+        quote_path: path,
+        items: items.map((it) => ({
+          name: (it.name || '').trim(),
+          spec: (it.spec || '').trim(),
+          unit_price: num(it.unit_price),
+          qty: num(it.qty),
+          received_qty: it.freeFill ? num(it.qty) : 0,
+          ...(it.note ? { note: it.note } : {}),
+        })),
+      };
+      const created = await supabase.addPurchaseOrder(payload);
+      if (!created) { showToast?.('발주 등록 실패', 'error'); return; }
+
+      // 3) 무상보전 연결 — 예전 발주의 미입고를 채운다. 금액은 안 건드리고 입고수량만 올림.
+      let filled = 0;
+      for (const [idx, val] of Object.entries(fills || {})) {
+        if (!val) continue;
+        const it = q.items[Number(idx)];
+        if (!it) continue;
+        const [poId, spec] = String(val).split('|');
+        const target = pos.find((p) => String(p.id) === String(poId));
+        if (!target) continue;
+        let done = false;
+        const newItems = (target.items || []).map((ti) => {
+          if (done || ti.spec !== spec || ti.status_override) return ti;
+          const rem = num(ti.qty) - num(ti.received_qty);
+          if (rem <= 0) return ti;
+          done = true;
+          const add = Math.min(rem, num(it.qty));
+          return {
+            ...ti,
+            received_qty: num(ti.received_qty) + add,
+            note: `${ti.note ? ti.note + ' · ' : ''}${q.order_date} 발주서(${q.quote_no || '사진'})로 ${add}개 무상 보전 수령`,
+          };
+        });
+        if (!done) continue;
+        const ok = await supabase.updatePurchaseOrder(target.id, { items: newItems });
+        if (ok) filled++;
+      }
+
+      showToast?.(filled > 0 ? `${poNo} 등록 + 예전 미입고 ${filled}건 입고 처리 ✅` : `${poNo} 등록 완료 ✅`, 'success');
+      setScan(null);
+      load();
+    } finally { setSaving(false); }
+  };
+
   // ── 내보내기 ──
   const onCopyKakao = async () => {
     if (!pendingItems.length) { showToast?.('복사할 미입고 품목이 없습니다', 'error'); return; }
@@ -291,8 +394,14 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           </button>
           <PackagePlus className="w-6 h-6" style={{ color: 'var(--primary)' }} />
           <h1 className="text-xl sm:text-2xl font-black" style={{ color: 'var(--foreground)' }}>매입 발주</h1>
-          <button onClick={openNew} className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white" style={{ background: 'var(--primary)' }}>
-            <Plus className="w-4 h-4" /> 발주 등록
+          {/* 발주서 사진만 찍어 올리면 자동 판독 → 확인 → 등록. 손으로 안 쳐도 됨 */}
+          <label className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white cursor-pointer"
+            style={{ background: scanning ? 'var(--muted-foreground)' : 'var(--success)' }}>
+            {scanning ? <><Loader2 className="w-4 h-4 animate-spin" /> 판독 중...</> : <><Camera className="w-4 h-4" /> 발주서 사진 등록</>}
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickQuote} disabled={scanning} />
+          </label>
+          <button onClick={openNew} className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white" style={{ background: 'var(--primary)' }}>
+            <Plus className="w-4 h-4" /> 직접 입력
           </button>
         </div>
 
@@ -661,6 +770,18 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 발주서 사진 판독 결과 확인 — 매입 증빙이라 반드시 사람이 보고 등록 */}
+      {scan && (
+        <QuoteScanModal
+          scan={scan.data}
+          imgUrl={scan.imgUrl}
+          pos={pos}
+          saving={saving}
+          onClose={() => { if (!saving) { URL.revokeObjectURL(scan.imgUrl); setScan(null); } }}
+          onConfirm={onConfirmScan}
+        />
       )}
 
       {/* 빠른 입고 처리 — 물건 오면 미입고 탭에서 바로 */}
