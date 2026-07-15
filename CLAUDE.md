@@ -1,6 +1,6 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-09 (사업자등록증 보관함 — 73개 일괄 업로드 + 거래처 자동매칭 + 보관함 탭)
+> 마지막 업데이트: 2026-07-13 (제품교체 모달 재설계 + 택배 발송인 유실 버그 + MOVIS 재고리스트 선택)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
