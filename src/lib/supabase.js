@@ -508,6 +508,34 @@ export const supabase = {
     } catch (e) { console.error('deleteSupplierPrice:', e); return false; }
   },
 
+  // ===== 매입처 수불 장부 (supplier_ledger) — 빌려준 것 / 예전 미입고 / 불량품 =====
+  // ⚠️ 발주서 기반 미입고(purchase_orders)와 별개. 발주서 없이 오간 것들을 추적.
+  async getSupplierLedger() {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/supplier_ledger?order=occurred_on.desc.nullslast,id.asc`, { headers });
+    } catch (e) { console.error('getSupplierLedger:', e); return null; }
+  },
+  async addSupplierLedger(row) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/supplier_ledger`, {
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify(row)
+      });
+    } catch (e) { console.error('addSupplierLedger:', e); return null; }
+  },
+  async updateSupplierLedger(id, patch) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/supplier_ledger?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(patch)
+      });
+    } catch (e) { console.error('updateSupplierLedger:', e); return null; }
+  },
+  async deleteSupplierLedger(id) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/supplier_ledger?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      return r.ok;
+    } catch (e) { console.error('deleteSupplierLedger:', e); return false; }
+  },
+
   // ===== 저장된 장바구니 =====
   async getSavedCarts() {
     try {

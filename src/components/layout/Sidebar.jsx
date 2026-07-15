@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, ShoppingBag, ClipboardList, ShoppingCart, Users, Package, PackagePlus, Tags, Truck, Brain, Settings, Calculator, CircleDollarSign, FileText, Sparkles, Store, StickyNote } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, ClipboardList, ShoppingCart, Users, Package, PackagePlus, Tags, HandCoins, Truck, Brain, Settings, Calculator, CircleDollarSign, FileText, Sparkles, Store, StickyNote } from 'lucide-react';
 import QuickCalculator from '@/pages/QuickCalculator';
 
 const navItems = [
@@ -16,6 +16,7 @@ const navItems = [
   // 매입 발주 — 매입처(JSR 등)에 발주한 건. 스마트스토어의 "발주확인"(판매 주문상태)과 다른 개념
   { id: 'purchase-orders', label: '매입 발주', icon: PackagePlus },
   { id: 'supplier-prices', label: '매입 단가표', icon: Tags },
+  { id: 'supplier-ledger', label: 'JSR 수불 장부', icon: HandCoins },
   { id: 'ai-order', label: 'AI 주문 인식', icon: Brain },
   { id: 'smartstore', label: '스마트스토어 주문', icon: Store },
   { id: 'admin', label: '관리자', icon: Settings },

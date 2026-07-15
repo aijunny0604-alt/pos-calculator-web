@@ -919,6 +919,20 @@ export default function CustomerList({
                         }}
                       >
                         <div className="flex items-start justify-between">
+                          {/* 사업자등록증 연동된 업체는 목록에서 바로 썸네일로 구분 — 클릭하면 크게 (2026-07-15) */}
+                          {customer.business_cert_url && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setCertViewer(customer.business_cert_url); }}
+                              className="mr-3 w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden border-2 relative group/cert"
+                              style={{ borderColor: 'var(--primary)', background: 'white' }}
+                              title={`${customer.name} 사업자등록증 — 클릭하면 크게 보기`}
+                            >
+                              <img src={customer.business_cert_url} alt="사업자등록증" className="w-full h-full object-cover" loading="lazy" />
+                              <span className="absolute inset-0 bg-black/0 group-hover/cert:bg-black/35 transition-colors flex items-center justify-center">
+                                <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover/cert:opacity-100 transition-opacity" />
+                              </span>
+                            </button>
+                          )}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               {isBlacklist && <span className="flex-shrink-0" style={{ color: 'var(--destructive)' }}>🚫</span>}

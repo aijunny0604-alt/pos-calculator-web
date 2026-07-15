@@ -28,6 +28,7 @@ const AIAnalytics = lazy(() => import('@/pages/AIAnalytics'));
 const SmartStoreOrders = lazy(() => import('@/pages/SmartStoreOrders'));
 const PurchaseOrders = lazy(() => import('@/pages/PurchaseOrders'));
 const SupplierPrices = lazy(() => import('@/pages/SupplierPrices'));
+const SupplierLedger = lazy(() => import('@/pages/SupplierLedger'));
 
 import { supabase } from '@/lib/supabase';
 import { priceData } from '@/lib/priceData';
@@ -1299,6 +1300,16 @@ export default function App() {
         return (
           <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>매입 단가표 로드 중...</div>}>
             <SupplierPrices
+              showToast={showToast}
+              setCurrentPage={setCurrentPage}
+            />
+          </Suspense>
+        );
+
+      case 'supplier-ledger':
+        return (
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>수불 장부 로드 중...</div>}>
+            <SupplierLedger
               showToast={showToast}
               setCurrentPage={setCurrentPage}
             />
