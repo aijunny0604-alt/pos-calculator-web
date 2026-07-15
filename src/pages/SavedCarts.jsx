@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft, Menu, Save, Search, ShoppingCart, Trash2, Check, RefreshCw,
   ChevronDown, ChevronUp, Package, Clock, Download, FileText, Edit3, X, Plus,
@@ -103,6 +103,7 @@ export default function SavedCarts({
   const [editedDetailCart, setEditedDetailCart] = useState(null);
   const [showProductSearchDetail, setShowProductSearchDetail] = useState(false);
   const [productSearchTermDetail, setProductSearchTermDetail] = useState('');
+  const detailSearchRef = useRef(null); // [제품 추가] 누르면 바로 타이핑되게 포커스
   // 라인별 제품 교체 (잘못 주문한 제품 바로잡기) — 펼친 라인 idx + 검색어
   const [replaceLineIdx, setReplaceLineIdx] = useState(null);
   const [replaceSearchTerm, setReplaceSearchTerm] = useState('');
@@ -131,7 +132,9 @@ export default function SavedCarts({
     dragHandleProps: detailDragHandle,
     handles: detailResizeHandles,
     reset: resetDetailModalPos,
-  } = useDraggableResizable('pos-web.savedCartDetailModal', { w: 1200, h: 820 });
+  // ⚠️ 크기가 localStorage에 저장되므로 기본값만 바꾸면 기존 저장값(1200×820)이 그대로 남는다.
+  //    더 크게 열리게 하려면 키를 올려서 새 기본값을 태워야 함. (2026-07-15 v2: 1200×820 → 1520×940)
+  } = useDraggableResizable('pos-web.savedCartDetailModal.v2', { w: 1520, h: 940 });
   const [isBottomExpanded, setIsBottomExpanded] = useState(false); // 기본 접힘 (총금액·액션버튼은 항상 노출, 공급가/부가세만 접힘) — 사장님 요청 2026-06-09
 
   // Keyboard nav for product search in detail modal (must be in component body, not inside renderDetailModal)
@@ -475,11 +478,11 @@ export default function SavedCarts({
         <div
           className="relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
           style={{
-            maxWidth: isDetailFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))',
+            maxWidth: isDetailFullscreen ? '100vw' : 'min(95rem, calc(100vw - 2rem))',
             height: isDetailFullscreen ? '100vh' : 'auto',
             maxHeight: isDetailFullscreen ? '100vh' : 'calc(100vh - 2rem)',
-            borderRadius: isDetailFullscreen ? '0' : '0.75rem',
-            boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
+            borderRadius: isDetailFullscreen ? '0' : '1rem',
+            boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 32px 64px -12px rgba(0,0,0,0.45)',
             ...(isDetailDraggable ? detailDragStyle : {}),
           }}
           onClick={e => e.stopPropagation()}
@@ -489,14 +492,18 @@ export default function SavedCarts({
           {/* Modal header */}
           <div
             {...detailDragHandle}
-            className="bg-[var(--primary)] px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 flex-shrink-0"
-            style={{ ...(detailDragHandle.style || {}) }}
+            className="px-3 sm:px-6 py-3.5 sm:py-5 flex items-center justify-between gap-2 flex-shrink-0"
+            style={{
+              // 단색 대신 은은한 그라데이션 — 평평한 파란 띠보다 깊이감
+              background: 'linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 78%, #6d28d9) 100%)',
+              ...(detailDragHandle.style || {}),
+            }}
             onDoubleClick={isDetailDraggable ? toggleDetailFullscreen : undefined}
             title={isDetailDraggable ? '드래그해서 이동 · 더블클릭 = 전체화면 · 가장자리 드래그 = 크기 변경' : undefined}
           >
             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 border border-white/25">
+                <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap">
@@ -509,7 +516,7 @@ export default function SavedCarts({
                       placeholder="업체명/이름"
                     />
                   ) : (
-                    <h2 className="text-base sm:text-xl font-bold text-white break-keep leading-snug min-w-0 truncate">{currentCart.name}</h2>
+                    <h2 className="text-lg sm:text-2xl font-black text-white break-keep leading-snug min-w-0 truncate tracking-tight">{currentCart.name}</h2>
                   )}
                   <span
                     className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold flex-shrink-0 border border-white/20"
@@ -575,19 +582,26 @@ export default function SavedCarts({
             onTouchMove={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Package className="w-4 h-4 text-[var(--primary)]" />
-                상품 목록 ({currentCart.items.length}종 / {currentCart.items.reduce((sum, item) => sum + item.quantity, 0)}개)
+              <h3 className="font-black text-lg flex items-center gap-2">
+                <Package className="w-5 h-5 text-[var(--primary)]" />
+                상품 목록
+                <span className="text-sm font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>
+                  {currentCart.items.length}종 / {currentCart.items.reduce((sum, item) => sum + item.quantity, 0)}개
+                </span>
               </h3>
-              {isEditingDetail && (
-                <button
-                  onClick={() => setShowProductSearchDetail(!showProductSearchDetail)}
-                  className="px-3 py-1.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-opacity"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  제품 추가
-                </button>
-              )}
+              {/* 보기 모드에서도 노출 — [수정] 먼저 누르고 다시 [제품 추가] 누르던 2단계를 1클릭으로.
+                  보기 모드에서 누르면 편집 모드 진입 + 검색창 열기 + 포커스까지 한 번에. (2026-07-15) */}
+              <button
+                onClick={() => {
+                  if (!isEditingDetail) setIsEditingDetail(true);
+                  setShowProductSearchDetail(true);
+                  setTimeout(() => detailSearchRef.current?.focus(), 60);
+                }}
+                className="px-3.5 py-2 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-sm font-bold flex items-center gap-1.5 transition-opacity"
+              >
+                <Plus className="w-4 h-4" />
+                제품 추가
+              </button>
             </div>
 
             {/* QuickItemBar — 택배비/퀵비/수수료 등 즉석 추가 (편집 모드 전용) */}
@@ -608,13 +622,14 @@ export default function SavedCarts({
             {isEditingDetail && showProductSearchDetail && (
               <div className="mb-4 relative">
                 <input
+                  ref={detailSearchRef}
                   type="text"
                   value={productSearchTermDetail}
                   onChange={(e) => setProductSearchTermDetail(e.target.value)}
                   onFocus={handleSearchFocus}
                   onKeyDown={scProdKeyDown}
-                  placeholder="제품명 검색..."
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
+                  placeholder="제품명 검색해서 바로 추가..."
+                  className="w-full px-4 py-3 border-2 border-[var(--primary)] rounded-xl text-base font-medium focus:outline-none focus:ring-2 focus:ring-[var(--primary)] bg-[var(--background)]"
                 />
                 {productSearchTermDetail && scFilteredProducts.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl max-h-60 overflow-y-auto z-50">
