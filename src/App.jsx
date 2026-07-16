@@ -19,6 +19,7 @@ import QuickCalculator from '@/pages/QuickCalculator';
 import NotificationSettings from '@/pages/NotificationSettings';
 import CommandBar from '@/components/CommandBar';
 import StoreOrderAlerts from '@/components/StoreOrderAlerts';
+import ReservationAlertBar from '@/components/ReservationAlertBar';
 
 import ChunkErrorBoundary from '@/components/ChunkErrorBoundary';
 // 결제 관련 페이지는 lazy load (exceljs + html-to-image 포함된 무거운 chunk)
@@ -1367,6 +1368,14 @@ export default function App() {
         shippingCount={shippingCount}
         smartstoreCount={smartstoreCount}
       >
+        {/* 예약일 알림 띠 — 예약일이 됐는데 아직 주문 안 넘긴 저장 장바구니를 상기.
+            팝업이 아니라 띠라서 작업을 막지 않고, [30분 뒤에]로 스누즈 가능.
+            ⚠️ 제품주문(pos) 화면은 우측 장바구니가 fixed w-[400px]로 떠 있어서(MainPOS:886)
+               띠가 그 아래로 깔려 버튼이 가린다 → MainPOS 본문과 동일하게 pr 보정 */}
+        <ReservationAlertBar
+          onGoToCarts={() => setCurrentPage('saved-carts')}
+          reserveRightGutter={currentPage === 'pos'}
+        />
         {/* key={currentPage} → 페이지 이동 시 바운더리 리셋 (한 페이지 청크 실패가 다른 페이지로 안 번지게) */}
         <ChunkErrorBoundary key={currentPage}>
           {renderPage()}
