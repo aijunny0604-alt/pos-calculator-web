@@ -11,7 +11,7 @@ import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/compo
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
 import { isOrderDone, isOrderTerminal, isOrderPending } from '@/lib/orderStatus';
-import { NAVER_COURIERS as DELIVERY_COMPANIES } from '@/lib/naverCouriers';
+import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
@@ -600,7 +600,7 @@ export default function SmartStoreOrders({
   const [modalFullscreen, setModalFullscreen] = useState(false); // 주문 상세 모달 전체화면 토글
   const [bulkDispatchOpen, setBulkDispatchOpen] = useState(false);
   const [bulkConvertOpen, setBulkConvertOpen] = useState(false); // 일괄 내부주문 전환 모달
-  const [bulkDispatchCompany, setBulkDispatchCompany] = useState('CJGLS'); // 기본(전체 적용용)
+  const [bulkDispatchCompany, setBulkDispatchCompany] = useState(DEFAULT_COURIER_CODE); // 기본(전체 적용용) — 로젠택배
   const [bulkTrackingMap, setBulkTrackingMap] = useState({}); // { orderId: 'tracking' }
   const [bulkCompanyMap, setBulkCompanyMap] = useState({}); // { orderId: companyCode } 주문별 개별 택배사 (네이버처럼)
   // 주문 취소 모달 (Task #108 → C1 fix: window.prompt → 모달 UI)
@@ -614,7 +614,7 @@ export default function SmartStoreOrders({
   const [approveCancelOrder, setApproveCancelOrder] = useState(null);
   const [approveCancelSubmitting, setApproveCancelSubmitting] = useState(false);
   const CANCEL_PRESETS = ['상품 품절', '구매자 요청', '배송 지연', '가격 오류', '기타'];
-  const [dispatchCompany, setDispatchCompany] = useState('CJGLS');
+  const [dispatchCompany, setDispatchCompany] = useState(DEFAULT_COURIER_CODE);
   const [dispatchTracking, setDispatchTracking] = useState('');
 
   const reload = useCallback(async () => {

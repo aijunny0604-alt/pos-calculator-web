@@ -8,7 +8,7 @@ import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST, off
 import { supabase } from '@/lib/supabase';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
-import { NAVER_COURIERS } from '@/lib/naverCouriers';
+import { NAVER_COURIERS, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 
 // 커스텀 항목/주문에서 네이버 주문번호(provider_order_id) 추출.
 // 📦 버튼 생성 항목: id="naver-{poid}-{ts}" / note="[네이버 {poid}]"
@@ -29,7 +29,7 @@ const getOrderNaverPoid = (order) => {
 // 송장번호 입력 → 네이버 발송처리 큐 등록 인라인 패널.
 // 매장 PC sync.js 가 60초 내 네이버 dispatch API 로 자동 연동 (IP 화이트리스트 우회).
 function NaverDispatchPanel({ providerOrderId, showToast }) {
-  const [company, setCompany] = useState('CJGLS');
+  const [company, setCompany] = useState(DEFAULT_COURIER_CODE);
   const [tracking, setTracking] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);

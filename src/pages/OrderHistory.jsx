@@ -10,20 +10,12 @@ import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPai
 import useCountUp from '@/hooks/useCountUp';
 import { supabase } from '@/lib/supabase';
 import { classifyOrderChannel, extractNaverBuyer } from '@/lib/channelClassifier';
+import { NAVER_COURIERS, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 
-// 네이버 발송처리 모달용 택배사 (SmartStoreOrders 와 동일)
-const DELIVERY_COMPANIES_FOR_DISPATCH = [
-  { code: 'CJGLS', name: 'CJ대한통운' },
-  { code: 'HANJIN', name: '한진택배' },
-  { code: 'LOGEN', name: '로젠택배' },
-  { code: 'EPOST', name: '우체국택배' },
-  { code: 'LOTTE', name: '롯데택배' },
-  { code: 'KGB', name: '경동택배' },
-  { code: 'CVSNET', name: 'CU편의점택배' },
-  { code: 'CUPOST', name: 'CU(BGF)' },
-  { code: 'DAESIN', name: '대신택배' },
-  { code: 'ILYANG', name: '일양로지스' },
-];
+// 🚨 2026-07-16: 이 파일이 택배사 목록을 자체 복제하면서 로젠=LOGEN, 경동=KGB로 잘못 갖고 있었다.
+//    공유 모듈(naverCouriers)이 실측으로 교정한 값(로젠=KGB, 경동=KDEXP)과 반대라
+//    여기서 로젠 발송 시 네이버가 104119로 거부했을 것. → 공유 모듈로 통일해 버그까지 제거.
+const DELIVERY_COMPANIES_FOR_DISPATCH = NAVER_COURIERS;
 
 // 카운트업 숫자 표시 (toLocaleString) — 명세서 통계와 동일 톤
 function CountNumber({ value, duration = 700 }) {
@@ -74,7 +66,7 @@ export default function OrderHistory({
   const [dateFilter, setDateFilter] = useState('today');
   // 네이버 발송처리 모달 (사용자 요청 — OrderHistory 카드에서 송장 입력 + 발송처리)
   const [naverDispatchModal, setNaverDispatchModal] = useState(null);
-  const [naverDispatchCompany, setNaverDispatchCompany] = useState('CJGLS');
+  const [naverDispatchCompany, setNaverDispatchCompany] = useState(DEFAULT_COURIER_CODE);
   const [naverDispatchTracking, setNaverDispatchTracking] = useState('');
   const [naverDispatching, setNaverDispatching] = useState(false);
 
