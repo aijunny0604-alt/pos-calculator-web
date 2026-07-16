@@ -922,6 +922,8 @@ export default function MainPOS({
                 const baseStock = item.stock !== undefined ? item.stock : 50;
                 const remainingStock = baseStock - item.quantity;
                 const hasDiscount = item.appliedTier && item.totalDiscount > 0;
+                // 택배비/퀵비 등 부대비용은 재고 개념이 없다 — 기본값 50에서 빠진 "잔여 49"가 뜨던 버그 (2026-07-16)
+                const isFee = item.taxFree === true || item.isCustom === true;
                 return (
                   <div
                     key={item.id}
@@ -955,6 +957,13 @@ export default function MainPOS({
                           style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)' }}
                         >
                           {item.appliedTier.type === 'percent' ? `${item.appliedTier.value}%↓` : `${formatPrice(item.appliedTier.value)}↓`}
+                        </span>
+                      ) : isFee ? (
+                        <span
+                          className="text-[11px] px-1.5 py-0.5 rounded-md font-bold flex-shrink-0 whitespace-nowrap"
+                          style={{ background: 'color-mix(in srgb, var(--muted-foreground) 15%, transparent)', color: 'var(--muted-foreground)' }}
+                        >
+                          비과세
                         </span>
                       ) : (
                         <span
@@ -1014,7 +1023,8 @@ export default function MainPOS({
                           {formatPrice(item.finalTotal)}<span className="text-sm font-bold">원</span>
                         </p>
                         <p className="text-xs leading-tight tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
-                          공급 {formatPrice(calcExVat(item.finalTotal))}
+                          {/* 비과세는 받은 금액 전액이 공급가 — calcExVat로 나누면 안 됨 (2026-07-16) */}
+                          공급 {formatPrice(item.taxFree ? item.finalTotal : calcExVat(item.finalTotal))}
                         </p>
                       </div>
                     </div>

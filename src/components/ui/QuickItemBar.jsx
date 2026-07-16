@@ -18,9 +18,21 @@ export default function QuickItemBar({ onAddLine, compact = false }) {
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
+  const [priceEdit, setPriceEdit] = useState(null); // { preset, value } — 칩 클릭 시 금액 확인/수정
 
+  // 칩을 누르면 바로 담지 않고 금액을 물어본다 — 택배비는 건마다 달라서(선불/착불/지역) 기본값 그대로인 경우가 드물다.
+  // 예전엔 담고 → 주문 수정 → 단가 고치기 3단계였다. 이제 칩 → 금액 → Enter. (2026-07-16)
   const handlePickPreset = (preset) => {
-    onAddLine?.(buildLineItem(preset));
+    setManageOpen(false);
+    setCustomOpen(false);
+    setPriceEdit({ preset, value: String(preset.defaultPrice || '') });
+  };
+
+  const confirmPriceEdit = () => {
+    if (!priceEdit) return;
+    const price = Number(String(priceEdit.value).replace(/[^\d]/g, '')) || 0;
+    onAddLine?.(buildLineItem(priceEdit.preset, { price }));
+    setPriceEdit(null);
   };
 
   const handleAddCustom = () => {
@@ -68,7 +80,7 @@ export default function QuickItemBar({ onAddLine, compact = false }) {
                 onClick={() => handlePickPreset(p)}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-semibold transition-colors hover:bg-[var(--accent)]"
                 style={{ borderColor: 'var(--border)', background: 'var(--background)', color: 'var(--foreground)' }}
-                title={`${p.name} ${fmt(p.defaultPrice)}원으로 추가`}
+                title={`${p.name} — 클릭하면 금액을 고쳐서 추가할 수 있어요 (기본 ${fmt(p.defaultPrice)}원)`}
               >
                 <Icon className="w-3 h-3" style={{ color: 'var(--primary)' }} />
                 <span>{p.name}</span>
@@ -95,6 +107,50 @@ export default function QuickItemBar({ onAddLine, compact = false }) {
             <span>커스텀</span>
           </button>
         </div>
+
+        {/* 금액 확인/수정 — 칩 누르면 여기서 바로 고치고 Enter (2026-07-16) */}
+        {priceEdit && (
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 w-full sm:w-auto"
+            style={{ borderColor: 'var(--primary)', background: 'var(--card)' }}
+          >
+            <span className="text-sm font-bold whitespace-nowrap" style={{ color: 'var(--foreground)' }}>
+              {priceEdit.preset.name}
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoFocus
+              value={priceEdit.value}
+              onChange={(e) => setPriceEdit({ ...priceEdit, value: e.target.value.replace(/[^\d]/g, '') })}
+              onFocus={(e) => e.target.select()} // 바로 덮어쓸 수 있게
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmPriceEdit(); }
+                if (e.key === 'Escape') { e.preventDefault(); setPriceEdit(null); }
+              }}
+              className="w-28 px-2.5 py-1.5 rounded-lg text-lg font-black border outline-none text-right tabular-nums"
+              style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+            />
+            <span className="text-sm font-bold" style={{ color: 'var(--muted-foreground)' }}>원</span>
+            <button
+              type="button"
+              onClick={confirmPriceEdit}
+              className="px-3 py-1.5 rounded-lg text-sm font-bold text-white whitespace-nowrap"
+              style={{ background: 'var(--primary)' }}
+            >
+              추가
+            </button>
+            <button
+              type="button"
+              onClick={() => setPriceEdit(null)}
+              className="p-1.5 rounded-lg hover:bg-[var(--accent)]"
+              style={{ color: 'var(--muted-foreground)' }}
+              aria-label="취소"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         <button
           type="button"
           onClick={() => {
