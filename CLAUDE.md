@@ -1,9 +1,38 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-16 (택배비·퀵비 비과세 처리 — 부가세 계산에서 제외)
+> 마지막 업데이트: 2026-07-16 (예약일 알림 · 칩 금액 즉시수정 · 비과세 처리 / 🚨 네이버 상품 PUT 금지 사고)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🚨 v2026-07-16 — 네이버 상품 수정 API 실증: **detailContent 왕복 불가** (사고 기록)
+
+MOVIS로 네이버 스토어 자동화(재고/가격/옵션 수정)를 검토하다 **실제 상품을 손상시킴**. 반드시 읽을 것.
+
+### 무슨 일
+판매중지(SUSPENSION) 상품에 **GET한 응답을 아무것도 안 바꾸고 그대로 PUT** → HTTP 200 성공, 재고·가격·상태·이미지 22개·옵션은 전부 보존됐으나 **`detailContent`의 스마트에디터 지도 블록이 이스케이프돼 깨짐**:
+```
+이전: <p class="se-map-address">부산광역시 기장군 정관읍 …</p>   (렌더링됨)
+이후: &lt;p class=&quot;se-map-address&quot;&gt;부산광역시 …      (태그가 글자로 보임)
+```
+- **백업으로 되돌리는 PUT도 똑같이 다시 깨진다** — 네이버가 PUT마다 이 블록을 이스케이프. **API로 복구 불가**, 스마트에디터(센터 UI)에서 지도 재삽입해야 함
+- 손상 상품: `10949514218` BMW G30 M550i RW 리모컨 가변 모듈 (SUSPENSION이라 손님 노출 없음). 백업: `naver-sync-bridge/backup_10949514218_*.json`
+
+### 🚨 결론 — 이 방식 금지
+- **`{originProduct, smartstoreChannelProduct}` 전체 PUT(read-modify-write)은 쓰면 안 된다.** `detailContent`(3.6만자)가 왕복을 못 견딤. 이대로 재고 기능을 만들었으면 **판매 중 상품 상세페이지를 죄다 망가뜨릴 뻔했다**
+- 살 길은 **상세설명을 안 건드리는 재고/상태 전용 엔드포인트**를 찾는 것. 그게 없으면 **네이버 자동 수정은 포기**가 맞다
+- 현재 상태: `external_products`는 **읽기 전용 캐시**(RLS SELECT만), sync.js에 네이버行 `PUT` 0건, MOVIS 네이버 쓰기 도구 0개. **읽기/진단(searchNaverCatalog)만 가능**
+
+### 참고 — 실증으로 확인된 구조
+- 인증: bcrypt 서명 `client_credentials`, body는 **form-urlencoded**, 서명은 **urlsafe base64**([sync.js](../naver-sync-bridge/sync.js):169-197). JSON body로 보내면 415
+- `GET /external/v2/products/channel-products/{channelProductNo}` → `{originProduct, smartstoreChannelProduct}`
+- 재고는 `originProduct.stockQuantity`, 가격 `salePrice`, 상태 `statusType`
+- 응답 21K~40K자, `detailContent`가 대부분(1.8만~3.6만자)
+
+### 다음에 시도한다면
+1. 재고/상태 **전용 API** 존재 여부부터 (상세설명 미포함 경로)
+2. 없으면 **읽기/진단만** 유지 — "가격 이상한 상품", "품절인데 판매중" 찾아주고 수정은 사장님이 센터에서
+3. 전체 PUT은 **어떤 경우에도 금지**
 
 ## 🆕 v2026-07-16 — 예약일 알림 띠 · 칩 금액 즉시 수정 · 카드/폰트 확대
 
