@@ -73,7 +73,8 @@
 - `StatusBadge.jsx` — 상태 뱃지 (완료/대기/반품 등)
 - `Toast.jsx` — 토스트 알림
 - **`SubPrice.jsx`** — 부가세 표시 헬퍼 (`total`/`layout`/`size`/`showWon`/**`taxFree`** props, NaN-safe). `taxFree`면 전액이 공급가 + "비과세"로 표기(부가세 0원이라 안 쓰는 이유: 왜 0인지 알게)
-- **`QuickItemBar.jsx`** — 택배비/퀵비/수수료/커스텀 즉석 추가 (주문상세·주문등록·저장카트 공유). 추가되는 라인은 **기본 `taxFree: true`**([useQuickItems.js](../src/hooks/useQuickItems.js))
+- **`QuickItemBar.jsx`** — 택배비/퀵비/수수료/커스텀 즉석 추가 (주문상세·주문등록·저장카트 공유). 추가되는 라인은 **기본 `taxFree: true`**([useQuickItems.js](../src/hooks/useQuickItems.js)). 칩 클릭 시 **금액 확인창**(기본값 autoFocus+select, Enter=추가/Esc=취소) — 택배비는 건마다 달라서
+- **`ReservationAlertBar.jsx`** (src/components/) — 예약일 알림 띠. 저장 장바구니의 `delivery_date`가 당일/지났는데 아직 주문 안 넘긴 건을 상기. 스누즈 30분, 5분 폴링. **App.jsx AppLayout 안 최상단**에 배치. 🚨 pos 화면은 우측 장바구니가 fixed라 `reserveRightGutter`로 `lg:pr-[420px]` 보정 필요
 - **`QuickItemBar.jsx`** — 부가 항목(택배비/퀵비/수수료) 즉석 추가, 사용자 프리셋 (localStorage `pos_quick_items_v1`)
 
 ### AI 분석 컴포넌트 (src/components/analytics/)
