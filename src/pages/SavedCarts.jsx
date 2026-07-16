@@ -9,7 +9,7 @@ import SubPrice from '@/components/ui/SubPrice';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import QuickItemBar from '@/components/ui/QuickItemBar';
-import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST, calcExVat, formatDate } from '@/lib/utils';
+import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST, calcExVat, calcOrderVat, formatDate } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountLabel as fmtDiscountLabel, discountPlaceholder } from '@/lib/discount';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
@@ -49,8 +49,15 @@ export default function SavedCarts({
       const price = priceType === 'wholesale' ? (item.wholesale || item.price || item.retail || 0) : (item.retail || item.price || item.wholesale || 0);
       return sum + price * (item.quantity || 1);
     }, 0) || 0;
-    const exVat = calcExVat(total);
-    const vat = total - exVat;
+    // 비과세(택배비/퀵비 등)는 전액이 공급가액 — 품목 단위로 계산 (2026-07-15)
+    const _vb = calcOrderVat(cart.items || [], {
+      priceOf: (item) => {
+        const price = priceType === 'wholesale' ? (item.wholesale || item.price || item.retail || 0) : (item.retail || item.price || item.wholesale || 0);
+        return price * (item.quantity || 1);
+      },
+    });
+    const exVat = _vb.supply;
+    const vat = _vb.vat;
     const totalQty = cart.items?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
 
     let text = `[ 주문서 ]\n\n`;
@@ -670,8 +677,9 @@ export default function SavedCarts({
                   itemPrice = currentCart.total / item.quantity;
                 }
                 const itemTotal = itemPrice * item.quantity;
-                const itemSupply = Math.round(itemPrice / 1.1);
-                const itemTotalSupply = Math.round(itemTotal / 1.1);
+                // 비과세(택배비/퀵비 등)는 받은 금액 전액이 공급가 (2026-07-15)
+                const itemSupply = item.taxFree ? itemPrice : Math.round(itemPrice / 1.1);
+                const itemTotalSupply = item.taxFree ? itemTotal : Math.round(itemTotal / 1.1);
 
                 const isWholesale = currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale';
                 const priceField = isWholesale ? 'wholesale' : 'retail';
@@ -896,7 +904,7 @@ export default function SavedCarts({
                             }`}
                             style={{ color: isDiscounted ? 'var(--warning)' : 'var(--primary)' }}
                           />
-                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>VAT제외 {formatPrice(itemSupply)}</span>
+                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{item.taxFree ? '비과세' : `VAT제외 ${formatPrice(itemSupply)}`}</span>
                         </label>
                         {/* 합계 */}
                         <div className="flex flex-col gap-1 px-3 py-2 text-center justify-center">
@@ -904,7 +912,7 @@ export default function SavedCarts({
                           <p className="text-base font-bold tabular-nums leading-tight" style={{ color: 'var(--success)' }}>
                             {formatPrice(itemTotal)}원
                           </p>
-                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>VAT제외 {formatPrice(itemTotalSupply)}</span>
+                          <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{item.taxFree ? '비과세' : `VAT제외 ${formatPrice(itemTotalSupply)}`}</span>
                         </div>
                       </div>
                       {/* 할인 토글 + 펼침 영역 */}
@@ -1010,7 +1018,7 @@ export default function SavedCarts({
                               <p className="text-xs line-through" style={{ color: 'var(--muted-foreground)' }}>{formatPrice(baseUnit)}</p>
                             )}
                             <p className="text-sm" style={{ color: 'var(--primary)' }}>{formatPrice(itemPrice)}</p>
-                            <p className="text-[var(--muted-foreground)] text-xs">(VAT제외 {formatPrice(itemSupply)})</p>
+                            <p className="text-[var(--muted-foreground)] text-xs">{item.taxFree ? '(비과세)' : `(VAT제외 ${formatPrice(itemSupply)})`}</p>
                           </div>
                         )}
                       </div>
@@ -1019,7 +1027,7 @@ export default function SavedCarts({
                         {itemPrice > 0 ? (
                           <div className="text-right">
                             <p className="font-bold text-base" style={{ color: 'var(--success)' }}>{formatPrice(itemTotal)}</p>
-                            <p className="text-[var(--muted-foreground)] text-xs">(VAT제외 {formatPrice(itemTotalSupply)})</p>
+                            <p className="text-[var(--muted-foreground)] text-xs">{item.taxFree ? '(비과세)' : `(VAT제외 ${formatPrice(itemTotalSupply)})`}</p>
                           </div>
                         ) : (
                           <p className="text-[var(--muted-foreground)] text-xs">가격 정보 없음</p>

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import QuickCalculator from './QuickCalculator';
 import QuickItemBar from '@/components/ui/QuickItemBar';
-import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
+import { formatPrice, calcExVat, calcOrderVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
@@ -239,8 +239,13 @@ export default function OrderPage({
   const currentTotal = cartWithDiscount.length > 0
     ? cartWithDiscount.reduce((sum, item) => sum + item.finalTotal, 0)
     : cart.reduce((sum, item) => sum + (getLineUnit(item) * item.quantity), 0);
-  const exVat = calcExVat(currentTotal);
-  const vat = currentTotal - exVat;
+  // 비과세(택배비/퀵비 등)는 전액이 공급가액 — 품목 단위로 계산 (2026-07-15)
+  const _vb = calcOrderVat(
+    cartWithDiscount.length > 0 ? cartWithDiscount : cart,
+    cartWithDiscount.length > 0 ? {} : { priceOf: (it) => getLineUnit(it) * it.quantity }
+  );
+  const exVat = _vb.supply;
+  const vat = _vb.vat;
 
   const generateOrderText = () => {
     let text = `[ 주문서 ]\n\n`;
@@ -311,6 +316,9 @@ export default function OrderPage({
           ? Number(item.unitPrice) || 0
           : getLineUnit(item);
         const baseItem = { id: item.id, name: item.name, price: unit, quantity: item.quantity };
+        // 🚨 비과세 플래그는 반드시 함께 저장 — 여기서 빠뜨리면 저장 순간 과세로 되돌아가
+        //    주문상세/명세서 공급가액이 화면과 달라진다 (2026-07-15)
+        if (item.taxFree === true) baseItem.taxFree = true;
         // 현재 가격타입에서 유효한 할인 메타만 저장 (다른 가격타입 할인 메타 누락 방지)
         if (isDiscountActiveForCurrent(item)) {
           baseItem.originalPrice = Number(item.originalPrice) || unit;
@@ -802,17 +810,17 @@ export default function OrderPage({
                               <span className="flex items-center gap-2 flex-wrap">
                                 <span className="line-through" style={{ color: 'var(--muted-foreground)' }}>{fmt(price)}</span>
                                 <span className="font-medium" style={{ color: 'var(--warning)' }}>{fmt(item.discountedPrice)}</span>
-                                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>(VAT제외 {fmt(Math.round(item.discountedPrice / 1.1))})</span>
+                                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{item.taxFree ? '(비과세)' : `(VAT제외 ${fmt(Math.round(item.discountedPrice / 1.1))})`}</span>
                               </span>
                             ) : isLineDiscounted ? (
                               <span className="flex items-center gap-2 flex-wrap">
                                 <span className="line-through" style={{ color: 'var(--muted-foreground)' }}>{fmt(lineBase)}</span>
                                 <span className="font-medium" style={{ color: 'var(--warning)' }}>{fmt(price)}</span>
-                                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>(VAT제외 {fmt(Math.round(price / 1.1))})</span>
+                                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{item.taxFree ? '(비과세)' : `(VAT제외 ${fmt(Math.round(price / 1.1))})`}</span>
                               </span>
                             ) : (
                               <span style={{ color: 'var(--primary)' }}>
-                                {fmt(price)} <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>(VAT제외 {fmt(Math.round(price / 1.1))})</span>
+                                {fmt(price)} <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{item.taxFree ? '(비과세)' : `(VAT제외 ${fmt(Math.round(price / 1.1))})`}</span>
                               </span>
                             )}
                           </div>

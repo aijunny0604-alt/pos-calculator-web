@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react';
 const STORAGE_KEY = 'pos_quick_items_v1';
 const MIGRATION_KEY = 'pos_quick_items_migration_v2'; // 2026-05: 택배비 5000 → 7300 마이그레이션 플래그
 
+// taxFree: 우리 상품이 아니라 실비 대납 성격 → 부가세 계산 제외 (2026-07-15 사장님 결정)
+//   받은 금액 = 공급가액, 부가세 0. 계산은 lib/utils.js calcOrderVat 참조
 const DEFAULT_PRESETS = [
-  { id: 'shipping', name: '택배비', defaultPrice: 7300, builtin: true },
-  { id: 'quick', name: '퀵비', defaultPrice: 30000, builtin: true },
-  { id: 'fee', name: '수수료', defaultPrice: 0, builtin: true },
+  { id: 'shipping', name: '택배비', defaultPrice: 7300, builtin: true, taxFree: true },
+  { id: 'quick', name: '퀵비', defaultPrice: 30000, builtin: true, taxFree: true },
+  { id: 'fee', name: '수수료', defaultPrice: 0, builtin: true, taxFree: true },
 ];
 
 function load() {
@@ -98,6 +100,9 @@ export default function useQuickItems() {
       quantity: 1,
       isCustom: true,
       presetId: preset.id,
+      // 기존 프리셋(localStorage)엔 taxFree가 없다 → 기본 true.
+      // 명시적으로 false를 넣은 프리셋만 과세로 본다(관리 UI에서 끌 수 있음)
+      taxFree: preset.taxFree !== false,
     };
   };
 

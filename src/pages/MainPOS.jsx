@@ -3,7 +3,7 @@ import {
   Search, ShoppingCart, Plus, Minus, X, ChevronDown, ChevronUp,
   Package, Calculator, Maximize2, Minimize2, RotateCcw, Zap, ArrowLeft, Mic, MicOff
 } from 'lucide-react';
-import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calculateDiscount } from '@/lib/utils';
+import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calcOrderVat, calculateDiscount } from '@/lib/utils';
 import { searchProductsRanked } from '@/lib/productMatch';
 import { isImageDemoMode, getSampleImage } from '@/lib/sampleProductImages';
 import ProductGalleryModal from '@/components/ProductGalleryModal';
@@ -183,6 +183,10 @@ export default function MainPOS({
     return cartWithDiscount.reduce((sum, item) => sum + item.finalTotal, 0);
   }, [cartWithDiscount]);
 
+  // 공급가액·부가세는 품목 단위로 — 택배비/퀵비 등 비과세(taxFree) 항목은 전액이 공급가액.
+  // 전역 calcExVat(totalAmount)로 나누면 비과세분에도 부가세가 붙는다. (2026-07-15)
+  const vatBreakdown = useMemo(() => calcOrderVat(cartWithDiscount), [cartWithDiscount]);
+
   const totalDiscount = useMemo(() => {
     return cartWithDiscount.reduce((sum, item) => sum + item.totalDiscount, 0);
   }, [cartWithDiscount]);
@@ -340,6 +344,8 @@ export default function MainPOS({
         category: item.category,
         price: item.discountedPrice,
         quantity: item.quantity,
+        // 🚨 비과세 플래그 보존 — 빠뜨리면 저장 순간 과세로 되돌아가 명세서 공급가액이 화면과 달라짐
+        ...(item.taxFree === true ? { taxFree: true } : {}),
       })),
       total_amount: totalAmount,
       price_type: priceType,
@@ -852,7 +858,7 @@ export default function MainPOS({
               className={`flex-1 ${cart.length > 0 ? 'cursor-pointer' : ''}`}
             >
               <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                공급가 {formatPrice(calcExVat(totalAmount))}원 + VAT
+                공급가 {formatPrice(vatBreakdown.supply)}원 + VAT
               </p>
               <div className="flex items-center gap-2">
                 <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>
@@ -1045,8 +1051,8 @@ export default function MainPOS({
           <div className="p-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-start justify-between mb-4">
               <div className="text-xs space-y-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                <p>공급가 {formatPrice(calcExVat(totalAmount))}원</p>
-                <p>VAT {formatPrice(totalAmount - calcExVat(totalAmount))}원</p>
+                <p>공급가 {formatPrice(vatBreakdown.supply)}원</p>
+                <p>VAT {formatPrice(vatBreakdown.vat)}원</p>
                 {totalDiscount > 0 && (
                   <p style={{ color: 'var(--warning)' }}>할인 -{formatPrice(totalDiscount)}원</p>
                 )}
@@ -1300,8 +1306,8 @@ export default function MainPOS({
               <div className="p-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-sm space-y-1" style={{ color: 'var(--muted-foreground)' }}>
-                    <p>공급가 {formatPrice(calcExVat(totalAmount))}원</p>
-                    <p>VAT {formatPrice(totalAmount - calcExVat(totalAmount))}원</p>
+                    <p>공급가 {formatPrice(vatBreakdown.supply)}원</p>
+                    <p>VAT {formatPrice(vatBreakdown.vat)}원</p>
                     {totalDiscount > 0 && (
                       <p style={{ color: 'var(--warning)' }}>할인 -{formatPrice(totalDiscount)}원</p>
                     )}

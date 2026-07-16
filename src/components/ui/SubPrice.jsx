@@ -1,5 +1,8 @@
 import { calcExVat, formatPrice } from '@/lib/utils';
 
+// @prop {boolean} taxFree — 비과세 항목(택배비/퀵비 등). true면 받은 금액 전액이 공급가, 부가세 0.
+//   (2026-07-15) 우리 상품이 아닌 실비 대납이라 부가세 계산에서 뺀다. lib/utils.js calcOrderVat와 동일 규칙.
+
 /**
  * 보조 가격 표시 컴포넌트 — 부가세 포함 합계 옆/아래에 공급가/부가세를 통일된 스타일로.
  *
@@ -22,11 +25,13 @@ export default function SubPrice({
   layout = 'stacked',
   size = 'sm',
   showWon = true,
+  taxFree = false,
   className = '',
 }) {
   const t = Number(total);
   const safe = Number.isFinite(t) && t > 0 ? t : 0;
-  const ex = calcExVat(safe);
+  // 비과세면 받은 금액 전액이 공급가, 부가세 0
+  const ex = taxFree ? safe : calcExVat(safe);
   const vat = safe - ex;
 
   const sizeCls = size === 'xs' ? 'text-[10px]' : 'text-[11px]';
@@ -45,7 +50,8 @@ export default function SubPrice({
   if (layout === 'inline') {
     return (
       <p className={`${lineCls} ${className}`} style={baseStyle}>
-        공급가 {formatPrice(ex)}{won} · 부가세 {formatPrice(vat)}{won}
+        공급가 {formatPrice(ex)}{won}
+        {taxFree ? ' · 비과세' : ` · 부가세 ${formatPrice(vat)}${won}`}
       </p>
     );
   }
@@ -53,7 +59,8 @@ export default function SubPrice({
   return (
     <div className={className}>
       <p className={lineCls} style={baseStyle}>공급가 {formatPrice(ex)}{won}</p>
-      <p className={lineCls} style={baseStyle}>부가세 {formatPrice(vat)}{won}</p>
+      {/* 비과세는 "부가세 0원"보다 "비과세"라고 써야 왜 0인지 바로 안다 */}
+      <p className={lineCls} style={baseStyle}>{taxFree ? '비과세 (부가세 없음)' : `부가세 ${formatPrice(vat)}${won}`}</p>
     </div>
   );
 }

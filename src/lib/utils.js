@@ -73,6 +73,54 @@ export const formatPrice = (price) => {
 // VAT 제외 계산
 export const calcExVat = (price) => Math.round(price / 1.1);
 
+// ───────── 비과세 항목 (2026-07-15) ─────────
+// 택배비/퀵비/수수료/커스텀 = 우리 상품이 아니라 실비 대납 성격 → 부가세 계산에서 제외.
+// 이 항목들은 "받은 금액 = 공급가액, 부가세 0". 일반 제품은 기존대로 VAT 포함가라 /1.1.
+//
+// ⚠️ 과거 데이터 보호: 기존 주문에는 taxFree 필드가 없다. 필드 없으면 과세로 본다(기존 동작 유지)
+//    → 과거 명세서 금액이 소급해서 바뀌지 않음. 사장님 결정(2026-07-15).
+export const isTaxFreeItem = (item) => item?.taxFree === true;
+
+// 라인 합계(부가세 포함가 기준)를 구하는 기본 규칙 — 화면마다 제각각이라 여기 모아둠
+const lineTotal = (item) => {
+  if (!item) return 0;
+  // 이미 계산된 합계가 있으면 그걸 신뢰 (할인 적용된 finalTotal 등)
+  if (Number.isFinite(Number(item.finalTotal))) return Number(item.finalTotal);
+  const price = Number(item.price ?? item.wholesale ?? item.retail) || 0;
+  return price * (Number(item.quantity) || 1);
+};
+
+/**
+ * 주문/카트의 공급가액·부가세를 **품목 단위**로 계산.
+ * 총액(부가세 포함)은 그대로 두고, 비과세 항목만 부가세 0으로 빼서 공급가액을 올린다.
+ *
+ * 예) 플랜지 60,500(과세) + 택배비 6,000×2(비과세)
+ *     → total 72,500 / supply 67,000 / vat 5,500  (기존 전역 /1.1이면 65,909 / 6,591)
+ *
+ * @param items 라인 배열. 각 항목 { price|wholesale|retail, quantity, finalTotal?, taxFree? }
+ * @param opts.priceOf 라인 합계를 직접 구하는 함수(화면별 가격 규칙이 다를 때). 없으면 기본 규칙
+ * @returns {{ total, supply, vat, taxableTotal, taxFreeTotal }}
+ */
+export const calcOrderVat = (items, opts = {}) => {
+  const get = opts.priceOf || lineTotal;
+  let taxableTotal = 0;
+  let taxFreeTotal = 0;
+  for (const it of items || []) {
+    const amount = Number(get(it)) || 0;
+    if (isTaxFreeItem(it)) taxFreeTotal += amount;
+    else taxableTotal += amount;
+  }
+  const supplyTaxable = calcExVat(taxableTotal);
+  const vat = taxableTotal - supplyTaxable;
+  return {
+    total: taxableTotal + taxFreeTotal,
+    supply: supplyTaxable + taxFreeTotal, // 비과세는 받은 금액 전액이 공급가액
+    vat,
+    taxableTotal,
+    taxFreeTotal,
+  };
+};
+
 // 한국시간(KST) 기준 오늘 날짜 (YYYY-MM-DD)
 // getTime()은 항상 UTC 밀리초를 반환하므로 9시간만 더하면 KST
 export const getTodayKST = () => {

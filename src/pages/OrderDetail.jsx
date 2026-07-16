@@ -4,7 +4,7 @@ import {
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
   ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2, Tag, Percent, Replace, Search, Layers
 } from 'lucide-react';
-import { formatPrice, calcExVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
+import { formatPrice, calcExVat, calcOrderVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
 import QuickItemBar from '@/components/ui/QuickItemBar';
 import QuickCalculator from './QuickCalculator';
@@ -216,8 +216,12 @@ export default function OrderDetail({
   const currentItems = isEditing ? editedOrder.items : order.items;
   const currentTotal = currentItems.reduce((sum, item) => sum + (getItemPrice(item) * item.quantity), 0);
   const totalQuantity = currentItems.reduce((sum, item) => sum + item.quantity, 0);
-  const exVat = calcExVat(currentTotal);
-  const vat = currentTotal - exVat;
+  // 공급가액·부가세는 품목 단위 — 택배비/퀵비 등 비과세(taxFree)는 전액이 공급가액.
+  // 전역 calcExVat(currentTotal)로 나누면 비과세분에도 부가세가 붙는다. (2026-07-15)
+  // priceOf: 이 화면은 getItemPrice(할인 반영 단가) × 수량이 라인 합계
+  const _vatBreak = calcOrderVat(currentItems, { priceOf: (it) => getItemPrice(it) * it.quantity });
+  const exVat = _vatBreak.supply;
+  const vat = _vatBreak.vat;
   const totalReturned = order.totalReturned || 0;
 
   // Product search for replacing
@@ -1281,8 +1285,8 @@ export default function OrderDetail({
                             <div className="font-medium tabular-nums" style={{ color: isDiscounted ? 'var(--warning)' : 'var(--foreground)' }}>{formatPrice(unit)}원</div>
                           )}
                           <div className="text-[10px] mt-0.5 leading-tight" style={{ color: 'var(--muted-foreground)' }}>
-                            <div>공급 {formatPrice(calcExVat(unit))}원</div>
-                            <div>부가세 {formatPrice(unit - calcExVat(unit))}원</div>
+                            <div>공급 {formatPrice(item.taxFree ? unit : calcExVat(unit))}원</div>
+                            <div>{item.taxFree ? '비과세' : `부가세 ${formatPrice(unit - calcExVat(unit))}원`}</div>
                           </div>
                         </div>
                         <div className="rounded-lg p-2" style={{ background: 'var(--muted)' }}>
@@ -1294,8 +1298,8 @@ export default function OrderDetail({
                           )}
                           <div className="font-bold tabular-nums" style={{ color: 'var(--primary)' }}>{formatPrice(unit * item.quantity)}원</div>
                           <div className="text-[10px] mt-0.5 leading-tight" style={{ color: 'var(--muted-foreground)' }}>
-                            <div>공급 {formatPrice(calcExVat(unit * item.quantity))}원</div>
-                            <div>부가세 {formatPrice(unit * item.quantity - calcExVat(unit * item.quantity))}원</div>
+                            <div>공급 {formatPrice(item.taxFree ? unit * item.quantity : calcExVat(unit * item.quantity))}원</div>
+                            <div>{item.taxFree ? '비과세' : `부가세 ${formatPrice(unit * item.quantity - calcExVat(unit * item.quantity))}원`}</div>
                           </div>
                         </div>
                       </div>
@@ -1494,8 +1498,8 @@ export default function OrderDetail({
                           )}
                           {(showLineVat || isEditing) && (
                             <div className="text-[13px] opacity-80 leading-tight mt-0.5 tabular-nums">
-                              <div>공급가 {formatPrice(calcExVat(unit))}원</div>
-                              <div>부가세 {formatPrice(unit - calcExVat(unit))}원</div>
+                              <div>공급가 {formatPrice(item.taxFree ? unit : calcExVat(unit))}원</div>
+                              <div>{item.taxFree ? '비과세' : `부가세 ${formatPrice(unit - calcExVat(unit))}원`}</div>
                             </div>
                           )}
                         </div>
@@ -1543,8 +1547,8 @@ export default function OrderDetail({
                           <div className="font-bold text-xl tabular-nums" style={{ color: 'var(--primary)' }}>{formatPrice(unit * item.quantity)}원</div>
                           {(showLineVat || isEditing) && (
                             <div className="text-[13px] font-normal leading-tight mt-0.5 tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
-                              <div>공급가 {formatPrice(calcExVat(unit * item.quantity))}원</div>
-                              <div>부가세 {formatPrice(unit * item.quantity - calcExVat(unit * item.quantity))}원</div>
+                              <div>공급가 {formatPrice(item.taxFree ? unit * item.quantity : calcExVat(unit * item.quantity))}원</div>
+                              <div>{item.taxFree ? '비과세' : `부가세 ${formatPrice(unit * item.quantity - calcExVat(unit * item.quantity))}원`}</div>
                             </div>
                           )}
                         </div>

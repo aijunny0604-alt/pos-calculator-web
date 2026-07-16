@@ -1,9 +1,24 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-15 (매입 발주 시스템 신설 — 발주서 판독·단가표·수불장부 + 사업자등록증 노출)
+> 마지막 업데이트: 2026-07-16 (택배비·퀵비 비과세 처리 — 부가세 계산에서 제외)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-07-16 — 택배비/퀵비 비과세 처리 (부가세 계산에서 제외)
+
+사장님: "택배비·퀵비는 우리 상품이 아니잖아 — 부가세 제외시켜서 계산되게. 견적서 발행시에도 반영해서 헷갈리지 않게"
+
+- 🚨 **기존엔 `calcExVat = price / 1.1`이 전역 전제**였다. 모든 금액이 VAT 포함이라 보고 9개 파일에서 나눔 → 택배비 6,000도 공급 5,455 + VAT 545로 쪼개졌다
+- **`taxFree` 품목 플래그** 도입. 빠른추가 3종(택배비·퀵비·수수료) + 커스텀 항목 **기본 비과세**([useQuickItems.js](src/hooks/useQuickItems.js) `buildLineItem`). 비과세 = **받은 금액 전액이 공급가액, 부가세 0**
+- **계산 단일소스** [utils.js](src/lib/utils.js) `calcOrderVat(items, {priceOf})` — 품목 단위로 과세/비과세를 갈라 합산. `isTaxFreeItem` / `calcExVat`(기존, 과세용)와 함께 사용
+  - 예) 플랜지 60,500(과세) + 택배비 6,000×2(비과세) → 총 72,500 / **공급 67,000 / VAT 5,500** (기존 전역 /1.1이면 65,909 / 6,591)
+- **반영 위치**: [MainPOS](src/pages/MainPOS.jsx)(카트 합계 3곳) · [OrderPage](src/pages/OrderPage.jsx)(주문서+주문서 텍스트) · [OrderDetail](src/pages/OrderDetail.jsx)(상세+견적서/인쇄 텍스트+품목별 4곳) · [SavedCarts](src/pages/SavedCarts.jsx)(주문서 텍스트+품목별) · **[InvoicesPage](src/pages/InvoicesPage.jsx) 명세서는 라인 단위로 처리** → 공급가액/부가세 합계가 자동으로 맞음
+- **표시**: "부가세 0원" 대신 **"비과세"** 로 표기([SubPrice.jsx](src/components/ui/SubPrice.jsx) `taxFree` prop). 왜 0인지 바로 알게
+- 🚨 **`items` 매핑에서 taxFree 유실 주의**: 저장 경로들이 필드를 **명시적으로 나열**해서 그냥 두면 저장 순간 과세로 되돌아간다. [MainPOS](src/pages/MainPOS.jsx) saveOrder · [OrderPage](src/pages/OrderPage.jsx) baseItem · [App.jsx](src/App.jsx) 저장카트 3곳에 보존 코드 넣음. **새 저장 경로 만들 때 반드시 함께 넘길 것**
+- ⚠️ **과거 데이터 불변**: 기존 주문엔 `taxFree` 필드가 없어 과세로 계산됨 → **과거 명세서 금액이 소급해서 안 바뀜**(사장님 결정). `taxFree === true`일 때만 비과세
+- ⚠️ 세무 확인 권고: 택배비를 청구하면 과세로 보는 게 일반적(재화 공급에 부수되는 운송비). 세무사 확인 필요하다고 안내함
+- 검증: 실제 주문(플랜지+택배비2)으로 스크립트 검산 + 실브라우저 — 공급 12,800 = 플랜지 5,500 + 택배비 7,300, 과거데이터 불변 확인
 
 ## 🆕 v2026-07-15 — 매입 발주 시스템 신설 (발주서 판독 · 단가표 · 수불장부) + 사업자등록증 노출
 

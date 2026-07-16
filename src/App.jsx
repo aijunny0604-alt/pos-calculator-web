@@ -1429,6 +1429,8 @@ export default function App() {
                 wholesale: item.wholesale,
                 retail: item.retail,
                 quantity: item.quantity,
+                // 🚨 비과세 플래그 보존 — 빠뜨리면 저장 카트를 불러왔을 때 택배비가 과세로 돌아감
+                ...(item.taxFree === true ? { taxFree: true } : {}),
               })),
               total: totalAmount,
               price_type: priceType,

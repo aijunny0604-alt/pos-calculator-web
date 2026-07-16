@@ -36,6 +36,7 @@ export default function QuickItemBar({ onAddLine, compact = false }) {
       retail: price,
       quantity: 1,
       isCustom: true,
+      taxFree: true, // 빠른추가로 넣는 부대비용은 기본 비과세 (2026-07-15)
     });
     setCustomName('');
     setCustomPrice('');

@@ -339,7 +339,11 @@ export default function InvoicesPage({
       const qty = Number(ov.qty ?? it.quantity) || 1;
       const unitWithVat = Number(ov.unitWithVat ?? it.price) || 0;
       const lineWithVat = unitWithVat * qty;
-      const supply = Math.round(lineWithVat / 1.1);
+      // 비과세 항목(택배비/퀵비 등 실비 대납)은 받은 금액 전액이 공급가액, 부가세 0.
+      // 라인 단위로 처리하면 아래 totals(공급가액 합계/부가세 합계)까지 자동으로 맞는다. (2026-07-15)
+      // ⚠️ 기존 주문엔 taxFree 필드가 없어 과세로 계산됨 = 과거 명세서 금액 불변(의도된 동작)
+      const isTaxFree = it.taxFree === true;
+      const supply = isTaxFree ? lineWithVat : Math.round(lineWithVat / 1.1);
       const vat = lineWithVat - supply;
       const isDiscounted = !!it.discountType && Number(it.discountValue) > 0 && ov.unitWithVat == null;
       const baseUnit = isDiscounted ? (Number(it.originalPrice) || unitWithVat) : unitWithVat;
@@ -350,10 +354,11 @@ export default function InvoicesPage({
         name: ov.name ?? (it.name || it.product_name || '품목'),
         spec: it.spec || it.option || '',
         qty,
-        unitPrice: Math.round(unitWithVat / 1.1),
+        unitPrice: isTaxFree ? unitWithVat : Math.round(unitWithVat / 1.1),
         unitWithVat,
         supply,
         vat,
+        isTaxFree,
         memo: '',
         edited: !!(ov.qty != null || ov.unitWithVat != null || ov.name != null),
         isDiscounted,
