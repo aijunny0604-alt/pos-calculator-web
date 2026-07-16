@@ -12,7 +12,7 @@
 | `src/App.jsx` | 메인 앱. 라우팅, 상태관리, Supabase 실시간 구독, saveOrder, deductStock, `goToInvoices(customerId)` cross-navigation |
 | `src/lib/supabase.js` | Supabase REST API 래퍼. **payment 동기화** (`syncOrderPaidRecord`, `revokeAutoPaidHistory`) — payment_records `balance/payment_status`는 generated columns, payload 제외 필수 |
 | `src/lib/priceData.js` | 하드코딩 상품 (오프라인 폴백) |
-| `src/lib/utils.js` | `formatPrice` (NaN-safe), `formatDateTime`, `getTodayKST`, `toDateKST`, `matchesSearchQuery`, `normalizeText` |
+| `src/lib/utils.js` | `formatPrice` (NaN-safe), `formatDateTime`, `getTodayKST`, `toDateKST`, `matchesSearchQuery`, `normalizeText`, **`calcExVat`**(과세분 /1.1), **`calcOrderVat(items, {priceOf})`**(v2026-07-16 — 품목별 과세/비과세 갈라 공급가액·부가세 계산. **부가세 계산의 단일소스**), **`isTaxFreeItem`** |
 | `src/lib/discount.js` | **할인 유틸** — `calcFinalPrice(base, type, value)`, `convertDiscountValue`, `discountLabel`, 3-mode (`percent`/`amount`/`fixed`) |
 | `src/lib/purchaseExport.js` | **매입 발주 단일소스** — 상태/금액 계산(`itemStatus`/`itemSupply`/`poTotal`/`poOpenItems`), 묵은기간(`daysSince`/`ageLevel`), CSV/카톡/프린트/엑셀(exceljs 동적 import). 화면·출력물이 어긋나지 않게 계산을 여기 한 곳에 둠 |
 | `src/lib/quoteVision.js` | **발주서 사진 판독** — `extractPurchaseQuote`(무료 gemini flash vision, 키/모델 로테이션, temp 0), `normalizeQuote`(더미행 제외 + **산술 자기검산**), `findFillTargets`(무상보전 채울 발주 후보). 🚨 임베드 키 referrer 제한 → localhost 403, 배포본에서만 동작 |
@@ -72,7 +72,8 @@
 - `EmptyState.jsx` — 빈 상태 표시
 - `StatusBadge.jsx` — 상태 뱃지 (완료/대기/반품 등)
 - `Toast.jsx` — 토스트 알림
-- **`SubPrice.jsx`** — 부가세 표시 헬퍼 (`total`/`layout`/`size`/`showWon` props, NaN-safe)
+- **`SubPrice.jsx`** — 부가세 표시 헬퍼 (`total`/`layout`/`size`/`showWon`/**`taxFree`** props, NaN-safe). `taxFree`면 전액이 공급가 + "비과세"로 표기(부가세 0원이라 안 쓰는 이유: 왜 0인지 알게)
+- **`QuickItemBar.jsx`** — 택배비/퀵비/수수료/커스텀 즉석 추가 (주문상세·주문등록·저장카트 공유). 추가되는 라인은 **기본 `taxFree: true`**([useQuickItems.js](../src/hooks/useQuickItems.js))
 - **`QuickItemBar.jsx`** — 부가 항목(택배비/퀵비/수수료) 즉석 추가, 사용자 프리셋 (localStorage `pos_quick_items_v1`)
 
 ### AI 분석 컴포넌트 (src/components/analytics/)

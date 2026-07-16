@@ -56,7 +56,7 @@
 | 컬럼 | 타입 | 설명 |
 |------|------|------|
 | id | TEXT | 주문 ID (ORD-YYYYMMDD-XXXX) |
-| items | JSONB | 주문 아이템 배열 [{id, name, price, quantity}] |
+| items | JSONB | 주문 아이템 배열 `[{id, name, price, quantity, taxFree?, originalPrice?, discountType?, discountValue?, originalPriceField?}]` |
 | customer_name | TEXT | 고객명 |
 | customer_phone | TEXT | 전화번호 |
 | customer_address | TEXT | 주소 |
@@ -71,6 +71,11 @@
 | created_at | TIMESTAMPTZ | 생성일시 |
 
 > **주의**: `updated_at`, `status` 컬럼은 존재하지 않음. PATCH 시 이 키를 보내면 PGRST204 에러 발생.
+>
+> **🚨 `items[].taxFree` (v2026-07-16)**: 택배비/퀵비/수수료/커스텀 = 우리 상품이 아닌 실비 대납 → **비과세**. `true`면 받은 금액 **전액이 공급가액, 부가세 0**.
+> - 계산은 반드시 [`calcOrderVat`](../src/lib/utils.js) 사용. 전역 `calcExVat(total)`(=total/1.1)로 나누면 **비과세분에도 부가세가 붙는다**
+> - **저장 시 유실 주의**: 저장 경로들이 items 필드를 명시 나열하는 구조라 `taxFree`를 안 넘기면 저장 순간 과세로 되돌아간다. 새 저장 경로 만들 때 반드시 포함
+> - **과거 데이터**: 필드가 없으면 과세로 계산(기존 동작 유지) → 과거 명세서 금액 불변. `taxFree === true`일 때만 비과세
 
 ### products
 | 컬럼 | 설명 |
