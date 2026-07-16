@@ -1576,7 +1576,9 @@ export default function SavedCarts({
             description="다른 날짜나 검색어를 시도해보세요"
           />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          // 3열 → 2열(2xl에서만 3열). 3열이면 카드가 좁아 폰트를 10~12px로 줄여야 했다.
+          // 폭을 벌어야 글자를 키울 수 있다. (2026-07-16)
+          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
             {filteredCartsWithIndex.map(({ cart, originalIndex }) => {
               const index = originalIndex;
               const cartItemsDisplay = cart.items.map(item => `${item.name}(${item.quantity})`).join(', ');
@@ -1635,7 +1637,7 @@ export default function SavedCarts({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap mb-1">
                               <span className="flex-shrink-0 text-base" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>{isBlacklist ? '🚫' : '👤'}</span>
-                              <h3 className="text-base sm:text-lg font-bold break-words leading-snug min-w-0" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>
+                              <h3 className="text-lg sm:text-xl font-black break-words leading-snug min-w-0 tracking-tight" style={isBlacklist ? { color: 'var(--destructive)' } : undefined}>
                                 {cart.name}
                               </h3>
                               {isBlacklist && (
@@ -1665,7 +1667,8 @@ export default function SavedCarts({
                               {cart.delivery_date && (() => {
                                 const dateInfo = getDeliveryDateLabel(cart.delivery_date);
                                 return dateInfo && (
-                                  <span className="text-[10px] font-medium" style={dateInfo.colorStyle}>
+                                  // 예약일은 알림과 직결되는 정보 — 10px면 안 보인다 (2026-07-16)
+                                  <span className="text-xs font-bold px-1.5 py-0.5 rounded-md" style={{ ...dateInfo.colorStyle, background: 'color-mix(in srgb, currentColor 12%, transparent)' }}>
                                     {dateInfo.label}
                                   </span>
                                 );
@@ -1682,13 +1685,13 @@ export default function SavedCarts({
                         </div>
 
                         {/* Items summary */}
-                        <div className="bg-[var(--secondary)] rounded-lg p-2 mb-3">
-                          <p className="text-[var(--muted-foreground)] text-xs break-words">{cartItemsDisplay}</p>
-                          <p className="text-[var(--muted-foreground)] text-xs mt-0.5">
+                        <div className="bg-[var(--secondary)] rounded-lg p-2.5 mb-3">
+                          <p className="text-[var(--muted-foreground)] text-sm break-words leading-snug">{cartItemsDisplay}</p>
+                          <p className="text-[var(--muted-foreground)] text-xs mt-1 font-bold">
                             {cart.items.length}종 / {cart.items.reduce((sum, item) => sum + item.quantity, 0)}개
                           </p>
                           {cart.memo && (
-                            <p className="text-xs mt-1.5 border-t border-[var(--border)] pt-1.5 break-words leading-snug" style={{ color: 'var(--info)' }}>
+                            <p className="text-sm mt-2 border-t border-[var(--border)] pt-2 break-words leading-snug font-medium" style={{ color: 'var(--info)' }}>
                               {cart.memo}
                             </p>
                           )}
@@ -1696,30 +1699,32 @@ export default function SavedCarts({
 
                         {/* Action buttons */}
                         {!selectMode && (
+                          // 가장 자주 누르는 버튼들 — 12px는 작다. 터치 44px 룰도 고려해 h-11로 (2026-07-16)
                           <div className="flex gap-2">
                             <button
                               onClick={(e) => { e.stopPropagation(); onLoad(cart); onBack(); }}
-                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 hover:opacity-90 text-white rounded-lg text-xs font-medium whitespace-nowrap transition-opacity"
+                              className="flex-1 flex items-center justify-center gap-1.5 h-11 hover:opacity-90 text-white rounded-xl text-sm font-bold whitespace-nowrap transition-opacity"
                               style={{ background: 'var(--success)' }}
                             >
-                              <Download className="w-3.5 h-3.5" />
+                              <Download className="w-4 h-4" />
                               불러오기
                             </button>
                             {onOrder && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); onOrder(cart); }}
-                                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-xs font-medium whitespace-nowrap transition-opacity"
+                                className="flex-1 flex items-center justify-center gap-1.5 h-11 bg-[var(--primary)] hover:opacity-90 text-white rounded-xl text-sm font-bold whitespace-nowrap transition-opacity"
                               >
-                                <FileText className="w-3.5 h-3.5" />
+                                <FileText className="w-4 h-4" />
                                 주문확인
                               </button>
                             )}
                             <button
                               onClick={(e) => { e.stopPropagation(); setDeleteConfirm(index); }}
-                              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-xs transition-colors"
+                              className="flex items-center justify-center w-11 h-11 border rounded-xl transition-colors flex-shrink-0"
                               style={{ borderColor: 'color-mix(in srgb, var(--destructive) 30%, transparent)', color: 'var(--destructive)' }}
+                              aria-label="삭제"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         )}
