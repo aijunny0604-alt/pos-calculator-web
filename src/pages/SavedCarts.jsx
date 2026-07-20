@@ -692,6 +692,17 @@ export default function SavedCarts({
                   newItems[idx] = { ...newItems[idx], ...patch };
                   setEditedDetailCart({ ...editedDetailCart, items: newItems });
                 };
+                // 🚨 연타 stale closure 방지 (2026-07-20): updateItem은 렌더 시점 currentCart/editedDetailCart를
+                //    캡처해서 빠르게 누르면 뭉개진다. 수량 증감은 함수형 setEditedDetailCart로 최신 state 기준 계산.
+                const stepItemQty = (delta) => {
+                  setEditedDetailCart(prev => {
+                    const src = prev || detailCart;
+                    const items = (src.items || []).map((it, i) =>
+                      i === idx ? { ...it, quantity: Math.max(1, (Number(it.quantity) || 1) + delta) } : it
+                    );
+                    return { ...src, items };
+                  });
+                };
                 // 단가 직접 수정 — 할인 메타 해제하고 그 값으로 고정 (안전장치: 할인 적용 중에는 readOnly로 잠금)
                 const updatePrice = (raw) => {
                   const num = Number(String(raw).replace(/[^\d]/g, '')) || 0;
@@ -868,7 +879,7 @@ export default function SavedCarts({
                           <span className="text-[10px] font-medium" style={{ color: 'var(--muted-foreground)' }}>수량</span>
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => { if (item.quantity > 1) updateItem({ quantity: item.quantity - 1 }); }}
+                              onClick={() => stepItemQty(-1)}
                               className="w-8 h-8 border border-[var(--border)] hover:bg-[var(--accent)] rounded-md flex items-center justify-center transition-colors"
                               aria-label="수량 감소"
                             >
@@ -876,7 +887,7 @@ export default function SavedCarts({
                             </button>
                             <span className="font-bold text-base min-w-[2.2rem] text-center tabular-nums">{item.quantity}</span>
                             <button
-                              onClick={() => updateItem({ quantity: item.quantity + 1 })}
+                              onClick={() => stepItemQty(1)}
                               className="w-8 h-8 bg-[var(--primary)] hover:opacity-90 text-white rounded-md flex items-center justify-center transition-opacity"
                               aria-label="수량 증가"
                             >

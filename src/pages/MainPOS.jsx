@@ -1138,6 +1138,7 @@ export default function MainPOS({
           }}
           isSaving={isSaving}
           onUpdateQuantity={updateQuantity}
+          onStepQuantity={stepQuantity}
           onRemoveItem={removeFromCart}
           onAddItem={addToCart}
           onReplaceItem={replaceItem}

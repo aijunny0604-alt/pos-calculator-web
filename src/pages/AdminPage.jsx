@@ -2578,6 +2578,17 @@ ${inputText}
     }));
   };
 
+  // 🚨 연타 stale closure 방지 (2026-07-20): 버튼이 렌더 시점 item.quantity로 ±1 하면
+  //    (setter는 함수형이어도) delta가 낡아 빠르게 누를 때 뭉개진다. delta를 최신 state 기준으로 계산.
+  const stepItemQty = (idx, delta) => {
+    setParsedItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item;
+      const updated = { ...item, quantity: Math.max(1, (Number(item.quantity) || 1) + delta) };
+      updated.newStock = recalcStock(updated);
+      return updated;
+    }));
+  };
+
   const switchProduct = (idx, product, isUserCorrection = false) => {
     setParsedItems(prev => prev.map((it, i) => {
       if (i !== idx) return it;
@@ -2743,12 +2754,12 @@ ${inputText}
                       </button>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => updateItem(idx, { quantity: Math.max(1, item.quantity - 1) })}
+                      <button onClick={() => stepItemQty(idx, -1)}
                         className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300"><Minus size={12} /></button>
                       <input type="number" value={item.quantity} min={1}
                         onChange={e => updateItem(idx, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
                         className="w-14 text-center text-sm border rounded px-1 py-0.5" />
-                      <button onClick={() => updateItem(idx, { quantity: item.quantity + 1 })}
+                      <button onClick={() => stepItemQty(idx, 1)}
                         className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300"><Plus size={12} /></button>
                     </div>
                   </div>

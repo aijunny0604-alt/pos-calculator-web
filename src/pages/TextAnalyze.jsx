@@ -806,6 +806,15 @@ ${aiLearningData.slice(0, 50).map(l =>
     setAnalyzedItems(prev => prev.map((item, i) => i === index ? { ...item, quantity: qty } : item));
   };
 
+  // 🚨 연타 stale closure 방지 (2026-07-20): 버튼이 렌더 시점 item.quantity로 ±1 하면
+  //    빠르게 누를 때 뭉개진다. delta를 함수형 업데이트 안에서 최신 state 기준으로 계산.
+  const stepQuantity = (index, delta) => {
+    setAnalyzedItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      return { ...item, quantity: Math.max(1, (item.quantity || 1) + delta) };
+    }));
+  };
+
   const removeItem = (index) => {
     setAnalyzedItems(prev => prev.filter((_, i) => i !== index));
     if (searchingIndex === index) { setSearchingIndex(null); setSearchQuery(''); }
@@ -1104,11 +1113,11 @@ ${aiLearningData.slice(0, 50).map(l =>
                 />
               </div>
               <div className="flex items-center gap-0.5 rounded-xl px-1.5 flex-shrink-0" style={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)' }}>
-                <button onClick={() => setAddQuantity(Math.max(1, addQuantity - 1))} className="p-2.5 rounded-lg hover:bg-[var(--secondary)]">
+                <button onClick={() => setAddQuantity(q => Math.max(1, q - 1))} className="p-2.5 rounded-lg hover:bg-[var(--secondary)]">
                   <Minus className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
                 </button>
                 <span className="text-sm w-7 text-center font-bold" style={{ color: 'var(--foreground)' }}>{addQuantity}</span>
-                <button onClick={() => setAddQuantity(addQuantity + 1)} className="p-2.5 rounded-lg hover:bg-[var(--secondary)]">
+                <button onClick={() => setAddQuantity(q => q + 1)} className="p-2.5 rounded-lg hover:bg-[var(--secondary)]">
                   <Plus className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
                 </button>
               </div>
@@ -1224,7 +1233,7 @@ ${aiLearningData.slice(0, 50).map(l =>
                         {/* 컨트롤: 수량 스테퍼 + 변경 + 삭제 (한 덩어리로 묶음) */}
                         <div className="flex items-center gap-2 ml-[32px] flex-wrap" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center rounded-xl overflow-hidden flex-shrink-0" style={{ background: 'var(--secondary)', boxShadow: 'inset 0 0 0 1px var(--border)' }}>
-                            <button onClick={() => updateQuantity(index, item.quantity - 1)} className="w-9 h-9 flex items-center justify-center transition-all hover:bg-[var(--muted)] active:scale-90" title="수량 감소">
+                            <button onClick={() => stepQuantity(index, -1)} className="w-9 h-9 flex items-center justify-center transition-all hover:bg-[var(--muted)] active:scale-90" title="수량 감소">
                               <Minus className="w-3.5 h-3.5" style={{ color: 'var(--foreground)' }} />
                             </button>
                             <input
@@ -1234,7 +1243,7 @@ ${aiLearningData.slice(0, 50).map(l =>
                               className="w-10 h-9 text-center text-sm font-extrabold bg-transparent border-none focus:outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               style={{ color: 'var(--foreground)' }}
                             />
-                            <button onClick={() => updateQuantity(index, item.quantity + 1)} className="w-9 h-9 flex items-center justify-center transition-all hover:bg-[var(--muted)] active:scale-90" title="수량 증가">
+                            <button onClick={() => stepQuantity(index, 1)} className="w-9 h-9 flex items-center justify-center transition-all hover:bg-[var(--muted)] active:scale-90" title="수량 증가">
                               <Plus className="w-3.5 h-3.5" style={{ color: 'var(--foreground)' }} />
                             </button>
                           </div>

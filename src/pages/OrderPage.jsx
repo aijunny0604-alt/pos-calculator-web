@@ -13,7 +13,7 @@ import useModalFullscreen from '@/hooks/useModalFullscreen';
 
 export default function OrderPage({
   cart, priceType, totalAmount, formatPrice: formatPriceProp, onSaveOrder, isSaving,
-  onUpdateQuantity, onRemoveItem, onAddItem, onReplaceItem, onUpdateItem,
+  onUpdateQuantity, onStepQuantity, onRemoveItem, onAddItem, onReplaceItem, onUpdateItem,
   products, initialCustomer, onSaveCart, customers = [],
   onBack, cartWithDiscount = [], totalDiscount = 0, showToast
 }) {
@@ -1037,7 +1037,7 @@ export default function OrderPage({
                       >
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                            onClick={() => onStepQuantity ? onStepQuantity(item.id, -1) : onUpdateQuantity(item.id, item.quantity - 1)}
                             className="w-9 h-9 flex items-center justify-center rounded-lg transition-colors hover:opacity-80"
                             style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
                           >
@@ -1059,7 +1059,7 @@ export default function OrderPage({
                             }}
                           />
                           <button
-                            onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                            onClick={() => onStepQuantity ? onStepQuantity(item.id, 1) : onUpdateQuantity(item.id, item.quantity + 1)}
                             className="w-9 h-9 flex items-center justify-center rounded-lg transition-colors hover:opacity-80"
                             style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
                           >

@@ -240,12 +240,14 @@ export default function OrderDetail({
 
   // Edit: quantity change
   const handleQuantityChange = (index, delta) => {
-    const newItems = [...editedOrder.items];
-    const newQuantity = newItems[index].quantity + delta;
-    if (newQuantity > 0) {
+    setEditedOrder(prev => {
+      if (!prev) return prev;
+      const newItems = [...prev.items];
+      const newQuantity = (Number(newItems[index].quantity) || 1) + delta;
+      if (newQuantity < 1) return prev;
       newItems[index] = { ...newItems[index], quantity: newQuantity };
-      setEditedOrder({ ...editedOrder, items: newItems });
-    }
+      return { ...prev, items: newItems };
+    });
   };
 
   // Edit: remove item
