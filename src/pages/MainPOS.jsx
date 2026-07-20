@@ -286,6 +286,19 @@ export default function MainPOS({
     setCart(prev => prev.map(item => item.id === productId ? { ...item, quantity: newQuantity } : item));
   };
 
+  // 🚨 +/− 연타 버그 수정 (2026-07-20): 버튼이 렌더 시점 cartItem.quantity를 캡처해서
+  //    빠르게 여러 번 누르면 전부 같은 값에서 ±1을 계산 → 재렌더 전 클릭이 뭉개져 "안 눌러짐"으로 보였다.
+  //    함수형 업데이트로 항상 최신 state 기준 증감. removeFromCart는 setCart 밖(0 도달 시)에서 처리.
+  const stepQuantity = (productId, delta) => {
+    setCart(prev => {
+      const item = prev.find(i => i.id === productId);
+      if (!item) return prev;
+      const next = item.quantity + delta;
+      if (next < 1) return prev.filter(i => i.id !== productId); // 1 미만이면 제거
+      return prev.map(i => i.id === productId ? { ...i, quantity: next } : i);
+    });
+  };
+
   const replaceItem = (oldId, newProduct, qty) => {
     setCart(prev => prev.map(item => item.id === oldId ? { ...newProduct, quantity: qty } : item));
   };
@@ -779,7 +792,7 @@ export default function MainPOS({
                                     style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
                                   >
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity - 1); }}
+                                      onClick={(e) => { e.stopPropagation(); stepQuantity(product.id, -1); }}
                                       className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-l-lg transition-colors"
                                     >
                                       <Minus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
@@ -797,7 +810,7 @@ export default function MainPOS({
                                       style={{ color: 'var(--foreground)' }}
                                     />
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, cartItem.quantity + 1); }}
+                                      onClick={(e) => { e.stopPropagation(); stepQuantity(product.id, 1); }}
                                       className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:bg-[var(--accent)] active:bg-[var(--accent)] rounded-r-lg transition-colors"
                                     >
                                       <Plus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
@@ -987,7 +1000,7 @@ export default function MainPOS({
                         style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
                       >
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          onClick={() => stepQuantity(item.id, -1)}
                           className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[var(--accent)] transition-colors"
                         >
                           <Minus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
@@ -1004,7 +1017,7 @@ export default function MainPOS({
                           style={{ color: 'var(--foreground)' }}
                         />
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          onClick={() => stepQuantity(item.id, 1)}
                           className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[var(--accent)] transition-colors"
                         >
                           <Plus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
@@ -1267,7 +1280,7 @@ export default function MainPOS({
                           style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
                         >
                           <button
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            onClick={() => stepQuantity(item.id, -1)}
                             className="w-8 h-8 flex items-center justify-center rounded hover:bg-[var(--accent)] transition-colors"
                           >
                             <Minus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
@@ -1284,7 +1297,7 @@ export default function MainPOS({
                             style={{ color: 'var(--foreground)' }}
                           />
                           <button
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            onClick={() => stepQuantity(item.id, 1)}
                             className="w-8 h-8 flex items-center justify-center rounded hover:bg-[var(--accent)] transition-colors"
                           >
                             <Plus className="w-4 h-4" style={{ color: 'var(--foreground)' }} />
