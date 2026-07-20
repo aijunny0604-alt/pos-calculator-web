@@ -10,6 +10,7 @@ import PaymentDashboardSection from '@/components/dashboard/PaymentDashboardSect
 import ConnectionBanner from '@/components/dashboard/ConnectionBanner';
 import SmartAlertFeed from '@/components/dashboard/SmartAlertFeed';
 import MorningBriefing from '@/components/dashboard/MorningBriefing';
+import PurchaseStatusWidget from '@/components/dashboard/PurchaseStatusWidget';
 import useSmartAlerts from '@/hooks/useSmartAlerts';
 
 export default function Dashboard({
@@ -155,6 +156,9 @@ export default function Dashboard({
           onClick={() => setCurrentPage('stock')}
         />
       </div>
+
+      {/* JSR 매입 미입고 현황 — 발주했는데 안 들어온 것 + 오래 묵은 건 강조 */}
+      <PurchaseStatusWidget setCurrentPage={setCurrentPage} />
 
       {/* 모닝 브리핑 — 오늘 할 일 자동 요약 */}
       <MorningBriefing
