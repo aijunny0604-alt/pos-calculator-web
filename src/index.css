@@ -682,8 +682,11 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
     transform: translateY(-3px) scale(1.015);
     box-shadow: 0 12px 28px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05);
   }
+  /* 🚨 누름 scale 금지 (2026-07-20): 카드가 0.97로 줄면 안에 있는 수량 +/− 버튼이
+     중심 쪽으로 ~19px 밀려 커서 밑에서 벗어남 → 마우스 뗄 때 클릭 무효(버튼 안 눌림).
+     자식 컨트롤을 움직이지 않도록 scale 대신 그림자만으로 눌림 피드백. */
   .card-interactive:hover:active {
-    transform: scale(0.97) translateY(0);
+    transform: translateY(-1px);
     box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     transition-duration: 0.1s;
   }
