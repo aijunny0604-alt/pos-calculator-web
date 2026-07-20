@@ -248,18 +248,9 @@ export default function AIAnalytics({
       const last = chat.messages[cur - 1];
       if (last?.role === 'assistant') {
         sfxAnswerComplete();
-        // 음성으로 질문했거나 TTS 강제 ON이면 자동 발화
-        if (lastInputWasVoiceRef.current || tts.enabled) {
-          // 마크다운 문법 제거 (간단 정리)
-          const plain = (last.content || '')
-            .replace(/\*\*([^*]+)\*\*/g, '$1')
-            .replace(/##\s+/g, '')
-            .replace(/`/g, '')
-            .replace(/[│┌┐└┘├┤┬┴┼─━]/g, ' ')
-            .slice(0, 600); // 너무 길면 잘림 방지
-          tts.speak(plain);
-          lastInputWasVoiceRef.current = false;
-        }
+        // 🔇 자동 TTS 제거 (2026-07-20, 사장님 요청 — 음성이 어색): MOVIS가 답변을 스스로 읽지 않음.
+        //    특정 답변을 듣고 싶으면 말풍선의 🔊 스피커 버튼을 눌러 수동 재생(MessageBubble tts.speak).
+        lastInputWasVoiceRef.current = false;
       } else if (last?.role === 'error') {
         sfxError();
         lastInputWasVoiceRef.current = false;
