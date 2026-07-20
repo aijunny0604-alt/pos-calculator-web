@@ -1,10 +1,11 @@
-// JSR 매입 미입고 현황 위젯 (대시보드)
-// 발주했는데 아직 안 들어온 품목 수·금액 + 가장 오래 묵은 건을 강조.
+// JSR 매입 미입고 현황 위젯 (대시보드 KPI 그리드 8번째 칸)
+// 발주했는데 아직 안 들어온 품목 수·금액 + 가장 오래 묵은 건 강조.
 // JSR이 몇 달째 물건을 안 보내는 게 실제 고충이라, 최고령 묵은일수가 핵심 신호.
 // 숫자/상태 계산은 매입 발주 페이지와 동일하게 purchaseExport 헬퍼 재사용(화면과 어긋나지 않게).
+// 대시보드 StatCard와 동일한 외형(아이콘박스+라벨+값+보조) → 그리드에 자연스럽게 정렬.
 
 import { useEffect, useMemo, useState } from 'react';
-import { PackageX, ClipboardList, ChevronRight } from 'lucide-react';
+import { PackageX, ClipboardCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { poOpenItems, itemRemaining, daysSince, ageLevel } from '@/lib/purchaseExport';
 import { formatPrice } from '@/lib/utils';
@@ -52,12 +53,15 @@ export default function PurchaseStatusWidget({ setCurrentPage }) {
 
   const go = () => setCurrentPage?.('purchase-orders');
 
-  // 로딩 스켈레톤
+  // 로딩 스켈레톤 (StatCard 크기와 동일)
   if (s === null) {
     return (
-      <div className="rounded-xl border p-4 animate-pulse" style={{ background: 'var(--card)', borderColor: 'var(--border)', minHeight: 92 }}>
-        <div className="h-3 w-24 rounded mb-3" style={{ background: 'var(--muted)' }} />
-        <div className="h-6 w-32 rounded" style={{ background: 'var(--muted)' }} />
+      <div className="flex items-start gap-4 p-5 rounded-xl border animate-pulse" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+        <div className="w-12 h-12 rounded-xl flex-shrink-0" style={{ background: 'var(--muted)' }} />
+        <div className="flex-1 pt-1">
+          <div className="h-3 w-20 rounded mb-2" style={{ background: 'var(--muted)' }} />
+          <div className="h-6 w-24 rounded" style={{ background: 'var(--muted)' }} />
+        </div>
       </div>
     );
   }
@@ -65,51 +69,41 @@ export default function PurchaseStatusWidget({ setCurrentPage }) {
   const hasPending = s.itemCount > 0;
   const lv = hasPending ? ageLevel(s.oldest.days) : 'ok';
   const accent = hasPending ? AGE_COLOR[lv] : 'var(--success)';
+  const Icon = hasPending ? PackageX : ClipboardCheck;
 
   return (
     <button
       onClick={go}
-      className="card-interactive text-left w-full rounded-xl border p-4 flex items-center gap-4"
+      className="flex items-start gap-4 p-5 rounded-xl border transition-all hover:shadow-md hover:-translate-y-0.5 text-left w-full"
       style={{
         background: hasPending && lv === 'critical'
-          ? 'color-mix(in srgb, var(--destructive) 6%, var(--card))'
+          ? 'color-mix(in srgb, var(--destructive) 5%, var(--card))'
           : 'var(--card)',
         borderColor: hasPending && lv === 'critical'
-          ? 'color-mix(in srgb, var(--destructive) 35%, var(--border))'
+          ? 'color-mix(in srgb, var(--destructive) 30%, var(--border))'
           : 'var(--border)',
-        minHeight: 92,
       }}
     >
-      <div
-        className="flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center"
-        style={{ background: `color-mix(in srgb, ${accent} 14%, transparent)` }}
-      >
-        {hasPending
-          ? <PackageX className="w-5 h-5" style={{ color: accent }} />
-          : <ClipboardList className="w-5 h-5" style={{ color: accent }} />}
+      <div className="p-3 rounded-xl flex-shrink-0" style={{ background: `color-mix(in srgb, ${accent} 12%, transparent)` }}>
+        <Icon className="w-6 h-6" style={{ color: accent }} />
       </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-bold" style={{ color: 'var(--muted-foreground)' }}>JSR 매입 미입고</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>JSR 매입 미입고</p>
         {hasPending ? (
           <>
-            <p className="text-xl sm:text-2xl font-black leading-tight tabular-nums" style={{ color: 'var(--foreground)' }}>
-              {s.itemCount}품목 <span className="text-sm font-bold" style={{ color: 'var(--muted-foreground)' }}>· {formatPrice(s.amount)}원</span>
-            </p>
-            <p className="text-xs mt-0.5 font-semibold break-keep leading-snug" style={{ color: accent }}>
+            <p className="text-2xl font-bold mt-0.5" style={{ color: 'var(--foreground)' }}>{s.itemCount}품목</p>
+            <p className="text-xs mt-0.5 break-keep leading-snug" style={{ color: accent }}>
               {lv === 'critical' ? '🚨 ' : lv === 'warn' ? '⚠️ ' : ''}
-              가장 오래 묵음 {s.oldest.days}일
-              <span className="font-normal" style={{ color: 'var(--muted-foreground)' }}> · {s.oldest.po.po_number}</span>
+              {formatPrice(s.amount)}원 · 최장 {s.oldest.days}일
             </p>
           </>
         ) : (
-          <p className="text-xl sm:text-2xl font-black leading-tight" style={{ color: 'var(--success)' }}>
-            미입고 없음 <span className="text-sm font-bold" style={{ color: 'var(--muted-foreground)' }}>· 전부 입고됨</span>
-          </p>
+          <>
+            <p className="text-2xl font-bold mt-0.5" style={{ color: 'var(--foreground)' }}>없음</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--success)' }}>전부 입고됨</p>
+          </>
         )}
       </div>
-
-      <ChevronRight className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--muted-foreground)' }} />
     </button>
   );
 }

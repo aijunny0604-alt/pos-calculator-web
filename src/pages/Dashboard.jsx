@@ -121,7 +121,8 @@ export default function Dashboard({
         <ConnectionBanner isOnline={supabaseConnected} />
       </div>
 
-      {/* Stat Cards */}
+      {/* ===== 핵심 지표 — 한 그리드 4열 2행으로 정렬 (돈 4개 / 운영 4개). 이전엔 4+3 분리라 카드가 어긋나 보였음 ===== */}
+      {/* 1행: 돈 흐름 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={TrendingUp}
@@ -131,55 +132,6 @@ export default function Dashboard({
           color="var(--primary)"
           onClick={() => setCurrentPage('orders')}
         />
-        <StatCard
-          icon={ShoppingCart}
-          label="대기 장바구니"
-          value={`${pendingCarts}건`}
-          sub={`전체 ${savedCarts.length}건`}
-          color="var(--warning)"
-          onClick={() => setCurrentPage('saved-carts')}
-        />
-        <StatCard
-          icon={Users}
-          label="거래처"
-          value={`${customers.length}곳`}
-          sub={`블랙리스트 ${customers.filter(c => c.is_blacklist).length}곳`}
-          color="var(--success)"
-          onClick={() => setCurrentPage('customers')}
-        />
-        <StatCard
-          icon={Package}
-          label="재고 부족"
-          value={`${lowStockProducts.length}건`}
-          sub={lowStockProducts.length > 0 ? '확인 필요' : '정상'}
-          color={lowStockProducts.length > 0 ? 'var(--destructive)' : 'var(--success)'}
-          onClick={() => setCurrentPage('stock')}
-        />
-      </div>
-
-      {/* JSR 매입 미입고 현황 — 발주했는데 안 들어온 것 + 오래 묵은 건 강조 */}
-      <PurchaseStatusWidget setCurrentPage={setCurrentPage} />
-
-      {/* 모닝 브리핑 — 오늘 할 일 자동 요약 */}
-      <MorningBriefing
-        orders={orders}
-        savedCarts={savedCarts}
-        products={products}
-        customers={customers}
-        setCurrentPage={setCurrentPage}
-      />
-
-      {/* MOVIS 자율 분석 — 이상 징후 알림 피드 */}
-      <SmartAlertFeed
-        alerts={smartAlerts}
-        loading={alertsLoading}
-        meta={alertMeta}
-        onRefresh={refreshAlerts}
-        setCurrentPage={setCurrentPage}
-      />
-
-      {/* 결제 현황 (pos-payments 통합) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           icon={Banknote}
           label="오늘 입금"
@@ -204,7 +156,50 @@ export default function Dashboard({
           color={paymentStats.overdueCount > 0 ? 'var(--destructive)' : 'var(--muted-foreground)'}
           onClick={() => setCurrentPage('customers')}
         />
+        {/* 2행: 운영 현황 */}
+        <StatCard
+          icon={ShoppingCart}
+          label="대기 장바구니"
+          value={`${pendingCarts}건`}
+          sub={`전체 ${savedCarts.length}건`}
+          color="var(--warning)"
+          onClick={() => setCurrentPage('saved-carts')}
+        />
+        <StatCard
+          icon={Users}
+          label="거래처"
+          value={`${customers.length}곳`}
+          sub={`블랙리스트 ${customers.filter(c => c.is_blacklist).length}곳`}
+          color="var(--success)"
+          onClick={() => setCurrentPage('customers')}
+        />
+        <StatCard
+          icon={Package}
+          label="재고 부족"
+          value={`${lowStockProducts.length}건`}
+          sub={lowStockProducts.length > 0 ? '확인 필요' : '정상'}
+          color={lowStockProducts.length > 0 ? 'var(--destructive)' : 'var(--success)'}
+          onClick={() => setCurrentPage('stock')}
+        />
+        {/* JSR 매입 미입고 — 8번째 칸으로 그리드에 정렬 편입 */}
+        <PurchaseStatusWidget setCurrentPage={setCurrentPage} />
       </div>
+
+      {/* ===== AI 요약·알림 (지능형 섹션) ===== */}
+      <MorningBriefing
+        orders={orders}
+        savedCarts={savedCarts}
+        products={products}
+        customers={customers}
+        setCurrentPage={setCurrentPage}
+      />
+      <SmartAlertFeed
+        alerts={smartAlerts}
+        loading={alertsLoading}
+        meta={alertMeta}
+        onRefresh={refreshAlerts}
+        setCurrentPage={setCurrentPage}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: AI Quick Order + Recent Orders */}
