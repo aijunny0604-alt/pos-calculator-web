@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search, ShoppingCart, Plus, Minus, X, ChevronDown, ChevronUp,
-  Package, Calculator, Maximize2, Minimize2, RotateCcw, Zap, ArrowLeft, Mic, MicOff
+  Package, Calculator, Maximize2, Minimize2, RotateCcw, Zap, ArrowLeft, Mic, MicOff,
+  Printer, Copy
 } from 'lucide-react';
-import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calcOrderVat, calculateDiscount } from '@/lib/utils';
+import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calcOrderVat, calculateDiscount, isTaxFreeItem, escapeHtml } from '@/lib/utils';
 import { searchProductsRanked } from '@/lib/productMatch';
 import { isImageDemoMode, getSampleImage } from '@/lib/sampleProductImages';
 import ProductGalleryModal from '@/components/ProductGalleryModal';
@@ -194,6 +195,83 @@ export default function MainPOS({
   const totalQuantity = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.quantity, 0);
   }, [cart]);
+
+  // ===== 모의 견적서 (주문 확인 전) — 카톡 복사 / 출력 =====
+  // 화면 카트 합계와 100% 동일한 계산 재사용(cartWithDiscount·vatBreakdown·totalAmount) → 견적과 실주문 금액 불일치 방지.
+  // 비과세(택배비/퀵비) 항목은 calcOrderVat이 이미 반영(전액 공급가). 거래처는 아직 미선택이라 참고용 표기.
+  const buildQuoteText = () => {
+    const isW = priceType === 'wholesale';
+    const dateStr = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+    let text = `[ 견적서 ] 무브모터스\n${dateStr}\n단가기준: ${isW ? '도매가' : '소비자가'} (부가세 포함)\n\n`;
+    cartWithDiscount.forEach((it, i) => {
+      text += `${i + 1}. ${it.name}\n   ${formatPrice(it.discountedPrice)}원 × ${it.quantity}개 = ${formatPrice(it.finalTotal)}원${isTaxFreeItem(it) ? ' (비과세)' : ''}\n`;
+    });
+    text += `\n총 수량: ${totalQuantity}개\n공급가액: ${formatPrice(vatBreakdown.supply)}원\n부가세: ${formatPrice(vatBreakdown.vat)}원\n합계 금액: ${formatPrice(totalAmount)}원\n\n`;
+    text += `※ 주문 전 참고용 견적입니다.\n입금 계좌: 신한은행 010-5858-6046 무브모터스\n`;
+    return text;
+  };
+
+  const copyQuoteText = async () => {
+    if (cart.length === 0) return;
+    const text = buildQuoteText();
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      showToast && showToast('견적서를 카톡용으로 복사했습니다 📋', 'success');
+    } catch {
+      showToast && showToast('복사 실패 — 다시 시도해주세요', 'error');
+    }
+  };
+
+  const printQuote = () => {
+    if (cart.length === 0) return;
+    const isW = priceType === 'wholesale';
+    const dateStr = new Date().toLocaleDateString('ko-KR');
+    const rows = cartWithDiscount.map((it, i) => `
+      <tr>
+        <td class="c">${i + 1}</td>
+        <td>${escapeHtml(it.name)}${isTaxFreeItem(it) ? ' <span class="tf">비과세</span>' : ''}</td>
+        <td class="r">${formatPrice(it.discountedPrice)}</td>
+        <td class="c">${it.quantity}</td>
+        <td class="r">${formatPrice(it.finalTotal)}</td>
+      </tr>`).join('');
+    const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>견적서 - 무브모터스</title>
+      <style>
+        *{box-sizing:border-box} body{font-family:'Malgun Gothic','맑은 고딕',sans-serif;padding:32px;color:#111}
+        h1{font-size:26px;margin:0 0 4px} .sub{color:#666;font-size:13px;margin-bottom:20px}
+        table{width:100%;border-collapse:collapse;margin-top:8px}
+        th,td{border:1px solid #ccc;padding:9px 10px;font-size:13px}
+        th{background:#f3f4f6;text-align:center} td.c{text-align:center} td.r{text-align:right}
+        .tf{font-size:11px;color:#0a7a5a;border:1px solid #0a7a5a;border-radius:4px;padding:0 4px;margin-left:4px}
+        .totals{margin-top:18px;width:100%;max-width:340px;margin-left:auto}
+        .totals div{display:flex;justify-content:space-between;padding:5px 0;font-size:14px}
+        .totals .grand{border-top:2px solid #111;margin-top:6px;padding-top:9px;font-size:22px;font-weight:bold}
+        .foot{margin-top:30px;font-size:12px;color:#555;line-height:1.8;border-top:1px dashed #ccc;padding-top:14px}
+        @media print{body{padding:12px}}
+      </style></head><body>
+      <h1>견 적 서</h1>
+      <div class="sub">무브모터스 &nbsp;·&nbsp; ${dateStr} &nbsp;·&nbsp; 단가기준: ${isW ? '도매가' : '소비자가'} (부가세 포함)</div>
+      <table><thead><tr><th style="width:44px">No</th><th>품목</th><th style="width:100px">단가</th><th style="width:60px">수량</th><th style="width:110px">금액</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <div class="totals">
+        <div><span>총 수량</span><span>${totalQuantity}개</span></div>
+        <div><span>공급가액</span><span>${formatPrice(vatBreakdown.supply)}원</span></div>
+        <div><span>부가세</span><span>${formatPrice(vatBreakdown.vat)}원</span></div>
+        <div class="grand"><span>합계</span><span>${formatPrice(totalAmount)}원</span></div>
+      </div>
+      <div class="foot">※ 주문 전 참고용 견적입니다. 실제 청구는 주문 확정 시 확정됩니다.<br>입금 계좌: 신한은행 010-5858-6046 무브모터스</div>
+      <script>window.onload=function(){setTimeout(function(){window.print();},200);};</script>
+      </body></html>`;
+    const w = window.open('', '_blank', 'width=820,height=920');
+    if (!w) { showToast && showToast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error'); return; }
+    w.document.write(html); w.document.close();
+  };
 
   // 거래처 자주 구매 제품 추천 (loadedCustomer 선택 시)
   const customerSuggestedProducts = useMemo(() => {
@@ -1092,6 +1170,23 @@ export default function MainPOS({
               </div>
             </div>
 
+            {/* 모의 견적 (주문 확인 전) — 카톡 복사 / 출력 */}
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={copyQuoteText}
+                className="flex-1 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--accent)]"
+                style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+              >
+                <Copy className="w-3.5 h-3.5" /> 카톡 복사
+              </button>
+              <button
+                onClick={printQuote}
+                className="flex-1 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--accent)]"
+                style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+              >
+                <Printer className="w-3.5 h-3.5" /> 견적서 출력
+              </button>
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setCart([])}
@@ -1348,6 +1443,23 @@ export default function MainPOS({
                   </div>
                 </div>
 
+                {/* 모의 견적 (주문 확인 전) — 카톡 복사 / 출력 */}
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={copyQuoteText}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold border flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--accent)]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                  >
+                    <Copy className="w-4 h-4" /> 카톡 복사
+                  </button>
+                  <button
+                    onClick={printQuote}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold border flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--accent)]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                  >
+                    <Printer className="w-4 h-4" /> 견적서 출력
+                  </button>
+                </div>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setCart([])}
