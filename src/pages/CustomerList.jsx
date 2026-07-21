@@ -266,9 +266,27 @@ export default function CustomerList({
         }
         return;
       }
-      if (oldPath && oldPath !== path) await deleteImages([oldPath]).catch(() => {}); // 기존 것 삭제(최신 교체)
+      if (oldPath && oldPath !== path) {
+        await deleteImages([oldPath]).catch(() => {});                    // 기존 것 삭제(최신 교체)
+        await supabase.deleteBusinessCertsByPath(oldPath).catch(() => {}); // 보관함의 옛 행도 정리(깨진 썸네일 방지)
+      }
       setSelectedCustomer((prev) => prev ? { ...prev, business_cert_url: url, business_cert_path: path } : prev);
-      showToast?.('사업자등록증 저장 완료', 'success');
+
+      // 📄 보관함(business_certs)에도 자동 등록 — 거래처에서 올린 등록증이 보관함에서도 검색되게.
+      // 실패해도 거래처 저장 자체는 성공이므로 흐름을 막지 않고 경고만.
+      const lib = await supabase.addBusinessCert({
+        name: selectedCustomer.name || '등록증',
+        storagePath: path,
+        url,
+        customerId: selectedCustomer.id,
+      });
+      if (lib?.ok) {
+        // 1거래처 = 1등록증 — 같은 거래처를 가리키던 다른 보관함 행은 연결 해제
+        await supabase.clearCustomerCertLinks(selectedCustomer.id, lib.data?.id).catch(() => {});
+        showToast?.('사업자등록증 저장 완료 · 보관함에도 등록됨', 'success');
+      } else {
+        showToast?.('사업자등록증 저장 완료 (보관함 등록은 실패)', 'warning');
+      }
     } catch (err) {
       showToast?.(err?.message || '업로드 실패', 'error');
     } finally {
@@ -281,7 +299,10 @@ export default function CustomerList({
     const oldPath = selectedCustomer.business_cert_path;
     const res = await supabase.setCustomerCert(selectedCustomer.id, null, null);
     if (!res.ok) { showToast?.('삭제 실패', 'error'); return; }
-    if (oldPath) await deleteImages([oldPath]).catch(() => {});
+    if (oldPath) {
+      await deleteImages([oldPath]).catch(() => {});
+      await supabase.deleteBusinessCertsByPath(oldPath).catch(() => {}); // 보관함 행도 함께 정리
+    }
     setSelectedCustomer((prev) => prev ? { ...prev, business_cert_url: null, business_cert_path: null } : prev);
     showToast?.('사업자등록증 삭제됨', 'success');
   };

@@ -18,8 +18,24 @@ export default function CertLibrary({ customers = [], showToast }) {
   const [filter, setFilter] = useState('all'); // 'all' | 'linked' | 'unlinked'
   const [viewer, setViewer] = useState(null);   // 확대 볼 cert
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false); // 파일 드래그 중 하이라이트
   const [linking, setLinking] = useState(false); // 연결 변경 in-flight 잠금
+  const [linkSearch, setLinkSearch] = useState(''); // 거래처 연결 검색어
+  const [linkOpen, setLinkOpen] = useState(false);  // 연결 드롭다운 열림
   const fileRef = useRef(null);
+
+  // 거래처가 200곳이 넘어 select 스크롤로 찾는 게 고역 → 검색형 콤보박스.
+  // 공백 차이(YB모터스/YB 모터스)로 못 찾는 일이 많아 공백 제거 후 비교.
+  const normName = (s) => String(s || '').toLowerCase().replace(/\s/g, '');
+  const linkCandidates = useMemo(() => {
+    const sorted = [...customers].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+    const q = normName(linkSearch);
+    if (!q) return sorted.slice(0, 80);
+    return sorted.filter((c) => normName(c.name).includes(q)).slice(0, 80);
+  }, [customers, linkSearch]);
+
+  // 다른 등록증을 열면 이전 검색어가 남지 않게 초기화
+  useEffect(() => { setLinkOpen(false); setLinkSearch(''); }, [viewer?.id]);
 
   // 거래처명 해결 — 임베드(customers) 실패 시 customers prop으로 폴백
   const custName = (cert) =>
@@ -105,24 +121,71 @@ export default function CertLibrary({ customers = [], showToast }) {
     showToast?.('삭제되었습니다', 'success');
   };
 
-  // 새 등록증 추가
-  const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (fileRef.current) fileRef.current.value = '';
-    if (!file) return;
-    setUploading(true);
-    try {
-      const up = await uploadCertToLibrary(file);
-      const name = (file.name || '새 등록증').replace(/\.(jpe?g|png|webp|gif|bmp|heic|pdf)$/i, '');
-      const res = await supabase.addBusinessCert({ name, storagePath: up.path, url: up.url });
-      if (!res.ok) throw new Error(res.error);
-      setCerts((prev) => [{ ...res.data, customers: null }, ...prev]);
-      showToast?.('등록증이 추가되었습니다', 'success');
-    } catch (err) {
-      showToast?.('업로드 실패: ' + (err.message || err), 'error');
-    } finally {
-      setUploading(false);
+  // 새 등록증 추가 — 버튼 선택 / 드래그앤드롭 공용. 여러 장 동시 가능(사진첩에서 통째로 끌어다 놓는 경우)
+  const uploadFiles = async (fileList) => {
+    const files = Array.from(fileList || []).filter(
+      (f) => /^image\//i.test(f.type || '') || /\.pdf$/i.test(f.name || '')
+    );
+    if (files.length === 0) {
+      showToast?.('이미지 또는 PDF 파일만 올릴 수 있습니다', 'error');
+      return;
     }
+    setUploading(true);
+    let ok = 0;
+    const failed = [];
+    for (const file of files) {
+      try {
+        const up = await uploadCertToLibrary(file);
+        const name = (file.name || '새 등록증').replace(/\.(jpe?g|png|webp|gif|bmp|heic|pdf)$/i, '');
+        const res = await supabase.addBusinessCert({ name, storagePath: up.path, url: up.url });
+        if (!res.ok) throw new Error(res.error);
+        setCerts((prev) => [{ ...res.data, customers: null }, ...prev]);
+        ok++;
+      } catch (err) {
+        console.error('cert upload 실패:', file.name, err);
+        failed.push(file.name);
+      }
+    }
+    setUploading(false);
+    // 여러 장 중 일부만 실패해도 어떤 파일인지 알려줘야 다시 올릴 수 있다
+    if (ok > 0 && failed.length === 0) showToast?.(`등록증 ${ok}장이 추가되었습니다`, 'success');
+    else if (ok > 0) showToast?.(`${ok}장 추가 · ${failed.length}장 실패 (${failed[0]}${failed.length > 1 ? ' 외' : ''})`, 'warning');
+    else showToast?.(`업로드 실패 (${failed[0] || ''})`, 'error');
+  };
+
+  const handleUpload = async (e) => {
+    const files = e.target.files;
+    if (fileRef.current) fileRef.current.value = '';
+    await uploadFiles(files);
+  };
+
+  // ===== 드래그앤드롭 =====
+  // dragenter/leave가 자식 위를 지날 때마다 발생해 깜빡이므로 depth 카운트로 안정화
+  const dragDepth = useRef(0);
+  const hasFiles = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
+
+  const onDragEnter = (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragOver(true);
+  };
+  const onDragOver = (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();               // 없으면 브라우저가 파일을 새 탭으로 열어버림
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const onDragLeave = (e) => {
+    if (!hasFiles(e)) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragOver(false);
+  };
+  const onDrop = async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragOver(false);
+    await uploadFiles(e.dataTransfer.files);
   };
 
   if (needsMigration) {
@@ -141,7 +204,14 @@ export default function CertLibrary({ customers = [], showToast }) {
   }
 
   return (
-    <div className="flex-1 overflow-auto p-3 sm:p-4">
+    <div
+      className="flex-1 overflow-auto p-3 sm:p-4 transition-colors"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      style={dragOver ? { background: 'color-mix(in srgb, var(--primary) 6%, var(--background))' } : undefined}
+    >
       {/* 상단 바 */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="relative flex-1 min-w-[180px]">
@@ -168,8 +238,28 @@ export default function CertLibrary({ customers = [], showToast }) {
           style={{ background: 'var(--primary)' }}>
           <Upload className="w-4 h-4" />{uploading ? '업로드 중…' : '등록증 추가'}
         </button>
-        <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleUpload} />
+        <input ref={fileRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleUpload} />
       </div>
+
+      {/* 드래그앤드롭 존 — 항상 보이게 둬서 "끌어다 놓아도 된다"는 걸 알 수 있게. 클릭해도 파일 선택 */}
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={uploading}
+        className="w-full mb-3 rounded-xl border-2 border-dashed py-4 px-3 flex flex-col items-center justify-center gap-1 transition-all disabled:opacity-60"
+        style={{
+          borderColor: dragOver ? 'var(--primary)' : 'var(--border)',
+          background: dragOver ? 'color-mix(in srgb, var(--primary) 12%, var(--card))' : 'var(--card)',
+        }}
+      >
+        <Upload className="w-6 h-6" style={{ color: dragOver ? 'var(--primary)' : 'var(--muted-foreground)' }} />
+        <p className="text-sm font-bold" style={{ color: dragOver ? 'var(--primary)' : 'var(--foreground)' }}>
+          {uploading ? '업로드 중…' : dragOver ? '여기에 놓으면 등록됩니다' : '사업자등록증을 여기로 끌어다 놓으세요'}
+        </p>
+        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+          클릭해서 선택할 수도 있습니다 · 이미지/PDF · 여러 장 동시 가능
+        </p>
+      </button>
 
       {loading ? (
         <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>불러오는 중…</div>
@@ -235,19 +325,63 @@ export default function CertLibrary({ customers = [], showToast }) {
             </div>
             {/* 하단: 거래처 연결 + 삭제 */}
             <div className="px-4 py-3 border-t flex flex-wrap items-center gap-2" style={{ borderColor: 'var(--border)' }}>
-              <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+              {/* 거래처 연결 — 검색형 (200곳+ 리스트 스크롤 대신 타이핑으로 찾기) */}
+              <div className="relative flex items-center gap-1.5 flex-1 min-w-[200px]">
                 <Link2 className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--muted-foreground)' }} />
-                <select
-                  value={viewer.customer_id || ''}
-                  onChange={(e) => handleLink(viewer, e.target.value)}
+                <input
+                  value={linkOpen ? linkSearch : (viewer.customer_id ? custName(viewer) : '')}
+                  onChange={(e) => { setLinkSearch(e.target.value); setLinkOpen(true); }}
+                  onFocus={() => { setLinkOpen(true); setLinkSearch(''); }}
+                  onBlur={() => setTimeout(() => setLinkOpen(false), 150)} // 항목 클릭이 먼저 처리되게 지연
                   disabled={linking}
-                  className="flex-1 px-2 py-2 rounded-lg text-sm border disabled:opacity-50"
-                  style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
-                  <option value="">거래처 연결 안 함</option>
-                  {[...customers].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')).map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  placeholder="거래처명 검색해서 연결…"
+                  className="flex-1 min-w-0 px-2.5 py-2 rounded-lg text-sm border disabled:opacity-50"
+                  style={{ background: 'var(--background)', borderColor: linkOpen ? 'var(--primary)' : 'var(--border)' }}
+                />
+                {viewer.customer_id && !linkOpen && (
+                  <button
+                    onClick={() => handleLink(viewer, '')}
+                    disabled={linking}
+                    title="거래처 연결 해제"
+                    className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center border disabled:opacity-50"
+                    style={{ borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                {linkOpen && (
+                  // 모달 하단이라 위로 펼침
+                  <div
+                    className="absolute bottom-full left-6 right-0 mb-1 max-h-64 overflow-auto rounded-lg border shadow-lg z-10"
+                    style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+                  >
+                    <button
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { handleLink(viewer, ''); setLinkOpen(false); }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--accent)] border-b"
+                      style={{ color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
+                    >
+                      거래처 연결 안 함
+                    </button>
+                    {linkCandidates.map((c) => (
+                      <button
+                        key={c.id}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { handleLink(viewer, c.id); setLinkOpen(false); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--accent)] break-keep"
+                        style={{
+                          color: 'var(--foreground)',
+                          background: String(c.id) === String(viewer.customer_id) ? 'color-mix(in srgb, var(--primary) 12%, transparent)' : undefined,
+                        }}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                    {linkCandidates.length === 0 && (
+                      <div className="px-3 py-3 text-xs" style={{ color: 'var(--muted-foreground)' }}>검색 결과가 없습니다</div>
+                    )}
+                  </div>
+                )}
               </div>
               <a href={viewer.url} target="_blank" rel="noreferrer"
                 className="px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 border"

@@ -406,6 +406,19 @@ export const supabase = {
       return { ok: true };
     } catch (e) { return { ok: false, error: String(e?.message || e) }; }
   },
+  // storage_path로 보관함 행 삭제 — 거래처 등록증을 교체/삭제하면 원본 파일이 지워지므로
+  // 같은 파일을 가리키던 보관함 행도 함께 정리해야 깨진 썸네일이 남지 않는다. (2026-07-21)
+  async deleteBusinessCertsByPath(storagePath) {
+    if (!storagePath) return { ok: true };
+    try {
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/business_certs?storage_path=eq.${encodeURIComponent(storagePath)}`,
+        { method: 'DELETE', headers: headersNoContent }
+      );
+      if (!r.ok) { const body = await r.text().catch(() => ''); return { ok: false, error: `${r.status} ${body.slice(0, 120)}` }; }
+      return { ok: true };
+    } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+  },
   // 상호(거래처명) 변경 시 과거 이력 이전 — orders/saved_carts/customer_returns의 customer_name을 새 이름으로 일괄 PATCH.
   // ⚠️ 주문·이력이 customer_name '텍스트'로 연결돼 있어서, 이걸 안 하면 이름 변경 즉시 과거 주문이 거래처에서 끊긴다.
   // payment_records는 customer_id(UUID) 연결이라 이름 변경 무관. 반환: { orders, carts, returns } 이전 건수.
