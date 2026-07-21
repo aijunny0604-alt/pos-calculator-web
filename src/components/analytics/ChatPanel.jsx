@@ -160,8 +160,23 @@ export default function ChatPanel({
   }, [voice?.interim, voice?.isListening]);
 
   // 새 메시지 추가 시 자동 스크롤
+  // 🚨 scrollIntoView 금지 (2026-07-21): 스크롤 가능한 '조상 전부'를 함께 스크롤해서
+  //    모바일에서 MOVIS 진입만 해도 페이지 전체가 위로 딸려 올라간다(화면이 계속 튐).
+  //    + deps의 loadingStep이 생각중 애니메이션마다 바뀌어 반복 실행되던 것도 원인.
+  //    → 채팅 컨테이너만 직접 스크롤하고, 빈 대화/사용자가 위 기록 읽는 중엔 건드리지 않는다.
+  const stickToBottomRef = useRef(true);
+  const handleChatScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // 하단 80px 이내면 "따라가기" 유지, 위로 올려 읽는 중이면 해제
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    const el = scrollRef.current;
+    if (!el || messages.length === 0) return;   // 진입 직후 빈 대화면 스크롤 안 함
+    if (!stickToBottomRef.current) return;      // 위 기록 읽는 중이면 끌어내리지 않음
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages.length, isLoading, loadingStep]);
 
   const submit = () => {
@@ -222,6 +237,7 @@ export default function ChatPanel({
       {/* 메시지 영역 */}
       <div
         ref={scrollRef}
+        onScroll={handleChatScroll}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-4 py-3 relative z-10"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
