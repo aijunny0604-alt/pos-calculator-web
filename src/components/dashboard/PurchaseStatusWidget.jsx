@@ -5,7 +5,7 @@
 // 대시보드 StatCard와 동일한 외형(아이콘박스+라벨+값+보조) → 그리드에 자연스럽게 정렬.
 
 import { useEffect, useMemo, useState } from 'react';
-import { PackageX, ClipboardCheck } from 'lucide-react';
+import { PackageX, ClipboardCheck, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { poOpenItems, itemRemaining, daysSince, ageLevel } from '@/lib/purchaseExport';
 import { formatPrice } from '@/lib/utils';
@@ -20,17 +20,23 @@ const AGE_COLOR = {
 
 export default function PurchaseStatusWidget({ setCurrentPage }) {
   const [pos, setPos] = useState(null); // null=로딩, []=없음
+  // 🚨 getPurchaseOrders는 실패 시 null을 준다. 이걸 []로 뭉개면 미입고가 쌓여 있어도
+  //    "전부 입고됨"(초록)으로 보여 위젯이 존재 이유를 배반한다 → 실패는 실패로 표시.
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       const rows = await supabase.getPurchaseOrders();
-      if (alive) setPos(Array.isArray(rows) ? rows : []);
+      if (!alive) return;
+      if (Array.isArray(rows)) { setPos(rows); setFailed(false); }
+      else { setPos([]); setFailed(true); }
     })();
     // 다른 기기/탭에서 발주 입고 처리하면 반영되게 가벼운 폴링(5분)
     const t = setInterval(async () => {
       const rows = await supabase.getPurchaseOrders();
-      if (alive && Array.isArray(rows)) setPos(rows);
+      if (!alive) return;
+      if (Array.isArray(rows)) { setPos(rows); setFailed(false); } // 실패 시엔 직전 값 유지
     }, 5 * 60 * 1000);
     return () => { alive = false; clearInterval(t); };
   }, []);
@@ -44,9 +50,10 @@ export default function PurchaseStatusWidget({ setCurrentPage }) {
       if (open.length === 0) continue;
       itemCount += open.length;
       for (const it of open) amount += num(it.unit_price) * itemRemaining(it);
-      if (!oldest || String(po.order_date) < String(oldest.po.order_date)) {
-        oldest = { po, days: daysSince(po.order_date) };
-      }
+      // 발주일 없는 행은 후보에서 제외(문자열 비교하면 "null"이 끼어들어 정렬이 흔들림) — 경과일 숫자로 비교
+      if (!po.order_date) continue;
+      const d = daysSince(po.order_date);
+      if (!oldest || d > oldest.days) oldest = { po, days: d };
     }
     return { itemCount, amount, oldest };
   }, [pos]);
@@ -66,8 +73,30 @@ export default function PurchaseStatusWidget({ setCurrentPage }) {
     );
   }
 
+  // 조회 실패 — "미입고 없음"으로 오인하면 JSR 지연을 놓치므로 명시적으로 확인 불가 표시
+  if (failed) {
+    return (
+      <button
+        onClick={go}
+        className="flex items-start gap-4 p-5 rounded-xl border transition-all hover:shadow-md hover:-translate-y-0.5 text-left w-full"
+        style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
+      >
+        <div className="p-3 rounded-xl flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--muted-foreground) 12%, transparent)' }}>
+          <AlertCircle className="w-6 h-6" style={{ color: 'var(--muted-foreground)' }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>JSR 매입 미입고</p>
+          <p className="text-2xl font-bold mt-0.5" style={{ color: 'var(--muted-foreground)' }}>확인 불가</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>불러오기 실패 · 눌러서 확인</p>
+        </div>
+      </button>
+    );
+  }
+
   const hasPending = s.itemCount > 0;
-  const lv = hasPending ? ageLevel(s.oldest.days) : 'ok';
+  // 발주일이 없는 행만 미입고인 경우 oldest가 없을 수 있다 → 날짜 강조는 생략
+  const oldestDays = s.oldest?.days ?? null;
+  const lv = hasPending && oldestDays != null ? ageLevel(oldestDays) : 'ok';
   const accent = hasPending ? AGE_COLOR[lv] : 'var(--success)';
   const Icon = hasPending ? PackageX : ClipboardCheck;
 
@@ -94,7 +123,7 @@ export default function PurchaseStatusWidget({ setCurrentPage }) {
             <p className="text-2xl font-bold mt-0.5" style={{ color: 'var(--foreground)' }}>{s.itemCount}품목</p>
             <p className="text-xs mt-0.5 break-keep leading-snug" style={{ color: accent }}>
               {lv === 'critical' ? '🚨 ' : lv === 'warn' ? '⚠️ ' : ''}
-              {formatPrice(s.amount)}원 · 최장 {s.oldest.days}일
+              {formatPrice(s.amount)}원{oldestDays != null ? ` · 최장 ${oldestDays}일` : ''}
             </p>
           </>
         ) : (

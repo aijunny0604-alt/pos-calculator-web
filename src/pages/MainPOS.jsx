@@ -368,6 +368,16 @@ export default function MainPOS({
   //    빠르게 여러 번 누르면 전부 같은 값에서 ±1을 계산 → 재렌더 전 클릭이 뭉개져 "안 눌러짐"으로 보였다.
   //    함수형 업데이트로 항상 최신 state 기준 증감. removeFromCart는 setCart 밖(0 도달 시)에서 처리.
   const stepQuantity = (productId, delta) => {
+    // 재고 초과 경고 — updateQuantity(직접 타이핑)에는 있는데 +/− 버튼에만 빠지면
+    // 같은 결과인데 경고가 갈린다. 토스트는 setCart 밖에서(StrictMode 이중 실행 방지).
+    if (delta > 0) {
+      const cur = cart.find(i => i.id === productId)?.quantity ?? 0;
+      const product = products.find(p => p.id === productId);
+      const baseStock = product?.stock !== undefined ? product.stock : 50;
+      if (cur + delta > baseStock && baseStock > 0) {
+        showToast && showToast(`재고 부족 (재고: ${baseStock}개) - 초과 주문`, 'warning');
+      }
+    }
     setCart(prev => {
       const item = prev.find(i => i.id === productId);
       if (!item) return prev;

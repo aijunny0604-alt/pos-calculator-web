@@ -134,14 +134,17 @@ export default function CertLibrary({ customers = [], showToast }) {
     let ok = 0;
     const failed = [];
     for (const file of files) {
+      let uploaded = null;
       try {
-        const up = await uploadCertToLibrary(file);
+        uploaded = await uploadCertToLibrary(file);
         const name = (file.name || '새 등록증').replace(/\.(jpe?g|png|webp|gif|bmp|heic|pdf)$/i, '');
-        const res = await supabase.addBusinessCert({ name, storagePath: up.path, url: up.url });
+        const res = await supabase.addBusinessCert({ name, storagePath: uploaded.path, url: uploaded.url });
         if (!res.ok) throw new Error(res.error);
         setCerts((prev) => [{ ...res.data, customers: null }, ...prev]);
         ok++;
       } catch (err) {
+        // DB 행 생성이 실패하면 방금 올린 파일이 어디에도 안 보이는 orphan으로 남는다 → 정리
+        if (uploaded?.path) await deleteImages([uploaded.path]).catch(() => {});
         console.error('cert upload 실패:', file.name, err);
         failed.push(file.name);
       }
@@ -154,7 +157,7 @@ export default function CertLibrary({ customers = [], showToast }) {
   };
 
   const handleUpload = async (e) => {
-    const files = e.target.files;
+    const files = Array.from(e.target.files || []); // input.value 초기화 전에 먼저 복사(FileList는 초기화 시 비워질 수 있음)
     if (fileRef.current) fileRef.current.value = '';
     await uploadFiles(files);
   };
@@ -185,6 +188,7 @@ export default function CertLibrary({ customers = [], showToast }) {
     e.preventDefault();
     dragDepth.current = 0;
     setDragOver(false);
+    if (uploading) return; // 업로드 중 재드롭 시 동시 실행되어 진행표시가 꼬이는 것 방지
     await uploadFiles(e.dataTransfer.files);
   };
 

@@ -247,6 +247,9 @@ export default function CustomerList({
     if (showToast) showToast(`반품 처리 완료 (${returnedItems.length}건)`);
   };
 
+  // 보관함(CertLibrary)이 소유한 파일인지 — business-cert/library/… 는 보관함 원본이라 거래처 쪽에서 지우면 안 된다
+  const isLibraryOwnedPath = (p) => /business-cert\/library\//.test(String(p || ''));
+
   // -- 사업자등록증 업로드/교체/삭제 (기존 있으면 최신으로 교체) --
   const handleCertUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -267,8 +270,15 @@ export default function CustomerList({
         return;
       }
       if (oldPath && oldPath !== path) {
-        await deleteImages([oldPath]).catch(() => {});                    // 기존 것 삭제(최신 교체)
-        await supabase.deleteBusinessCertsByPath(oldPath).catch(() => {}); // 보관함의 옛 행도 정리(깨진 썸네일 방지)
+        // 🚨 보관함(business-cert/library/…) 원본을 연결해둔 거래처는 파일·행을 지우면 안 된다.
+        //    보관함에서 연결하면 customers.business_cert_path가 '보관함 파일'을 가리키므로,
+        //    여기서 지우면 교체 한 번에 보관함 문서가 통째로 증발한다. 연결만 끊고 원본은 보존.
+        if (isLibraryOwnedPath(oldPath)) {
+          await supabase.clearCustomerCertLinks(selectedCustomer.id).catch(() => {});
+        } else {
+          await deleteImages([oldPath]).catch(() => {});                    // 거래처 전용 파일만 삭제(최신 교체)
+          await supabase.deleteBusinessCertsByPath(oldPath).catch(() => {}); // 보관함의 옛 행도 정리(깨진 썸네일 방지)
+        }
       }
       setSelectedCustomer((prev) => prev ? { ...prev, business_cert_url: url, business_cert_path: path } : prev);
 
@@ -297,14 +307,23 @@ export default function CustomerList({
   const handleCertDelete = async () => {
     if (!selectedCustomer?.business_cert_url) return;
     const oldPath = selectedCustomer.business_cert_path;
+    const fromLibrary = isLibraryOwnedPath(oldPath);
+    // 🚨 되돌릴 수 없는 파괴 작업이라 반드시 확인 (보관함 원본까지 지워질 수 있음)
+    const msg = fromLibrary
+      ? `"${selectedCustomer.name}" 거래처의 사업자등록증 연결을 해제할까요?\n\n보관함의 원본 문서는 그대로 남습니다.`
+      : `"${selectedCustomer.name}" 사업자등록증을 삭제할까요?\n\n⚠️ 저장된 원본 파일과 보관함 항목까지 완전히 지워지며 되돌릴 수 없습니다.`;
+    if (!window.confirm(msg)) return;
+
     const res = await supabase.setCustomerCert(selectedCustomer.id, null, null);
     if (!res.ok) { showToast?.('삭제 실패', 'error'); return; }
-    if (oldPath) {
+    if (oldPath && fromLibrary) {
+      await supabase.clearCustomerCertLinks(selectedCustomer.id).catch(() => {}); // 연결만 해제
+    } else if (oldPath) {
       await deleteImages([oldPath]).catch(() => {});
       await supabase.deleteBusinessCertsByPath(oldPath).catch(() => {}); // 보관함 행도 함께 정리
     }
     setSelectedCustomer((prev) => prev ? { ...prev, business_cert_url: null, business_cert_path: null } : prev);
-    showToast?.('사업자등록증 삭제됨', 'success');
+    showToast?.(fromLibrary ? '연결 해제됨 (보관함 원본 유지)' : '사업자등록증 삭제됨', 'success');
   };
 
   // -- Copy helpers --

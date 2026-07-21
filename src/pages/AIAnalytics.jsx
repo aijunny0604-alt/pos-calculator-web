@@ -259,7 +259,8 @@ export default function AIAnalytics({
       }
     }
     prevMsgCountRef.current = cur;
-  }, [chat.messages, tts]);
+    // 자동 TTS 제거 후 이 effect는 tts를 쓰지 않음 — deps에 남기면 매 렌더 재실행됨
+  }, [chat.messages]);
 
   // 쓰기 액션 실행
   const handleExecuteAction = async (pending) => {
