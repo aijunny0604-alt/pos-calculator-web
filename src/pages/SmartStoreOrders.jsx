@@ -390,6 +390,7 @@ export default function SmartStoreOrders({
   saveOrder: saveOrderProp,
   setCurrentPage,
   refreshCustomers,
+  onPendingCountChange,
 }) {
   // 착불/선불 정규화 (네이버 → ShippingLabel 형식)
   const normalizeDeliveryPayType = (policy) => {
@@ -630,6 +631,12 @@ export default function SmartStoreOrders({
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // 메뉴 배지 즉시 반영 — 여기 reload()가 배지와 같은 쿼리(limit 200, 날짜 무관)를 쓰므로
+  // 추가 요청 없이 이 목록으로 카운트를 넘긴다. 전환/발송 직후 배지가 60초 묵는 걸 막는다.
+  useEffect(() => {
+    if (!loading && onPendingCountChange) onPendingCountChange(orders.filter(isOrderPending).length);
+  }, [orders, loading, onPendingCountChange]);
 
   // 실시간 구독은 전역 StoreOrderAlerts가 전담 → 변경 이벤트 받으면 목록만 갱신
   useEffect(() => {

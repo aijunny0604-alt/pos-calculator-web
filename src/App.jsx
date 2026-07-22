@@ -247,6 +247,30 @@ export default function App() {
     loadData();
   }, []);
 
+  // ─── 스마트스토어 메뉴 배지 ────────────────────────────────────
+  // 처리 대기(배송 전 미처리) 주문 건수, 날짜 무관.
+  // 갱신 경로 3개: 마운트 / 60초 폴링 / 탭 복귀.
+  // 탭 복귀가 핵심 — 크롬이 백그라운드 탭 타이머를 얼려서 폴링만 믿으면
+  // 안 보는 사이 들어온 주문이 배지에 안 잡힌다 (2026-07-22 사고).
+  const [smartstoreCount, setSmartstoreCount] = useState(0);
+  const refreshSmartstoreCount = useCallback(async () => {
+    try {
+      // 배지 카운트는 isOrderPending 판정만 하므로 필요한 컬럼만 (raw_payload 제외 → 폴링 가볍게)
+      const list = await supabase.getExternalOrders({ limit: 200, select: 'id,order_status,internal_order_id,naver_dispatch_succeeded_at' });
+      // 결제완료/발주확인 등 아직 처리 안 한 주문 (배송중/종결 제외). 옛 미처리 주문도 포함.
+      setSmartstoreCount((list || []).filter((o) => isOrderPending(o)).length);
+    } catch (e) {
+      // 조용히 삼키면 배지가 0인 게 "주문 없음"인지 "조회 실패"인지 구분이 안 된다
+      console.warn('스마트스토어 배지 갱신 실패:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSmartstoreCount();
+    const interval = setInterval(refreshSmartstoreCount, 60000);
+    return () => clearInterval(interval);
+  }, [refreshSmartstoreCount]);
+
   // ─── Supabase real-time WebSocket ─────────────────────────────
   useEffect(() => {
     if (!supabaseConnected) return;
@@ -356,6 +380,8 @@ export default function App() {
     // 탭 포커스 복귀 시 갱신 (30초 쓰로틀링 적용)
     const handleVisibility = () => {
       if (!document.hidden) {
+        // 배지는 쓰로틀 밖에서 먼저 — 얼어 있던 탭이 깨어난 직후가 제일 낡은 시점이다
+        refreshSmartstoreCount();
         const now = Date.now();
         if (now - lastFetchRef.current < FETCH_THROTTLE_MS) return;
         lastFetchRef.current = now;
@@ -373,7 +399,7 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibility);
       ws.close();
     };
-  }, [supabaseConnected]);
+  }, [supabaseConnected, refreshSmartstoreCount]);
 
   // ─── Derived: badge counts ──────────────────────────────────
   const todayOrderCount = useMemo(() => {
@@ -383,25 +409,6 @@ export default function App() {
       return toDateKST(o.createdAt) === today;
     }).length;
   }, [orders]);
-
-  // 스마트스토어 메뉴 배지 — 처리 대기(배송 전 미처리) 주문 건수, 날짜 무관 (1분마다 polling)
-  const [smartstoreCount, setSmartstoreCount] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    const fetchCount = async () => {
-      try {
-        // 배지 카운트는 isOrderPending 판정만 하므로 필요한 컬럼만 (raw_payload 제외 → 60초 폴링 가볍게)
-        const list = await supabase.getExternalOrders({ limit: 200, select: 'id,order_status,internal_order_id,naver_dispatch_succeeded_at' });
-        if (cancelled) return;
-        // 결제완료/발주확인 등 아직 처리 안 한 주문 (배송중/종결 제외). 옛 미처리 주문도 포함.
-        const count = (list || []).filter((o) => isOrderPending(o)).length;
-        setSmartstoreCount(count);
-      } catch {}
-    };
-    fetchCount();
-    const interval = setInterval(fetchCount, 60000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
 
   const savedCartCount = useMemo(() => savedCarts.length, [savedCarts]);
 
@@ -1283,6 +1290,7 @@ export default function App() {
               saveOrder={saveOrder}
               setCurrentPage={setCurrentPage}
               refreshCustomers={refreshCustomers}
+              onPendingCountChange={setSmartstoreCount}
             />
           </Suspense>
         );
