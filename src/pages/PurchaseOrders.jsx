@@ -7,6 +7,7 @@ import { fileToScaledBase64 } from '@/lib/certVision';
 import QuoteScanModal from '@/components/purchase/QuoteScanModal';
 import {
   itemStatus, itemSupply, itemRemaining, poTotal, poOpenItems, poStatus,
+  poSpecialItems, poSpecialLabel,
   buildPurchaseCSV, buildPendingCSV, downloadCSV,
   buildPendingKakaoText, copyText,
   printPurchaseOrders, printPendingItems, exportPurchaseExcel,
@@ -157,17 +158,23 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
     );
   }, [pos, q]);
 
-  // 상태별 건수 — 부분 입고가 몇 건 걸려 있는지 칩에서 바로 보이게
+  // 상태별 건수 — 부분 입고나 취소건이 몇 건 걸려 있는지 칩에서 바로 보이게.
+  // 특이사항은 입고 상태와 별개 축이라(완료된 발주에도 취소 품목이 있을 수 있음) 따로 센다.
   const statusCounts = useMemo(() => {
-    const c = { all: searched.length, '미입고': 0, '부분 입고': 0, '완료': 0 };
-    for (const po of searched) { const s = poStatus(po); if (c[s] !== undefined) c[s]++; }
+    const c = { all: searched.length, '미입고': 0, '부분 입고': 0, '완료': 0, '특이사항': 0 };
+    for (const po of searched) {
+      const s = poStatus(po);
+      if (c[s] !== undefined) c[s]++;
+      if (poSpecialItems(po).length > 0) c['특이사항']++;
+    }
     return c;
   }, [searched]);
 
-  const filtered = useMemo(
-    () => (status === 'all' ? searched : searched.filter((po) => poStatus(po) === status)),
-    [searched, status],
-  );
+  const filtered = useMemo(() => {
+    if (status === 'all') return searched;
+    if (status === '특이사항') return searched.filter((po) => poSpecialItems(po).length > 0);
+    return searched.filter((po) => poStatus(po) === status);
+  }, [searched, status]);
 
   // 미입고 현황 — 발주를 가로질러 아직 안 들어온 품목만 평탄화 (시트 "미입고 현황"의 목적)
   // 상태 칩은 발주 목록 전용이라 여기선 검색 결과만 반영한다
@@ -504,9 +511,11 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
               { id: '미입고', label: '미입고' },
               { id: '부분 입고', label: '부분 입고' },
               { id: '완료', label: '완료' },
+              { id: '특이사항', label: '특이사항' },
             ].map((s) => {
               const on = status === s.id;
-              const tone = STATUS_STYLE[s.id]?.bg || 'var(--primary)';
+              // 특이사항은 입고 상태가 아니라 별개 축이라 상태색과 겹치지 않는 진한 중립색을 쓴다
+              const tone = s.id === '특이사항' ? 'var(--foreground)' : (STATUS_STYLE[s.id]?.bg || 'var(--primary)');
               return (
                 <button
                   key={s.id}
@@ -514,7 +523,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
                   aria-pressed={on}
                   className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-1.5"
                   style={on
-                    ? { background: tone, color: '#fff', borderColor: tone }
+                    ? { background: tone, color: s.id === '특이사항' ? 'var(--background)' : '#fff', borderColor: tone }
                     : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
                 >
                   {s.label}
@@ -566,13 +575,16 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
         ) : tab === 'orders' ? (
           filtered.length === 0 ? (
             <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
-              {status !== 'all' ? `${status} 상태인 발주가 없습니다` : q ? '검색 결과가 없습니다' : '등록된 발주가 없습니다'}
+              {status === '특이사항' ? '취소·차감 같은 특이사항이 있는 발주가 없습니다'
+                : status !== 'all' ? `${status} 상태인 발주가 없습니다`
+                : q ? '검색 결과가 없습니다' : '등록된 발주가 없습니다'}
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
               {filtered.map((po) => {
                 const st = poStatus(po);
                 const open = poOpenItems(po);
+                const sp = poSpecialLabel(po);
                 return (
                   <button key={po.id} onClick={() => openPo(po)}
                     className="text-left rounded-xl border overflow-hidden hover:shadow-md transition-shadow"
@@ -585,6 +597,16 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
                           <StatusBadge status={st} />
                           {/* 미완료 발주만 묵은 기간 노출 — 완료된 건 며칠 됐는지 알 필요 없다 */}
                           {open.length > 0 && <AgeBadge date={po.order_date} />}
+                          {/* 취소·차감처럼 직접 적어둔 사유 — 상태 계산에서 빠지는 항목이라 여기서라도 보여준다 */}
+                          {sp && (
+                            <span
+                              title={sp.title}
+                              className="px-2 py-0.5 rounded-full text-[11px] font-bold border max-w-[140px] truncate"
+                              style={{ color: 'var(--muted-foreground)', borderColor: 'var(--border)', background: 'var(--muted)' }}
+                            >
+                              {sp.label}
+                            </span>
+                          )}
                           <span className="ml-auto text-xs font-bold" style={{ color: 'var(--muted-foreground)' }}>{po.supplier_name}</span>
                         </div>
                         <div className="text-sm font-bold mb-2 truncate flex items-center gap-1.5" style={{ color: 'var(--foreground)' }}>

@@ -31,6 +31,18 @@ export const ageLevel = (days) => (days >= 90 ? 'critical' : days >= 30 ? 'warn'
 export const poTotal = (po) => (po?.items || []).reduce((s, it) => s + itemSupply(it), 0);
 export const poOpenItems = (po) =>
   (po?.items || []).filter((it) => !it.status_override && num(it.qty) > 0 && itemRemaining(it) > 0);
+// 특이사항 품목 — 상태를 직접 적어둔 것(주문 취소 등)과 수량 음수(차감).
+// poStatus/poOpenItems가 이 둘을 계산에서 빼기 때문에, 취소건만 있는 발주는 목록에서 '완료'로만 보인다.
+// 그래서 따로 뽑아 보여줘야 눈에 걸린다.
+export const poSpecialItems = (po) =>
+  (po?.items || []).filter((it) => it.status_override || num(it.qty) < 0);
+// 카드에 붙일 라벨 — 사유가 한 종류면 그 문구를, 여러 종류면 건수를 보여준다
+export const poSpecialLabel = (po) => {
+  const names = [...new Set(poSpecialItems(po).map((it) => it.status_override || '차감'))];
+  if (names.length === 0) return null;
+  return { label: names.length === 1 ? names[0] : `특이 ${poSpecialItems(po).length}`, title: names.join(', ') };
+};
+
 export const poStatus = (po) => {
   const items = (po?.items || []).filter((it) => !it.status_override && num(it.qty) > 0);
   if (items.length === 0) return '완료';
