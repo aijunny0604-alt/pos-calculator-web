@@ -21,6 +21,7 @@ export default function OrderDetail({
   onClose,
   order,
   onUpdateOrder,
+  customers = [],
   products = [],
   onSaveCustomerReturn,
   onDeleteCustomerReturn,
@@ -33,6 +34,8 @@ export default function OrderDetail({
   const [productSearchTerm, setProductSearchTerm] = useState('');
   // 저장 전 변경 확인 모달 — { updatedData, diff } (실수 방지: OK 눌러야 실제 적용)
   const [pendingSave, setPendingSave] = useState(null);
+  // 거래처 원장도 같이 고칠지 — 저장 확인 모달에서 사장님이 선택
+  const [syncCustomer, setSyncCustomer] = useState(true);
   const [pendingDeleteReturnId, setPendingDeleteReturnId] = useState(null);
   // Return state
   const [isReturning, setIsReturning] = useState(false);
@@ -360,11 +363,38 @@ export default function OrderDetail({
       return;
     }
     // 실수 방지 — 변경점 확인 모달을 띄우고, OK(적용) 눌러야 실제 반영
-    setPendingSave({ updatedData, diff });
+    setPendingSave({ updatedData, diff, custSync: buildCustomerSync(updatedData) });
+    setSyncCustomer(true);
+  };
+
+  // 연락처/주소를 고쳤을 때 거래처 원장도 같이 고칠지 판단할 재료를 모은다.
+  // 일회성 배송지(현장 납품 등)를 거래처 기본값으로 덮어쓰면 다음 주문이 엉뚱한 데로 가므로
+  // 자동으로 밀어넣지 않고 사장님 동의를 받는다 (2026-07-22).
+  const buildCustomerSync = (updatedData) => {
+    const phoneChanged = (order.customerPhone || '') !== (updatedData.customer_phone || '');
+    const addrChanged = (order.customerAddress || '') !== (updatedData.customer_address || '');
+    if (!phoneChanged && !addrChanged) return null;
+    const name = order.customerName || updatedData.customer_name;
+    if (!name) return null;
+    const customer = customers.find((c) => c.name?.trim().toLowerCase() === String(name).trim().toLowerCase());
+    // 거래처 목록에 없는 이름 = 동기화 대상 없음. 왜 안 바뀌는지 모달에서 알려준다.
+    if (!customer) return { name, missing: true, fields: [] };
+    const fields = [];
+    if (phoneChanged && (customer.phone || '') !== (updatedData.customer_phone || '')) {
+      fields.push({ label: '연락처', from: customer.phone || '(없음)', to: updatedData.customer_phone || '(없음)' });
+    }
+    if (addrChanged && (customer.address || '') !== (updatedData.customer_address || '')) {
+      fields.push({ label: '주소', from: customer.address || '(없음)', to: updatedData.customer_address || '(없음)' });
+    }
+    if (fields.length === 0) return null;   // 거래처엔 이미 같은 값 → 물어볼 게 없다
+    return { name: customer.name, missing: false, fields };
   };
 
   const confirmSave = () => {
-    if (pendingSave && onUpdateOrder) onUpdateOrder(order.id, pendingSave.updatedData);
+    if (pendingSave && onUpdateOrder) {
+      const sync = pendingSave.custSync && !pendingSave.custSync.missing ? syncCustomer : false;
+      onUpdateOrder(order.id, pendingSave.updatedData, { syncCustomer: sync });
+    }
     setPendingSave(null);
     setIsEditing(false);
     setShowProductSearch(false);
@@ -2329,6 +2359,39 @@ export default function OrderDetail({
                 );
                 return null;
               })}
+
+              {/* 거래처 원장 동기화 동의 — 일회성 배송지로 기본 주소를 덮어쓰는 사고 방지 */}
+              {pendingSave.custSync && pendingSave.custSync.missing && (
+                <div className="p-2.5 rounded-lg text-xs" style={{ background: 'color-mix(in srgb, #f59e0b 10%, var(--card))', border: '1px dashed color-mix(in srgb, #f59e0b 50%, transparent)', color: 'var(--muted-foreground)' }}>
+                  거래처 목록에 <b style={{ color: 'var(--foreground)' }}>{pendingSave.custSync.name}</b> 이(가) 없어서
+                  거래처 정보는 바뀌지 않습니다. 이 주문에만 적용됩니다.
+                </div>
+              )}
+              {pendingSave.custSync && !pendingSave.custSync.missing && (
+                <div className="p-3 rounded-lg" style={{ background: 'color-mix(in srgb, #3b82f6 10%, var(--card))', border: '1px solid color-mix(in srgb, #3b82f6 45%, transparent)' }}>
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" checked={syncCustomer} onChange={(e) => setSyncCustomer(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 flex-shrink-0 cursor-pointer" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold" style={{ color: 'var(--foreground)' }}>
+                        거래처 「{pendingSave.custSync.name}」 정보도 함께 변경
+                      </span>
+                      <span className="block text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                        체크 해제하면 <b>이 주문에만</b> 적용됩니다 (일회성 배송지 등)
+                      </span>
+                      <span className="block mt-2 space-y-1">
+                        {pendingSave.custSync.fields.map((f, i) => (
+                          <span key={i} className="block text-xs break-words" style={{ color: 'var(--muted-foreground)' }}>
+                            {f.label} <span className="line-through opacity-70">{f.from}</span>
+                            <span className="mx-1">→</span>
+                            <b style={{ color: 'var(--foreground)' }}>{f.to}</b>
+                          </span>
+                        ))}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
             <div className="px-4 py-3 flex gap-2 flex-shrink-0 border-t border-[var(--border)]">
               <button onClick={() => setPendingSave(null)} className="flex-1 py-2.5 rounded-lg font-medium text-sm border border-[var(--border)] hover:bg-[var(--background)] transition-colors" style={{ color: 'var(--foreground)' }}>

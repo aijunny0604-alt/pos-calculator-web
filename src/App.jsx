@@ -738,8 +738,11 @@ export default function App() {
     [orders, showToast, pushUndo, refreshOrders, restoreStock]
   );
 
+  // opts.syncCustomer — 거래처 테이블까지 같이 고칠지.
+  //   true  = 고친다 / false = 이 주문만 (일회성 배송지 등)
+  //   생략  = 기존 자동 동기화 (주문상세 외 호출부 동작 유지)
   const handleUpdateOrder = useCallback(
-    async (id, data) => {
+    async (id, data, opts = {}) => {
       const result = await supabase.updateOrder(id, data);
       if (result) {
         // customerName을 setOrders 외부에서 미리 추출
@@ -760,23 +763,32 @@ export default function App() {
           })
         );
 
-        // 거래처 테이블 동기화 (전화번호/주소 변경 시)
-        if (customerName && (data.customer_phone != null || data.customer_address != null)) {
+        // 거래처 테이블 동기화 (전화번호/주소 변경 시).
+        // 주문상세에서는 모달로 동의를 받고 opts.syncCustomer를 넘긴다 —
+        // 일회성 배송지를 거래처 기본 주소로 덮어쓰는 사고를 막기 위함 (2026-07-22).
+        const wantSync = opts.syncCustomer !== false;
+        if (wantSync && customerName && (data.customer_phone != null || data.customer_address != null)) {
           const customer = customers.find(c => c.name?.toLowerCase() === customerName?.toLowerCase());
           if (customer) {
             const customerUpdate = {};
             if (data.customer_phone != null) customerUpdate.phone = data.customer_phone;
             if (data.customer_address != null) customerUpdate.address = data.customer_address;
-            await supabase.updateCustomer(customer.id, customerUpdate);
-            setCustomers(prev => prev.map(c =>
-              c.id === customer.id ? { ...c, ...customerUpdate } : c
-            ));
+            const saved = await supabase.updateCustomer(customer.id, customerUpdate);
+            if (saved) {
+              setCustomers(prev => prev.map(c =>
+                c.id === customer.id ? { ...c, ...customerUpdate } : c
+              ));
+              if (opts.syncCustomer === true) showToast(`거래처 「${customer.name}」 정보도 변경했습니다`, 'success');
+            } else if (opts.syncCustomer === true) {
+              // 조용히 실패하면 "바꿨는데 왜 그대로지"가 된다
+              showToast('거래처 정보 변경에 실패했습니다', 'error');
+            }
           }
         }
       }
       return result;
     },
-    [orders, customers]
+    [orders, customers, showToast]
   );
 
   // ─── Cart save modal helpers ──────────────────────────────────
@@ -1396,8 +1408,9 @@ export default function App() {
           isOpen={!!selectedOrder}
           onClose={() => setSelectedOrder(null)}
           order={selectedOrder}
-          onUpdateOrder={async (id, data) => {
-            const result = await handleUpdateOrder(id, data);
+          customers={customers}
+          onUpdateOrder={async (id, data, opts) => {
+            const result = await handleUpdateOrder(id, data, opts);
             if (result) {
               setSelectedOrder((prev) =>
                 prev ? {
