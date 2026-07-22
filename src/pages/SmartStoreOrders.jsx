@@ -5,12 +5,12 @@
 // - Mock 데이터 주입 (Phase 1 — API 키 받기 전 테스트용)
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu, Ban, Copy, Maximize2, Minimize2, Store } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu, Ban, Copy, Maximize2, Minimize2, Store, Clock } from 'lucide-react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/components/StoreOrderAlerts';
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
-import { isOrderDone, isOrderTerminal, isOrderPending } from '@/lib/orderStatus';
+import { isOrderDone, isOrderTerminal, isOrderPending, PAYMENT_PENDING_STATUSES } from '@/lib/orderStatus';
 import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 
@@ -190,9 +190,10 @@ const isVisitReceiptOrder = (order, items = []) => {
 // 취소요청=주황(응답필요), 취소=빨강, 반품=핑크, 교환=마젠타. (2026-06-01 색 분리)
 const STATUS_LABEL = {
   received: { label: '수신', color: '#7e9cb8', bg: 'rgba(126,156,184,0.15)' },
-  // 입금대기 — 고객 미결제, 사장님 액션 불가 → 흐린 회색
-  PAYMENT_WAITING: { label: '입금대기', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
-  PAY_WAITING: { label: '입금대기', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
+  // 입금대기 — 고객 미결제. 매장 액션은 없지만 "돈이 아직 안 들어온 건"이라 묻히면 안 된다.
+  // (2026-07-22: 흐린 회색이라 결제완료 건과 구분이 안 된다는 지적 → 앰버로 승격)
+  PAYMENT_WAITING: { label: '입금대기', color: '#b45309', bg: 'rgba(217,119,6,0.18)' },
+  PAY_WAITING: { label: '입금대기', color: '#b45309', bg: 'rgba(217,119,6,0.18)' },
   // 결제완료/매칭 — 지금 처리해야 할 시작점 → 밝은 시안
   PAYED: { label: '결제완료', color: '#22d3ee', bg: 'rgba(34,211,238,0.16)' },
   matched: { label: '매칭됨', color: '#22d3ee', bg: 'rgba(34,211,238,0.16)' },
@@ -246,24 +247,37 @@ const PENDING_CONFIRM_STATUSES = new Set(['received', 'PAYED', 'PAYMENT_WAITING'
 // 주문 진행 단계 — 사장님이 "지금 어디까지 됐는지" 한눈에 보도록 5단계로 정규화.
 // 결제완료(0) → 발주확인(1) → 발송(2) → 배송중(3) → 배송완료(4).
 // 취소/반품/교환은 별도 트랙(stage=-1, canceled=true).
+// 입금대기는 결제 전이라 진행이 시작도 안 한 상태 → 퍼널 밖(stage=-2, unpaid=true).
+//   (2026-07-22: 입금대기를 '결제완료' 칸에 넣어 같은 화면 상태 배지와 모순되던 것 분리)
 const ORDER_STEPS = ['결제완료', '발주확인', '발송', '배송중', '배송완료'];
 function orderStage(o) {
-  if (!o) return { stage: 0, canceled: false };
+  if (!o) return { stage: 0, canceled: false, unpaid: false };
   const st = o.order_status;
+  // 입금 여부는 진행 단계와 독립된 축이다.
+  // 무통장 주문은 입금 전에도 발주확인이 되므로(PENDING_CONFIRM_STATUSES에 PAYMENT_WAITING 포함),
+  // "발주확인까지 했지만 돈은 아직 안 들어온" 상태가 실재한다. 단계에 흡수시키면 그 사실이 사라진다.
+  const unpaid = PAYMENT_PENDING_STATUSES.has(st);
   // 취소/반품/교환 = 정상 흐름 이탈
   if (['cancelled', 'CANCELED', 'CANCELED_BY_NOPAYMENT', 'CANCEL_REQUEST', 'RETURNED', 'EXCHANGED'].includes(st)) {
-    return { stage: -1, canceled: true };
+    return { stage: -1, canceled: true, unpaid: false };
   }
   // 배송완료 / 구매확정
-  if (['DELIVERED', 'DELIVERED_COMPLETED', 'PURCHASE_DECIDED'].includes(st)) return { stage: 4, canceled: false };
+  if (['DELIVERED', 'DELIVERED_COMPLETED', 'PURCHASE_DECIDED'].includes(st)) return { stage: 4, canceled: false, unpaid };
   // 배송중
-  if (st === 'DELIVERING') return { stage: 3, canceled: false };
+  if (st === 'DELIVERING') return { stage: 3, canceled: false, unpaid };
   // 발송 — 네이버 발송처리 시각이 찍혔거나 내부/네이버 발송 상태
-  if (o.naver_dispatch_succeeded_at || st === 'shipped' || st === 'DISPATCHED') return { stage: 2, canceled: false };
-  // 발주확인 — 네이버 발주확인 완료 또는 내부 전환/확인 상태
-  if (o.naver_confirm_succeeded_at || st === 'confirmed' || st === 'converted') return { stage: 1, canceled: false };
-  // 그 외(결제완료/매칭/수신/입금대기) = 시작점
-  return { stage: 0, canceled: false };
+  if (o.naver_dispatch_succeeded_at || st === 'shipped' || st === 'DISPATCHED') return { stage: 2, canceled: false, unpaid };
+  // 발주확인 — 네이버 발주확인 완료 / 내부주문 전환 / 확인 상태.
+  // ⚠️ internal_order_id를 봐야 한다. 2026-06-15에 전환 시 order_status를 'converted'로
+  //    덮지 않게 바뀌어서, status만 보면 전환한 건이 시작점에 그대로 남는다 (isOrderPending과 동일 기준).
+  if (o.naver_confirm_succeeded_at || o.internal_order_id || st === 'confirmed' || st === 'converted') {
+    return { stage: 1, canceled: false, unpaid };
+  }
+  // 입금대기인데 아무 진행도 없음 = 퍼널에 아직 진입 못 한 상태.
+  // 이걸 '결제완료' 칸에 넣으면 같은 화면 상태 배지(입금대기)와 모순된다 (2026-07-22 지적).
+  if (unpaid) return { stage: -2, canceled: false, unpaid: true };
+  // 그 외(결제완료/매칭/수신) = 시작점
+  return { stage: 0, canceled: false, unpaid: false };
 }
 
 // 처리 대기 주문 = 매장이 아직 손대야 하는 주문 (발주확인 전 or 발송 전).
@@ -293,7 +307,16 @@ function dispatchErrorHint(err) {
 
 // 진행단계 스텝퍼 — 카드 상단에 가로로 표시. 지난 단계=초록 체크, 현재=강조, 이후=흐림.
 function OrderStepper({ order }) {
-  const { stage, canceled } = orderStage(order);
+  const { stage, canceled, unpaid } = orderStage(order);
+  // 입금대기 띠 — 단계와 무관하게 항상 위에 붙인다. 발주확인까지 갔어도 돈이 안 들어왔으면 알아야 한다.
+  const unpaidBar = unpaid ? (
+    <div className="px-4 py-1.5 flex items-center gap-1.5 border-b text-[11px] font-bold"
+      style={{ borderColor: 'var(--border)', background: 'rgba(217,119,6,0.14)', color: '#b45309' }}>
+      <Clock className="w-3.5 h-3.5" /> 입금대기 — 고객이 아직 결제하지 않았습니다
+    </div>
+  ) : null;
+  // 결제 전 + 아무 진행 없음 = 퍼널 진입 전이라 스텝퍼를 그릴 게 없다
+  if (unpaid && stage < 0) return unpaidBar;
   if (canceled) {
     const st = order.order_status;
     const label = st === 'RETURNED' ? '반품' : st === 'EXCHANGED' ? '교환'
@@ -306,6 +329,8 @@ function OrderStepper({ order }) {
     );
   }
   return (
+    <>
+    {unpaidBar}
     <div className="px-3 sm:px-4 py-2 border-b flex items-center" style={{ borderColor: 'var(--border)' }}>
       {ORDER_STEPS.map((label, i) => {
         const done = i < stage;
@@ -336,6 +361,7 @@ function OrderStepper({ order }) {
         );
       })}
     </div>
+    </>
   );
 }
 
@@ -688,8 +714,9 @@ export default function SmartStoreOrders({
       // 상태 필터 = 스텝퍼 5단계(실제 배송상태)와 1:1. 단일 order_status 정확매칭이 아니라
       // 단계(결제완료/발주확인/발송/배송중/배송완료)·취소 그룹으로 판정 (2026-06-03).
       if (statusFilter !== 'all') {
-        const { stage: st, canceled: cx } = orderStage(o);
+        const { stage: st, canceled: cx, unpaid: up } = orderStage(o);
         if (statusFilter === 'cancel') { if (!cx && !getClaimInfo(o, itemsByOrder[o.id])) return false; }
+        else if (statusFilter === 'unpaid') { if (!up) return false; }
         else {
           const wantStage = { s0: 0, s1: 1, s2: 2, s3: 3, s4: 4 }[statusFilter];
           if (cx || st !== wantStage) return false;
@@ -790,6 +817,8 @@ export default function SmartStoreOrders({
     count: filtered.length,
     sum: filtered.reduce((s, o) => s + Number(o.total_amount || 0), 0),
     pending: filtered.filter((o) => needsAction(o)).length,
+    // 입금대기는 needsAction에서 빠지므로(고객 미결제) 따로 세어 요약에 노출 — "2건인데 왜 1건?" 혼선 방지
+    unpaid: filtered.filter((o) => PAYMENT_PENDING_STATUSES.has(o.order_status)).length,
   }), [filtered]);
 
   // CSV 내보내기 — 현재 조회된(필터 적용) 주문을 정산/세무용으로 다운로드
@@ -888,14 +917,16 @@ export default function SmartStoreOrders({
   // stats/위젯과 동일하게 ordersInRange(조회기간 적용) 기준 → 날짜 바꾸면 카운트도 따라감.
   const stageCounts = useMemo(() => {
     const stages = [0, 0, 0, 0, 0]; // 결제완료 / 발주확인 / 발송 / 배송중 / 배송완료
-    let canceled = 0;
+    let canceled = 0, unpaid = 0;
     for (const o of ordersInRange) {
-      const { stage, canceled: cx } = orderStage(o);
+      const { stage, canceled: cx, unpaid: up } = orderStage(o);
       // 취소/반품/교환 = order_status 종결 + claimStatus 요청(아직 PAYED/DELIVERED인 진행 클레임) 모두 포함
       if (cx || getClaimInfo(o, itemsByOrder[o.id])) { canceled++; continue; }
+      // 입금대기는 단계와 독립 — 발주확인까지 간 미입금 건도 양쪽에 잡혀야 한다
+      if (up) unpaid++;
       if (stage >= 0 && stage <= 4) stages[stage]++;
     }
-    return { stages, canceled };
+    return { stages, canceled, unpaid };
   }, [ordersInRange, itemsByOrder]);
 
   // Mock 데이터 주입 (Phase 1 테스트용)
@@ -1572,6 +1603,7 @@ export default function SmartStoreOrders({
         <StageMonitorBar
           counts={stageCounts.stages}
           canceled={stageCounts.canceled}
+          unpaid={stageCounts.unpaid}
           statusFilter={statusFilter}
           onSelect={(key) => { setWidgetFilter('none'); setStatusFilter(key || 'all'); }}
           onSelectCancel={() => { setWidgetFilter('none'); setStatusFilter('cancel'); }}
@@ -1700,6 +1732,9 @@ export default function SmartStoreOrders({
           <span>합계 <b style={{ color: 'var(--primary)' }}>{fmtNum(filteredSummary.sum)}원</b></span>
           {filteredSummary.pending > 0 && (
             <span style={{ color: '#ffb020' }}>처리대기 <b>{filteredSummary.pending}</b>건</span>
+          )}
+          {filteredSummary.unpaid > 0 && (
+            <span style={{ color: '#b45309' }}>입금대기 <b>{filteredSummary.unpaid}</b>건</span>
           )}
           <button onClick={exportCsv}
             className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-[var(--accent)]"
@@ -3137,13 +3172,13 @@ export default function SmartStoreOrders({
 // 진행 단계 실시간 현황 바 — 5단계 건수 + 클릭 시 해당 단계만 필터 (네이버 관리자 단계별 모니터링 동등).
 // 색은 STATUS_LABEL 단계색과 통일: 결제완료=시안 / 발주확인=노랑 / 발송=파랑 / 배송중=보라 / 배송완료=초록.
 const STEP_COLORS = ['#22d3ee', '#facc15', '#3b82f6', '#a78bfa', '#22c55e'];
-function StageMonitorBar({ counts, canceled, statusFilter, onSelect, onSelectCancel }) {
+function StageMonitorBar({ counts, canceled, unpaid = 0, statusFilter, onSelect, onSelectCancel }) {
   const stageActive = /^s[0-4]$/.test(statusFilter);
   return (
     <div className="rounded-xl border p-3 sm:p-3.5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
       <div className="flex items-center justify-between mb-2 sm:mb-2.5">
         <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider opacity-70">진행 단계 실시간 현황 (클릭=해당 단계만)</div>
-        {(stageActive || statusFilter === 'cancel') && (
+        {(stageActive || statusFilter === 'cancel' || statusFilter === 'unpaid') && (
           <button onClick={() => onSelect(null)}
             className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-semibold"
             style={{ background: 'rgba(0,212,255,0.14)', color: 'var(--primary)', border: '1px solid var(--border)' }}>
@@ -3151,6 +3186,20 @@ function StageMonitorBar({ counts, canceled, statusFilter, onSelect, onSelectCan
           </button>
         )}
       </div>
+      {/* 입금대기 — 결제 전이라 퍼널에 들어가지 않는다. 묻히지 않게 퍼널 위에 앰버로 따로 표시 (2026-07-22) */}
+      {unpaid > 0 && (
+        <button onClick={() => onSelect(statusFilter === 'unpaid' ? null : 'unpaid')}
+          title={`입금대기 ${unpaid}건만 보기`}
+          className="mb-2 w-full text-left text-xs px-2.5 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all hover:opacity-90 active:scale-[0.99]"
+          style={{
+            background: statusFilter === 'unpaid' ? 'rgba(217,119,6,0.22)' : 'rgba(217,119,6,0.10)',
+            color: '#b45309',
+            border: statusFilter === 'unpaid' ? '2px solid #d97706' : '1px solid rgba(217,119,6,0.35)',
+          }}>
+          <Clock className="w-3.5 h-3.5" /> 입금대기 {unpaid}건 — 고객 미결제 (진행 단계 밖)
+          <span className="ml-auto opacity-80">{statusFilter === 'unpaid' ? '보는 중' : '클릭=따로 보기'}</span>
+        </button>
+      )}
       <div className="grid grid-cols-5 gap-1 sm:gap-2">
         {ORDER_STEPS.map((label, i) => {
           const key = `s${i}`;
