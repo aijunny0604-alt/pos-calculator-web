@@ -1919,10 +1919,14 @@ export default function SmartStoreOrders({
                     {PENDING_CONFIRM_STATUSES.has(order.order_status) && !order.naver_confirm_succeeded_at && (
                       <ActionBtn onClick={() => confirmOrder(order)} icon={ClipboardCheck} label="발주확인" variant="purple" title="네이버 발주확인" />
                     )}
+                    {/* 방문수령 주문이어도 발송 버튼을 같이 둔다 — 손님이 "그냥 택배로 보내달라"고 바꾸는
+                        경우가 실제로 있는데, 예전엔 버튼이 스왑돼 송장 입력 자체가 불가능했다 (2026-07-22) */}
+                    {!isOrderDone(order) && isVisitReceiptOrder(order, itemsForOrder) && (
+                      <ActionBtn onClick={() => setVisitReceiptOrder(order)} icon={Store} label="방문수령" variant="amber" title="방문수령 발송처리 (송장 불필요)" />
+                    )}
                     {!isOrderDone(order) && (
-                      isVisitReceiptOrder(order, itemsForOrder)
-                        ? <ActionBtn onClick={() => setVisitReceiptOrder(order)} icon={Store} label="방문수령" variant="amber" title="방문수령 발송처리 (송장 불필요)" />
-                        : <ActionBtn onClick={() => openDispatch(order)} icon={Truck} label="발송" variant="green" title="발송처리" />
+                      <ActionBtn onClick={() => openDispatch(order)} icon={Truck} label="발송" variant="green"
+                        title={isVisitReceiptOrder(order, itemsForOrder) ? '택배로 발송처리 (송장번호 입력)' : '발송처리'} />
                     )}
                     <ActionBtn onClick={() => handleCreateShippingLabel(order)} icon={Printer} label="송장" variant="blue" title="택배 송장" />
                     {!isOrderDone(order) && (
@@ -2191,18 +2195,17 @@ export default function SmartStoreOrders({
                             <ClipboardCheck className="w-4 h-4" />발주확인
                           </button>
                         )}
+                        {!isOrderDone(order) && isVisitReceiptOrder(order, itemsByOrder[order.id]) && (
+                          <button onClick={() => { setExpandedCompactId(null); setVisitReceiptOrder(order); }} className={MODAL_FOOTER_CLASS}
+                            style={{ background: ACTION_VARIANTS.amber.bg, color: ACTION_VARIANTS.amber.color, borderColor: ACTION_VARIANTS.amber.border }}>
+                            <Store className="w-4 h-4" />방문수령
+                          </button>
+                        )}
                         {!isOrderDone(order) && (
-                          isVisitReceiptOrder(order, itemsByOrder[order.id]) ? (
-                            <button onClick={() => { setExpandedCompactId(null); setVisitReceiptOrder(order); }} className={MODAL_FOOTER_CLASS}
-                              style={{ background: ACTION_VARIANTS.amber.bg, color: ACTION_VARIANTS.amber.color, borderColor: ACTION_VARIANTS.amber.border }}>
-                              <Store className="w-4 h-4" />방문수령
-                            </button>
-                          ) : (
-                            <button onClick={() => { setExpandedCompactId(null); openDispatch(order); }} className={MODAL_FOOTER_CLASS}
-                              style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}>
-                              <Truck className="w-4 h-4" />발송
-                            </button>
-                          )
+                          <button onClick={() => { setExpandedCompactId(null); openDispatch(order); }} className={MODAL_FOOTER_CLASS}
+                            style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}>
+                            <Truck className="w-4 h-4" />발송
+                          </button>
                         )}
                         <button onClick={() => { setExpandedCompactId(null); handleCreateShippingLabel(order); }} className={MODAL_FOOTER_CLASS}
                           style={{ background: ACTION_VARIANTS.blue.bg, color: ACTION_VARIANTS.blue.color, borderColor: ACTION_VARIANTS.blue.border }}>
@@ -2627,24 +2630,24 @@ export default function SmartStoreOrders({
                     <ClipboardCheck className="w-4 h-4" />발주확인
                   </button>
                 )}
+                {!isOrderDone(order) && isVisitReceiptOrder(order, items) && (
+                  <button
+                    onClick={() => setVisitReceiptOrder(order)}
+                    className={CARD_ACTION_CLASS}
+                    style={{ background: ACTION_VARIANTS.amber.bg, color: ACTION_VARIANTS.amber.color, borderColor: ACTION_VARIANTS.amber.border }}
+                  >
+                    <Store className="w-4 h-4" />방문수령 처리
+                  </button>
+                )}
                 {!isOrderDone(order) && (
-                  isVisitReceiptOrder(order, items) ? (
-                    <button
-                      onClick={() => setVisitReceiptOrder(order)}
-                      className={CARD_ACTION_CLASS}
-                      style={{ background: ACTION_VARIANTS.amber.bg, color: ACTION_VARIANTS.amber.color, borderColor: ACTION_VARIANTS.amber.border }}
-                    >
-                      <Store className="w-4 h-4" />방문수령 처리
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => openDispatch(order)}
-                      className={CARD_ACTION_CLASS}
-                      style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}
-                    >
-                      <Truck className="w-4 h-4" />발송처리
-                    </button>
-                  )
+                  <button
+                    onClick={() => openDispatch(order)}
+                    className={CARD_ACTION_CLASS}
+                    style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}
+                    title={isVisitReceiptOrder(order, items) ? '택배로 발송처리 (송장번호 입력)' : '발송처리'}
+                  >
+                    <Truck className="w-4 h-4" />발송처리
+                  </button>
                 )}
                 <button
                   onClick={() => handleCreateShippingLabel(order)}
@@ -2767,6 +2770,15 @@ export default function SmartStoreOrders({
             <div className="text-xs opacity-70 mb-3">
               주문 #{dispatchModalOrder.provider_order_id} · {dispatchModalOrder.buyer_name}
             </div>
+            {/* 방문수령으로 들어온 주문을 택배로 돌리는 경우 — 실수로 누른 게 아닌지 알려준다 */}
+            {isVisitReceiptOrder(dispatchModalOrder, itemsByOrder[dispatchModalOrder.id]) && (
+              <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold flex items-start gap-1.5"
+                style={{ background: 'rgba(245,158,11,0.14)', color: '#b45309', border: '1px solid rgba(245,158,11,0.35)' }}>
+                <Store className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>원래 <b>방문수령</b>으로 들어온 주문입니다. 택배로 보내시려면 그대로 진행하시고,
+                  매장에서 찾아가시면 창을 닫고 <b>방문수령</b> 버튼을 쓰세요.</span>
+              </div>
+            )}
             <label className="block text-xs font-mono uppercase mb-1.5 opacity-70">택배사</label>
             <select value={dispatchCompany} onChange={(e) => setDispatchCompany(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border text-sm mb-3"
