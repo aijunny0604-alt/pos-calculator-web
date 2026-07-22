@@ -2309,53 +2309,83 @@ export default function OrderDetail({
 
       {/* 주문 수정 변경점 확인 — OK(적용) 눌러야 실제 저장 (실수 방지) */}
       {pendingSave && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={() => setPendingSave(null)}>
-          <div className="bg-[var(--card)] w-full max-w-md rounded-2xl border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: '85vh' }} onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 py-4 flex items-center gap-3 flex-shrink-0" style={{ background: 'linear-gradient(90deg, #f59e0b, #f97316)' }}>
-              <span className="text-2xl">📝</span>
-              <div className="min-w-0">
-                <h3 className="text-white font-bold text-base leading-tight">주문 수정 확인</h3>
-                <p className="text-white/85 text-xs mt-0.5 break-keep">{order.customerName} · 아래 내용으로 변경됩니다</p>
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center sm:p-4 animate-modal-backdrop" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={() => setPendingSave(null)}>
+          <div className="relative bg-[var(--card)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border border-[var(--border)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden flex flex-col" style={{ maxHeight: '92vh' }} onClick={(e) => e.stopPropagation()}>
+            {/* 상단 액센트 — 수정은 앰버 계열 */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
+              style={{ background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 55%, #f59e0b 100%)' }} />
+            <div className="px-5 pt-6 pb-4 border-b flex items-start gap-3.5 flex-shrink-0"
+              style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, #f59e0b 10%, var(--card)) 0%, var(--card) 70%)' }}>
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
+                style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)', color: 'white' }}>
+                <Edit3 className="w-5 h-5" />
               </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-bold leading-tight" style={{ color: 'var(--foreground)' }}>주문 수정 확인</h3>
+                <p className="text-xs mt-0.5 break-keep font-semibold" style={{ color: '#b45309' }}>
+                  {order.customerName} · 아래 내용으로 변경됩니다
+                </p>
+              </div>
+              <button onClick={() => setPendingSave(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
+                aria-label="닫기">
+                <X className="w-4 h-4 opacity-60" />
+              </button>
             </div>
-            <div className="px-4 py-3 overflow-y-auto flex-1 space-y-2" style={{ minHeight: 0 }}>
+            <div className="px-5 py-4 overflow-y-auto flex-1 space-y-2.5" style={{ minHeight: 0 }}>
               {pendingSave.diff.map((c, i) => {
-                if (c.type === 'add') return (
-                  <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg text-sm" style={{ background: 'color-mix(in srgb, #22c55e 12%, var(--card))', border: '1px solid color-mix(in srgb, #22c55e 40%, transparent)' }}>
-                    <span className="font-bold flex-shrink-0" style={{ color: '#16a34a' }}>➕ 추가</span>
-                    <span className="break-words min-w-0"><b>{c.name}</b> · {c.qty}개 · {formatPrice(c.price)}원</span>
+                // 변경 종류를 좌측 색 띠로 구분 — 목록이 길어져도 무엇이 바뀌었는지 스캔된다
+                const Row = ({ accent, tag, tagColor, children }) => (
+                  <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: `color-mix(in srgb, ${accent} 32%, transparent)`, background: `color-mix(in srgb, ${accent} 7%, var(--card))` }}>
+                    <div className="w-1 flex-shrink-0" style={{ background: accent }} />
+                    <div className="flex-1 min-w-0 px-3.5 py-2.5">
+                      <div className="text-[10px] font-bold tracking-wider mb-1" style={{ color: tagColor || accent }}>{tag}</div>
+                      {children}
+                    </div>
                   </div>
+                );
+                if (c.type === 'add') return (
+                  <Row key={i} accent="#22c55e" tag="추가" tagColor="#16a34a">
+                    <div className="text-sm break-words" style={{ color: 'var(--foreground)' }}>
+                      <b>{c.name}</b>
+                      <span className="ml-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>{c.qty}개 · {formatPrice(c.price)}원</span>
+                    </div>
+                  </Row>
                 );
                 if (c.type === 'remove') return (
-                  <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg text-sm" style={{ background: 'color-mix(in srgb, #ef4444 12%, var(--card))', border: '1px solid color-mix(in srgb, #ef4444 40%, transparent)' }}>
-                    <span className="font-bold flex-shrink-0" style={{ color: '#dc2626' }}>➖ 삭제</span>
-                    <span className="break-words min-w-0 line-through opacity-80"><b>{c.name}</b> · {c.qty}개</span>
-                  </div>
+                  <Row key={i} accent="#ef4444" tag="삭제" tagColor="#dc2626">
+                    <div className="text-sm break-words line-through opacity-75" style={{ color: 'var(--foreground)' }}>
+                      <b>{c.name}</b>
+                      <span className="ml-1.5 text-xs">{c.qty}개</span>
+                    </div>
+                  </Row>
                 );
                 if (c.type === 'change') return (
-                  <div key={i} className="p-2.5 rounded-lg text-sm" style={{ background: 'color-mix(in srgb, #f59e0b 12%, var(--card))', border: '1px solid color-mix(in srgb, #f59e0b 40%, transparent)' }}>
-                    <div className="font-semibold break-words mb-1" style={{ color: 'var(--foreground)' }}>✏️ {c.name}</div>
+                  <Row key={i} accent="#f59e0b" tag="수량·단가 변경" tagColor="#b45309">
+                    <div className="text-sm font-semibold break-words mb-1" style={{ color: 'var(--foreground)' }}>{c.name}</div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                      {c.qc && <span>수량 <b style={{ color: 'var(--foreground)' }}>{c.fromQty} → {c.toQty}</b></span>}
-                      {c.pc && <span>단가 <b style={{ color: 'var(--foreground)' }}>{formatPrice(c.fromPrice)} → {formatPrice(c.toPrice)}</b></span>}
+                      {c.qc && <span>수량 <span className="line-through opacity-70">{c.fromQty}</span> → <b style={{ color: 'var(--foreground)' }}>{c.toQty}</b></span>}
+                      {c.pc && <span>단가 <span className="line-through opacity-70">{formatPrice(c.fromPrice)}</span> → <b style={{ color: 'var(--foreground)' }}>{formatPrice(c.toPrice)}</b></span>}
                     </div>
-                  </div>
+                  </Row>
                 );
                 if (c.type === 'field') return (
-                  <div key={i} className="p-2.5 rounded-lg text-sm" style={{ background: 'var(--background)', border: '1px solid var(--border)' }}>
-                    <div className="font-semibold mb-0.5" style={{ color: 'var(--foreground)' }}>{c.label}</div>
-                    <div className="text-xs break-words" style={{ color: 'var(--muted-foreground)' }}>
+                  <Row key={i} accent="var(--muted-foreground)" tag={c.label}>
+                    <div className="text-xs break-words leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>
                       <span className="line-through opacity-70">{c.from || '(없음)'}</span>
-                      <span className="mx-1">→</span>
-                      <b style={{ color: 'var(--foreground)' }}>{c.to || '(없음)'}</b>
+                      <span className="mx-1.5">→</span>
+                      <b className="text-sm" style={{ color: 'var(--foreground)' }}>{c.to || '(없음)'}</b>
                     </div>
-                  </div>
+                  </Row>
                 );
                 if (c.type === 'total') return (
-                  <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg text-sm font-semibold" style={{ background: 'color-mix(in srgb, #3b82f6 14%, var(--card))', border: '1px solid color-mix(in srgb, #3b82f6 45%, transparent)' }}>
-                    <span className="flex-shrink-0" style={{ color: '#2563eb' }}>💰 합계</span>
-                    <span style={{ color: 'var(--foreground)' }}>{formatPrice(c.from)}원 → {formatPrice(c.to)}원</span>
-                  </div>
+                  <Row key={i} accent="#3b82f6" tag="합계" tagColor="#2563eb">
+                    <div className="text-sm font-bold tabular-nums" style={{ color: 'var(--foreground)' }}>
+                      <span className="line-through opacity-60 font-medium">{formatPrice(c.from)}원</span>
+                      <span className="mx-1.5" style={{ color: 'var(--muted-foreground)' }}>→</span>
+                      {formatPrice(c.to)}원
+                    </div>
+                  </Row>
                 );
                 return null;
               })}
@@ -2393,12 +2423,16 @@ export default function OrderDetail({
                 </div>
               )}
             </div>
-            <div className="px-4 py-3 flex gap-2 flex-shrink-0 border-t border-[var(--border)]">
-              <button onClick={() => setPendingSave(null)} className="flex-1 py-2.5 rounded-lg font-medium text-sm border border-[var(--border)] hover:bg-[var(--background)] transition-colors" style={{ color: 'var(--foreground)' }}>
+            <div className="px-5 py-4 flex gap-2.5 flex-shrink-0 border-t border-[var(--border)]" style={{ background: 'var(--card)' }}>
+              <button onClick={() => setPendingSave(null)}
+                className="px-5 py-3 rounded-xl font-semibold text-sm border border-[var(--border)] hover:bg-[var(--background)] transition-colors"
+                style={{ color: 'var(--foreground)' }}>
                 취소
               </button>
-              <button onClick={confirmSave} className="flex-1 py-2.5 rounded-lg font-bold text-sm text-white transition-all hover:brightness-95 active:scale-[0.98]" style={{ background: 'linear-gradient(90deg, #f59e0b, #f97316)' }}>
-                ✅ 적용
+              <button onClick={confirmSave}
+                className="flex-1 py-3 rounded-xl font-bold text-sm text-white inline-flex items-center justify-center gap-1.5 transition-all hover:brightness-105 active:scale-[0.98]"
+                style={{ background: 'linear-gradient(90deg, #f59e0b, #f97316)', boxShadow: '0 6px 18px -6px rgba(245,158,11,0.65)' }}>
+                <Check className="w-4 h-4" />변경 내용 적용
               </button>
             </div>
           </div>

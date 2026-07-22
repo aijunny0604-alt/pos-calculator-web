@@ -1041,7 +1041,9 @@ export default function SmartStoreOrders({
 
   const openDispatch = (order) => {
     setDispatchModalOrder(order);
-    setDispatchCompany('CJGLS');
+    // 기본 택배사는 단일 소스(로젠)를 따른다 — 여기만 CJGLS로 박혀 있어서
+    // 발송할 때마다 드롭다운을 매번 바꿔야 했다 (2026-07-22)
+    setDispatchCompany(DEFAULT_COURIER_CODE);
     setDispatchTracking('');
   };
 
@@ -2758,97 +2760,239 @@ export default function SmartStoreOrders({
         </div>
       )}
 
-      {/* 발송처리 모달 */}
-      {dispatchModalOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setDispatchModalOrder(null)}>
-          <div className="rounded-xl w-full max-w-md p-5 border modal-card-safe" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-4">
-              <Truck className="w-5 h-5" style={{ color: '#03c75a' }} />
-              <h3 className="text-lg font-bold flex-1">발송 처리 <span className="text-xs font-bold" style={{ color: '#03c75a' }}>· 네이버 연동</span></h3>
-              <button onClick={() => setDispatchModalOrder(null)}><X className="w-4 h-4 opacity-60" /></button>
-            </div>
-            <div className="text-xs opacity-70 mb-3">
-              주문 #{dispatchModalOrder.provider_order_id} · {dispatchModalOrder.buyer_name}
-            </div>
-            {/* 방문수령으로 들어온 주문을 택배로 돌리는 경우 — 실수로 누른 게 아닌지 알려준다 */}
-            {isVisitReceiptOrder(dispatchModalOrder, itemsByOrder[dispatchModalOrder.id]) && (
-              <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold flex items-start gap-1.5"
-                style={{ background: 'rgba(245,158,11,0.14)', color: '#b45309', border: '1px solid rgba(245,158,11,0.35)' }}>
-                <Store className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                <span>원래 <b>방문수령</b>으로 들어온 주문입니다. 택배로 보내시려면 그대로 진행하시고,
-                  매장에서 찾아가시면 창을 닫고 <b>방문수령</b> 버튼을 쓰세요.</span>
-              </div>
-            )}
-            <label className="block text-xs font-mono uppercase mb-1.5 opacity-70">택배사</label>
-            <select value={dispatchCompany} onChange={(e) => setDispatchCompany(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border text-sm mb-3"
-              style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
-              {DELIVERY_COMPANIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-            </select>
-            <label className="block text-xs font-mono uppercase mb-1.5 opacity-70">송장번호</label>
-            <div className="flex gap-2 mb-4">
-              <input type="text" value={dispatchTracking} onChange={(e) => setDispatchTracking(e.target.value)}
-                placeholder="예: 1234-5678-9012"
-                className="flex-1 px-3 py-2 rounded-lg border text-sm font-mono"
-                style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
-              {dispatchTracking.trim() && (
-                <a href={trackingUrl(DELIVERY_COMPANIES.find((c) => c.code === dispatchCompany)?.name, dispatchTracking.trim())}
-                  target="_blank" rel="noopener noreferrer"
-                  className="px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap inline-flex items-center gap-1"
-                  style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }} title="배송조회">
-                  <Search className="w-3.5 h-3.5" /> 조회
-                </a>
-              )}
-            </div>
-            <div className="text-[11px] mb-4 p-2 rounded-lg" style={{ background: 'color-mix(in srgb, #03c75a 10%, transparent)', color: '#03c75a' }}>
-              🟢 매장 PC가 <b>60초 내 네이버에 발송처리(송장 등록)를 자동 연동</b>합니다. 발주확인이 안 됐으면 발주확인까지 함께 처리돼요.
-            </div>
-            <div className="flex gap-2">
-              <button onClick={submitDispatch} disabled={!dispatchTracking.trim()}
-                className="flex-1 py-2.5 rounded-lg font-semibold disabled:opacity-40"
-                style={{ background: '#03c75a', color: 'white' }}>
-                <Check className="w-4 h-4 inline mr-1" />네이버 발송 등록
-              </button>
-              <button onClick={() => setDispatchModalOrder(null)}
-                className="px-4 py-2.5 rounded-lg border"
-                style={{ borderColor: 'var(--border)' }}>취소</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 발송처리 모달 — 송장 입력이 주 작업이라 입력칸을 화면의 주인공으로 두고,
+          주문 확인 정보는 위에, 연동 안내는 아래에 배치. 톤은 거래처 상세 모달과 통일. */}
+      {dispatchModalOrder && (() => {
+        const dOrder = dispatchModalOrder;
+        const dItems = itemsByOrder[dOrder.id] || [];
+        const dVisit = isVisitReceiptOrder(dOrder, dItems);
+        const dCompanyName = DELIVERY_COMPANIES.find((c) => c.code === dispatchCompany)?.name || '';
+        const dReady = !!dispatchTracking.trim();
+        const dItemLabel = dItems.length
+          ? `${dItems[0].product_name || dItems[0].name || '상품'}${dItems.length > 1 ? ` 외 ${dItems.length - 1}건` : ''}`
+          : null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-modal-backdrop"
+            onClick={() => setDispatchModalOrder(null)}>
+            <div
+              className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden modal-card-safe"
+              style={{ borderColor: 'var(--border)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 상단 액센트 — 네이버 그린 */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
+                style={{ background: 'linear-gradient(90deg, #03c75a 0%, #22c55e 55%, #03c75a 100%)' }} />
 
-      {/* 🏬 방문수령 처리 확인 모달 (송장 불필요) */}
-      {visitReceiptOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setVisitReceiptOrder(null)}>
-          <div className="rounded-xl w-full max-w-md p-5 border modal-card-safe" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-4">
-              <Store className="w-5 h-5" style={{ color: '#d97706' }} />
-              <h3 className="text-lg font-bold flex-1">방문수령 처리 <span className="text-xs font-bold" style={{ color: '#d97706' }}>· 네이버 연동</span></h3>
-              <button onClick={() => setVisitReceiptOrder(null)}><X className="w-4 h-4 opacity-60" /></button>
-            </div>
-            <div className="text-sm mb-3">
-              주문 <b>#{visitReceiptOrder.provider_order_id}</b> · {visitReceiptOrder.buyer_name}
-            </div>
-            <div className="text-[13px] mb-4 p-3 rounded-lg leading-relaxed" style={{ background: 'color-mix(in srgb, #f59e0b 12%, transparent)', color: '#b45309' }}>
-              🏬 이 주문은 <b>방문수령</b> 건입니다. <b>송장번호 없이</b> 네이버에 <b>방문수령 발송처리</b>로 전송됩니다.<br />
-              매장 PC가 60초 내 자동 연동해요. (발주확인이 안 됐으면 발주확인까지 함께 처리)
-            </div>
-            <div className="text-[11px] mb-4 opacity-70">
-              ⚠️ 방문수령 발송처리는 네이버에 실제 반영됩니다. 손님이 매장에서 수령한 게 맞을 때만 눌러주세요.
-            </div>
-            <div className="flex gap-2">
-              <button onClick={submitVisitReceipt}
-                className="flex-1 py-2.5 rounded-lg font-semibold"
-                style={{ background: '#d97706', color: 'white' }}>
-                <Check className="w-4 h-4 inline mr-1" />방문수령 처리
-              </button>
-              <button onClick={() => setVisitReceiptOrder(null)}
-                className="px-4 py-2.5 rounded-lg border"
-                style={{ borderColor: 'var(--border)' }}>취소</button>
+              {/* 헤더 */}
+              <div className="px-5 pt-6 pb-4 border-b flex items-start gap-3.5"
+                style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, #03c75a 9%, var(--card)) 0%, var(--card) 70%)' }}>
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
+                  style={{ background: 'linear-gradient(135deg, #03c75a, #16a34a)', color: 'white' }}>
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-bold leading-tight" style={{ color: 'var(--foreground)' }}>발송 처리</h3>
+                  <p className="text-xs mt-0.5 font-semibold" style={{ color: '#03c75a' }}>네이버 스마트스토어 연동</p>
+                </div>
+                <button onClick={() => setDispatchModalOrder(null)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
+                  aria-label="닫기">
+                  <X className="w-4 h-4 opacity-60" />
+                </button>
+              </div>
+
+              {/* 본문 */}
+              <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4" style={{ minHeight: 0 }}>
+                {/* 어떤 주문을 보내는지 — 잘못된 주문에 송장 박는 사고 방지 */}
+                <div className="rounded-xl border px-4 py-3" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
+                  <div className="flex items-baseline justify-between gap-3 mb-1">
+                    <span className="font-bold text-base truncate" style={{ color: 'var(--foreground)' }}>{dOrder.buyer_name || '-'}</span>
+                    <span className="font-extrabold text-base tabular-nums flex-shrink-0" style={{ color: 'var(--primary)' }}>
+                      {fmtNum(dOrder.total_amount)}원
+                    </span>
+                  </div>
+                  {dItemLabel && (
+                    <div className="text-xs truncate mb-1" style={{ color: 'var(--muted-foreground)' }}>{dItemLabel}</div>
+                  )}
+                  <div className="text-[11px] font-mono truncate" style={{ color: 'var(--muted-foreground)' }}>
+                    #{dOrder.provider_order_id}
+                  </div>
+                </div>
+
+                {/* 방문수령으로 들어온 주문을 택배로 돌리는 경우 — 실수로 누른 게 아닌지 알려준다 */}
+                {dVisit && (
+                  <div className="rounded-xl px-4 py-3 flex items-start gap-2.5 text-xs leading-relaxed"
+                    style={{ background: 'color-mix(in srgb, #f59e0b 12%, var(--card))', color: '#b45309', border: '1px solid color-mix(in srgb, #f59e0b 42%, transparent)' }}>
+                    <Store className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>원래 <b>방문수령</b>으로 들어온 주문입니다. 택배로 보내시려면 그대로 진행하시고,
+                      매장에서 찾아가셨다면 창을 닫고 <b>방문수령</b> 버튼을 쓰세요.</span>
+                  </div>
+                )}
+
+                {/* 택배사 — 자주 쓰는 두 곳은 한 번에, 나머지는 목록에서 */}
+                <div>
+                  <label className="block text-[11px] font-bold tracking-wider mb-2" style={{ color: 'var(--muted-foreground)' }}>택배사</label>
+                  <div className="flex gap-2 mb-2">
+                    {DELIVERY_COMPANIES.slice(0, 2).map((c) => {
+                      const on = dispatchCompany === c.code;
+                      return (
+                        <button key={c.code} type="button" onClick={() => setDispatchCompany(c.code)}
+                          className="flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-[0.98]"
+                          style={on
+                            ? { background: 'color-mix(in srgb, #03c75a 16%, var(--card))', borderColor: '#03c75a', color: '#03c75a', boxShadow: '0 0 0 3px color-mix(in srgb, #03c75a 14%, transparent)' }
+                            : { background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
+                          {c.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <select value={dispatchCompany} onChange={(e) => setDispatchCompany(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold outline-none focus:ring-2 focus:ring-[#03c75a]/35"
+                    style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                    {DELIVERY_COMPANIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                  </select>
+                </div>
+
+                {/* 송장번호 — 이 모달의 주 작업. 크게, 숫자 읽기 쉽게. */}
+                <div>
+                  <label className="block text-[11px] font-bold tracking-wider mb-2" style={{ color: 'var(--muted-foreground)' }}>송장번호</label>
+                  <input type="text" inputMode="numeric" autoFocus
+                    value={dispatchTracking}
+                    onChange={(e) => setDispatchTracking(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && dReady) submitDispatch(); }}
+                    placeholder="1234-5678-9012"
+                    className="w-full px-4 py-3.5 rounded-xl border text-lg font-mono tracking-wide outline-none focus:ring-2 focus:ring-[#03c75a]/35 transition-shadow"
+                    style={{
+                      background: 'var(--background)', color: 'var(--foreground)',
+                      borderColor: dReady ? '#03c75a' : 'var(--border)',
+                      boxShadow: dReady ? '0 0 0 3px color-mix(in srgb, #03c75a 14%, transparent)' : 'none',
+                    }} />
+                  <div className="flex items-center justify-between gap-2 mt-2 min-h-[22px]">
+                    <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                      복사해서 붙여넣으셔도 됩니다 · Enter로 바로 등록
+                    </span>
+                    {dReady && (
+                      <a href={trackingUrl(dCompanyName, dispatchTracking.trim())}
+                        target="_blank" rel="noopener noreferrer"
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap inline-flex items-center gap-1 transition-opacity hover:opacity-80"
+                        style={{ background: 'color-mix(in srgb, #3b82f6 15%, transparent)', color: '#3b82f6' }} title="배송조회">
+                        <Search className="w-3 h-3" /> 배송조회
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* 연동 안내 */}
+                <div className="rounded-xl px-4 py-3 flex items-start gap-2.5 text-xs leading-relaxed"
+                  style={{ background: 'color-mix(in srgb, #03c75a 10%, var(--card))', color: 'var(--foreground)', border: '1px solid color-mix(in srgb, #03c75a 32%, transparent)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 animate-pulse" style={{ background: '#03c75a' }} />
+                  <span style={{ color: 'var(--muted-foreground)' }}>
+                    매장 PC가 <b style={{ color: '#03c75a' }}>60초 안에</b> 네이버로 발송처리(송장 등록)를 보냅니다.
+                    발주확인이 안 된 주문이면 발주확인까지 함께 처리됩니다.
+                  </span>
+                </div>
+              </div>
+
+              {/* 푸터 */}
+              <div className="px-5 py-4 border-t flex gap-2.5 flex-shrink-0"
+                style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+                <button onClick={() => setDispatchModalOrder(null)}
+                  className="px-5 py-3 rounded-xl font-semibold text-sm border transition-colors hover:bg-[var(--background)]"
+                  style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                  취소
+                </button>
+                <button onClick={submitDispatch} disabled={!dReady}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-white inline-flex items-center justify-center gap-1.5 transition-all enabled:hover:brightness-105 enabled:active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: 'linear-gradient(90deg, #03c75a, #16a34a)', boxShadow: dReady ? '0 6px 18px -6px rgba(3,199,90,0.65)' : 'none' }}>
+                  <Check className="w-4 h-4" />
+                  {dReady ? '네이버 발송 등록' : '송장번호를 입력하세요'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* 🏬 방문수령 처리 확인 모달 (송장 불필요) — 발송 모달과 같은 톤, 색만 앰버 */}
+      {visitReceiptOrder && (() => {
+        const vItems = itemsByOrder[visitReceiptOrder.id] || [];
+        const vLabel = vItems.length
+          ? `${vItems[0].product_name || vItems[0].name || '상품'}${vItems.length > 1 ? ` 외 ${vItems.length - 1}건` : ''}`
+          : null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-modal-backdrop"
+            onClick={() => setVisitReceiptOrder(null)}>
+            <div
+              className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden modal-card-safe"
+              style={{ borderColor: 'var(--border)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
+                style={{ background: 'linear-gradient(90deg, #d97706 0%, #f59e0b 55%, #d97706 100%)' }} />
+
+              <div className="px-5 pt-6 pb-4 border-b flex items-start gap-3.5"
+                style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, #f59e0b 10%, var(--card)) 0%, var(--card) 70%)' }}>
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white' }}>
+                  <Store className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-bold leading-tight" style={{ color: 'var(--foreground)' }}>방문수령 처리</h3>
+                  <p className="text-xs mt-0.5 font-semibold" style={{ color: '#b45309' }}>송장 없이 네이버 발송처리</p>
+                </div>
+                <button onClick={() => setVisitReceiptOrder(null)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
+                  aria-label="닫기">
+                  <X className="w-4 h-4 opacity-60" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4" style={{ minHeight: 0 }}>
+                <div className="rounded-xl border px-4 py-3" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
+                  <div className="flex items-baseline justify-between gap-3 mb-1">
+                    <span className="font-bold text-base truncate" style={{ color: 'var(--foreground)' }}>{visitReceiptOrder.buyer_name || '-'}</span>
+                    <span className="font-extrabold text-base tabular-nums flex-shrink-0" style={{ color: 'var(--primary)' }}>
+                      {fmtNum(visitReceiptOrder.total_amount)}원
+                    </span>
+                  </div>
+                  {vLabel && <div className="text-xs truncate mb-1" style={{ color: 'var(--muted-foreground)' }}>{vLabel}</div>}
+                  <div className="text-[11px] font-mono truncate" style={{ color: 'var(--muted-foreground)' }}>
+                    #{visitReceiptOrder.provider_order_id}
+                  </div>
+                </div>
+
+                <div className="rounded-xl px-4 py-3 text-xs leading-relaxed"
+                  style={{ background: 'color-mix(in srgb, #f59e0b 11%, var(--card))', color: 'var(--muted-foreground)', border: '1px solid color-mix(in srgb, #f59e0b 38%, transparent)' }}>
+                  <b style={{ color: '#b45309' }}>송장번호 없이</b> 네이버에 방문수령 발송처리로 전송됩니다.
+                  매장 PC가 60초 안에 자동 연동하고, 발주확인이 안 된 주문이면 발주확인까지 함께 처리됩니다.
+                </div>
+
+                <div className="rounded-xl px-4 py-3 flex items-start gap-2.5 text-xs leading-relaxed"
+                  style={{ background: 'color-mix(in srgb, var(--destructive) 9%, var(--card))', border: '1px solid color-mix(in srgb, var(--destructive) 32%, transparent)' }}>
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--destructive)' }} />
+                  <span style={{ color: 'var(--muted-foreground)' }}>
+                    네이버에 <b style={{ color: 'var(--destructive)' }}>실제로 반영</b>됩니다. 손님이 매장에서 물건을 받아 가신 게 맞을 때만 눌러주세요.
+                  </span>
+                </div>
+              </div>
+
+              <div className="px-5 py-4 border-t flex gap-2.5 flex-shrink-0"
+                style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+                <button onClick={() => setVisitReceiptOrder(null)}
+                  className="px-5 py-3 rounded-xl font-semibold text-sm border transition-colors hover:bg-[var(--background)]"
+                  style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                  취소
+                </button>
+                <button onClick={submitVisitReceipt}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-white inline-flex items-center justify-center gap-1.5 transition-all hover:brightness-105 active:scale-[0.98]"
+                  style={{ background: 'linear-gradient(90deg, #f59e0b, #d97706)', boxShadow: '0 6px 18px -6px rgba(217,119,6,0.65)' }}>
+                  <Check className="w-4 h-4" />방문수령 처리
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 일괄 발송처리 모달 (Task #109) */}
       {bulkDispatchOpen && (() => {
