@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { PackagePlus, Plus, Search, ArrowLeft, Trash2, X, AlertTriangle, PackageCheck, Database, Printer, FileSpreadsheet, FileDown, Copy, Check, FileImage, Clock, TruckIcon, Camera, Loader2 } from 'lucide-react';
-import { formatPrice, getTodayKST } from '@/lib/utils';
+import { formatPrice, getTodayKST, matchesSearchQuery } from '@/lib/utils';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { extractPurchaseQuote } from '@/lib/quoteVision';
 import { fileToScaledBase64 } from '@/lib/certVision';
@@ -86,6 +86,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
   const [loadFailed, setLoadFailed] = useState(false); // 마이그008 미적용과 빈 목록을 구분
   const [tab, setTab] = useState('orders'); // 'orders' | 'pending'
   const [q, setQ] = useState('');
+  const [status, setStatus] = useState('all'); // 'all' | '미입고' | '부분 입고' | '완료'
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -145,23 +146,36 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [editing, confirmDelete, receiving, viewQuote, saving]);
 
-  const filtered = useMemo(() => {
-    const ql = q.trim().toLowerCase();
-    if (!ql) return pos;
+  const searched = useMemo(() => {
+    if (!q.trim()) return pos;
+    // 제품 주문 검색과 동일 로직 — 띄어쓰기/하이픈 무시, 순서 일치, 다단어 AND
     return pos.filter((po) =>
-      (po.po_number || '').toLowerCase().includes(ql)
-      || (po.supplier_name || '').toLowerCase().includes(ql)
-      || (po.title || '').toLowerCase().includes(ql)
-      || (po.items || []).some((it) => `${it.name || ''} ${it.spec || ''}`.toLowerCase().includes(ql))
+      matchesSearchQuery(po.po_number || '', q)
+      || matchesSearchQuery(po.supplier_name || '', q)
+      || matchesSearchQuery(po.title || '', q)
+      || (po.items || []).some((it) => matchesSearchQuery(`${it.name || ''} ${it.spec || ''}`, q))
     );
   }, [pos, q]);
 
+  // 상태별 건수 — 부분 입고가 몇 건 걸려 있는지 칩에서 바로 보이게
+  const statusCounts = useMemo(() => {
+    const c = { all: searched.length, '미입고': 0, '부분 입고': 0, '완료': 0 };
+    for (const po of searched) { const s = poStatus(po); if (c[s] !== undefined) c[s]++; }
+    return c;
+  }, [searched]);
+
+  const filtered = useMemo(
+    () => (status === 'all' ? searched : searched.filter((po) => poStatus(po) === status)),
+    [searched, status],
+  );
+
   // 미입고 현황 — 발주를 가로질러 아직 안 들어온 품목만 평탄화 (시트 "미입고 현황"의 목적)
+  // 상태 칩은 발주 목록 전용이라 여기선 검색 결과만 반영한다
   const pendingItems = useMemo(() => {
     const out = [];
-    for (const po of filtered) for (const it of poOpenItems(po)) out.push({ po, item: it });
+    for (const po of searched) for (const it of poOpenItems(po)) out.push({ po, item: it });
     return out.sort((a, b) => String(a.po.order_date).localeCompare(String(b.po.order_date)));
-  }, [filtered]);
+  }, [searched]);
 
   const summary = useMemo(() => {
     const open = pos.filter((po) => poOpenItems(po).length > 0);
@@ -482,6 +496,40 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           </div>
         </div>
 
+        {/* 상태 필터 — 발주 목록 전용 (미입고 현황은 이미 미입고만 모은 탭이라 의미 없음) */}
+        {tab === 'orders' && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-2">
+            {[
+              { id: 'all', label: '전체' },
+              { id: '미입고', label: '미입고' },
+              { id: '부분 입고', label: '부분 입고' },
+              { id: '완료', label: '완료' },
+            ].map((s) => {
+              const on = status === s.id;
+              const tone = STATUS_STYLE[s.id]?.bg || 'var(--primary)';
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setStatus(s.id)}
+                  aria-pressed={on}
+                  className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-1.5"
+                  style={on
+                    ? { background: tone, color: '#fff', borderColor: tone }
+                    : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
+                >
+                  {s.label}
+                  <span
+                    className="px-1.5 rounded-full font-bold tabular-nums"
+                    style={{ background: on ? 'rgba(255,255,255,0.25)' : 'var(--muted)' }}
+                  >
+                    {statusCounts[s.id] ?? 0}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* 내보내기 툴바 — 현재 탭 기준으로 동작 */}
         <div className="flex flex-wrap items-center gap-2">
           {tab === 'pending' && (
@@ -493,7 +541,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           <ToolBtn onClick={onExcel} icon={FileSpreadsheet} disabled={excelBusy}>{excelBusy ? '만드는 중...' : '엑셀'}</ToolBtn>
           <ToolBtn onClick={onPrint} icon={Printer}>프린트</ToolBtn>
           <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-            {tab === 'pending' ? '미입고 현황' : '발주 목록'} 기준{q ? ' (검색 결과만)' : ''}
+            {tab === 'pending' ? '미입고 현황' : '발주 목록'} 기준
+            {tab === 'orders' && status !== 'all' ? ` (${status}만)` : ''}{q ? ' (검색 결과만)' : ''}
           </span>
         </div>
       </div>
@@ -517,7 +566,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
         ) : tab === 'orders' ? (
           filtered.length === 0 ? (
             <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
-              {q ? '검색 결과가 없습니다' : '등록된 발주가 없습니다'}
+              {status !== 'all' ? `${status} 상태인 발주가 없습니다` : q ? '검색 결과가 없습니다' : '등록된 발주가 없습니다'}
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
