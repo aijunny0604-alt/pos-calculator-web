@@ -138,6 +138,66 @@ useEffect(() => {
 
 ---
 
+### 확인·작업 모달 톤 (2026-07-22 정립)
+
+> 위 "모달 표준 패턴"이 **구조**(스크롤·모바일 안전)라면, 이건 **외형**이다.
+> 기준 구현: [CustomerDetailModal.jsx](../src/components/CustomerDetailModal.jsx),
+> 적용 예: SmartStoreOrders 5종(발송·방문수령·일괄발송·주문취소) + OrderDetail 주문수정 확인
+
+**4단 구조로 통일한다.**
+
+```jsx
+{/* 백드롭 — 모바일은 하단 시트로 올라오게 items-end */}
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center
+                bg-black/60 sm:p-4 backdrop-blur-sm animate-modal-backdrop">
+  <div className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col
+                  rounded-t-3xl sm:rounded-2xl border bg-[var(--card)]
+                  shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)]
+                  animate-modal-up overflow-hidden modal-card-safe">
+
+    {/* 1. 액센트 바 — 모달 성격을 색으로 */}
+    <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
+      style={{ background: 'linear-gradient(90deg, #03c75a 0%, #22c55e 55%, #03c75a 100%)' }} />
+
+    {/* 2. 헤더 — 아이콘 타일 + 제목 + 부제 + 닫기 */}
+    <div className="px-5 pt-6 pb-4 border-b flex items-start gap-3.5"
+      style={{ background: 'linear-gradient(135deg, color-mix(in srgb, #03c75a 9%, var(--card)) 0%, var(--card) 70%)' }}>
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-md"
+        style={{ background: 'linear-gradient(135deg, #03c75a, #16a34a)', color: 'white' }}>
+        <Truck className="w-5 h-5" />
+      </div>
+      …제목 / 부제 / X 버튼
+    </div>
+
+    {/* 3. 본문 — 스크롤 */}
+    <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4" style={{ minHeight: 0 }}>…</div>
+
+    {/* 4. 푸터 — 고정. 취소는 좁게, 주 액션은 flex-1 */}
+    <div className="px-5 py-4 border-t flex gap-2.5 flex-shrink-0">…</div>
+  </div>
+</div>
+```
+
+**색 배정** — 모달 성격에 따라 액센트/아이콘/주버튼을 한 색으로 묶는다.
+
+| 성격 | 색 | 예 |
+|---|---|---|
+| 네이버 연동 | `#03c75a` → `#16a34a` | 발송 처리, 일괄 발송 |
+| 주의·보류 | `#f59e0b` → `#d97706` | 방문수령, 주문 수정 확인 |
+| 파괴적 | `#ff4d6d` → `#e11d48` | 주문 취소 |
+| 일반 | `var(--primary)` | 내부주문 전환 |
+
+**규칙**
+- **주 액션 버튼은 못 누를 때 이유를 라벨로 말한다** — `송장번호를 입력하세요` / `취소 사유를 입력하세요`.
+  `disabled`만 걸어두면 왜 안 되는지 알 수 없다
+- **작업 대상 요약 카드를 본문 맨 위에** — 구매자/금액/주문번호. 엉뚱한 건에 처리하는 사고 방지
+- **입력 포커스 링은 모달 색으로** — `focus:ring-2 focus:ring-[#03c75a]/35`.
+  기본 파랑을 두면 테마와 부딪힌다
+- **주 입력은 크게** — 송장번호처럼 그 모달의 핵심 입력은 `text-lg font-mono` + `autoFocus` + Enter 제출
+- 목록형 모달은 **진행 상황을 헤더 부제에** (`선택 3건 · 송장 입력 1건`), 행 상태는 **좌측 색 띠**로
+
+---
+
 ### 날짜 계산 규칙
 
 > **주의**: 날짜 계산 시 `+09:00` 오프셋과 `toISOString()`(UTC) 조합 금지.
