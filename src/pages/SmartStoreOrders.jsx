@@ -2999,18 +2999,45 @@ export default function SmartStoreOrders({
         const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !isOrderDone(o));
         const readyCount = eligible.filter((o) => (bulkTrackingMap[o.id] || '').trim().length > 0).length;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setBulkDispatchOpen(false)}>
-            <div className="rounded-xl w-full max-w-2xl flex flex-col border" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center gap-2 p-4 border-b" style={{ borderColor: 'var(--border)' }}>
-                <Truck className="w-5 h-5" style={{ color: '#03c75a' }} />
-                <h3 className="text-lg font-bold flex-1">일괄 발송 처리 ({eligible.length}건) <span className="text-xs font-bold" style={{ color: '#03c75a' }}>· 네이버 연동</span></h3>
-                <button onClick={() => setBulkDispatchOpen(false)}><X className="w-4 h-4 opacity-60" /></button>
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-modal-backdrop"
+            onClick={() => setBulkDispatchOpen(false)}>
+            <div
+              className="relative w-full sm:max-w-2xl flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden modal-card-safe"
+              style={{ borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
+                style={{ background: 'linear-gradient(90deg, #03c75a 0%, #22c55e 55%, #03c75a 100%)' }} />
+
+              {/* 헤더 — 몇 건 중 몇 건이 준비됐는지를 제목 옆에 상시 노출 */}
+              <div className="px-5 pt-6 pb-4 border-b flex items-start gap-3.5 flex-shrink-0"
+                style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, #03c75a 9%, var(--card)) 0%, var(--card) 70%)' }}>
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
+                  style={{ background: 'linear-gradient(135deg, #03c75a, #16a34a)', color: 'white' }}>
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-bold leading-tight" style={{ color: 'var(--foreground)' }}>일괄 발송 처리</h3>
+                  <p className="text-xs mt-0.5 font-semibold" style={{ color: '#03c75a' }}>
+                    선택 {eligible.length}건 · 송장 입력 {readyCount}건
+                  </p>
+                </div>
+                <button onClick={() => setBulkDispatchOpen(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
+                  aria-label="닫기">
+                  <X className="w-4 h-4 opacity-60" />
+                </button>
               </div>
-              <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-                <div className="text-xs opacity-70 mb-1">기본 택배사 — [전체 적용]으로 아래 모든 주문에 일괄 지정 (각 주문 개별 변경도 가능)</div>
+
+              {/* 기본 택배사 일괄 지정 */}
+              <div className="px-5 py-3.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--background)' }}>
+                <div className="text-[11px] font-bold tracking-wider mb-2" style={{ color: 'var(--muted-foreground)' }}>
+                  기본 택배사 — 전체 적용 후 주문별로 다시 바꿀 수 있습니다
+                </div>
                 <div className="flex gap-2">
                   <select value={bulkDispatchCompany} onChange={(e) => setBulkDispatchCompany(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded border text-sm" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                    className="flex-1 px-3.5 py-2.5 rounded-xl border text-sm font-semibold outline-none focus:ring-2 focus:ring-[#03c75a]/35"
+                    style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
                     {DELIVERY_COMPANIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
                   </select>
                   <button
@@ -3019,63 +3046,91 @@ export default function SmartStoreOrders({
                       eligible.forEach((o) => { next[o.id] = bulkDispatchCompany; });
                       return next;
                     })}
-                    className="px-3 py-2 rounded-lg text-sm font-bold whitespace-nowrap flex-shrink-0"
-                    style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a', border: '1px solid rgba(3,199,90,0.3)' }}
+                    className="px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap flex-shrink-0 transition-all active:scale-[0.98]"
+                    style={{ background: 'color-mix(in srgb, #03c75a 15%, var(--card))', color: '#03c75a', border: '1px solid color-mix(in srgb, #03c75a 40%, transparent)' }}
                     title="선택한 택배사를 아래 모든 주문에 적용">
                     전체 적용
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-                {eligible.map((o) => (
-                  <div key={o.id} className="p-2.5 rounded border space-y-2" style={{ borderColor: 'var(--border)' }}>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate">{o.buyer_name || '구매자'} · <span className="opacity-60">{fmtNum(o.total_amount)}원</span></div>
-                      <div className="text-[11px] opacity-60 truncate">#{o.provider_order_id}</div>
+
+              {/* 주문별 입력 — 입력된 행은 좌측 그린 띠로 완료 표시 */}
+              <div className="flex-1 overflow-y-auto px-5 py-3.5 space-y-2.5" style={{ minHeight: 0 }}>
+                {eligible.map((o) => {
+                  const filled = (bulkTrackingMap[o.id] || '').trim().length > 0;
+                  return (
+                    <div key={o.id} className="flex rounded-xl border overflow-hidden transition-colors"
+                      style={{
+                        borderColor: filled ? 'color-mix(in srgb, #03c75a 45%, transparent)' : 'var(--border)',
+                        background: filled ? 'color-mix(in srgb, #03c75a 6%, var(--card))' : 'var(--card)',
+                      }}>
+                      <div className="w-1 flex-shrink-0 transition-colors" style={{ background: filled ? '#03c75a' : 'var(--border)' }} />
+                      <div className="flex-1 min-w-0 px-3.5 py-3 space-y-2">
+                        <div className="flex items-baseline justify-between gap-3 min-w-0">
+                          <span className="text-sm font-bold truncate" style={{ color: 'var(--foreground)' }}>{o.buyer_name || '구매자'}</span>
+                          <span className="text-sm font-extrabold tabular-nums flex-shrink-0" style={{ color: 'var(--primary)' }}>{fmtNum(o.total_amount)}원</span>
+                        </div>
+                        <div className="text-[11px] font-mono truncate" style={{ color: 'var(--muted-foreground)' }}>#{o.provider_order_id}</div>
+                        <div className="flex gap-2">
+                          {/* 주문별 개별 택배사 (네이버처럼) */}
+                          <select
+                            value={bulkCompanyMap[o.id] || bulkDispatchCompany}
+                            onChange={(e) => setBulkCompanyMap((prev) => ({ ...prev, [o.id]: e.target.value }))}
+                            className="w-28 flex-shrink-0 px-2.5 py-2 rounded-lg border text-xs font-semibold outline-none focus:ring-2 focus:ring-[#03c75a]/35"
+                            style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                            title="이 주문의 택배사">
+                            {DELIVERY_COMPANIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                          </select>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="송장번호"
+                            value={bulkTrackingMap[o.id] || ''}
+                            onChange={(e) => setBulkTrackingMap((prev) => ({ ...prev, [o.id]: e.target.value }))}
+                            className="flex-1 min-w-0 px-3 py-2 rounded-lg border text-sm font-mono tracking-wide outline-none focus:ring-2 focus:ring-[#03c75a]/35"
+                            style={{
+                              background: 'var(--background)', color: 'var(--foreground)',
+                              borderColor: filled ? '#03c75a' : 'var(--border)',
+                            }}
+                          />
+                          {filled && (
+                            <a href={trackingUrl(DELIVERY_COMPANIES.find((c) => c.code === (bulkCompanyMap[o.id] || bulkDispatchCompany))?.name, bulkTrackingMap[o.id].trim())}
+                              target="_blank" rel="noopener noreferrer"
+                              className="flex-shrink-0 px-2.5 py-2 rounded-lg text-xs font-bold inline-flex items-center transition-opacity hover:opacity-80"
+                              style={{ background: 'color-mix(in srgb, #3b82f6 15%, transparent)', color: '#3b82f6' }} title="배송조회">
+                              <Search className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      {/* 주문별 개별 택배사 (네이버처럼) */}
-                      <select
-                        value={bulkCompanyMap[o.id] || bulkDispatchCompany}
-                        onChange={(e) => setBulkCompanyMap((prev) => ({ ...prev, [o.id]: e.target.value }))}
-                        className="w-28 flex-shrink-0 px-2 py-2 rounded border text-xs"
-                        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
-                        title="이 주문의 택배사">
-                        {DELIVERY_COMPANIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-                      </select>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="송장번호"
-                        value={bulkTrackingMap[o.id] || ''}
-                        onChange={(e) => setBulkTrackingMap((prev) => ({ ...prev, [o.id]: e.target.value }))}
-                        className="flex-1 min-w-0 px-3 py-2 rounded border text-sm"
-                        style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
-                      />
-                      {(bulkTrackingMap[o.id] || '').trim() && (
-                        <a href={trackingUrl(DELIVERY_COMPANIES.find((c) => c.code === (bulkCompanyMap[o.id] || bulkDispatchCompany))?.name, bulkTrackingMap[o.id].trim())}
-                          target="_blank" rel="noopener noreferrer"
-                          className="flex-shrink-0 px-2.5 py-2 rounded border text-xs font-bold inline-flex items-center gap-1"
-                          style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6', borderColor: 'rgba(59,130,246,0.3)' }} title="배송조회">
-                          <Search className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-              <div className="p-4 border-t flex gap-2 items-center" style={{ borderColor: 'var(--border)' }}>
-                <div className="text-xs opacity-70 flex-1">
-                  🟢 송장번호 입력된 {readyCount}건이 <b>네이버에 자동 발송처리</b>됩니다(60초 내). 발주확인 안 된 건은 자동으로 함께 등록.
+
+              {/* 푸터 */}
+              <div className="px-5 py-4 border-t flex-shrink-0 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+                <div className="rounded-xl px-3.5 py-2.5 flex items-start gap-2.5 text-xs leading-relaxed"
+                  style={{ background: 'color-mix(in srgb, #03c75a 10%, var(--card))', border: '1px solid color-mix(in srgb, #03c75a 32%, transparent)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 animate-pulse" style={{ background: '#03c75a' }} />
+                  <span style={{ color: 'var(--muted-foreground)' }}>
+                    송장을 넣은 <b style={{ color: '#03c75a' }}>{readyCount}건</b>만 네이버로 전송됩니다(60초 안).
+                    발주확인이 안 된 주문은 발주확인까지 함께 처리됩니다.
+                  </span>
                 </div>
-                <button onClick={submitBulkDispatch} disabled={readyCount === 0}
-                  className="px-4 py-2 rounded-lg font-bold disabled:opacity-40"
-                  style={{ background: '#03c75a', color: 'white' }}>
-                  네이버 {readyCount}건 발송
-                </button>
-                <button onClick={() => setBulkDispatchOpen(false)}
-                  className="px-3 py-2 rounded-lg border"
-                  style={{ borderColor: 'var(--border)' }}>취소</button>
+                <div className="flex gap-2.5">
+                  <button onClick={() => setBulkDispatchOpen(false)}
+                    className="px-5 py-3 rounded-xl font-semibold text-sm border transition-colors hover:bg-[var(--background)]"
+                    style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                    취소
+                  </button>
+                  <button onClick={submitBulkDispatch} disabled={readyCount === 0}
+                    className="flex-1 py-3 rounded-xl font-bold text-sm text-white inline-flex items-center justify-center gap-1.5 transition-all enabled:hover:brightness-105 enabled:active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ background: 'linear-gradient(90deg, #03c75a, #16a34a)', boxShadow: readyCount > 0 ? '0 6px 18px -6px rgba(3,199,90,0.65)' : 'none' }}>
+                    <Check className="w-4 h-4" />
+                    {readyCount > 0 ? `네이버 ${readyCount}건 발송` : '송장번호를 입력하세요'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -3084,67 +3139,106 @@ export default function SmartStoreOrders({
 
       {/* 주문 취소 모달 (C1 fix: window.prompt → 모달 UI) */}
       {cancelModalOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => !cancelSubmitting && setCancelModalOrder(null)}>
-          <div className="rounded-2xl w-full max-w-md p-5 border modal-card-safe" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-3">
-              <Ban className="w-5 h-5" style={{ color: '#ff4d6d' }} />
-              <h3 className="text-lg font-bold flex-1">주문 취소 표시 <span className="text-xs font-normal opacity-60">(화면 전용)</span></h3>
-              <button onClick={() => !cancelSubmitting && setCancelModalOrder(null)} disabled={cancelSubmitting}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-modal-backdrop"
+          onClick={() => !cancelSubmitting && setCancelModalOrder(null)}>
+          <div
+            className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden modal-card-safe"
+            style={{ borderColor: 'var(--border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
+              style={{ background: 'linear-gradient(90deg, #ff4d6d 0%, #f97316 55%, #ff4d6d 100%)' }} />
+
+            <div className="px-5 pt-6 pb-4 border-b flex items-start gap-3.5 flex-shrink-0"
+              style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, #ff4d6d 10%, var(--card)) 0%, var(--card) 70%)' }}>
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
+                style={{ background: 'linear-gradient(135deg, #ff4d6d, #e11d48)', color: 'white' }}>
+                <Ban className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-bold leading-tight" style={{ color: 'var(--foreground)' }}>주문 취소 표시</h3>
+                <p className="text-xs mt-0.5 font-semibold" style={{ color: '#e11d48' }}>내 화면에서만 · 네이버 미반영</p>
+              </div>
+              <button onClick={() => !cancelSubmitting && setCancelModalOrder(null)} disabled={cancelSubmitting}
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)] disabled:opacity-40"
+                aria-label="닫기">
                 <X className="w-4 h-4 opacity-60" />
               </button>
             </div>
-            {/* ⚠️ 실제 네이버 취소가 아님을 명확히 — 판매자센터 안내 */}
-            <div className="mb-3 p-2.5 rounded-lg border text-[12px] leading-relaxed" style={{ background: 'rgba(255,170,0,0.1)', borderColor: 'rgba(255,170,0,0.4)' }}>
-              <div className="font-bold mb-0.5" style={{ color: '#e69500' }}>⚠️ 네이버 실제 취소가 아닙니다</div>
-              이 작업은 <b>내 화면에서만 '취소됨'으로 표시</b>합니다. 네이버 스토어의 실제 주문 취소는 아래 <b>판매자센터</b>에서 직접 처리하세요.
-              <a href="https://sell.smartstore.naver.com/" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-bold text-[11px]"
-                style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a', border: '1px solid rgba(3,199,90,0.35)' }}>
-                <ExternalLink className="w-3 h-3" /> 네이버 판매자센터에서 취소하기
-              </a>
-            </div>
-            <div className="text-xs mb-3 p-2 rounded border" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
-              <div><span className="opacity-60">구매자:</span> <span className="font-semibold">{cancelModalOrder.buyer_name || '구매자'}</span></div>
-              <div><span className="opacity-60">주문번호:</span> #{cancelModalOrder.provider_order_id}</div>
-              <div><span className="opacity-60">금액:</span> {fmtNum(cancelModalOrder.total_amount)}원</div>
-            </div>
-            <div className="mb-3">
-              <div className="text-xs opacity-70 mb-1.5">취소 사유 (자주 쓰는 것 선택 또는 직접 입력)</div>
-              <div className="grid grid-cols-2 gap-1.5 mb-2">
-                {CANCEL_PRESETS.map((p) => (
-                  <button key={p} onClick={() => setCancelReason(p)}
-                    className="text-xs px-2 py-1.5 rounded border transition-colors"
-                    style={{
-                      background: cancelReason === p ? 'rgba(255,77,109,0.15)' : 'var(--background)',
-                      borderColor: cancelReason === p ? '#ff4d6d' : 'var(--border)',
-                      color: cancelReason === p ? '#ff4d6d' : 'var(--foreground)',
-                      fontWeight: cancelReason === p ? 700 : 400,
-                    }}>{p}</button>
-                ))}
+
+            <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4" style={{ minHeight: 0 }}>
+              {/* 주문 요약 */}
+              <div className="rounded-xl border px-4 py-3" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
+                <div className="flex items-baseline justify-between gap-3 mb-1">
+                  <span className="font-bold text-base truncate" style={{ color: 'var(--foreground)' }}>{cancelModalOrder.buyer_name || '구매자'}</span>
+                  <span className="font-extrabold text-base tabular-nums flex-shrink-0" style={{ color: 'var(--primary)' }}>
+                    {fmtNum(cancelModalOrder.total_amount)}원
+                  </span>
+                </div>
+                <div className="text-[11px] font-mono truncate" style={{ color: 'var(--muted-foreground)' }}>#{cancelModalOrder.provider_order_id}</div>
               </div>
-              <textarea
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                maxLength={200}
-                rows={2}
-                placeholder="취소 사유 (200자 이내, 직접 수정 가능)"
-                className="w-full px-3 py-2 rounded border text-sm resize-none"
-                style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
-              />
-              <div className="text-[10px] opacity-50 text-right mt-0.5">{cancelReason.length} / 200</div>
+
+              {/* ⚠️ 실제 네이버 취소가 아님을 명확히 — 판매자센터 안내 */}
+              <div className="rounded-xl px-4 py-3 text-xs leading-relaxed"
+                style={{ background: 'color-mix(in srgb, #f59e0b 12%, var(--card))', border: '1px solid color-mix(in srgb, #f59e0b 42%, transparent)' }}>
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#b45309' }} />
+                  <span style={{ color: 'var(--muted-foreground)' }}>
+                    <b style={{ color: '#b45309' }}>네이버 실제 취소가 아닙니다.</b> 이 작업은 내 화면 목록에만 「취소됨」으로 표시합니다.
+                    실제 주문 취소는 판매자센터에서 직접 처리하세요.
+                  </span>
+                </div>
+                <a href="https://sell.smartstore.naver.com/" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                  className="mt-2.5 ml-6.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-opacity hover:opacity-85"
+                  style={{ background: 'color-mix(in srgb, #03c75a 16%, transparent)', color: '#03c75a', border: '1px solid color-mix(in srgb, #03c75a 40%, transparent)' }}>
+                  <ExternalLink className="w-3 h-3" /> 네이버 판매자센터에서 취소하기
+                </a>
+              </div>
+
+              {/* 취소 사유 */}
+              <div>
+                <label className="block text-[11px] font-bold tracking-wider mb-2" style={{ color: 'var(--muted-foreground)' }}>
+                  취소 사유 — 아래에서 고르거나 직접 쓰세요
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mb-2.5">
+                  {CANCEL_PRESETS.map((p) => {
+                    const on = cancelReason === p;
+                    return (
+                      <button key={p} onClick={() => setCancelReason(p)}
+                        className="text-xs px-2.5 py-2 rounded-xl border font-semibold transition-all active:scale-[0.98]"
+                        style={on
+                          ? { background: 'color-mix(in srgb, #ff4d6d 15%, var(--card))', borderColor: '#ff4d6d', color: '#e11d48', boxShadow: '0 0 0 3px color-mix(in srgb, #ff4d6d 13%, transparent)' }
+                          : { background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  maxLength={200}
+                  rows={2}
+                  placeholder="취소 사유 (200자 이내, 직접 수정 가능)"
+                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm resize-none outline-none focus:ring-2 focus:ring-[#ff4d6d]/30"
+                  style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                />
+                <div className="text-[10px] text-right mt-1 tabular-nums" style={{ color: 'var(--muted-foreground)' }}>{cancelReason.length} / 200</div>
+              </div>
             </div>
-            <div className="text-[11px] opacity-60 mb-3">
-              이 화면 목록에서만 [취소됨]으로 표시됩니다. (네이버 미반영)
-            </div>
-            <div className="flex gap-2">
-              <button onClick={submitCancelOrder} disabled={!cancelReason.trim() || cancelSubmitting}
-                className="flex-1 py-2.5 rounded-lg font-bold disabled:opacity-40"
-                style={{ background: '#ff4d6d', color: 'white' }}>
-                {cancelSubmitting ? '처리 중...' : '화면에 취소 표시'}
-              </button>
+
+            <div className="px-5 py-4 border-t flex gap-2.5 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
               <button onClick={() => setCancelModalOrder(null)} disabled={cancelSubmitting}
-                className="px-4 py-2.5 rounded-lg border disabled:opacity-40"
-                style={{ borderColor: 'var(--border)' }}>닫기</button>
+                className="px-5 py-3 rounded-xl font-semibold text-sm border transition-colors hover:bg-[var(--background)] disabled:opacity-40"
+                style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                닫기
+              </button>
+              <button onClick={submitCancelOrder} disabled={!cancelReason.trim() || cancelSubmitting}
+                className="flex-1 py-3 rounded-xl font-bold text-sm text-white inline-flex items-center justify-center gap-1.5 transition-all enabled:hover:brightness-105 enabled:active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: 'linear-gradient(90deg, #ff4d6d, #e11d48)', boxShadow: cancelReason.trim() && !cancelSubmitting ? '0 6px 18px -6px rgba(225,29,72,0.6)' : 'none' }}>
+                <Ban className="w-4 h-4" />
+                {cancelSubmitting ? '처리 중...' : cancelReason.trim() ? '화면에 취소 표시' : '취소 사유를 입력하세요'}
+              </button>
             </div>
           </div>
         </div>
