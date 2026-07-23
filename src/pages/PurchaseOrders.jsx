@@ -496,12 +496,14 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           </button>
           <PackagePlus className="w-6 h-6" style={{ color: 'var(--primary)' }} />
           <h1 className="text-xl sm:text-2xl font-black" style={{ color: 'var(--foreground)' }}>매입 발주</h1>
-          {/* 발주서 사진만 찍어 올리면 자동 판독 → 확인 → 등록. 손으로 안 쳐도 됨.
-              클릭 업로드 외에 드래그드롭 / Ctrl+V(캡처 붙여넣기)도 됨 */}
-          <label className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white cursor-pointer"
+          {/* 발주서 사진만 올리면 자동 판독 → 확인 → 등록. 손으로 안 쳐도 됨.
+              클릭 업로드 외에 드래그드롭 / Ctrl+V(캡처 붙여넣기)도 됨 — 세 방법을 버튼에 명시 */}
+          <label className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white cursor-pointer border-2 border-dashed border-white/45"
             title="클릭 업로드 · 이미지 드래그드롭 · Ctrl+V 붙여넣기 모두 됩니다"
             style={{ background: scanning ? 'var(--muted-foreground)' : 'var(--success)' }}>
-            {scanning ? <><Loader2 className="w-4 h-4 animate-spin" /> 판독 중...</> : <><Camera className="w-4 h-4" /> 발주서 사진 등록</>}
+            {scanning
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> 판독 중...</>
+              : <><Camera className="w-4 h-4" /> 발주서 등록 <span className="text-[10px] font-semibold opacity-90 whitespace-nowrap">클릭·드래그·Ctrl+V</span></>}
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickQuote} disabled={scanning} />
           </label>
           <button onClick={openNew} className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white" style={{ background: 'var(--primary)' }}>
@@ -559,90 +561,90 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           </div>
         </div>
 
-        {/* 발주일 조회 — 프리셋 + 직접 범위. 발주가 쌓이면 특정 기간만 보기 (2026-07-23) */}
-        <div className="flex flex-wrap items-center gap-1.5 mb-2 text-sm">
-          <span className="text-[11px] font-bold tracking-wider mr-0.5" style={{ color: 'var(--muted-foreground)' }}>발주일</span>
-          {[
-            { id: 'all', label: '전체' },
-            { id: 'thisMonth', label: '이번 달' },
-            { id: 'lastMonth', label: '지난 달' },
-            { id: 'thisYear', label: '올해' },
-          ].map((p) => {
-            // 현재 선택이 이 프리셋과 일치하는지
-            const now = getTodayKST();
-            const ym = now.slice(0, 7);
-            const [yy, mm] = ym.split('-').map(Number);
-            const lastYm = mm === 1 ? `${yy - 1}-12` : `${yy}-${String(mm - 1).padStart(2, '0')}`;
-            const ranges = {
-              all: ['', ''],
-              thisMonth: [`${ym}-01`, `${ym}-31`],
-              lastMonth: [`${lastYm}-01`, `${lastYm}-31`],
-              thisYear: [`${yy}-01-01`, `${yy}-12-31`],
-            };
-            const [f, t] = ranges[p.id];
-            const on = dateFrom === f && dateTo === t;
-            return (
-              <button key={p.id} onClick={() => { setDateFrom(f); setDateTo(t); }}
-                aria-pressed={on}
-                className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
-                style={on
-                  ? { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }
-                  : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}>
-                {p.label}
-              </button>
-            );
-          })}
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg text-xs border outline-none"
-            style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
-          <span style={{ color: 'var(--muted-foreground)' }}>~</span>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg text-xs border outline-none"
-            style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
-          {(dateFrom || dateTo) && (
-            <button onClick={() => { setDateFrom(''); setDateTo(''); }}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
-              style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-              <X className="w-3 h-3" /> 초기화
-            </button>
+        {/* 필터 한 줄 — 좌: 상태칩(발주목록 전용) / 우: 발주일. 3층이던 걸 2층으로 정리 (2026-07-23) */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2">
+          {tab === 'orders' && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { id: 'all', label: '전체' },
+                { id: '미입고', label: '미입고' },
+                { id: '부분 입고', label: '부분 입고' },
+                { id: '완료', label: '완료' },
+                { id: '특이사항', label: '특이사항' },
+              ].map((s) => {
+                const on = status === s.id;
+                // 특이사항은 입고 상태가 아니라 별개 축이라 상태색과 겹치지 않는 진한 중립색을 쓴다
+                const tone = s.id === '특이사항' ? 'var(--foreground)' : (STATUS_STYLE[s.id]?.bg || 'var(--primary)');
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setStatus(s.id)}
+                    aria-pressed={on}
+                    className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-1.5"
+                    style={on
+                      ? { background: tone, color: s.id === '특이사항' ? 'var(--background)' : '#fff', borderColor: tone }
+                      : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
+                  >
+                    {s.label}
+                    <span
+                      className="px-1.5 rounded-full font-bold tabular-nums"
+                      style={{ background: on ? 'rgba(255,255,255,0.25)' : 'var(--muted)' }}
+                    >
+                      {statusCounts[s.id] ?? 0}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           )}
-        </div>
-
-        {/* 상태 필터 — 발주 목록 전용 (미입고 현황은 이미 미입고만 모은 탭이라 의미 없음) */}
-        {tab === 'orders' && (
-          <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          {/* 발주일 — 오른쪽 정렬 */}
+          <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+            <span className="text-[11px] font-bold tracking-wider" style={{ color: 'var(--muted-foreground)' }}>발주일</span>
             {[
               { id: 'all', label: '전체' },
-              { id: '미입고', label: '미입고' },
-              { id: '부분 입고', label: '부분 입고' },
-              { id: '완료', label: '완료' },
-              { id: '특이사항', label: '특이사항' },
-            ].map((s) => {
-              const on = status === s.id;
-              // 특이사항은 입고 상태가 아니라 별개 축이라 상태색과 겹치지 않는 진한 중립색을 쓴다
-              const tone = s.id === '특이사항' ? 'var(--foreground)' : (STATUS_STYLE[s.id]?.bg || 'var(--primary)');
+              { id: 'thisMonth', label: '이번 달' },
+              { id: 'lastMonth', label: '지난 달' },
+              { id: 'thisYear', label: '올해' },
+            ].map((p) => {
+              const now = getTodayKST();
+              const ym = now.slice(0, 7);
+              const [yy, mm] = ym.split('-').map(Number);
+              const lastYm = mm === 1 ? `${yy - 1}-12` : `${yy}-${String(mm - 1).padStart(2, '0')}`;
+              const ranges = {
+                all: ['', ''],
+                thisMonth: [`${ym}-01`, `${ym}-31`],
+                lastMonth: [`${lastYm}-01`, `${lastYm}-31`],
+                thisYear: [`${yy}-01-01`, `${yy}-12-31`],
+              };
+              const [f, t] = ranges[p.id];
+              const on = dateFrom === f && dateTo === t;
               return (
-                <button
-                  key={s.id}
-                  onClick={() => setStatus(s.id)}
+                <button key={p.id} onClick={() => { setDateFrom(f); setDateTo(t); }}
                   aria-pressed={on}
-                  className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
                   style={on
-                    ? { background: tone, color: s.id === '특이사항' ? 'var(--background)' : '#fff', borderColor: tone }
-                    : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
-                >
-                  {s.label}
-                  <span
-                    className="px-1.5 rounded-full font-bold tabular-nums"
-                    style={{ background: on ? 'rgba(255,255,255,0.25)' : 'var(--muted)' }}
-                  >
-                    {statusCounts[s.id] ?? 0}
-                  </span>
+                    ? { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }
+                    : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}>
+                  {p.label}
                 </button>
               );
             })}
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+              className="px-2 py-1.5 rounded-lg text-xs border outline-none"
+              style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+            <span style={{ color: 'var(--muted-foreground)' }}>~</span>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+              className="px-2 py-1.5 rounded-lg text-xs border outline-none"
+              style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+            {(dateFrom || dateTo) && (
+              <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+                className="px-2 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }} title="발주일 필터 초기화">
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
-        )}
+        </div>
 
         {/* 내보내기 툴바 — 현재 탭 기준으로 동작 */}
         <div className="flex flex-wrap items-center gap-2">
