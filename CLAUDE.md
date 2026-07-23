@@ -1,11 +1,11 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-22 (발주 검색·필터 / 스토어 배지·입금대기 / 방문수령 택배발송 / 거래처 동기화 동의 / 모달 5종 리디자인)
+> 마지막 업데이트: 2026-07-23 (발주 검색·필터 / 스토어 배지·입금대기 / 방문수령 택배발송 / 거래처 동기화 동의 / 모달 5종 리디자인 / 주문 상품 대문 이미지)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
 
-## 🆕 v2026-07-22 — 발주 검색·필터 / 스토어 배지·입금대기 / 방문수령 택배발송 / 거래처 동기화 동의 / 모달 리디자인
+## 🆕 v2026-07-22~23 — 발주 검색·필터 / 스토어 배지·입금대기 / 방문수령 택배발송 / 거래처 동기화 동의 / 모달 리디자인 / 주문 상품 대문 이미지
 
 하루 8커밋. 사장님이 실사용 중 발견한 것들을 그때그때 고침. 아래 4건은 **원인이 다 "조용한 no-op"** 이었다 —
 코드는 있는데 조건이 안 맞아 아무 일도 안 하고, 알림도 없어서 사장님이 알 방법이 없던 패턴.
@@ -83,6 +83,17 @@
 - 입력 포커스 링이 브라우저 기본 파랑이라 테마와 충돌 → 각 모달 색으로 교체
 - 🐛 **덤**: `openDispatch`가 택배사를 `CJGLS`로 하드코딩하고 있었음. 다른 곳은 `DEFAULT_COURIER_CODE`(로젠)를
   쓰는데 여기만 달라서 **발송할 때마다 드롭다운을 바꿔야 했다** → 단일 소스로 교정
+
+### 🖼️ 주문 상세에 상품 대문 이미지 (`fdb050a` `5ef9e32`)
+사장님 질문: "스토어팜 주문 상품 대문 이미지를 미리보기로 파싱해서 보여줄 수 있나?" → **가능. 크롤링·API 없이 이미 있는 데이터로.**
+- 🔑 **`external_products.representative_image`** 컬럼에 이미 이미지 URL이 733건 캐시됨(sync.js가 채움). MOVIS 카탈로그 검색용으로 만든 걸 재활용
+- 매칭: 주문 `raw_payload.productOrder.productId` **=** `external_products.channel_product_no` (완전 일치, 확인됨)
+- 이미지는 네이버 CDN `shop-phinf.pstatic.net`. **`referrerPolicy="no-referrer"`로 핫링크 로드됨**(실측). 네이버 API 호출·CORS 없는 **순수 읽기**
+- `supabase.getProductImages(ids)` — `channel_product_no=in.(...)` 로 representative_image만. 반환 `{ productId(string): url }`
+- `reload()`에서 주문+items의 productId 모아 **한 번에** 조회 → `productImages` state. 화면 렌더 막지 않게 items 세팅 뒤 비동기로 채움
+- `ProductThumb` 컴포넌트: 캐시에 있으면 이미지, 없거나 로드 실패면 📦 아이콘 자리표시. 클릭 시 `imageZoom` 확대 오버레이
+- 배치: 주문 상세 모달 상품 항목을 **좌(정보)/우(120px 큰 이미지)** 2단. 모바일은 `maxWidth 34vw`로 상품명 안 밀리게
+- 🚨 카탈로그에 없는 신상품은 📦 자리표시 → 상단 [상품 동기화] 돌리면 채워짐
 
 ## 🆕 v2026-07-16 — 7/15 발주 갱신 (사장님 시트 수정 → 재적용)
 

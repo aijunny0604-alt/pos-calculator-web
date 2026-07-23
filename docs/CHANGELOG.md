@@ -48,6 +48,12 @@
 - 주문수정 확인: 변경 항목 좌측 색 띠 + 태그 행
 - 🐛 `openDispatch` 택배사 하드코딩 `CJGLS` → `DEFAULT_COURIER_CODE`(로젠)
 
+#### 🖼️ 주문 상세 상품 대문 이미지 — `fdb050a` `5ef9e32` (2026-07-23)
+- `external_products.representative_image`(733건 캐시) 재활용. 크롤링·API 없음
+- 주문 `productId` = 카탈로그 `channel_product_no` 매칭, 네이버 CDN을 `referrerPolicy=no-referrer` 핫링크
+- `supabase.getProductImages(ids)` + `ProductThumb` 컴포넌트(없으면 📦, 클릭 확대)
+- 상세 모달 상품 항목 좌(정보)/우(120px 이미지) 2단, 모바일 maxWidth 34vw
+
 ---
 
 ### 2026-05-21 작업 내역
