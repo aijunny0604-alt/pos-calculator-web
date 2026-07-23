@@ -29,8 +29,9 @@ const trackingUrl = (company, no) =>
 // 네이버 스토어 상품페이지 직접 링크 — 주문 항목 raw_payload.productOrder.productId 사용.
 // /main/products/{productId} 는 스토어 슬러그 몰라도 자동으로 해당 스토어(엠파츠=m_parts)로 리다이렉트.
 // ⚠️ originalProductId 는 원본(다른 스토어)로 가니 쓰지 말 것. productId 가 엠파츠 판매 상품번호.
+const itemProductId = (it) => it?.raw_payload?.productOrder?.productId || null;
 const naverProductUrl = (it) => {
-  const pid = it?.raw_payload?.productOrder?.productId;
+  const pid = itemProductId(it);
   return pid ? `https://smartstore.naver.com/main/products/${pid}` : null;
 };
 
@@ -409,6 +410,32 @@ function ActionBtn({ onClick, icon: Icon, label, variant = 'purple', title }) {
   );
 }
 
+// 상품 대문 이미지 썸네일 — 카탈로그 캐시의 representative_image를 productId로 찾아 표시.
+// referrerpolicy=no-referrer 로 네이버 CDN 핫링크 로드(검증됨). 없거나 로드 실패면 아이콘 자리.
+function ProductThumb({ productId, images, onZoom, size = 44 }) {
+  const url = productId ? images[String(productId)] : null;
+  const [broken, setBroken] = useState(false);
+  const box = {
+    width: size, height: size, borderRadius: 10, flexShrink: 0,
+    border: '1px solid var(--border)', background: 'var(--background)', overflow: 'hidden',
+  };
+  if (!url || broken) {
+    return (
+      <div style={{ ...box, display: 'grid', placeItems: 'center' }} title={url ? '이미지 로드 실패' : '카탈로그에 이미지 없음'}>
+        <Package className="w-4 h-4" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }} />
+      </div>
+    );
+  }
+  return (
+    <button type="button" onClick={(e) => { e.stopPropagation(); onZoom?.(url); }}
+      style={{ ...box, cursor: 'zoom-in', padding: 0 }} title="크게 보기">
+      <img src={url} alt="" referrerPolicy="no-referrer" loading="lazy"
+        onError={() => setBroken(true)}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+    </button>
+  );
+}
+
 export default function SmartStoreOrders({
   products = [],
   customers = [],
@@ -469,6 +496,8 @@ export default function SmartStoreOrders({
   };
   const [orders, setOrders] = useState([]);
   const [itemsByOrder, setItemsByOrder] = useState({}); // { orderId: [items] }
+  const [productImages, setProductImages] = useState({}); // { productId: 대문 이미지 URL }
+  const [imageZoom, setImageZoom] = useState(null); // 상품 이미지 확대 오버레이 URL
   const [loading, setLoading] = useState(true);
   const [soundOn, setSoundOn] = useState(isStoreAlertSoundOn());
   const [providerFilter, setProviderFilter] = useState('all');
@@ -654,6 +683,16 @@ export default function SmartStoreOrders({
     for (const o of (list || [])) { if (!itemsMap[o.id]) itemsMap[o.id] = []; }
     setItemsByOrder(itemsMap);
     setLoading(false);
+
+    // 상품 대문 이미지 — 주문의 네이버 productId를 모아 카탈로그 캐시에서 한 번에 조회.
+    // 화면 렌더를 막지 않으려 items 세팅 뒤 별도로 채운다(도착하면 썸네일이 나타남).
+    const pids = [];
+    for (const o of (list || [])) {
+      const pid = o?.raw_payload?.productOrder?.productId;
+      if (pid) pids.push(pid);
+    }
+    for (const arr of Object.values(itemsMap)) for (const it of arr) { const pid = itemProductId(it); if (pid) pids.push(pid); }
+    if (pids.length) supabase.getProductImages(pids).then((m) => setProductImages((prev) => ({ ...prev, ...m })));
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
@@ -2079,7 +2118,10 @@ export default function SmartStoreOrders({
                         return (
                           <div key={it.id} className="p-2.5 rounded border text-sm"
                             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-                            <div className="font-bold text-[16px] break-keep mb-1">{it.provider_product_name}</div>
+                            <div className="flex items-start gap-2.5 mb-1">
+                              <ProductThumb productId={itemProductId(it)} images={productImages} onZoom={setImageZoom} size={52} />
+                              <div className="font-bold text-[16px] break-keep min-w-0 flex-1">{it.provider_product_name}</div>
+                            </div>
                             {it.provider_product_option && (
                               <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[15px] font-bold break-keep" style={{ background: 'rgba(59,130,246,0.12)', color: '#2f7df0', border: '1px solid rgba(59,130,246,0.3)' }}>
                                 🎚️ {it.provider_product_option}
@@ -2414,33 +2456,33 @@ export default function SmartStoreOrders({
                   const lineTotal = Number(it.unit_price || 0) * Number(it.quantity || 0);
                   return (
                     <div key={it.id} className="space-y-1">
-                      <div className="flex items-start gap-2">
-                        <Package className="w-4 h-4 mt-1 opacity-60 flex-shrink-0" />
-                        <div className="flex-1 text-[16px] font-bold leading-snug break-keep">
+                      <div className="flex items-start gap-2.5">
+                        <ProductThumb productId={itemProductId(it)} images={productImages} onZoom={setImageZoom} size={56} />
+                        <div className="flex-1 min-w-0 text-[16px] font-bold leading-snug break-keep">
                           {it.provider_product_name}
                         </div>
                       </div>
                       {it.provider_product_option && (
-                        <div className="ml-6 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[15px] font-bold break-keep" style={{ background: 'rgba(59,130,246,0.12)', color: '#2f7df0', border: '1px solid rgba(59,130,246,0.3)' }}>
+                        <div className="ml-[66px] inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[15px] font-bold break-keep" style={{ background: 'rgba(59,130,246,0.12)', color: '#2f7df0', border: '1px solid rgba(59,130,246,0.3)' }}>
                           🎚️ {it.provider_product_option}
                         </div>
                       )}
                       {naverProductUrl(it) && (
                         <a href={naverProductUrl(it)} target="_blank" rel="noopener noreferrer"
-                          className="ml-6 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded"
+                          className="ml-[66px] inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded"
                           style={{ background: 'rgba(3,199,90,0.12)', color: '#03c75a', border: '1px solid rgba(3,199,90,0.3)' }}
                           title="네이버 스토어 상품페이지 열기">
                           <ExternalLink className="w-3 h-3" /> 상품페이지
                         </a>
                       )}
-                      <div className="ml-6 flex items-center justify-between gap-2">
+                      <div className="ml-[66px] flex items-center justify-between gap-2">
                         <span className="inline-flex items-center gap-2 flex-wrap">
                           <span className="px-2.5 py-1 rounded-lg text-[17px] font-extrabold leading-none" style={{ background: 'var(--primary)', color: '#fff' }} title="수량">×{it.quantity}</span>
                           <span className="text-sm opacity-70 whitespace-nowrap">단가 {fmtNum(it.unit_price)}원</span>
                         </span>
                         <span className="font-extrabold text-lg whitespace-nowrap" style={{ color: 'var(--primary)' }}>{fmtNum(lineTotal)}원</span>
                       </div>
-                      <div className="ml-6 flex items-center gap-1.5 text-[11px] flex-wrap">
+                      <div className="ml-[66px] flex items-center gap-1.5 text-[11px] flex-wrap">
                         {matched && (
                           <span className="flex items-center gap-1 font-medium" style={{ color: '#00ff88' }}>
                             <Check className="w-3.5 h-3.5" />{it.matched_product_name}
@@ -2762,6 +2804,21 @@ export default function SmartStoreOrders({
 
       {/* 발송처리 모달 — 송장 입력이 주 작업이라 입력칸을 화면의 주인공으로 두고,
           주문 확인 정보는 위에, 연동 안내는 아래에 배치. 톤은 거래처 상세 모달과 통일. */}
+      {/* 상품 대문 이미지 확대 — 썸네일 클릭 시 */}
+      {imageZoom && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-modal-backdrop"
+          onClick={() => setImageZoom(null)}>
+          <img src={imageZoom} alt="상품 이미지" referrerPolicy="no-referrer"
+            className="max-w-[92vw] max-h-[88vh] rounded-xl shadow-2xl object-contain animate-modal-up"
+            style={{ background: 'var(--card)' }} onClick={(e) => e.stopPropagation()} />
+          <button onClick={() => setImageZoom(null)}
+            className="absolute top-5 right-5 w-10 h-10 rounded-full flex items-center justify-center bg-black/50 text-white hover:bg-black/70 transition-colors"
+            aria-label="닫기">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
       {dispatchModalOrder && (() => {
         const dOrder = dispatchModalOrder;
         const dItems = itemsByOrder[dOrder.id] || [];

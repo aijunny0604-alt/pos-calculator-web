@@ -1099,6 +1099,22 @@ export const supabase = {
       return await fetchJSON(url, { headers });
     } catch (e) { console.error('getExternalProducts:', e); return []; }
   },
+  // 상품 대문 이미지 조회 — 주문의 네이버 productId(=channel_product_no)로 representative_image만.
+  // sync.js가 채운 external_products 캐시에서 가져오므로 네이버 API 호출·CORS 없음.
+  // 반환: { [channel_product_no(string)]: imageUrl }
+  async getProductImages(productIds) {
+    const ids = [...new Set((productIds || []).map(String).filter(Boolean))];
+    if (ids.length === 0) return {};
+    try {
+      const rows = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/external_products?channel_product_no=in.(${ids.join(',')})&select=channel_product_no,representative_image`,
+        { headers }
+      );
+      const map = {};
+      for (const r of rows || []) if (r.representative_image) map[String(r.channel_product_no)] = r.representative_image;
+      return map;
+    } catch (e) { console.error('getProductImages:', e); return {}; }
+  },
   async getExternalOrderItems(externalOrderId) {
     try {
       return await fetchJSON(
