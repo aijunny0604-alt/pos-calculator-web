@@ -2120,30 +2120,31 @@ export default function SmartStoreOrders({
                         return (
                           <div key={it.id} className="p-2.5 rounded border text-sm"
                             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-                            <div className="flex items-start gap-2.5 mb-1">
-                              <ProductThumb productId={itemProductId(it)} images={productImages} onZoom={setImageZoom} size={52} />
-                              <div className="font-bold text-[16px] break-keep min-w-0 flex-1">{it.provider_product_name}</div>
-                            </div>
-                            {it.provider_product_option && (
-                              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[15px] font-bold break-keep" style={{ background: 'rgba(59,130,246,0.12)', color: '#2f7df0', border: '1px solid rgba(59,130,246,0.3)' }}>
-                                🎚️ {it.provider_product_option}
+                            {/* [정보][대문 이미지][금액] — 상세 모달과 동일 배치 (2026-07-23) */}
+                            <div className="flex gap-3 items-center">
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <div className="font-bold text-[16px] break-keep">{it.provider_product_name}</div>
+                                {it.provider_product_option && (
+                                  <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[15px] font-bold break-keep" style={{ background: 'rgba(59,130,246,0.12)', color: '#2f7df0', border: '1px solid rgba(59,130,246,0.3)' }}>
+                                    🎚️ {it.provider_product_option}
+                                  </div>
+                                )}
+                                {naverProductUrl(it) && (
+                                  <a href={naverProductUrl(it)} target="_blank" rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded"
+                                    style={{ background: 'rgba(3,199,90,0.12)', color: '#03c75a', border: '1px solid rgba(3,199,90,0.3)' }}
+                                    title="네이버 스토어 상품페이지 열기">
+                                    <ExternalLink className="w-3 h-3" /> 상품페이지
+                                  </a>
+                                )}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-2.5 py-1 rounded-lg text-[17px] font-extrabold leading-none" style={{ background: 'var(--primary)', color: '#fff' }} title="수량">×{it.quantity}</span>
+                                  <span className="text-sm opacity-70 whitespace-nowrap">단가 {fmtNum(it.unit_price)}원</span>
+                                </div>
                               </div>
-                            )}
-                            {naverProductUrl(it) && (
-                              <a href={naverProductUrl(it)} target="_blank" rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 mt-1 text-[11px] font-semibold px-2 py-0.5 rounded"
-                                style={{ background: 'rgba(3,199,90,0.12)', color: '#03c75a', border: '1px solid rgba(3,199,90,0.3)' }}
-                                title="네이버 스토어 상품페이지 열기">
-                                <ExternalLink className="w-3 h-3" /> 상품페이지
-                              </a>
-                            )}
-                            <div className="flex justify-between items-center mt-2 gap-2">
-                              <span className="inline-flex items-center gap-2 flex-wrap">
-                                <span className="px-2.5 py-1 rounded-lg text-[17px] font-extrabold leading-none" style={{ background: 'var(--primary)', color: '#fff' }} title="수량">×{it.quantity}</span>
-                                <span className="text-sm opacity-70 whitespace-nowrap">단가 {fmtNum(it.unit_price)}원</span>
-                              </span>
-                              <span className="font-extrabold text-lg whitespace-nowrap" style={{ color: 'var(--primary)' }}>{fmtNum(lineTotal)}원</span>
+                              <ProductThumb productId={itemProductId(it)} images={productImages} onZoom={setImageZoom} size={110} />
+                              <span className="font-extrabold text-lg whitespace-nowrap self-center" style={{ color: 'var(--primary)' }}>{fmtNum(lineTotal)}원</span>
                             </div>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               {matched && (
@@ -2458,8 +2459,8 @@ export default function SmartStoreOrders({
                   const lineTotal = Number(it.unit_price || 0) * Number(it.quantity || 0);
                   return (
                     <div key={it.id} className="space-y-1">
-                      {/* 좌: 상품 정보 / 우: 대문 이미지 크게 (사장님 요청 2026-07-23) */}
-                      <div className="flex gap-3 items-start">
+                      {/* [정보][대문 이미지][금액] — 이미지를 금액 왼쪽 여백에 크게 (사장님 요청 2026-07-23) */}
+                      <div className="flex gap-3 items-center">
                         <div className="flex-1 min-w-0 space-y-1">
                           <div className="text-[16px] font-bold leading-snug break-keep">
                             {it.provider_product_name}
@@ -2477,15 +2478,13 @@ export default function SmartStoreOrders({
                               <ExternalLink className="w-3 h-3" /> 상품페이지
                             </a>
                           )}
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="inline-flex items-center gap-2 flex-wrap">
-                              <span className="px-2.5 py-1 rounded-lg text-[17px] font-extrabold leading-none" style={{ background: 'var(--primary)', color: '#fff' }} title="수량">×{it.quantity}</span>
-                              <span className="text-sm opacity-70 whitespace-nowrap">단가 {fmtNum(it.unit_price)}원</span>
-                            </span>
-                            <span className="font-extrabold text-lg whitespace-nowrap" style={{ color: 'var(--primary)' }}>{fmtNum(lineTotal)}원</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-1 rounded-lg text-[17px] font-extrabold leading-none" style={{ background: 'var(--primary)', color: '#fff' }} title="수량">×{it.quantity}</span>
+                            <span className="text-sm opacity-70 whitespace-nowrap">단가 {fmtNum(it.unit_price)}원</span>
                           </div>
                         </div>
-                        <ProductThumb productId={itemProductId(it)} images={productImages} onZoom={setImageZoom} size={120} />
+                        <ProductThumb productId={itemProductId(it)} images={productImages} onZoom={setImageZoom} size={110} />
+                        <span className="font-extrabold text-lg whitespace-nowrap self-center" style={{ color: 'var(--primary)' }}>{fmtNum(lineTotal)}원</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
                         {matched && (
