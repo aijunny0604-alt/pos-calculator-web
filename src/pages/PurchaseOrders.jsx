@@ -88,6 +88,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
   const [tab, setTab] = useState('orders'); // 'orders' | 'pending'
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all'); // 'all' | '미입고' | '부분 입고' | '완료'
+  const [dateFrom, setDateFrom] = useState(''); // 발주일 조회 시작 (YYYY-MM-DD)
+  const [dateTo, setDateTo] = useState('');     // 발주일 조회 끝
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -148,15 +150,19 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
   }, [editing, confirmDelete, receiving, viewQuote, saving]);
 
   const searched = useMemo(() => {
-    if (!q.trim()) return pos;
+    let base = pos;
+    // 발주일 범위 필터 — order_date는 YYYY-MM-DD 문자열이라 사전식 비교가 곧 날짜 비교
+    if (dateFrom) base = base.filter((po) => (po.order_date || '') >= dateFrom);
+    if (dateTo) base = base.filter((po) => (po.order_date || '') <= dateTo);
+    if (!q.trim()) return base;
     // 제품 주문 검색과 동일 로직 — 띄어쓰기/하이픈 무시, 순서 일치, 다단어 AND
-    return pos.filter((po) =>
+    return base.filter((po) =>
       matchesSearchQuery(po.po_number || '', q)
       || matchesSearchQuery(po.supplier_name || '', q)
       || matchesSearchQuery(po.title || '', q)
       || (po.items || []).some((it) => matchesSearchQuery(`${it.name || ''} ${it.spec || ''}`, q))
     );
-  }, [pos, q]);
+  }, [pos, q, dateFrom, dateTo]);
 
   // 상태별 건수 — 부분 입고나 취소건이 몇 건 걸려 있는지 칩에서 바로 보이게.
   // 특이사항은 입고 상태와 별개 축이라(완료된 발주에도 취소 품목이 있을 수 있음) 따로 센다.
@@ -290,10 +296,10 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
 
   // ── 발주서 사진 → 자동 판독 ──
   // 무료 gemini flash vision. 판독만 하고 저장은 확인 모달을 거친다(매입 증빙이라 자동 저장 금지).
-  const onPickQuote = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // 같은 파일 재선택 가능하게
+  // 진입 3경로 공유: 파일선택 / 드래그드롭 / 붙여넣기(Ctrl+V). file 하나만 받으면 됨.
+  const scanQuoteFile = useCallback(async (file) => {
     if (!file) return;
+    if (!/^image\//.test(file.type || '')) { showToast?.('이미지 파일만 등록할 수 있어요', 'error'); return; }
     setScanning(true);
     try {
       // vision 전 1600px 리사이즈 — 요청크기/메모리 폭증 방지 (certVision과 동일 정책)
@@ -303,9 +309,42 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
       if (!res.data.items.length) { showToast?.('발주서에서 품목을 찾지 못했습니다', 'error'); return; }
       setScan({ data: res.data, file, imgUrl: URL.createObjectURL(file) });
     } catch (err) {
-      console.error('onPickQuote:', err);
+      console.error('scanQuoteFile:', err);
       showToast?.('사진을 읽지 못했습니다', 'error');
     } finally { setScanning(false); }
+  }, [showToast]);
+
+  const onPickQuote = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일 재선택 가능하게
+    scanQuoteFile(file);
+  };
+
+  // 붙여넣기(Ctrl+V) — 캡처한 발주서를 페이지 어디서든 붙이면 바로 판독.
+  // 판독 중이거나 다른 모달이 열려 있으면 무시(오작동 방지).
+  useEffect(() => {
+    const onPaste = (e) => {
+      if (scanning || scan || editing || receiving || viewQuote) return;
+      for (const it of e.clipboardData?.items || []) {
+        if (it.type?.startsWith('image/')) {
+          const f = it.getAsFile();
+          if (f) { e.preventDefault(); scanQuoteFile(f); return; }
+        }
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [scanning, scan, editing, receiving, viewQuote, scanQuoteFile]);
+
+  // 드래그드롭 — 페이지에 이미지를 끌어다 놓으면 판독.
+  const [dragOver, setDragOver] = useState(false);
+  const onDropQuote = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (scanning || scan || editing || receiving) return;
+    const f = [...(e.dataTransfer?.files || [])].find((x) => x.type.startsWith('image/'));
+    if (f) scanQuoteFile(f);
+    else showToast?.('이미지 파일을 놓아주세요', 'error');
   };
 
   // 확인 모달에서 [발주 등록] — 이미지 업로드 → 발주 생성 → 무상보전 연결분 입고 처리
@@ -433,7 +472,22 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
   const openPo = (po) => setEditing({ ...po, items: (po.items || []).map((it) => ({ ...it })) });
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative"
+      onDragOver={(e) => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); if (!scan && !scanning) setDragOver(true); } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false); }}
+      onDrop={onDropQuote}>
+      {/* 드래그드롭 오버레이 — 이미지를 페이지에 끌어오면 표시 */}
+      {dragOver && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
+          style={{ background: 'color-mix(in srgb, var(--primary) 12%, rgba(0,0,0,0.35))', backdropFilter: 'blur(2px)' }}>
+          <div className="px-8 py-6 rounded-2xl border-2 border-dashed text-center"
+            style={{ borderColor: 'var(--primary)', background: 'var(--card)' }}>
+            <Camera className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--primary)' }} />
+            <div className="text-base font-bold" style={{ color: 'var(--foreground)' }}>여기에 발주서 이미지를 놓으세요</div>
+            <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>놓으면 자동으로 판독합니다</div>
+          </div>
+        </div>
+      )}
       {/* 헤더 */}
       <div className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-3 mb-3">
@@ -442,8 +496,10 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           </button>
           <PackagePlus className="w-6 h-6" style={{ color: 'var(--primary)' }} />
           <h1 className="text-xl sm:text-2xl font-black" style={{ color: 'var(--foreground)' }}>매입 발주</h1>
-          {/* 발주서 사진만 찍어 올리면 자동 판독 → 확인 → 등록. 손으로 안 쳐도 됨 */}
+          {/* 발주서 사진만 찍어 올리면 자동 판독 → 확인 → 등록. 손으로 안 쳐도 됨.
+              클릭 업로드 외에 드래그드롭 / Ctrl+V(캡처 붙여넣기)도 됨 */}
           <label className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white cursor-pointer"
+            title="클릭 업로드 · 이미지 드래그드롭 · Ctrl+V 붙여넣기 모두 됩니다"
             style={{ background: scanning ? 'var(--muted-foreground)' : 'var(--success)' }}>
             {scanning ? <><Loader2 className="w-4 h-4 animate-spin" /> 판독 중...</> : <><Camera className="w-4 h-4" /> 발주서 사진 등록</>}
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickQuote} disabled={scanning} />
@@ -501,6 +557,55 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
               style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
             />
           </div>
+        </div>
+
+        {/* 발주일 조회 — 프리셋 + 직접 범위. 발주가 쌓이면 특정 기간만 보기 (2026-07-23) */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-2 text-sm">
+          <span className="text-[11px] font-bold tracking-wider mr-0.5" style={{ color: 'var(--muted-foreground)' }}>발주일</span>
+          {[
+            { id: 'all', label: '전체' },
+            { id: 'thisMonth', label: '이번 달' },
+            { id: 'lastMonth', label: '지난 달' },
+            { id: 'thisYear', label: '올해' },
+          ].map((p) => {
+            // 현재 선택이 이 프리셋과 일치하는지
+            const now = getTodayKST();
+            const ym = now.slice(0, 7);
+            const [yy, mm] = ym.split('-').map(Number);
+            const lastYm = mm === 1 ? `${yy - 1}-12` : `${yy}-${String(mm - 1).padStart(2, '0')}`;
+            const ranges = {
+              all: ['', ''],
+              thisMonth: [`${ym}-01`, `${ym}-31`],
+              lastMonth: [`${lastYm}-01`, `${lastYm}-31`],
+              thisYear: [`${yy}-01-01`, `${yy}-12-31`],
+            };
+            const [f, t] = ranges[p.id];
+            const on = dateFrom === f && dateTo === t;
+            return (
+              <button key={p.id} onClick={() => { setDateFrom(f); setDateTo(t); }}
+                aria-pressed={on}
+                className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
+                style={on
+                  ? { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }
+                  : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}>
+                {p.label}
+              </button>
+            );
+          })}
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+            className="px-2.5 py-1.5 rounded-lg text-xs border outline-none"
+            style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+          <span style={{ color: 'var(--muted-foreground)' }}>~</span>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+            className="px-2.5 py-1.5 rounded-lg text-xs border outline-none"
+            style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+              style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>
+              <X className="w-3 h-3" /> 초기화
+            </button>
+          )}
         </div>
 
         {/* 상태 필터 — 발주 목록 전용 (미입고 현황은 이미 미입고만 모은 탭이라 의미 없음) */}
