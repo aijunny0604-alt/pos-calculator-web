@@ -849,8 +849,10 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
                 </div>
               )}
 
-              {/* 상단 액션 바 — 선택 건수 + 발주서 만들기 */}
-              <div className="flex flex-wrap items-center gap-2 sticky top-0 z-10 py-2" style={{ background: 'var(--background)' }}>
+              {/* 상단 액션 바 — 선택 건수 + 발주서 만들기.
+                  sticky 시 카드가 뒤로 비쳐 보이던 문제 → 배경 불투명 + 좌우 뚫기(-mx) + z-30 + 하단 보더 (2026-07-24) */}
+              <div className="flex flex-wrap items-center gap-2 sticky -top-4 z-30 pt-4 pb-2.5 -mx-4 sm:-mx-6 px-4 sm:px-6 border-b"
+                style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
                 <button
                   onClick={() => setRestockPicked(
                     restockPicked.size === restockList.length ? new Set() : new Set(restockList.map((p) => p.id)),

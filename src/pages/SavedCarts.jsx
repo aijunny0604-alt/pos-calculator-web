@@ -473,8 +473,8 @@ export default function SavedCarts({
 
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
-        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isDetailFullscreen ? '0' : '1rem' }}
+        className={`fixed inset-0 z-50 flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition ${isDetailFullscreen ? '' : 'p-4 pb-[76px] md:pb-4'}`}
+        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
         onClick={() => {
           if (!isEditingDetail) {
             setDetailCart(null);
@@ -483,11 +483,11 @@ export default function SavedCarts({
         }}
       >
         <div
-          className="relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
+          className={`relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition ${isDetailFullscreen ? '' : 'max-h-[calc(100dvh-6rem)] md:max-h-[calc(100vh-2rem)]'}`}
           style={{
             maxWidth: isDetailFullscreen ? '100vw' : 'min(95rem, calc(100vw - 2rem))',
             height: isDetailFullscreen ? '100vh' : 'auto',
-            maxHeight: isDetailFullscreen ? '100vh' : 'calc(100vh - 2rem)',
+            ...(isDetailFullscreen ? { maxHeight: '100vh' } : {}),
             borderRadius: isDetailFullscreen ? '0' : '1rem',
             boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 32px 64px -12px rgba(0,0,0,0.45)',
             ...(isDetailDraggable ? detailDragStyle : {}),

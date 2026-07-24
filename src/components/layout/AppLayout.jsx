@@ -86,7 +86,12 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
         }`} style={{ WebkitOverflowScrolling: 'touch' }}>
           <div
             key={fadeKey}
-            className={`animate-page-in ${isFullScreen ? 'h-full min-h-0' : 'min-h-full h-full'}`}
+            className={`animate-page-in ${isFullScreen ? 'h-full min-h-0' : 'min-h-full h-full'}${
+              /* ai-analytics: 위쪽 예약 알림 바(ReservationAlertBar)가 형제로 쌓여
+                 루트 h-full이 바 높이를 못 빼고 모바일 하단 네비 밑으로 넘침 →
+                 래퍼를 flex-col로 만들어 알림바+페이지가 공간을 나눠 갖게 함 (2026-07-24) */
+              currentPage === 'ai-analytics' ? ' flex flex-col' : ''
+            }`}
             style={pageAnimationStyle}
           >
             {children}
