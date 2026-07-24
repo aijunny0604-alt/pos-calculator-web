@@ -81,11 +81,13 @@ function ToolBtn({ onClick, icon: Icon, children, tone = 'default', disabled }) 
   );
 }
 
-export default function PurchaseOrders({ showToast, setCurrentPage }) {
+export default function PurchaseOrders({ showToast, setCurrentPage, products = [] }) {
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false); // 마이그008 미적용과 빈 목록을 구분
-  const [tab, setTab] = useState('orders'); // 'orders' | 'pending'
+  const [tab, setTab] = useState('orders'); // 'orders' | 'pending' | 'restock'
+  const [restockPicked, setRestockPicked] = useState(() => new Set()); // 재주문 리스트에서 고른 제품 id
+  const [restockCat, setRestockCat] = useState('전체'); // 재주문 리스트 카테고리 필터
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all'); // 'all' | '미입고' | '부분 입고' | '완료'
   const [dateFrom, setDateFrom] = useState(''); // 발주일 조회 시작 (YYYY-MM-DD)
@@ -131,6 +133,41 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
     }
     return m;
   }, [prices]);
+
+  // ── 재주문 리스트 — 재고 0인 제품을 모아 발주로 넘긴다 (2026-07-23) ──
+  // 입고예정(incoming)은 이미 오는 중이라 제외. 판매 제품명과 매입 규격명은 체계가 달라
+  // 단가 자동매칭은 하지 않는다(금액 사고 방지) — 발주서에서 규격 입력 시 기존 자동채움이 작동.
+  const restockAll = useMemo(
+    () => (products || [])
+      .filter((p) => p.stock !== null && num(p.stock) === 0 && p.stock_status !== 'incoming')
+      .sort((a, b) => String(a.category || '').localeCompare(String(b.category || '')) || String(a.name).localeCompare(String(b.name))),
+    [products],
+  );
+  const restockCats = useMemo(
+    () => ['전체', ...[...new Set(restockAll.map((p) => p.category).filter(Boolean))].sort()],
+    [restockAll],
+  );
+  const restockList = useMemo(
+    () => (restockCat === '전체' ? restockAll : restockAll.filter((p) => p.category === restockCat))
+      .filter((p) => !q.trim() || matchesSearchQuery(p.name || '', q)),
+    [restockAll, restockCat, q],
+  );
+
+  // 고른 제품으로 발주서 초안 만들기 — 품명만 채우고 규격·수량·단가는 사장님이
+  const makeRestockOrder = () => {
+    const picked = restockAll.filter((p) => restockPicked.has(p.id));
+    if (picked.length === 0) { showToast?.('재주문할 제품을 선택해주세요', 'error'); return; }
+    const today = getTodayKST();
+    setEditing({
+      po_number: makePoNumber(today),
+      supplier_name: 'JSR',
+      order_date: today,
+      title: '',
+      memo: `재고 0 재주문 (${picked.length}건)`,
+      items: picked.map((p) => ({ ...emptyItem(), name: p.name })),
+    });
+    setRestockPicked(new Set());
+  };
 
   const specOptions = useMemo(() => [...priceBySpec.values()].map((v) => v.spec).sort(), [priceBySpec]);
 
@@ -537,6 +574,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           {[
             { id: 'orders', label: '발주 목록', count: filtered.length },
             { id: 'pending', label: '미입고 현황', count: pendingItems.length },
+            { id: 'restock', label: '재주문 리스트', count: restockAll.length },
           ].map((t) => (
             <button
               key={t.id}
@@ -554,15 +592,16 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
             <input
               value={q} onChange={(e) => setQ(e.target.value)}
-              placeholder="품명, 규격, 매입처, 발주번호..."
+              placeholder={tab === 'restock' ? '재고 0 제품 검색...' : '품명, 규격, 매입처, 발주번호...'}
               className="w-full pl-9 pr-3 py-2 rounded-xl text-sm border outline-none"
               style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
             />
           </div>
         </div>
 
-        {/* 필터 한 줄 — 좌: 상태칩(발주목록 전용) / 우: 발주일. 3층이던 걸 2층으로 정리 (2026-07-23) */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2">
+        {/* 필터 한 줄 — 좌: 상태칩(발주목록 전용) / 우: 발주일. 3층이던 걸 2층으로 정리 (2026-07-23)
+            재주문 리스트는 제품 목록이라 발주 필터가 안 맞아 통째로 숨긴다 */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2" style={{ display: tab === 'restock' ? 'none' : undefined }}>
           {tab === 'orders' && (
             <div className="flex flex-wrap items-center gap-1.5">
               {[
@@ -646,8 +685,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
           </div>
         </div>
 
-        {/* 내보내기 툴바 — 현재 탭 기준으로 동작 */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* 내보내기 툴바 — 현재 탭 기준으로 동작. 재주문 리스트는 발주 데이터가 아니라 제외 */}
+        <div className="flex flex-wrap items-center gap-2" style={{ display: tab === 'restock' ? 'none' : undefined }}>
           {tab === 'pending' && (
             <ToolBtn onClick={onCopyKakao} icon={copied ? Check : Copy} tone={copied ? 'done' : 'kakao'}>
               {copied ? '복사됨!' : '카톡용 복사'}
@@ -679,6 +718,79 @@ export default function PurchaseOrders({ showToast, setCurrentPage }) {
 
         {loading ? (
           <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>불러오는 중...</div>
+        ) : tab === 'restock' ? (
+          /* ── 재주문 리스트 — 재고 0 제품 모아서 발주로 ── */
+          restockAll.length === 0 ? (
+            <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
+              재고가 0인 제품이 없습니다 👍
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* 상단 액션 바 — 선택 건수 + 발주서 만들기 */}
+              <div className="flex flex-wrap items-center gap-2 sticky top-0 z-10 py-2" style={{ background: 'var(--background)' }}>
+                <button
+                  onClick={() => setRestockPicked(
+                    restockPicked.size === restockList.length ? new Set() : new Set(restockList.map((p) => p.id)),
+                  )}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border"
+                  style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                  {restockPicked.size === restockList.length && restockList.length > 0 ? '전체 해제' : '전체 선택'}
+                </button>
+                <select value={restockCat} onChange={(e) => setRestockCat(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border outline-none max-w-[200px]"
+                  style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                  {restockCats.map((c) => <option key={c} value={c}>{c === '전체' ? '전체 분류' : c}</option>)}
+                </select>
+                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                  {restockList.length}개 표시 · <b style={{ color: 'var(--primary)' }}>{restockPicked.size}개 선택</b>
+                </span>
+                <button onClick={makeRestockOrder} disabled={restockPicked.size === 0}
+                  className="ml-auto px-4 py-2 rounded-xl text-sm font-bold text-white inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: 'var(--primary)' }}>
+                  <Plus className="w-4 h-4" /> 선택 {restockPicked.size}개로 발주서 만들기
+                </button>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+                {restockList.map((p) => {
+                  const on = restockPicked.has(p.id);
+                  return (
+                    <button key={p.id}
+                      onClick={() => setRestockPicked((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
+                        return next;
+                      })}
+                      className="text-left flex items-start gap-2.5 px-3.5 py-3 rounded-xl border transition-all"
+                      style={on
+                        ? { background: 'color-mix(in srgb, var(--primary) 10%, var(--card))', borderColor: 'var(--primary)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent)' }
+                        : { background: 'var(--card)', borderColor: 'var(--border)' }}>
+                      <input type="checkbox" checked={on} readOnly
+                        className="mt-0.5 w-4 h-4 flex-shrink-0 pointer-events-none" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-bold break-keep" style={{ color: 'var(--foreground)' }}>{p.name}</div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                            style={{ background: 'var(--destructive)', color: '#fff' }}>재고 0</span>
+                          {p.category && (
+                            <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>{p.category}</span>
+                          )}
+                          {num(p.wholesale) > 0 && (
+                            <span className="text-[11px] tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
+                              도매 {formatPrice(p.wholesale)}원
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] pt-1" style={{ color: 'var(--muted-foreground)' }}>
+                선택하면 품명이 채워진 발주서가 열립니다. 규격을 입력하면 매입 단가표에서 단가가 자동으로 들어옵니다.
+              </p>
+            </div>
+          )
         ) : tab === 'orders' ? (
           filtered.length === 0 ? (
             <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>

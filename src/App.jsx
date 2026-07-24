@@ -1313,6 +1313,7 @@ export default function App() {
             <PurchaseOrders
               showToast={showToast}
               setCurrentPage={setCurrentPage}
+              products={products}
             />
           </Suspense>
         );
