@@ -6,6 +6,14 @@
 
 ### 2026-07-24 작업 내역
 
+#### 📱 모바일 3종 겹침 수정 — 재주문 위젯 / 장바구니 모달 / MOVIS 채팅 — `ac8d0dc`
+- **재주문 리스트 액션바**: 스크롤 시 sticky 헤더에 가려짐 → `sticky -top-4 z-30` + 배경/보더로 고정 (PurchaseOrders)
+- **모바일 저장 장바구니 상세 모달**: 하단 버튼이 MobileNav에 가려짐 → 백드롭 `pb-[76px] md:pb-4` + 컨테이너 `max-h-[calc(100dvh-6rem)]` (SavedCarts)
+- **모바일 MOVIS 채팅 입력창 ↔ 하단 네비 겹침**:
+  - 원인: `animate-page-in` 안에서 `ReservationAlertBar`(114px)가 페이지 위에 형제로 쌓이는데, `ai-analytics` 루트가 `h-full`이라 알림바 높이를 못 빼고 네비(59px) 밑으로 넘침(루트 bottom 894 > 뷰포트 844)
+  - 수정: `ai-analytics`일 때 `animate-page-in`을 `flex flex-col`로(AppLayout), 루트를 `h-full`→`flex-1 min-h-0`로(AIAnalytics) 변경 → 알림바+페이지가 공간 분할
+  - Playwright 히트테스트 검증: 입력창 bottom 766 / 네비 top 785 (+19px 여유), 실제 픽셀에서 y784=빈간격·y790=네비
+
 #### 📦 재주문 리스트 — 재고 0 제품을 판매통계 우선순위로 발주 — `e650111` `f05914c`
 - 매입 발주에 [재주문 리스트] 탭 신설. 대상: `stock=0 & stock_status!=incoming`
 - 판매 실적 집계(`salesStats`): 주문 항목 **제품 id로 매칭**(이름 매칭 금지 — 금액 사고 이력)
