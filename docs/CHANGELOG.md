@@ -6,6 +6,19 @@
 
 ### 2026-07-24 작업 내역
 
+#### 🕘 매입 발주 — 저장 시각 기록 + 수정 이력 보기 — `a182267` `a594fd2`
+- 입고 수량 등 입력 후 저장 시 `updated_at` 기록 → 모달 헤더에 "최근 저장 {KST}" 표시
+- **[이력 보기]**: 저장/입고할 때마다 `order_audit_log`(order_id=`PO:{id}` 키 재사용)에 스냅샷 기록
+  (매입처·발주일·메모·품목별 단가/발주/입고/합계). **새 마이그레이션 불필요**
+- 이력 패널: 시각·작업종류(등록/수정/입고)·합계 목록, 펼치면 그 시점 품목 값 전체 → 값이 잘못돼도 과거 상태 확인·복구
+- fire-and-forget(저장 흐름 무영향). ⚠️ order_audit_log는 anon INSERT+SELECT만(UPDATE/DELETE RLS 차단)
+
+#### 📐 모바일 하단 네비 겹침 — fullScreen 페이지 전수 수정 (시스템적) — `a182267`
+- **전수 검사(Playwright, 예약 알림바 114px 시뮬레이션)**: 거래처/재고/번웨이/택배송장/AI주문인식/스마트스토어 6개 VULNERABLE
+- 원인: `animate-page-in` 안에서 `ReservationAlertBar`가 페이지 위에 형제로 쌓이는데, fullScreen 페이지가 `h-full`(또는 `h-[100dvh]`) 뷰포트 고정 루트라 알림바 높이를 못 빼고 하단 네비 밑으로 넘침
+- 시스템 수정: AppLayout에서 fullScreen `animate-page-in`을 `flex flex-col`로, App.jsx에서 페이지를 `flex-1 min-h-0 flex-col` 래퍼로 감쌈 → h-full 루트가 알림바 뺀 잔여 높이에 맞춰짐. TextAnalyze `h-[100dvh]`→`h-full`. ai-analytics 특수처리를 시스템 방식으로 통합
+- 재검증: 9개 fullScreen 전부 rootBottom 780/navTop 785 OK, 콘솔 에러 0, pos·대시보드·명세서 정상
+
 #### 📱 모바일 3종 겹침 수정 — 재주문 위젯 / 장바구니 모달 / MOVIS 채팅 — `ac8d0dc`
 - **재주문 리스트 액션바**: 스크롤 시 sticky 헤더에 가려짐 → `sticky -top-4 z-30` + 배경/보더로 고정 (PurchaseOrders)
 - **모바일 저장 장바구니 상세 모달**: 하단 버튼이 MobileNav에 가려짐 → 백드롭 `pb-[76px] md:pb-4` + 컨테이너 `max-h-[calc(100dvh-6rem)]` (SavedCarts)
