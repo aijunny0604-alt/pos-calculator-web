@@ -81,13 +81,16 @@ function ToolBtn({ onClick, icon: Icon, children, tone = 'default', disabled }) 
   );
 }
 
-export default function PurchaseOrders({ showToast, setCurrentPage, products = [] }) {
+export default function PurchaseOrders({ showToast, setCurrentPage, products = [], orders = [] }) {
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false); // 마이그008 미적용과 빈 목록을 구분
   const [tab, setTab] = useState('orders'); // 'orders' | 'pending' | 'restock'
   const [restockPicked, setRestockPicked] = useState(() => new Set()); // 재주문 리스트에서 고른 제품 id
   const [restockCat, setRestockCat] = useState('전체'); // 재주문 리스트 카테고리 필터
+  const [restockDays, setRestockDays] = useState(90);   // 판매 실적 집계 기간(일)
+  const [restockSort, setRestockSort] = useState('sales'); // 'sales' | 'recent' | 'name'
+  const [restockHideNoSale, setRestockHideNoSale] = useState(false); // 판매 이력 없는 것 숨기기
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all'); // 'all' | '미입고' | '부분 입고' | '완료'
   const [dateFrom, setDateFrom] = useState(''); // 발주일 조회 시작 (YYYY-MM-DD)
@@ -134,23 +137,83 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
     return m;
   }, [prices]);
 
-  // ── 재주문 리스트 — 재고 0인 제품을 모아 발주로 넘긴다 (2026-07-23) ──
+  // ── 재주문 리스트 — 재고 0인 제품을 판매 실적순으로 모아 발주로 넘긴다 (2026-07-23) ──
   // 입고예정(incoming)은 이미 오는 중이라 제외. 판매 제품명과 매입 규격명은 체계가 달라
   // 단가 자동매칭은 하지 않는다(금액 사고 방지) — 발주서에서 규격 입력 시 기존 자동채움이 작동.
-  const restockAll = useMemo(
-    () => (products || [])
-      .filter((p) => p.stock !== null && num(p.stock) === 0 && p.stock_status !== 'incoming')
-      .sort((a, b) => String(a.category || '').localeCompare(String(b.category || '')) || String(a.name).localeCompare(String(b.name))),
-    [products],
+
+  // 판매 실적 집계 — 주문 항목의 제품 id로 매칭(이름 매칭은 금액 사고 이력 있어 금지).
+  // id가 없는 옛 주문만 이름으로 폴백.
+  const salesStats = useMemo(() => {
+    const now = Date.now();
+    const span = restockDays * 86400000;
+    const byId = new Map(); const byName = new Map();
+    for (const o of orders || []) {
+      const t = new Date(o.createdAt || o.created_at || 0).getTime();
+      if (!Number.isFinite(t) || now - t > span) continue;
+      for (const it of (o.items || [])) {
+        const qty = num(it.quantity);
+        if (qty <= 0) continue;
+        const rec = (map, key) => {
+          if (key === undefined || key === null || key === '') return;
+          const cur = map.get(key) || { qty: 0, orders: 0, last: 0, revenue: 0 };
+          cur.qty += qty; cur.orders += 1; cur.revenue += num(it.price) * qty;
+          if (t > cur.last) cur.last = t;
+          map.set(key, cur);
+        };
+        rec(byId, it.id);
+        rec(byName, String(it.name || '').trim());
+      }
+    }
+    return { byId, byName };
+  }, [orders, restockDays]);
+
+  const statOf = useCallback(
+    (p) => salesStats.byId.get(p.id) || salesStats.byName.get(String(p.name || '').trim()) || { qty: 0, orders: 0, last: 0, revenue: 0 },
+    [salesStats],
   );
+
+  const restockAll = useMemo(() => {
+    const zero = (products || []).filter((p) => p.stock !== null && num(p.stock) === 0 && p.stock_status !== 'incoming');
+    const withStat = zero.map((p) => ({ ...p, _s: statOf(p) }));
+    // 기본 정렬 = 많이 팔린 순(재주문 시급) → 같으면 최근 판매순 → 이름순
+    if (restockSort === 'sales') {
+      return withStat.sort((a, b) => b._s.qty - a._s.qty || b._s.last - a._s.last || String(a.name).localeCompare(String(b.name)));
+    }
+    if (restockSort === 'recent') {
+      return withStat.sort((a, b) => b._s.last - a._s.last || b._s.qty - a._s.qty);
+    }
+    return withStat.sort((a, b) => String(a.category || '').localeCompare(String(b.category || '')) || String(a.name).localeCompare(String(b.name)));
+  }, [products, statOf, restockSort]);
+
+  // 게이지 기준값 — 1위 판매량
+  const restockMaxQty = useMemo(() => Math.max(1, ...restockAll.map((p) => p._s.qty)), [restockAll]);
+
+  // 재주문 분석 요약 — "지금 뭐가 급한가"를 숫자로
+  const restockSummary = useMemo(() => {
+    const sold = restockAll.filter((p) => p._s.qty > 0);
+    const lostRevenue = sold.reduce((s, p) => s + p._s.revenue, 0); // 이 제품들이 최근 기간에 만든 매출
+    const hot = sold.slice(0, 3);
+    // 최근 7일 안에도 팔렸는데 재고가 0 = 지금 못 파는 중 (제일 급함)
+    const wk = Date.now() - 7 * 86400000;
+    const urgent = sold.filter((p) => p._s.last >= wk);
+    return {
+      total: restockAll.length,
+      soldCount: sold.length,
+      noSale: restockAll.length - sold.length,
+      lostRevenue,
+      urgent,
+      hot,
+    };
+  }, [restockAll]);
   const restockCats = useMemo(
     () => ['전체', ...[...new Set(restockAll.map((p) => p.category).filter(Boolean))].sort()],
     [restockAll],
   );
   const restockList = useMemo(
     () => (restockCat === '전체' ? restockAll : restockAll.filter((p) => p.category === restockCat))
-      .filter((p) => !q.trim() || matchesSearchQuery(p.name || '', q)),
-    [restockAll, restockCat, q],
+      .filter((p) => !q.trim() || matchesSearchQuery(p.name || '', q))
+      .filter((p) => !restockHideNoSale || p._s.qty > 0),
+    [restockAll, restockCat, q, restockHideNoSale],
   );
 
   // 고른 제품으로 발주서 초안 만들기 — 품명만 채우고 규격·수량·단가는 사장님이
@@ -726,6 +789,59 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
             </div>
           ) : (
             <div className="space-y-3">
+              {/* ── 분석 요약 — 지금 뭐가 급한지 숫자로 ── */}
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  {
+                    label: '재고 0', value: `${restockSummary.total}개`,
+                    sub: `그중 ${restockSummary.soldCount}개는 최근 ${restockDays}일 판매됨`,
+                    tone: 'var(--destructive)', alert: true,
+                  },
+                  {
+                    label: '🔥 지금 못 파는 중', value: `${restockSummary.urgent.length}개`,
+                    sub: '최근 7일에도 팔렸는데 재고 0 — 제일 급함',
+                    tone: 'var(--warning)', alert: restockSummary.urgent.length > 0,
+                  },
+                  {
+                    label: `최근 ${restockDays}일 이 제품들 매출`, value: `₩${formatPrice(restockSummary.lostRevenue)}`,
+                    sub: '재고를 채웠다면 계속 나올 매출',
+                    tone: 'var(--primary)',
+                  },
+                  {
+                    label: '판매 이력 없음', value: `${restockSummary.noSale}개`,
+                    sub: `최근 ${restockDays}일 안 팔림 — 재주문 급하지 않음`,
+                    tone: 'var(--muted-foreground)',
+                  },
+                ].map((c) => (
+                  <div key={c.label} className="px-3.5 py-2.5 rounded-xl border"
+                    style={{ background: 'var(--card)', borderColor: c.alert ? c.tone : 'var(--border)' }}>
+                    <div className="text-[11px] font-bold" style={{ color: 'var(--muted-foreground)' }}>{c.label}</div>
+                    <div className="text-xl font-black tabular-nums leading-tight" style={{ color: c.tone }}>{c.value}</div>
+                    <div className="text-[10px] mt-0.5 break-keep" style={{ color: 'var(--muted-foreground)' }}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 급한 것 바로 담기 — 최근 7일에도 팔린 재고0 제품 */}
+              {restockSummary.urgent.length > 0 && (
+                <div className="px-3.5 py-2.5 rounded-xl border flex flex-wrap items-center gap-2"
+                  style={{ background: 'color-mix(in srgb, var(--warning) 10%, var(--card))', borderColor: 'color-mix(in srgb, var(--warning) 45%, transparent)' }}>
+                  <span className="text-xs font-bold" style={{ color: 'var(--foreground)' }}>
+                    🔥 최근 7일에도 팔린 품절 제품 {restockSummary.urgent.length}개
+                  </span>
+                  <span className="text-[11px] truncate max-w-full" style={{ color: 'var(--muted-foreground)' }}>
+                    {restockSummary.urgent.slice(0, 3).map((p) => p.name).join(' · ')}
+                    {restockSummary.urgent.length > 3 ? ` 외 ${restockSummary.urgent.length - 3}개` : ''}
+                  </span>
+                  <button
+                    onClick={() => setRestockPicked(new Set(restockSummary.urgent.map((p) => p.id)))}
+                    className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+                    style={{ background: 'var(--warning)' }}>
+                    이것만 선택
+                  </button>
+                </div>
+              )}
+
               {/* 상단 액션 바 — 선택 건수 + 발주서 만들기 */}
               <div className="flex flex-wrap items-center gap-2 sticky top-0 z-10 py-2" style={{ background: 'var(--background)' }}>
                 <button
@@ -737,12 +853,38 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
                   {restockPicked.size === restockList.length && restockList.length > 0 ? '전체 해제' : '전체 선택'}
                 </button>
                 <select value={restockCat} onChange={(e) => setRestockCat(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border outline-none max-w-[200px]"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border outline-none max-w-[180px]"
                   style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
                   {restockCats.map((c) => <option key={c} value={c}>{c === '전체' ? '전체 분류' : c}</option>)}
                 </select>
+                {/* 판매 실적 기간 */}
+                <select value={restockDays} onChange={(e) => setRestockDays(Number(e.target.value))}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border outline-none"
+                  style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                  title="판매 실적 집계 기간">
+                  <option value={30}>최근 30일</option>
+                  <option value={90}>최근 90일</option>
+                  <option value={180}>최근 180일</option>
+                  <option value={365}>최근 1년</option>
+                </select>
+                <select value={restockSort} onChange={(e) => setRestockSort(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border outline-none"
+                  style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                  <option value="sales">많이 팔린 순</option>
+                  <option value="recent">최근 팔린 순</option>
+                  <option value="name">분류·이름순</option>
+                </select>
+                <button onClick={() => setRestockHideNoSale((v) => !v)}
+                  aria-pressed={restockHideNoSale}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border"
+                  style={restockHideNoSale
+                    ? { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }
+                    : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
+                  title="최근 기간에 한 번도 안 팔린 제품 숨기기">
+                  판매된 것만
+                </button>
                 <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                  {restockList.length}개 표시 · <b style={{ color: 'var(--primary)' }}>{restockPicked.size}개 선택</b>
+                  {restockList.length}개 · <b style={{ color: 'var(--primary)' }}>{restockPicked.size}개 선택</b>
                 </span>
                 <button onClick={makeRestockOrder} disabled={restockPicked.size === 0}
                   className="ml-auto px-4 py-2 rounded-xl text-sm font-bold text-white inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -752,8 +894,15 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
               </div>
 
               <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
-                {restockList.map((p) => {
+                {restockList.map((p, i) => {
                   const on = restockPicked.has(p.id);
+                  const s = p._s;
+                  const sold = s.qty > 0;
+                  // 판매량 상위일수록 시급 — 1~3위는 빨강, 그 외 팔린 건 파랑, 안 팔린 건 회색
+                  const rank = restockSort === 'sales' ? i + 1 : null;
+                  const hot = sold && rank !== null && rank <= 3;
+                  const tone = !sold ? 'var(--muted-foreground)' : hot ? 'var(--destructive)' : 'var(--primary)';
+                  const daysAgo = s.last ? Math.floor((Date.now() - s.last) / 86400000) : null;
                   return (
                     <button key={p.id}
                       onClick={() => setRestockPicked((prev) => {
@@ -766,14 +915,49 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
                         ? { background: 'color-mix(in srgb, var(--primary) 10%, var(--card))', borderColor: 'var(--primary)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent)' }
                         : { background: 'var(--card)', borderColor: 'var(--border)' }}>
                       <input type="checkbox" checked={on} readOnly
-                        className="mt-0.5 w-4 h-4 flex-shrink-0 pointer-events-none" />
+                        className="mt-1 w-4 h-4 flex-shrink-0 pointer-events-none" />
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-bold break-keep" style={{ color: 'var(--foreground)' }}>{p.name}</div>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        {/* 순위 + 제품명 */}
+                        <div className="flex items-start gap-1.5">
+                          {rank !== null && (
+                            <span className="flex-shrink-0 mt-0.5 px-1.5 rounded text-[10px] font-black tabular-nums"
+                              style={{ background: hot ? 'var(--destructive)' : 'var(--muted)', color: hot ? '#fff' : 'var(--muted-foreground)' }}>
+                              {hot ? '🔥' : ''}{rank}
+                            </span>
+                          )}
+                          <span className="text-sm font-bold break-keep" style={{ color: 'var(--foreground)' }}>{p.name}</span>
+                        </div>
+
+                        {/* 판매 실적 — 한 줄 요약 + 게이지 */}
+                        <div className="mt-1.5">
+                          <div className="flex items-center gap-2 text-[11px] flex-wrap">
+                            {sold ? (
+                              <>
+                                <b className="tabular-nums" style={{ color: tone }}>{s.qty}개 판매</b>
+                                <span style={{ color: 'var(--muted-foreground)' }}>· {s.orders}회 주문</span>
+                                {daysAgo !== null && (
+                                  <span style={{ color: 'var(--muted-foreground)' }}>
+                                    · {daysAgo === 0 ? '오늘' : `${daysAgo}일 전`}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span style={{ color: 'var(--muted-foreground)' }}>최근 {restockDays}일 판매 없음</span>
+                            )}
+                          </div>
+                          {sold && (
+                            <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--muted)' }}>
+                              <div className="h-full rounded-full transition-all"
+                                style={{ width: `${Math.max(4, (s.qty / restockMaxQty) * 100)}%`, background: tone }} />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold"
                             style={{ background: 'var(--destructive)', color: '#fff' }}>재고 0</span>
                           {p.category && (
-                            <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>{p.category}</span>
+                            <span className="text-[11px] truncate max-w-[140px]" style={{ color: 'var(--muted-foreground)' }}>{p.category}</span>
                           )}
                           {num(p.wholesale) > 0 && (
                             <span className="text-[11px] tabular-nums" style={{ color: 'var(--muted-foreground)' }}>
@@ -787,7 +971,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
                 })}
               </div>
               <p className="text-[11px] pt-1" style={{ color: 'var(--muted-foreground)' }}>
-                선택하면 품명이 채워진 발주서가 열립니다. 규격을 입력하면 매입 단가표에서 단가가 자동으로 들어옵니다.
+                최근 {restockDays}일 판매 실적 기준으로 정렬됩니다. 🔥 상위 3개가 가장 시급한 재주문 후보입니다.
+                선택하면 품명이 채워진 발주서가 열리고, 규격을 입력하면 단가표에서 단가가 자동으로 들어옵니다.
               </p>
             </div>
           )

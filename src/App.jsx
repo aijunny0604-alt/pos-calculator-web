@@ -1314,6 +1314,7 @@ export default function App() {
               showToast={showToast}
               setCurrentPage={setCurrentPage}
               products={products}
+              orders={orders}
             />
           </Suspense>
         );
