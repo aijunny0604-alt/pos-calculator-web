@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { PackagePlus, Plus, Search, ArrowLeft, Trash2, X, AlertTriangle, PackageCheck, Database, Printer, FileSpreadsheet, FileDown, Copy, Check, FileImage, Clock, TruckIcon, Camera, Loader2 } from 'lucide-react';
+import { PackagePlus, Plus, Search, ArrowLeft, Trash2, X, AlertTriangle, PackageCheck, Database, Printer, FileSpreadsheet, FileDown, Copy, Check, FileImage, Clock, TruckIcon, Camera, Loader2, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatPrice, getTodayKST, matchesSearchQuery } from '@/lib/utils';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { extractPurchaseQuote } from '@/lib/quoteVision';
@@ -34,6 +34,26 @@ const fmtSavedAt = (iso) => {
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
+const fmtSavedAtFull = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+};
+// 감사 로그 키 — order_audit_log(order_id text)를 재사용해 매입 발주 이력을 저장한다.
+const auditKey = (id) => `PO:${id}`;
+// 저장 시점의 발주 상태를 스냅샷으로 남긴다 → 혹시 값이 잘못돼도 과거 상태를 되짚어 복구 가능.
+const buildPoSnapshot = (po, items) => ({
+  supplier_name: po.supplier_name || '',
+  order_date: po.order_date || '',
+  memo: po.memo || '',
+  total: (items || []).reduce((s, it) => s + num(it.unit_price) * num(it.qty), 0),
+  items: (items || []).map((it) => ({
+    name: it.name || '', spec: it.spec || '',
+    unit_price: num(it.unit_price), qty: num(it.qty), received_qty: num(it.received_qty),
+  })),
+});
+const AUDIT_ACTION_LABEL = { purchase_create: '발주 등록', purchase_edit: '발주 수정', purchase_receive: '입고 처리' };
 const isAutoStatus = (s) => Object.prototype.hasOwnProperty.call(STATUS_STYLE, s) || s === '-';
 // 규격 표기가 제각각이라(TVB64Y L / TVB64Y_L_C / 100 200 64) 매칭은 정규화해서 비교.
 // ⚠️ 이건 "단가 제안"에만 쓴다 — 데이터 정정에 이름 매칭 쓰다가 금액 2배 될 뻔한 적 있음(단가+수량으로 매칭할 것)
@@ -112,6 +132,9 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
   const [scanning, setScanning] = useState(false);  // 발주서 사진 판독 중
   const [scan, setScan] = useState(null);           // { data, file, imgUrl } — 판독 결과 확인 대기
   const [prices, setPrices] = useState([]);         // 단가표 — 규격 입력 시 단가 자동채움용
+  const [historyFor, setHistoryFor] = useState(null); // 수정 이력 열람 대상 발주(po)
+  const [historyRows, setHistoryRows] = useState(null); // 이력 목록(null=로딩중, []=없음)
+  const [historyOpen, setHistoryOpen] = useState(() => new Set()); // 펼친 이력 항목 인덱스
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -364,6 +387,16 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
 
     setSaving(false);
     if (!res) { showToast?.('저장 실패 — 마이그레이션 008 적용 여부를 확인해주세요', 'error'); return; }
+    // 수정 이력 기록 (fire-and-forget) — 실패해도 저장엔 영향 없음
+    const savedId = editing.id || (Array.isArray(res) ? res[0]?.id : res?.id);
+    if (savedId) {
+      supabase.logOrderAudit({
+        orderId: auditKey(savedId),
+        action: editing.id ? 'purchase_edit' : 'purchase_create',
+        changes: buildPoSnapshot(payload, payload.items),
+        source: 'purchase',
+      });
+    }
     showToast?.(editing.id ? '발주를 수정했습니다' : '발주를 등록했습니다', 'success');
     setEditing(null);
     load();
@@ -403,11 +436,30 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
     const res = await supabase.updatePurchaseOrder(po.id, { items, updated_at: new Date().toISOString() });
     setSaving(false);
     if (!res) { showToast?.('입고 처리 실패', 'error'); return; }
+    // 입고 처리도 이력 기록 (fire-and-forget)
+    supabase.logOrderAudit({
+      orderId: auditKey(po.id),
+      action: 'purchase_receive',
+      changes: { ...buildPoSnapshot(po, items), received: { spec: item.spec, qty: add } },
+      source: 'purchase',
+    });
     const done = add === rem;
     showToast?.(done ? `${item.spec} 전량 입고 완료 ✅` : `${item.spec} ${add}개 입고 (잔여 ${rem - add}개)`, 'success');
     setReceiving(null);
     load();
   };
+
+  // 수정 이력 열람 — order_audit_log에서 PO:{id} 키로 조회 (최신순)
+  const openHistory = useCallback(async (po) => {
+    if (!po?.id) return;
+    setHistoryFor(po);
+    setHistoryRows(null);
+    setHistoryOpen(new Set());
+    const rows = await supabase.getOrderAuditLog(auditKey(po.id), 100);
+    // 'AUDITTEST'는 기능 검증용 합성행(로그는 append-only라 DB에서 못 지움) → 이력에서 숨김.
+    // 실제 저장 로그의 actor는 기기명이라 이 필터에 안 걸린다.
+    setHistoryRows(Array.isArray(rows) ? rows.filter((r) => r.actor !== 'AUDITTEST') : []);
+  }, []);
 
   const quoteUrls = (po) => String(po?.quote_url || '').split(',').map((s) => s.trim()).filter(Boolean);
 
@@ -1141,6 +1193,17 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
                   최근 저장 {fmtSavedAt(editing.updated_at)}
                 </span>
               )}
+              {/* 수정 이력 — 혹시 값이 잘못되면 과거 저장 상태를 되짚어 확인 (2026-07-24) */}
+              {editing.id && (
+                <button
+                  onClick={() => openHistory(editing)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border"
+                  style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+                  title="이 발주의 저장/수정 이력 보기"
+                >
+                  <History className="w-4 h-4" /> 이력 보기
+                </button>
+              )}
               {/* 증빙 원본 — 숫자가 의심되면 바로 발주서를 펴서 대조 */}
               {quoteUrls(editing).length > 0 && (
                 <button
@@ -1452,6 +1515,95 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
               <button onClick={() => setConfirmDelete(null)} className="px-5 py-2.5 rounded-xl text-base font-bold border"
                 style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>취소</button>
               <button onClick={handleDelete} className="px-5 py-2.5 rounded-xl text-base font-bold text-white" style={{ background: 'var(--destructive)' }}>삭제</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 수정 이력 패널 — order_audit_log(PO:{id})에서 조회. 저장/입고할 때마다 스냅샷이 쌓인다.
+          혹시 값이 잘못 저장돼도 과거 상태를 되짚어 확인/복구할 수 있게. (2026-07-24) */}
+      {historyFor && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => setHistoryFor(null)}>
+          <div className="w-full max-w-2xl max-h-[88vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
+            style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex-shrink-0 px-5 py-4 border-b flex items-center gap-2.5" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>
+              <History className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+              <h3 className="text-lg sm:text-xl font-black" style={{ color: 'var(--foreground)' }}>수정 이력</h3>
+              <span className="text-xs font-mono font-bold px-2 py-1 rounded-lg" style={{ background: 'var(--card)', color: 'var(--muted-foreground)' }}>{historyFor.po_number}</span>
+              <button onClick={() => setHistoryFor(null)} className="ml-auto p-2 rounded-lg hover:bg-[var(--accent)]" style={{ color: 'var(--muted-foreground)' }}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {historyRows === null ? (
+                <div className="py-12 text-center text-sm flex items-center justify-center gap-2" style={{ color: 'var(--muted-foreground)' }}>
+                  <Loader2 className="w-4 h-4 animate-spin" /> 이력 불러오는 중…
+                </div>
+              ) : historyRows.length === 0 ? (
+                <div className="py-12 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                  아직 기록된 이력이 없습니다.<br />
+                  <span className="text-xs">이 발주를 저장/입고 처리하면 그때부터 이력이 쌓입니다.</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {historyRows.map((row, i) => {
+                    const c = row.changes || {};
+                    const open = historyOpen.has(i);
+                    const toggle = () => setHistoryOpen((prev) => {
+                      const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n;
+                    });
+                    return (
+                      <div key={row.id || i} className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+                        <button onClick={toggle} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[var(--accent)]" style={{ background: 'var(--background)' }}>
+                          {open ? <ChevronDown className="w-4 h-4 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 flex-shrink-0" />}
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}>
+                            {AUDIT_ACTION_LABEL[row.action] || row.action}
+                          </span>
+                          <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{fmtSavedAtFull(row.created_at)}</span>
+                          <span className="ml-auto text-sm font-bold flex-shrink-0" style={{ color: 'var(--foreground)' }}>₩{formatPrice(c.total || 0)}</span>
+                        </button>
+                        {open && (
+                          <div className="px-3 py-3 border-t text-sm" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                              <span>매입처 <b style={{ color: 'var(--foreground)' }}>{c.supplier_name || '-'}</b></span>
+                              <span>발주일 <b style={{ color: 'var(--foreground)' }}>{c.order_date || '-'}</b></span>
+                              {c.memo ? <span>메모 <b style={{ color: 'var(--foreground)' }}>{c.memo}</b></span> : null}
+                              {row.actor ? <span>기기 <b style={{ color: 'var(--foreground)' }}>{row.actor}</b></span> : null}
+                            </div>
+                            {c.received ? (
+                              <div className="mb-2 text-xs px-2 py-1 rounded-md inline-block" style={{ background: 'var(--muted)', color: 'var(--foreground)' }}>
+                                입고: <b>{c.received.spec}</b> +{c.received.qty}개
+                              </div>
+                            ) : null}
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr style={{ color: 'var(--muted-foreground)' }}>
+                                    <th className="text-left font-bold py-1 pr-2">규격</th>
+                                    <th className="text-right font-bold py-1 px-2">단가</th>
+                                    <th className="text-right font-bold py-1 px-2">발주</th>
+                                    <th className="text-right font-bold py-1 pl-2">입고</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(c.items || []).map((it, j) => (
+                                    <tr key={j} style={{ color: 'var(--foreground)' }}>
+                                      <td className="py-1 pr-2">{it.spec || it.name || '-'}</td>
+                                      <td className="text-right py-1 px-2 font-mono">{formatPrice(it.unit_price || 0)}</td>
+                                      <td className="text-right py-1 px-2 font-mono">{it.qty}</td>
+                                      <td className="text-right py-1 pl-2 font-mono">{it.received_qty}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
