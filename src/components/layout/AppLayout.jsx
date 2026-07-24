@@ -86,12 +86,10 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
         }`} style={{ WebkitOverflowScrolling: 'touch' }}>
           <div
             key={fadeKey}
-            className={`animate-page-in ${isFullScreen ? 'h-full min-h-0' : 'min-h-full h-full'}${
-              /* ai-analytics: 위쪽 예약 알림 바(ReservationAlertBar)가 형제로 쌓여
-                 루트 h-full이 바 높이를 못 빼고 모바일 하단 네비 밑으로 넘침 →
-                 래퍼를 flex-col로 만들어 알림바+페이지가 공간을 나눠 갖게 함 (2026-07-24) */
-              currentPage === 'ai-analytics' ? ' flex flex-col' : ''
-            }`}
+            /* fullScreen 페이지는 flex-col로 → 위쪽 예약 알림 바(ReservationAlertBar)가 형제로
+               쌓여도, 아래 페이지 래퍼(App.jsx의 flex-1 min-h-0)가 남은 높이만 차지해
+               h-full 루트가 모바일 하단 네비 밑으로 넘치지 않는다 (2026-07-24 전수수정) */
+            className={`animate-page-in ${isFullScreen ? 'h-full min-h-0 flex flex-col' : 'min-h-full h-full'}`}
             style={pageAnimationStyle}
           >
             {children}

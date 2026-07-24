@@ -729,7 +729,7 @@ export default function AIAnalytics({
 
   return (
     <div
-      className="ai-analytics-root flex flex-col flex-1 min-h-0 overflow-hidden relative"
+      className="ai-analytics-root flex flex-col h-full min-h-0 overflow-hidden relative"
       style={{
         perspective: 'var(--jarvis-perspective)',
         opacity: mountFadeIn ? 1 : 0,

@@ -915,7 +915,7 @@ ${aiLearningData.slice(0, 50).map(l =>
 
   return (
     <div
-      className={`flex flex-col min-h-0 ${onClose ? 'h-full' : 'h-[100dvh]'}`}
+      className={`flex flex-col min-h-0 h-full`}
       style={{ background: 'var(--background)' }}
     >
       {/* Header - clean white style matching other pages */}

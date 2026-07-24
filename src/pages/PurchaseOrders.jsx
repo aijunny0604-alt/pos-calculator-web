@@ -27,6 +27,13 @@ const STATUS_STYLE = {
 };
 const overrideStyle = { bg: 'var(--muted)', fg: 'var(--muted-foreground)' };
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+// 저장/수정 시각을 KST로 짧게 표기 (예: 7/24 15:30). ISO(UTC) 문자열을 그대로 넣어도 안전.
+const fmtSavedAt = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
 const isAutoStatus = (s) => Object.prototype.hasOwnProperty.call(STATUS_STYLE, s) || s === '-';
 // 규격 표기가 제각각이라(TVB64Y L / TVB64Y_L_C / 100 200 64) 매칭은 정규화해서 비교.
 // ⚠️ 이건 "단가 제안"에만 쓴다 — 데이터 정정에 이름 매칭 쓰다가 금액 2배 될 뻔한 적 있음(단가+수량으로 매칭할 것)
@@ -338,6 +345,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
       order_date: editing.order_date,
       title: (editing.title || '').trim() || null,
       memo: (editing.memo || '').trim() || null,
+      // 저장/수정 시각 기록 — 입고 수량 등을 입력해 저장할 때마다 갱신 (2026-07-24)
+      updated_at: new Date().toISOString(),
       items: items.map((it) => ({
         name: (it.name || '').trim(),
         spec: (it.spec || '').trim(),
@@ -390,7 +399,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
         : it
     );
     setSaving(true);
-    const res = await supabase.updatePurchaseOrder(po.id, { items });
+    // 입고 수량만 올리는 빠른 입고에도 수정 시각 기록 (2026-07-24)
+    const res = await supabase.updatePurchaseOrder(po.id, { items, updated_at: new Date().toISOString() });
     setSaving(false);
     if (!res) { showToast?.('입고 처리 실패', 'error'); return; }
     const done = add === rem;
@@ -1120,6 +1130,17 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
               <span className="text-sm font-mono font-bold px-2.5 py-1 rounded-lg" style={{ background: 'var(--card)', color: 'var(--muted-foreground)' }}>{editing.po_number}</span>
               {editing.id && <StatusBadge status={poStatus(editing)} size="lg" />}
               {editing.id && <AgeBadge date={editing.order_date} size="lg" />}
+              {/* 최근 저장/수정 시각 — 입고 수량 등을 입력해 저장하면 갱신 (KST 표시, 2026-07-24) */}
+              {editing.id && editing.updated_at && (
+                <span
+                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+                  style={{ background: 'var(--card)', color: 'var(--muted-foreground)' }}
+                  title="마지막으로 저장/수정한 시각"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  최근 저장 {fmtSavedAt(editing.updated_at)}
+                </span>
+              )}
               {/* 증빙 원본 — 숫자가 의심되면 바로 발주서를 펴서 대조 */}
               {quoteUrls(editing).length > 0 && (
                 <button

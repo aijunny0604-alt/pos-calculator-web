@@ -36,6 +36,10 @@ import { priceData } from '@/lib/priceData';
 import { formatPrice, getTodayKST, toDateKST } from '@/lib/utils';
 import { isOrderPending } from '@/lib/orderStatus';
 
+// 자체 레이아웃(h-full 루트)을 쓰는 페이지 — AppLayout.jsx의 fullScreenPages와 동일하게 유지.
+// 이 페이지들만 flex-1 래퍼로 감싸 알림바 위 겹침을 방지한다 (2026-07-24).
+const FULLSCREEN_PAGES = new Set(['pos', 'orders', 'customers', 'saved-carts', 'stock', 'shipping', 'burnway-stock', 'ai-order', 'ai-analytics', 'smartstore']);
+
 export default function App() {
   // ─── Navigation ───────────────────────────────────────────────
   // 현재 페이지를 세션에 보존 → lazy 청크 404로 ChunkErrorBoundary가 자동 새로고침해도
@@ -1398,10 +1402,22 @@ export default function App() {
           onGoToCarts={() => setCurrentPage('saved-carts')}
           reserveRightGutter={currentPage === 'pos'}
         />
+        {/* fullScreen 페이지만 flex-1 min-h-0 flex-col 래퍼로 감싼다.
+            animate-page-in이 flex-col이라 이 래퍼가 알림바(위 형제)를 뺀 남은 높이를 차지 →
+            안쪽 h-full 페이지 루트가 모바일 하단 네비 밑으로 안 넘침 (2026-07-24 전수수정).
+            비 fullScreen 페이지는 기존 block 흐름 그대로 두어 포매팅 컨텍스트 변화 없음. */}
         {/* key={currentPage} → 페이지 이동 시 바운더리 리셋 (한 페이지 청크 실패가 다른 페이지로 안 번지게) */}
-        <ChunkErrorBoundary key={currentPage}>
-          {renderPage()}
-        </ChunkErrorBoundary>
+        {FULLSCREEN_PAGES.has(currentPage) ? (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <ChunkErrorBoundary key={currentPage}>
+              {renderPage()}
+            </ChunkErrorBoundary>
+          </div>
+        ) : (
+          <ChunkErrorBoundary key={currentPage}>
+            {renderPage()}
+          </ChunkErrorBoundary>
+        )}
       </AppLayout>
 
       {/* Order detail modal */}
