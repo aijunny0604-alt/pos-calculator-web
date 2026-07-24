@@ -816,24 +816,35 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
       if (grouped[sender]) grouped[sender].custom.push(entry);
     });
 
-    const itemSummary = (items) => {
-      const names = (items || []).map(i => i?.name).filter(Boolean);
-      if (names.length === 0) return '상품';
-      if (names.length <= 2) return names.join(', ');
-      return `${names[0]} 외 ${names.length - 1}건`;
+    // 숫자만 추출 (금액 문자열 방어)
+    const money = (v) => { const n = Number(String(v ?? '').replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? n : 0; };
+    // 주문 품목 → "  품명 ×수량  N,NNN원" 한 줄씩. 금액=단가×수량 (items.price는 단가, total과 합치 검증됨)
+    const orderItemLines = (items) => {
+      const out = [];
+      (items || []).forEach((i) => {
+        const name = (i?.name || '').trim();
+        if (!name) return;
+        const qty = Number(i?.quantity) || 1;
+        const amt = money(i?.price ?? i?.wholesale ?? i?.retail) * qty;
+        const qtyStr = qty > 1 ? ` ×${qty}` : '';
+        out.push(`  ${name}${qtyStr}${amt > 0 ? `  ${formatPrice(amt)}원` : ''}`);
+      });
+      if (out.length === 0) out.push('  상품');
+      return out;
     };
 
     const now = new Date();
     const dLabel = `${now.getMonth() + 1}/${now.getDate()}`;
     const blocks = [];
     let grand = 0;
+    let grandAmount = 0;
 
     senderList.forEach(sender => {
       const { orders: sOrders, custom } = grouped[sender];
       const count = sOrders.length + custom.length;
       if (count === 0) return;
       grand += count;
-      const lines = [`🏷 ${sender} · ${count}건`, ''];
+      const lines = [`[${sender}] ${count}건`, ''];
       let idx = 1;
       sOrders.forEach(order => {
         const customer = findCustomer(order.customerName);
@@ -841,18 +852,25 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
         const phone = recv?.tel || customer?.phone || order.customerPhone || '';
         const address = shipAddress(order, customer);
         const setting = getOrderSetting(order.orderNumber, order.customerName, order);
+        grandAmount += money(order.totalAmount ?? order.total);
         lines.push(`${idx}. ${shippingName(order)}${phone ? `  ${phone}` : ''}`);
-        if (address) lines.push(`   📍 ${address}`);
-        lines.push(`   📦 ${itemSummary(order.items)}`);
-        lines.push(`   📮 ${[setting.packaging, setting.paymentType].filter(Boolean).join('  ·  ')}`);
+        if (address) lines.push(`  ${address}`);
+        orderItemLines(order.items).forEach(l => lines.push(l));
+        const foot = [setting.packaging, setting.paymentType].filter(Boolean).join(' · ');
+        if (foot) lines.push(`  ${foot}`);
         lines.push('');
         idx++;
       });
       custom.forEach(entry => {
+        const amt = money(entry.amount);
+        grandAmount += amt;
         lines.push(`${idx}. ${entry.name || ''}${entry.phone ? `  ${entry.phone}` : ''}`);
-        if (entry.address) lines.push(`   📍 ${entry.address}`);
-        lines.push(`   📦 ${entry.product || '상품'}`);
-        lines.push(`   📮 ${[entry.packaging, entry.paymentType].filter(Boolean).join('  ·  ')}`);
+        if (entry.address) lines.push(`  ${entry.address}`);
+        // product는 자유 입력(여러 줄 가능) — 있는 그대로 줄마다 들여쓰기
+        String(entry.product || '상품').split('\n').map(s => s.trim()).filter(Boolean).forEach(p => lines.push(`  ${p}`));
+        if (amt > 0) lines.push(`  합계 ${formatPrice(amt)}원`);
+        const foot = [entry.packaging, entry.paymentType].filter(Boolean).join(' · ');
+        if (foot) lines.push(`  ${foot}`);
         lines.push('');
         idx++;
       });
@@ -860,7 +878,9 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
     });
 
     if (grand === 0) return '';
-    const header = `📦 ${dLabel} 택배 발송  (총 ${grand}건)`;
+    const header = grandAmount > 0
+      ? `${dLabel} 택배 발송 · 총 ${grand}건 · ${formatPrice(grandAmount)}원`
+      : `${dLabel} 택배 발송 · 총 ${grand}건`;
     return [header, '━━━━━━━━━━━━━━', ...blocks].join('\n\n');
   };
 
