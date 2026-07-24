@@ -150,13 +150,20 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
     for (const o of orders || []) {
       const t = new Date(o.createdAt || o.created_at || 0).getTime();
       if (!Number.isFinite(t) || now - t > span) continue;
+      // 반품분은 실수요가 아니라 재주문 근거에서 뺀다 — 주문 항목 id(itemId)별 반품수량 집계.
+      // (flow-check 2026-07-24 발견: 반품 미차감 → 판매량 과대계상)
+      const returnedByItem = {};
+      for (const rt of (o.returns || [])) {
+        const k = rt.itemId; if (k === undefined || k === null) continue;
+        returnedByItem[k] = (returnedByItem[k] || 0) + num(rt.quantity);
+      }
       for (const it of (o.items || [])) {
-        const qty = num(it.quantity);
-        if (qty <= 0) continue;
+        const net = num(it.quantity) - (returnedByItem[it.id] || 0); // 순 판매 = 주문 - 반품
+        if (net <= 0) continue;
         const rec = (map, key) => {
           if (key === undefined || key === null || key === '') return;
           const cur = map.get(key) || { qty: 0, orders: 0, last: 0, revenue: 0 };
-          cur.qty += qty; cur.orders += 1; cur.revenue += num(it.price) * qty;
+          cur.qty += net; cur.orders += 1; cur.revenue += num(it.price) * net;
           if (t > cur.last) cur.last = t;
           map.set(key, cur);
         };
