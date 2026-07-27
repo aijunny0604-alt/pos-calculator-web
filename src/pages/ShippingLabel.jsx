@@ -852,11 +852,19 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
         const phone = recv?.tel || customer?.phone || order.customerPhone || '';
         const address = shipAddress(order, customer);
         const setting = getOrderSetting(order.orderNumber, order.customerName, order);
-        grandAmount += money(order.totalAmount ?? order.total);
+        // 🚨 주문 총액 — 기존엔 grandAmount 헤더 합산만 하고 주문별 금액 줄은 안 찍어서
+        //    카톡에 "택배 금액이 안 나온다"(특히 착불 수금액). 커스텀 항목처럼 합계/착불 줄 추가.
+        const orderTotal = money(order.totalAmount ?? order.total)
+          || (order.items || []).reduce((s, i) => s + money(i?.price ?? i?.wholesale ?? i?.retail) * (Number(i?.quantity) || 1), 0);
+        grandAmount += orderTotal;
+        const isCOD = /착불/.test(setting.paymentType || '');
         lines.push(`${idx}. ${shippingName(order)}${phone ? `  ${phone}` : ''}`);
         if (address) lines.push(`  ${address}`);
         orderItemLines(order.items).forEach(l => lines.push(l));
-        const foot = [setting.packaging, setting.paymentType].filter(Boolean).join(' · ');
+        // 착불이면 아래 푸터에 '착불 N원'으로 표시하므로 중복 방지, 그 외엔 합계 줄
+        if (orderTotal > 0 && !isCOD) lines.push(`  합계 ${formatPrice(orderTotal)}원`);
+        const payStr = isCOD && orderTotal > 0 ? `착불 ${formatPrice(orderTotal)}원` : setting.paymentType;
+        const foot = [setting.packaging, payStr].filter(Boolean).join(' · ');
         if (foot) lines.push(`  ${foot}`);
         lines.push('');
         idx++;
@@ -868,8 +876,10 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
         if (entry.address) lines.push(`  ${entry.address}`);
         // product는 자유 입력(여러 줄 가능) — 있는 그대로 줄마다 들여쓰기
         String(entry.product || '상품').split('\n').map(s => s.trim()).filter(Boolean).forEach(p => lines.push(`  ${p}`));
-        if (amt > 0) lines.push(`  합계 ${formatPrice(amt)}원`);
-        const foot = [entry.packaging, entry.paymentType].filter(Boolean).join(' · ');
+        const isCOD = /착불/.test(entry.paymentType || '');
+        if (amt > 0 && !isCOD) lines.push(`  합계 ${formatPrice(amt)}원`);
+        const payStr = isCOD && amt > 0 ? `착불 ${formatPrice(amt)}원` : entry.paymentType;
+        const foot = [entry.packaging, payStr].filter(Boolean).join(' · ');
         if (foot) lines.push(`  ${foot}`);
         lines.push('');
         idx++;
