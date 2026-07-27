@@ -1,9 +1,46 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-24 (재주문 리스트 판매통계 우선순위 / 발주 드롭·날짜조회 / 스토어 상품 대문 이미지 / 모달 5종 리디자인)
+> 마지막 업데이트: 2026-07-27 (수량 클릭버그·배포사고 / 대시보드 개편·JSR위젯 / 모의견적서 / 등록증 드래그드롭·자동연동·검색연결 / TTS off·채팅스크롤 / 스토어상세·카톡금액·받는사람)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-07-27 — 수량 클릭버그·배포사고 / 대시보드 개편 / 모의견적서 / 등록증 드래그드롭 / 스토어 상세·카톡·받는사람
+
+한 세션 다건. 사장님 실사용 제보를 그때그때 수정. 이번에 배운 **재발방지 지식 2개가 특히 중요**(배포 침묵실패, 클릭 삼킴).
+
+### 🚨 배포가 라이브에 안 올라가던 진짜 원인 = GitHub Pages Jekyll 빌드 실패 (`.nojekyll` 추가로 해결)
+- 증상: 수정·`gh-pages` 배포·`Published` 출력까지 정상인데 **라이브가 며칠째 옛 번들 고정**. 사장님은 계속 옛 화면.
+- 원인: Pages 소스(gh-pages)에 **`.nojekyll`이 없어** Pages가 Jekyll로 처리하다 **빌드 errored** → 마지막 성공분에 라이브 고정. 2026-07-16 이후 계속 실패 중이었음.
+- 해결: **`public/.nojekyll`**(vite가 dist 루트로 복사) + **배포는 `npx gh-pages -d dist -t`**(dotfiles 포함 필수, 안 그러면 `.nojekyll`이 브랜치에 안 올라감).
+- 🚨 **"배포됨"의 증거는 `Published` 출력이 아니다** → ① `gh api .../pages/builds/latest`가 **`built`** ② 라이브 index.html 해시 == 방금 빌드한 dist 해시. minify로 함수명 grep 불가 → **기능 재현으로 검증**.
+
+### 🖱️ 제품주문 수량 +/- 버튼이 실제 마우스로 안 눌리던 버그 (카드 press-scale이 자식 버튼을 밀어냄)
+- 원인: [index.css](src/index.css) `.card-interactive:hover:active { transform: scale(0.97) }` — 카드를 누르면 3% 줄며 **오른쪽 끝 +/- 버튼이 중심쪽으로 ~19px 이동**(버튼 반폭 18px 초과) → mousedown 후 카드 축소 → mouseup 때 버튼이 커서 밖 → **click 미발생**.
+- 🚨 **JS `element.click()`은 좌표 히트테스트를 건너뛰어 항상 성공** → 자동화가 "정상"으로 **오판**. 버튼 클릭 검증은 반드시 **좌표 실클릭**(mouse down→up)으로. (stale-closure도 함께 있어 `stepQuantity` 함수형 업데이트로 전수 수정: MainPOS/OrderPage/OrderDetail/SavedCarts/TextAnalyze/AdminPage)
+- 규칙: **작은 인터랙티브 컨트롤을 press-scale 컨테이너 안에 두지 말 것**. active scale 제거, translateY만.
+
+### 📊 대시보드 개편 + JSR 미입고 위젯 신규
+- **[PurchaseStatusWidget.jsx](src/components/dashboard/PurchaseStatusWidget.jsx) 신규**: 매입 발주 미입고 품목수·금액 + **가장 오래 묵은 건**(30일↑⚠️/90일↑🚨) 강조. 클릭 시 매입발주 페이지. 계산은 `poOpenItems`(status_override·음수 제외) **단일소스 재사용** → 매입발주 화면과 완전 일치(flow-check로 라이브 대조 검증). **조회 실패(null)는 "확인 불가"로 명시**(빈배열로 뭉개 "전부 입고됨" 오표시 방지). self-fetch + 5분 폴링(실패 시 직전값 유지).
+- **지표 카드 4열 2행 정렬**([Dashboard.jsx](src/pages/Dashboard.jsx)): 4+3으로 쪼개져 폭 어긋나던 것 → 한 그리드 8칸(돈4/운영4)으로 통일. JSR위젯이 8번째 칸.
+- **바로가기 전체폭 가로 바**: 우측 컬럼에서 빼내 좌우 균형(하단 빈 공간 제거) + `items-start`.
+
+### 🧾 제품주문 장바구니 → 모의 견적서 (주문 확인 전 카톡복사/출력)
+- [MainPOS.jsx](src/pages/MainPOS.jsx) 카트 푸터에 **[카톡 복사]/[견적서 출력]**. `buildQuoteText`(클립보드+폴백) / `printQuote`(A4 별도창, `escapeHtml` 적용). 금액은 카트 합계와 **동일 계산**(cartWithDiscount·vatBreakdown·totalAmount) 재사용 → 견적↔실주문 불일치 방지. 비과세(택배비/퀵비) 반영. 거래처는 주문확인 단계에서 고르므로 견적은 "참고용".
+
+### 📄 사업자등록증 — 드래그드롭 업로드 + 거래처↔보관함 자동연동 + 연결 검색형
+- **드래그앤드롭**([CertLibrary.jsx](src/pages/CertLibrary.jsx)): 항상 보이는 드롭존(클릭도 가능), **여러 장 동시**, `dragDepth` 카운트로 깜빡임 방지 + 업로드 중 재드롭 차단 + 실패 시 orphan 파일 정리.
+- **거래처관리 업로드 → 보관함 자동 등록·연결**([CustomerList.jsx](src/pages/CustomerList.jsx)): `addBusinessCert(customerId)` + `clearCustomerCertLinks`로 1거래처=1등록증. 🚨 **교체/삭제 시 원본 파괴 방지**: `isLibraryOwnedPath`(`business-cert/library/`)면 파일·행 보존하고 **연결만 해제**([supabase.js](src/lib/supabase.js) `deleteBusinessCertsByPath` 신규). 거래처 삭제엔 **확인창** 추가(무확인 영구삭제였음).
+- **연결 select → 검색형 콤보박스**: 206곳 스크롤 대신 타이핑. 공백/대소문자 무시 매칭.
+
+### 🔇 MOVIS 자동 TTS 제거 + 모바일 채팅 자동스크롤 오염 수정
+- **자동 TTS 삭제**([AIAnalytics.jsx](src/pages/AIAnalytics.jsx)): 답변을 스스로 안 읽음(음성이 어색). 말풍선 🔊 버튼으로 **수동 재생만** 유지.
+- **채팅 자동스크롤**([ChatPanel.jsx](src/components/analytics/ChatPanel.jsx)): 🚨 `scrollIntoView`는 **스크롤 가능한 조상 전부**를 함께 스크롤 → 모바일 MOVIS 진입만 해도 페이지가 위로 딸려 올라감(+deps `loadingStep`이 생각중마다 반복). → **컨테이너(scrollRef) 직접 `scrollTo`**, 빈 대화·위 기록 읽는 중이면 스크롤 안 함(`stickToBottom` 80px 임계). 내가 메시지 보낼 땐 하단 재고정.
+
+### 🛒 스토어 주문 상세 가독성 + 카톡 금액 + 발송 받는사람
+- **주문 상세**([OrderDetail.jsx](src/pages/OrderDetail.jsx)): 긴 네이버 카탈로그 제품명에서 **옵션(사이즈:54-15)을 칩으로 분리**(`splitNameOption`, item.option 우선). 지저분한 메모 wall(`[엠파츠]…구매자…받는분…주소…배송`) → **"🛒 스토어 주문 + 주문번호(복사) + 착불/선불 칩 + 배송메모"** 구조화 카드(`parseStoreMemo`). 전화·주소·받는분은 위 전용 카드에 이미 나오므로 중복 제거. 🚨 **사장님 자유메모 보존**: 자동필드 줄 제외한 나머지를 `rest`로 뽑아 `✏️ 메모`로 표시(안 하면 화면에서 사라짐). **DB memo 원문은 불변**(송장 발송인·착불선불 자동처리가 마커 의존).
+- **카톡 발송내역 금액**([ShippingLabel.jsx](src/pages/ShippingLabel.jsx) `buildKakaoText`): 일반 주문이 품목 줄만 찍고 **주문 총액을 안 넣어** 카톡에 택배 금액이 안 나오던 것 → **착불=푸터 `착불 N원`(기사 수금액), 선불/기타=`합계 N원`**. totalAmount 없으면 품목 합산 폴백.
+- **발송 모달 받는사람**([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx)): 일괄/단건 발송 모달이 `buyer_name`(입금자)를 표시 → **`getReceiverName`(수령인)으로 교정**. 선물·대리주문(구매자≠받는분)이면 🎁 + `· 주문 {구매자}` 병기. 택배는 받는사람 기준이라 오배송 위험이던 것.
 
 ## 🆕 v2026-07-24 — 재주문 리스트 (재고 0 → 판매통계 우선순위 → 발주)
 
@@ -289,7 +326,8 @@ src/components/purchase/QuoteScanModal.jsx # 판독 결과 확인 모달 (신규
 
 ### UI ([CertLibrary.jsx](src/pages/CertLibrary.jsx) 신규 + [CustomerList.jsx](src/pages/CustomerList.jsx) 탭)
 - 거래처관리 상단 **[📄 사업자등록증]** 탭(lazy). 상호명 검색 + 필터(전체/연결됨/미연결) + 썸네일 그리드 + 클릭 확대모달(거래처 연결 select·원본·삭제) + **[등록증 추가]**(새 파일 업로드)
-- 헬퍼: [supabase.js](src/lib/supabase.js) getBusinessCerts(임베드 실패 시 임베드없이 재조회 폴백)/add/update/deleteBusinessCert, [imageUpload.js](src/lib/imageUpload.js) uploadCertToLibrary
+- 헬퍼: [supabase.js](src/lib/supabase.js) getBusinessCerts(임베드 실패 시 임베드없이 재조회 폴백)/add/update/deleteBusinessCert/**deleteBusinessCertsByPath**(v2026-07-27, storage_path로 행 삭제 — 거래처 등록증 교체/삭제 시 같은 파일 가리키던 보관함 행 정리, 단 `library/` 경로는 원본이라 제외), [imageUpload.js](src/lib/imageUpload.js) uploadCertToLibrary
+- 🆕 v2026-07-27: **드래그드롭 업로드**(여러 장) + **거래처관리 업로드 시 보관함 자동 등록·연결**(1거래처=1등록증) + **연결 select→검색형 콤보박스**. `library/` 원본 보호(`isLibraryOwnedPath`)로 교체/삭제 시 파일·행 보존
 - **Codex 리뷰 Major 6건 수정**: ①1거래처=1등록증(연결 시 같은 거래처 가리키던 다른 행 해제) ②삭제 시 같은거래처 다른등록증 있으면 링크유지 ③연속클릭 in-flight 잠금(linking) ④setCustomerCert 실패 표면화 ⑤deleteBusinessCert fetch.ok 검증 ⑥임베드 실패 폴백. 라이브검증(73썸네일 로드·연결36·모달·콘솔0)
 ### 📷 MOVIS 이미지 인식 — 사업자등록증/주문 자동 처리 (무료 flash vision, 2026-07-09 추가)
 - **MOVIS 채팅에 📎 이미지 첨부** → gemini-2.5-flash vision(**무료**, 이미지입력 무과금)이 **자동 판별**: 사업자등록증 / 주문 / 기타 ([certVision.js](src/lib/certVision.js) `analyzeImage` — 분류+추출 1콜)
@@ -1378,10 +1416,11 @@ CSS `transform`/`perspective`가 자식 `position: fixed`의 containing block을
 ```bash
 npm run dev              # 개발 서버
 npx vite build           # 빌드 (--base 플래그 절대 금지!)
-npx gh-pages -d dist     # GitHub Pages 배포
+npx gh-pages -d dist -t  # GitHub Pages 배포 (-t=dotfiles 포함 → .nojekyll 반드시 올림)
 ```
 
 > `vite.config.js`에 `base: '/pos-calculator-web/'` 설정됨. `--base` 사용 시 빈 페이지 발생.
+> 🚨 **`-t`(dotfiles) 필수** (v2026-07-27): `public/.nojekyll`을 gh-pages 브랜치에 올려 Jekyll 처리를 꺼야 함. 안 그러면 Pages 빌드가 errored → **배포해도 라이브가 옛 번들에 고정**(Published 출력은 떠도 미반영). 배포 후 `gh api repos/aijunny0604-alt/pos-calculator-web/pages/builds/latest`가 **`built`**인지 + 라이브 index.html 해시 일치 확인.
 
 > **v2026-05-27 추가**: `@vitejs/plugin-legacy` 도입 → 빌드 시 `*-legacy-*.js` chunk 자동 생성 (구형 Samsung Internet 8+ / Android 7+ 호환). 빌드 시간 ~1분으로 증가했지만 호환성 ↑
 
@@ -1400,6 +1439,9 @@ powershell -ExecutionPolicy Bypass -File install-scheduler.ps1  # 작업 스케�
 ## 핵심 규칙
 
 - **호스팅 = GitHub Pages(정적), Vercel 아님**: 이 프로젝트는 정적 호스팅이라 **서버/함수 없음 → Vercel 일일 할당량·대역폭 개념 자체가 없음**. (Vercel 할당량 걱정은 빅스모터스/auto-shop-manager(Next.js+Vercel) 얘기. 혼동 금지.) 실시간은 브라우저↔Supabase 직접 연결이라 Vercel 무관.
+- 🚨 **배포 검증 = Pages 빌드 status + 라이브 해시** (v2026-07-27): `Published` 출력만 믿지 말 것. `.nojekyll` 없으면 Jekyll 빌드 errored로 **라이브가 옛 번들 고정**(사장님 "안 바뀜"의 진짜 원인이었음). `gh-pages -d dist -t`로 배포 → `pages/builds/latest`가 `built` + 라이브 index.html 번들 해시 == dist 해시 확인. minify로 함수명 grep 불가 → **기능 재현으로 검증**
+- 🚨 **버튼 클릭 검증은 좌표 실클릭으로** (v2026-07-27): JS `element.click()`은 히트테스트를 건너뛰어 **항상 성공** → 오판. 카드 `:hover:active` press-scale이 자식 +/- 버튼을 밀어 클릭이 새던 사고 → **작은 인터랙티브 컨트롤을 press-scale 컨테이너 안에 두지 말 것**. Playwright는 좌표 기반 실클릭(mouse down→up)으로 검증
+- **스토어 주문 표시 정리는 표시만, DB memo 원문 불변** (v2026-07-27): 주문상세 스토어 카드(`parseStoreMemo`)·발송 받는사람(`getReceiverName`)은 **화면 표기만** 정리. `order.memo` 원문은 절대 안 건드림(송장 발송인=엠파츠·착불선불 자동처리가 마커 의존). 자동필드 뒤 **사장님 자유메모는 `rest`로 뽑아 표시**(누락 방지). 발송은 **받는사람(수령인) 기준** — buyer_name(입금자) 아님
 - **실시간 = Supabase Realtime(WebSocket)**: App.jsx가 `wss://…supabase.co/realtime/v1/websocket`로 **orders·products·customers·saved_carts·ai_learning** 5개 테이블 구독(`broadcast.self:false`). DB INSERT/UPDATE/DELETE 시 변경분 푸시 → 즉시 state 갱신(폴링 아님). 다른 기기/매장PC/sync.js 변경도 새로고침 없이 반영. external_orders는 StoreOrderAlerts가 별도 실시간 구독.
 - **⚠️ 비용 한도는 Vercel이 아니라 Supabase**: Free 플랜 대략 Realtime 동시연결 ~200·메시지 200만/월(매장 규모론 한참 여유) / **Egress 월 5GB가 진짜 병목**. **과거 옛 Supabase(`icqxomltplewrhopafpq`)가 egress 초과로 차단된 이력** 있어 새 프로젝트(`jubzppndcclhnvgbvrxr`)로 이전함. egress 주범은 Realtime 메시지(작음)가 아니라 **큰 목록 fetch·제품 이미지 반복 로딩** → 대용량 조회/이미지 최적화로 관리. Realtime 자체는 egress 영향 미미.
 - 🚨 **부가세는 `calcOrderVat`로 품목 단위 계산** (2026-07-16): 택배비/퀵비/수수료/커스텀은 `taxFree: true` = **받은 금액 전액이 공급가액, 부가세 0**. `calcExVat(total)`(=total/1.1)로 전체를 나누면 **비과세분에도 부가세가 붙는다**. 새 화면/텍스트에서 공급가액·부가세 표시할 땐 반드시 [utils.js](src/lib/utils.js) `calcOrderVat(items, {priceOf})` 사용
