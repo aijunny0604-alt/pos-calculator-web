@@ -2867,7 +2867,19 @@ export default function SmartStoreOrders({
                 {/* 어떤 주문을 보내는지 — 잘못된 주문에 송장 박는 사고 방지 */}
                 <div className="rounded-xl border px-4 py-3" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
                   <div className="flex items-baseline justify-between gap-3 mb-1">
-                    <span className="font-bold text-base truncate" style={{ color: 'var(--foreground)' }}>{dOrder.buyer_name || '-'}</span>
+                    {/* 발송은 받는사람 기준 — buyer_name 대신 수령인, 다르면 🎁 + 구매자 병기 */}
+                    {(() => {
+                      const recv = getReceiverName(dOrder, itemsByOrder[dOrder.id] || []);
+                      const buyer = dOrder.buyer_name || '-';
+                      const diff = recv && recv !== buyer;
+                      return (
+                        <span className="font-bold text-base break-keep leading-snug min-w-0" style={{ color: 'var(--foreground)' }}>
+                          {diff && <span className="mr-0.5">🎁</span>}
+                          {recv || buyer}
+                          {diff && <span className="ml-1.5 text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>· 주문 {buyer}</span>}
+                        </span>
+                      );
+                    })()}
                     <span className="font-extrabold text-base tabular-nums flex-shrink-0" style={{ color: 'var(--primary)' }}>
                       {fmtNum(dOrder.total_amount)}원
                     </span>
@@ -3128,7 +3140,20 @@ export default function SmartStoreOrders({
                       <div className="w-1 flex-shrink-0 transition-colors" style={{ background: filled ? '#03c75a' : 'var(--border)' }} />
                       <div className="flex-1 min-w-0 px-3.5 py-3 space-y-2">
                         <div className="flex items-baseline justify-between gap-3 min-w-0">
-                          <span className="text-sm font-bold truncate" style={{ color: 'var(--foreground)' }}>{o.buyer_name || '구매자'}</span>
+                          {/* 🚨 발송은 '받는사람' 기준 — buyer_name(입금자) 대신 수령인 표시.
+                              구매자와 다르면(선물/대리주문) 🎁 표시 + 구매자 병기해 헷갈리지 않게. */}
+                          {(() => {
+                            const recv = getReceiverName(o, itemsByOrder[o.id] || []);
+                            const buyer = o.buyer_name || '구매자';
+                            const diff = recv && recv !== buyer;
+                            return (
+                              <span className="text-sm font-bold break-keep leading-snug min-w-0" style={{ color: 'var(--foreground)' }}>
+                                {diff && <span className="mr-0.5">🎁</span>}
+                                {recv || buyer}
+                                {diff && <span className="ml-1.5 text-[11px] font-medium" style={{ color: 'var(--muted-foreground)' }}>· 주문 {buyer}</span>}
+                              </span>
+                            );
+                          })()}
                           <span className="text-sm font-extrabold tabular-nums flex-shrink-0" style={{ color: 'var(--primary)' }}>{fmtNum(o.total_amount)}원</span>
                         </div>
                         <div className="text-[11px] font-mono truncate" style={{ color: 'var(--muted-foreground)' }}>#{o.provider_order_id}</div>
