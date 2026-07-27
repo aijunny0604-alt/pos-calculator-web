@@ -16,6 +16,33 @@ import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPai
 // Safe price getter - fallback for items without price field
 const getItemPrice = (item) => item.price ?? item.wholesale ?? 0;
 
+// 스토어 전환 주문 자동메모 파싱 — 지저분한 한 줄을 구조화(표시만 정리, DB memo 원문은 절대 안 건드림).
+// 전화/주소/받는분은 이미 상단 카드에 나오므로 여기선 주문번호·착불선불·배송메모만 뽑는다.
+const STORE_MEMO_RE = /\[네이버\s*스마트스토어\]|\[엠파츠\]/;
+const parseStoreMemo = (memo) => {
+  const m = String(memo || '');
+  if (!STORE_MEMO_RE.test(m)) return null;
+  const pick = (re) => { const x = m.match(re); return x ? x[1].trim() : ''; };
+  return {
+    orderNo: pick(/스마트스토어\]\s*([0-9]{6,})/),
+    delivery: pick(/배송:\s*(착불|선불)/),
+    shipMemo: pick(/배송메모:\s*([^\n]+)/),
+  };
+};
+
+// 제품명에서 옵션(사이즈:…/옵션:…/색상:…)을 떼어 칩으로 분리. item.option 필드 우선, 없으면 끝 괄호 파싱.
+const splitNameOption = (item) => {
+  const raw = String(item?.name || '');
+  const opt = (item?.option || '').trim();
+  if (opt) {
+    const suffix = ` (${opt})`;
+    return { base: (raw.endsWith(suffix) ? raw.slice(0, -suffix.length) : raw).trim(), option: opt };
+  }
+  const m = raw.match(/^(.*)\((?:사이즈|옵션|색상|SIZE|option)\s*[:：]\s*([^)]+)\)\s*$/i);
+  if (m) return { base: m[1].trim(), option: m[2].trim() };
+  return { base: raw, option: '' };
+};
+
 export default function OrderDetail({
   isOpen,
   onClose,
@@ -1259,7 +1286,17 @@ export default function OrderDetail({
                             </div>
                           ) : (
                             <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
-                              <span className="break-words">{item.name}</span>
+                              {(() => { const { base, option } = splitNameOption(item); return (
+                                <span className="break-words leading-snug">
+                                  {base}
+                                  {option && (
+                                    <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-bold align-middle whitespace-nowrap"
+                                      style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
+                                      <Layers className="w-3 h-3" />{option}
+                                    </span>
+                                  )}
+                                </span>
+                              ); })()}
                             </div>
                           )}
                           {isDiscounted && !isEditing && (
@@ -1470,7 +1507,17 @@ export default function OrderDetail({
                                 style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
                               />
                             ) : (
-                              <span className="break-words text-base leading-snug">{item.name}</span>
+                              (() => { const { base, option } = splitNameOption(item); return (
+                                <span className="break-words text-base leading-snug">
+                                  {base}
+                                  {option && (
+                                    <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-bold align-middle whitespace-nowrap"
+                                      style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
+                                      <Layers className="w-3 h-3" />{option}
+                                    </span>
+                                  )}
+                                </span>
+                              ); })()
                             )}
                             {isDiscounted && !isEditing && (
                               <span
@@ -1707,15 +1754,48 @@ export default function OrderDetail({
                   placeholder="메모 입력..."
                 />
               </div>
-            ) : order.memo ? (
-              <div
-                className="mt-4 p-3 rounded-lg border"
-                style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
-              >
-                <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>메모: </span>
-                <span className="text-sm" style={{ color: 'var(--foreground)' }}>{order.memo}</span>
-              </div>
-            ) : null}
+            ) : order.memo ? (() => {
+              // 스토어 전환 주문이면 지저분한 메모 원문 대신 깔끔한 카드로. (전화·주소·받는분은 위 카드에 이미 나옴)
+              const sm = parseStoreMemo(order.memo);
+              if (sm) {
+                return (
+                  <div className="mt-4 rounded-xl border overflow-hidden" style={{ borderColor: 'color-mix(in srgb, #03c75a 30%, var(--border))' }}>
+                    <div className="px-3 py-2 flex items-center gap-2 flex-wrap" style={{ background: 'color-mix(in srgb, #03c75a 10%, var(--card))' }}>
+                      <span className="text-xs font-bold" style={{ color: '#03c75a' }}>🛒 스토어 주문</span>
+                      {sm.orderNo && (
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(sm.orderNo); showToast?.('주문번호 복사됨', 'success'); }}
+                          className="text-xs font-mono inline-flex items-center gap-1 hover:underline"
+                          style={{ color: 'var(--muted-foreground)' }}
+                          title="주문번호 복사"
+                        >
+                          {sm.orderNo}<Copy className="w-3 h-3" />
+                        </button>
+                      )}
+                      {sm.delivery && (
+                        <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full"
+                          style={sm.delivery === '착불'
+                            ? { background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)' }
+                            : { background: 'color-mix(in srgb, var(--success) 18%, transparent)', color: 'var(--success)' }}>
+                          {sm.delivery === '착불' ? '🚚 착불' : '💰 선불'}
+                        </span>
+                      )}
+                    </div>
+                    {sm.shipMemo && (
+                      <div className="px-3 py-2 text-sm break-words leading-snug" style={{ color: 'var(--foreground)', background: 'var(--card)' }}>
+                        <span style={{ color: 'var(--muted-foreground)' }}>📝 배송메모: </span>{sm.shipMemo}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <div className="mt-4 p-3 rounded-lg border" style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}>
+                  <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>메모: </span>
+                  <span className="text-sm break-words" style={{ color: 'var(--foreground)' }}>{order.memo}</span>
+                </div>
+              );
+            })() : null}
 
             {/* Return history */}
             {order.returns && order.returns.length > 0 && (() => {
