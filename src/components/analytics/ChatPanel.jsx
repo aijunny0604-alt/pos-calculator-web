@@ -182,6 +182,7 @@ export default function ChatPanel({
   const submit = () => {
     const value = text.trim();
     if (!value || isLoading || disabled) return;
+    stickToBottomRef.current = true; // 내가 보낸 순간엔 하단 고정(위 기록 읽던 중이어도 방금 보낸 메시지가 보이게)
     onSend?.(value);
     setText('');
     // 모바일에서 키보드 유지하려면 focus 유지

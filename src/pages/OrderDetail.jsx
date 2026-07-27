@@ -23,10 +23,16 @@ const parseStoreMemo = (memo) => {
   const m = String(memo || '');
   if (!STORE_MEMO_RE.test(m)) return null;
   const pick = (re) => { const x = m.match(re); return x ? x[1].trim() : ''; };
+  // 🚨 자동 생성 필드 줄([엠파츠]마커/구매자/받는분/주소/배송메모/배송)을 걷어낸 나머지 =
+  //    사장님이 직접 쓴 메모. 안 뽑으면 화면에서 통째로 사라진다(DB엔 남아도 안 보임).
+  const rest = m.split('\n')
+    .filter((ln) => ln.trim() && !/^\s*(\[|구매자\s*:|받는분\s*:|주소\s*:|배송메모\s*:|배송\s*:)/.test(ln))
+    .join('\n').trim();
   return {
     orderNo: pick(/스마트스토어\]\s*([0-9]{6,})/),
     delivery: pick(/배송:\s*(착불|선불)/),
     shipMemo: pick(/배송메모:\s*([^\n]+)/),
+    rest,
   };
 };
 
@@ -1757,7 +1763,8 @@ export default function OrderDetail({
             ) : order.memo ? (() => {
               // 스토어 전환 주문이면 지저분한 메모 원문 대신 깔끔한 카드로. (전화·주소·받는분은 위 카드에 이미 나옴)
               const sm = parseStoreMemo(order.memo);
-              if (sm) {
+              // 스토어 마커는 있는데 뽑을 게 하나도 없으면(빈 헤더 카드 방지) 원문 fallback로
+              if (sm && (sm.orderNo || sm.delivery || sm.shipMemo || sm.rest)) {
                 return (
                   <div className="mt-4 rounded-xl border overflow-hidden" style={{ borderColor: 'color-mix(in srgb, #03c75a 30%, var(--border))' }}>
                     <div className="px-3 py-2 flex items-center gap-2 flex-wrap" style={{ background: 'color-mix(in srgb, #03c75a 10%, var(--card))' }}>
@@ -1784,6 +1791,11 @@ export default function OrderDetail({
                     {sm.shipMemo && (
                       <div className="px-3 py-2 text-sm break-words leading-snug" style={{ color: 'var(--foreground)', background: 'var(--card)' }}>
                         <span style={{ color: 'var(--muted-foreground)' }}>📝 배송메모: </span>{sm.shipMemo}
+                      </div>
+                    )}
+                    {sm.rest && (
+                      <div className="px-3 py-2 text-sm break-words leading-snug" style={{ color: 'var(--foreground)', background: 'var(--card)', borderTop: '1px solid var(--border)' }}>
+                        <span style={{ color: 'var(--muted-foreground)' }}>✏️ 메모: </span>{sm.rest}
                       </div>
                     )}
                   </div>
