@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft, Menu, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
@@ -158,6 +158,36 @@ export default function OrderHistory({
     }
     return null;
   };
+
+  const normName = (s) => String(s || '').toLowerCase().replace(/\s/g, '');
+
+  // 🆕 신규업체 — 그 거래처의 '첫 주문(가장 이른)' 카드에만 배지. 전체 orders 기준으로 최초 주문 id 산출.
+  const firstOrderByCustomer = useMemo(() => {
+    const map = new Map();
+    for (const o of orders || []) {
+      const key = normName(o.customerName);
+      if (!key) continue;
+      const t = new Date(o.createdAt || o.received_at || 0).getTime();
+      const cur = map.get(key);
+      if (!cur || t < cur.t) map.set(key, { id: o.id || o.orderNumber, t });
+    }
+    return map;
+  }, [orders]);
+  const isFirstOrder = (order) => {
+    const key = normName(order.customerName);
+    if (!key) return false;
+    const first = firstOrderByCustomer.get(key);
+    return first && first.id === (order.id || order.orderNumber);
+  };
+
+  // 📄 거래처 사업자등록증 — 이름 매칭으로 연동된 등록증 URL 조회 (거래처관리에서 올린 것)
+  const getCustomerCert = (customerName) => {
+    const key = normName(customerName);
+    if (!key) return null;
+    const c = (customers || []).find((x) => normName(x?.name) === key);
+    return c?.business_cert_url ? { url: c.business_cert_url, path: c.business_cert_path || c.business_cert_url } : null;
+  };
+  const [certViewer, setCertViewer] = useState(null); // 사업자등록증 확대 보기 URL
 
   // ESC key handling
   useEffect(() => {
@@ -1084,6 +1114,31 @@ export default function OrderHistory({
                           >
                             {order.priceType === 'wholesale' ? '도매' : '소비자'}
                           </span>
+                          {/* 🆕 신규업체 — 이 거래처의 첫 주문일 때만 */}
+                          {isFirstOrder(order) && (
+                            <span
+                              className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black flex-shrink-0"
+                              style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#fff', boxShadow: '0 1px 4px rgba(249,115,22,0.4)' }}
+                              title="이 거래처의 첫 주문입니다"
+                            >
+                              🆕 신규업체
+                            </span>
+                          )}
+                          {/* 📄 사업자등록증 — 연동돼 있으면 클릭해서 보기 */}
+                          {(() => {
+                            const cert = getCustomerCert(order.customerName);
+                            if (!cert) return null;
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setCertViewer(cert); }}
+                                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 transition-colors hover:brightness-95"
+                                style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)', border: '1px solid color-mix(in srgb, var(--primary) 35%, transparent)' }}
+                                title="사업자등록증 보기"
+                              >
+                                <FileText className="w-3 h-3" /> 등록증
+                              </button>
+                            );
+                          })()}
                           {/* 완불 칩 — 이름 옆(같은 줄)에 표시 (사장님 요청 2026-06-16) */}
                           {isPaid && (
                             <span
@@ -1632,6 +1687,35 @@ export default function OrderHistory({
                 className="px-4 py-2.5 rounded-lg border"
                 style={{ borderColor: 'var(--border)' }}>취소</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📄 사업자등록증 확대 뷰어 */}
+      {certViewer && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setCertViewer(null)}
+        >
+          <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-white font-bold flex items-center gap-1.5"><FileText className="w-5 h-5" /> 사업자등록증</span>
+              <div className="flex items-center gap-2">
+                <a href={certViewer.url} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg text-sm font-bold text-white border border-white/40 hover:bg-white/10">원본</a>
+                <button onClick={() => setCertViewer(null)}
+                  className="px-3 py-1.5 rounded-lg text-sm font-bold text-white border border-white/40 hover:bg-white/10">닫기 ✕</button>
+              </div>
+            </div>
+            {/\.pdf($|\?)/i.test(certViewer.path || certViewer.url || '') ? (
+              <a href={certViewer.url} target="_blank" rel="noopener noreferrer"
+                className="block bg-white rounded-lg p-8 text-center font-bold" style={{ color: 'var(--primary)' }}>
+                📄 PDF 새 창에서 열기
+              </a>
+            ) : (
+              <img src={certViewer.url} alt="사업자등록증" className="w-full max-h-[80vh] object-contain rounded-lg bg-white" />
+            )}
           </div>
         </div>
       )}
