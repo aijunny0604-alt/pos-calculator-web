@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, FileText, Package, Plus, Minus, Trash2, Edit3, RotateCcw,
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
@@ -2412,9 +2413,10 @@ export default function OrderDetail({
         />
       )}
 
-      {/* 📄 사업자등록증 확대 뷰어 */}
-      {certViewer && custCert && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setCertViewer(false)}>
+      {/* 📄 사업자등록증 확대 뷰어 — 🚨 OrderDetail은 드래그/리사이즈 transform 모달이라
+          fixed 자식이 모달 박스에 갇힌다(뒤 헤더가 비쳐 보임). createPortal로 body에 빼내 진짜 전체화면 */}
+      {certViewer && custCert && createPortal((
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setCertViewer(false)}>
           <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-white font-bold flex items-center gap-1.5"><FileText className="w-5 h-5" /> 사업자등록증 · {order.customerName}</span>
@@ -2430,7 +2432,7 @@ export default function OrderDetail({
             )}
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* Return delete confirmation — wrapped in z-[65] to render above QuickCalculator (z-[60]) */}
       {pendingDeleteReturnId != null && (
