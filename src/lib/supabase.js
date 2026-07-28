@@ -24,6 +24,8 @@ async function fetchJSON(url, options = {}) {
 
 // 마이그레이션 006(제품 메모/색상/초기금액/단가이력) 컬럼 미적용 대비 — 컬럼없음 에러 감지 + 필드 제거
 const PRODUCT_006_RE = /PGRST204|column .* does not exist|could not find/i;
+// order_packing 테이블 미생성(마이그011 미실행) 감지 플래그 — 한 번 실패하면 이후 네트워크 스킵하고 localStorage만
+let _orderPackingTableMissing = false;
 const PRODUCT_006_FIELDS = ['note', 'flag_color', 'initial_wholesale', 'initial_retail', 'initial_set_at', 'price_history'];
 function stripProduct006(product) {
   const out = { ...product };
@@ -100,6 +102,50 @@ export const supabase = {
       return Array.isArray(result) && result.length > 0 ? result[0] : null;
     } catch (e) { console.error('getOrderById:', e); return null; }
   },
+
+  // ===== 주문 포장 체크리스트 (order_packing, 마이그011) =====
+  // 🎯 작업자 피킹 체크. 테이블 없으면 localStorage 폴백(pos_packing_v1)으로 동작 → SQL 미실행에도 무중단.
+  // ⚡ 테이블 미존재를 한 번 감지하면 이후엔 네트워크 건너뛰고 바로 로컬 (매 토글마다 실패요청 쌓이는 것 방지).
+  _packingLocal(key, patch) {
+    try {
+      const all = JSON.parse(localStorage.getItem('pos_packing_v1') || '{}');
+      if (patch) { all[key] = patch; localStorage.setItem('pos_packing_v1', JSON.stringify(all)); return { ok: true, source: 'local' }; }
+      const v = all[key];
+      return v ? { ...v, source: 'local' } : { checked: [], itemCount: 0, done: false, source: 'local' };
+    } catch { return patch ? { ok: false } : { checked: [], itemCount: 0, done: false, source: 'local' }; }
+  },
+  async getOrderPacking(orderId) {
+    const key = String(orderId || '');
+    if (!key) return null;
+    if (_orderPackingTableMissing) return this._packingLocal(key);
+    try {
+      const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/order_packing?order_id=eq.${encodeURIComponent(key)}&limit=1`, { headers });
+      const row = Array.isArray(r) && r[0] ? r[0] : null;
+      return row ? { checked: Array.isArray(row.checked) ? row.checked : [], itemCount: row.item_count || 0, done: !!row.done, source: 'db' } : { checked: [], itemCount: 0, done: false, source: 'db' };
+    } catch (e) {
+      if (/42P01|PGRST205|Could not find the table|relation .* does not exist/i.test(String(e?.message || e))) _orderPackingTableMissing = true;
+      return this._packingLocal(key);
+    }
+  },
+  async setOrderPacking(orderId, { checked = [], itemCount = 0, done = false } = {}) {
+    const key = String(orderId || '');
+    if (!key) return { ok: false };
+    const patch = { checked, itemCount, done };
+    if (_orderPackingTableMissing) return this._packingLocal(key, patch);
+    const deviceId = (() => { try { return localStorage.getItem('pos_device_id') || null; } catch { return null; } })();
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/order_packing?on_conflict=order_id`, {
+        method: 'POST',
+        headers: { ...headersNoContent, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ order_id: key, checked, item_count: itemCount, done, updated_at: new Date().toISOString(), updated_by: deviceId }),
+      });
+      if (!r.ok) { if (r.status === 404 || r.status === 400) _orderPackingTableMissing = true; throw new Error(`${r.status}`); }
+      return { ok: true, source: 'db' };
+    } catch (e) {
+      return this._packingLocal(key, patch); // 폴백: localStorage
+    }
+  },
+
   async saveOrder(order) {
     const _audit = (res) => {
       const row = Array.isArray(res) ? res[0] : res;

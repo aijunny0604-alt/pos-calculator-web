@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { supabase } from '@/lib/supabase';
 import {
   X, FileText, Package, Plus, Minus, Trash2, Edit3, RotateCcw,
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
@@ -79,6 +80,39 @@ export default function OrderDetail({
   const [replacingItemIndex, setReplacingItemIndex] = useState(null);
   const [replaceSearchTerm, setReplaceSearchTerm] = useState('');
   const [certViewer, setCertViewer] = useState(false); // 사업자등록증 확대 보기
+
+  // 🎯 포장 퀘스트 — 작업자가 품목별로 챙기며 체크(제품 누락 방지). DB 저장(order_packing) + localStorage 폴백.
+  const [packingMode, setPackingMode] = useState(false);
+  const [packedSet, setPackedSet] = useState(() => new Set());
+  const [packingDone, setPackingDone] = useState(false);
+  const [celebrate, setCelebrate] = useState(false); // 완료 축하 연출
+  useEffect(() => {
+    let alive = true;
+    const oid = order?.id || order?.orderNumber;
+    setPackingMode(false); setCelebrate(false);
+    if (!oid) { setPackedSet(new Set()); setPackingDone(false); return; }
+    (async () => {
+      const p = await supabase.getOrderPacking(oid);
+      if (!alive || !p) return;
+      const cnt = (order.items || []).length;
+      const valid = p.itemCount === cnt ? (p.checked || []) : []; // 주문 편집돼 품목 수 바뀌면 체크 리셋
+      setPackedSet(new Set(valid));
+      setPackingDone(p.itemCount === cnt ? !!p.done : false);
+    })();
+    return () => { alive = false; };
+  }, [order?.id, order?.orderNumber]);
+  const togglePacked = (idx) => {
+    const oid = order?.id || order?.orderNumber;
+    const items = order.items || [];
+    const next = new Set(packedSet);
+    if (next.has(idx)) next.delete(idx); else next.add(idx);
+    const done = items.length > 0 && next.size >= items.length;
+    const wasDone = packingDone;
+    setPackedSet(next);
+    setPackingDone(done);
+    if (done && !wasDone) { setCelebrate(true); setTimeout(() => setCelebrate(false), 2400); }
+    supabase.setOrderPacking(oid, { checked: [...next], itemCount: items.length, done });
+  };
 
   // 📄 이 주문 거래처에 연동된 사업자등록증 (이름 매칭)
   const custCert = useMemo(() => {
@@ -975,15 +1009,30 @@ export default function OrderDetail({
                 주문 상품 ({currentItems.length}종)
               </h3>
               {!isEditing && (
-                <button
-                  onClick={toggleShowLineVat}
-                  className="hidden md:inline-flex px-3 py-1.5 rounded-lg text-xs font-semibold items-center gap-1.5 border transition-colors hover:bg-[var(--accent)]"
-                  style={{ color: 'var(--muted-foreground)', borderColor: 'var(--border)', background: 'var(--card)' }}
-                  title={showLineVat ? '공급가·부가세 숨겨 한 줄로 압축' : '행마다 공급가·부가세 표시'}
-                >
-                  {showLineVat ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  공급가·부가세 {showLineVat ? '숨기기' : '표시'}
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* 🎯 포장 체크 — 작업자가 물건 챙기며 하나씩 체크 (제품 누락 방지) */}
+                  <button
+                    onClick={() => setPackingMode((v) => !v)}
+                    className="inline-flex px-3 py-1.5 rounded-lg text-xs font-bold items-center gap-1.5 border transition-all active:scale-95"
+                    style={packingMode
+                      ? { color: '#fff', background: 'linear-gradient(135deg,#f59e0b,#f97316)', borderColor: 'transparent', boxShadow: '0 2px 8px rgba(249,115,22,0.4)' }
+                      : (packingDone
+                        ? { color: '#16a34a', background: 'color-mix(in srgb, #16a34a 12%, transparent)', borderColor: 'color-mix(in srgb,#16a34a 40%,transparent)' }
+                        : { color: 'var(--foreground)', background: 'var(--card)', borderColor: 'var(--border)' })}
+                    title="포장 체크리스트 — 품목 하나씩 챙기며 체크"
+                  >
+                    {packingDone ? '✅ 포장완료' : (packingMode ? '📦 포장중…' : '📦 포장 체크')}
+                  </button>
+                  <button
+                    onClick={toggleShowLineVat}
+                    className="hidden md:inline-flex px-3 py-1.5 rounded-lg text-xs font-semibold items-center gap-1.5 border transition-colors hover:bg-[var(--accent)]"
+                    style={{ color: 'var(--muted-foreground)', borderColor: 'var(--border)', background: 'var(--card)' }}
+                    title={showLineVat ? '공급가·부가세 숨겨 한 줄로 압축' : '행마다 공급가·부가세 표시'}
+                  >
+                    {showLineVat ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    공급가·부가세 {showLineVat ? '숨기기' : '표시'}
+                  </button>
+                </div>
               )}
               {isEditing && (
                 <button
@@ -996,6 +1045,66 @@ export default function OrderDetail({
                 </button>
               )}
             </div>
+
+            {/* 🎯 포장 퀘스트 패널 — 작업자가 물건 하나씩 챙기며 탭해서 체크 */}
+            {!isEditing && packingMode && (() => {
+              const items = order.items || [];
+              const cnt = items.length;
+              const doneN = packedSet.size;
+              const pct = cnt > 0 ? Math.round((doneN / cnt) * 100) : 0;
+              return (
+                <div className="mb-4 rounded-2xl border-2 p-3.5 md:p-4"
+                  style={{ borderColor: packingDone ? 'color-mix(in srgb,#16a34a 55%,transparent)' : 'color-mix(in srgb,#f97316 45%,transparent)',
+                           background: packingDone ? 'color-mix(in srgb,#16a34a 7%,var(--card))' : 'color-mix(in srgb,#f97316 6%,var(--card))' }}>
+                  {/* 진행 게이지 */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-black flex items-center gap-1.5" style={{ color: packingDone ? '#16a34a' : '#ea580c' }}>
+                      {packingDone ? '🎉 포장 완료!' : '🎯 포장 퀘스트'}
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: packingDone ? 'color-mix(in srgb,#16a34a 18%,transparent)' : 'color-mix(in srgb,#f97316 18%,transparent)' }}>
+                        {doneN}/{cnt}
+                      </span>
+                    </span>
+                    <span className="text-xs font-black tabular-nums" style={{ color: packingDone ? '#16a34a' : '#ea580c' }}>{pct}%</span>
+                  </div>
+                  <div className="h-2.5 rounded-full overflow-hidden mb-3" style={{ background: 'color-mix(in srgb, var(--muted-foreground) 18%, transparent)' }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, background: packingDone ? 'linear-gradient(90deg,#22c55e,#16a34a)' : 'linear-gradient(90deg,#fbbf24,#f97316)' }} />
+                  </div>
+                  {/* 품목 퀘스트 리스트 — 큰 탭 영역 */}
+                  <div className="space-y-2">
+                    {items.map((it, idx) => {
+                      const isDone = packedSet.has(idx);
+                      const nm = String(it?.name || '').replace(/\s*\([^)]*\)\s*$/, (m) => m); // 옵션은 그대로 표시
+                      return (
+                        <button key={idx} onClick={() => togglePacked(idx)}
+                          className="w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all active:scale-[0.99]"
+                          style={{ borderColor: isDone ? 'color-mix(in srgb,#16a34a 40%,transparent)' : 'var(--border)',
+                                   background: isDone ? 'color-mix(in srgb,#16a34a 10%,transparent)' : 'var(--card)' }}>
+                          <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-lg font-black transition-all"
+                            style={isDone ? { background: '#16a34a', color: '#fff' } : { background: 'var(--muted)', color: 'var(--muted-foreground)', border: '2px dashed color-mix(in srgb,var(--muted-foreground) 40%, transparent)' }}
+                            key={isDone ? `d${idx}` : `u${idx}`}>
+                            {isDone ? '✓' : ''}
+                          </span>
+                          <span className="flex-1 min-w-0 break-words leading-snug font-bold text-sm md:text-base"
+                            style={{ color: isDone ? 'var(--muted-foreground)' : 'var(--foreground)', textDecoration: isDone ? 'line-through' : 'none' }}>
+                            {nm}
+                            <span className="ml-1.5 text-xs font-black" style={{ color: 'var(--primary)' }}>×{it.quantity}</span>
+                          </span>
+                          {isDone
+                            ? <span className="text-xs font-black flex-shrink-0" style={{ color: '#16a34a' }}>✓ 챙김</span>
+                            : <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--muted-foreground)' }}>탭!</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {packingDone && (
+                    <div className="mt-3 text-center text-sm font-black" style={{ color: '#16a34a' }}>
+                      🎊 다 챙겼어요! 이제 발송하세요 🚚
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* QuickItemBar — 택배비/퀵비/수수료 등 즉석 추가 (편집 모드 전용) */}
             {isEditing && (
@@ -2432,6 +2541,24 @@ export default function OrderDetail({
             ) : (
               <img src={custCert.url} alt="사업자등록증" className="w-full max-h-[80vh] object-contain rounded-lg bg-white" />
             )}
+          </div>
+        </div>
+      ), document.body)}
+
+      {/* 🎉 포장 완료 축하 연출 — 전체화면 이모지 버스트 (portal) */}
+      {celebrate && createPortal((
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center">
+            {['🎉','✨','🎊','⭐','🎉','✨','🎊','🥳','⭐','🎉','✨','🎊'].map((e, i) => (
+              <span key={i} className="absolute text-3xl md:text-4xl animate-pack-confetti"
+                style={{ left: `${8 + (i * 7.5) % 84}%`, top: '48%', animationDelay: `${(i % 6) * 0.06}s` }}>{e}</span>
+            ))}
+          </div>
+          <div className="relative animate-pack-pop rounded-2xl px-6 py-5 text-center shadow-2xl"
+            style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }}>
+            <div className="text-4xl mb-1">📦✅</div>
+            <div className="text-xl font-black">포장 완료!</div>
+            <div className="text-sm font-bold opacity-90">제품 다 챙겼어요 🚚</div>
           </div>
         </div>
       ), document.body)}
