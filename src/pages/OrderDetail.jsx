@@ -813,26 +813,28 @@ export default function OrderDetail({
                     </div>
                   )}
                 </div>
-                {/* 📄 사업자등록증 — 연동돼 있으면 썸네일/버튼, 클릭 시 확대 */}
-                {!isEditing && custCert && (
-                  <button
-                    onClick={() => setCertViewer(true)}
-                    className="flex-shrink-0 flex items-center gap-1.5"
-                    title="사업자등록증 보기"
-                  >
-                    {certIsPdf ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg border text-xs font-bold"
-                        style={{ borderColor: 'color-mix(in srgb, var(--primary) 35%, transparent)', color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}>
-                        <FileText className="w-4 h-4" /> 등록증
-                      </span>
-                    ) : (
-                      <img src={custCert.url} alt="사업자등록증"
-                        className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-lg border cursor-zoom-in hover:brightness-105 transition"
-                        style={{ borderColor: 'var(--border)' }} />
-                    )}
-                  </button>
-                )}
               </div>
+
+              {/* 📄 사업자등록증 — 연동돼 있으면 전용 카드로 명확히(모바일에서도 잘 보이게). 클릭 시 확대 */}
+              {!isEditing && custCert && (
+                <button
+                  onClick={() => setCertViewer(true)}
+                  className="flex items-center gap-3 md:gap-4 rounded-xl p-3 md:p-4 w-full md:col-span-2 text-left transition-colors hover:brightness-[0.98]"
+                  style={{ background: 'color-mix(in srgb, var(--primary) 8%, var(--secondary))', border: '1px solid color-mix(in srgb, var(--primary) 30%, var(--border))' }}
+                  title="사업자등록증 보기"
+                >
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
+                    style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
+                    {certIsPdf
+                      ? <FileText className="w-5 h-5 md:w-6 md:h-6" style={{ color: 'var(--primary)' }} />
+                      : <img src={custCert.url} alt="사업자등록증" className="w-full h-full object-cover" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs md:text-sm font-semibold" style={{ color: 'var(--muted-foreground)' }}>사업자등록증</div>
+                    <div className="font-bold text-sm md:text-base" style={{ color: 'var(--primary)' }}>탭해서 크게 보기 →</div>
+                  </div>
+                </button>
+              )}
 
               {/* 전화번호 */}
               <div
