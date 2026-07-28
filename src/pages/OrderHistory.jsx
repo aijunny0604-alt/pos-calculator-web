@@ -1251,17 +1251,20 @@ export default function OrderHistory({
                   {/* Memo preview with check toggle — 스토어 자동 메모는 카드에 숨김(DB엔 유지) */}
                   {hasUserMemo(order) && (
                     <div
-                      className="text-xs px-2 py-1 rounded mb-2 flex items-center gap-1"
+                      className="text-sm sm:text-base px-3 py-2 rounded-lg mb-2 flex items-center gap-2 border"
                       style={{
                         background: order.memoChecked
                           ? 'color-mix(in srgb, var(--success, #22c55e) 10%, transparent)'
-                          : 'color-mix(in srgb, var(--destructive) 8%, transparent)',
+                          : 'color-mix(in srgb, var(--destructive) 12%, transparent)',
+                        borderColor: order.memoChecked
+                          ? 'color-mix(in srgb, var(--success, #22c55e) 25%, transparent)'
+                          : 'color-mix(in srgb, var(--destructive) 38%, transparent)',
                         color: order.memoChecked ? 'var(--success, #22c55e)' : 'var(--destructive)',
                         opacity: order.memoChecked ? 0.7 : 1,
                       }}
                     >
-                      <FileText className="w-3 h-3 flex-shrink-0" />
-                      <span className={`break-words leading-snug line-clamp-2 flex-1 ${order.memoChecked ? 'line-through' : ''}`}>{order.memo}</span>
+                      <FileText className="w-4 h-4 flex-shrink-0" />
+                      <span className={`break-words leading-snug line-clamp-2 flex-1 ${order.memoChecked ? 'line-through font-medium' : 'font-bold'}`}>{order.memo}</span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
