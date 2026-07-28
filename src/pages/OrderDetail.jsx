@@ -77,6 +77,16 @@ export default function OrderDetail({
   // Product replace state
   const [replacingItemIndex, setReplacingItemIndex] = useState(null);
   const [replaceSearchTerm, setReplaceSearchTerm] = useState('');
+  const [certViewer, setCertViewer] = useState(false); // 사업자등록증 확대 보기
+
+  // 📄 이 주문 거래처에 연동된 사업자등록증 (이름 매칭)
+  const custCert = useMemo(() => {
+    const key = String(order?.customerName || '').toLowerCase().replace(/\s/g, '');
+    if (!key) return null;
+    const c = (customers || []).find((x) => String(x?.name || '').toLowerCase().replace(/\s/g, '') === key);
+    return c?.business_cert_url ? { url: c.business_cert_url, path: c.business_cert_path || c.business_cert_url } : null;
+  }, [customers, order?.customerName]);
+  const certIsPdf = /\.pdf($|\?)/i.test(custCert?.path || custCert?.url || '');
   // Calculator state
   const [showCalculator, setShowCalculator] = useState(false);
   // Mobile bottom section collapse state
@@ -802,6 +812,25 @@ export default function OrderDetail({
                     </div>
                   )}
                 </div>
+                {/* 📄 사업자등록증 — 연동돼 있으면 썸네일/버튼, 클릭 시 확대 */}
+                {!isEditing && custCert && (
+                  <button
+                    onClick={() => setCertViewer(true)}
+                    className="flex-shrink-0 flex items-center gap-1.5"
+                    title="사업자등록증 보기"
+                  >
+                    {certIsPdf ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg border text-xs font-bold"
+                        style={{ borderColor: 'color-mix(in srgb, var(--primary) 35%, transparent)', color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}>
+                        <FileText className="w-4 h-4" /> 등록증
+                      </span>
+                    ) : (
+                      <img src={custCert.url} alt="사업자등록증"
+                        className="w-12 h-12 md:w-14 md:h-14 object-cover rounded-lg border cursor-zoom-in hover:brightness-105 transition"
+                        style={{ borderColor: 'var(--border)' }} />
+                    )}
+                  </button>
+                )}
               </div>
 
               {/* 전화번호 */}
@@ -2381,6 +2410,26 @@ export default function OrderDetail({
           onClose={() => setShowCalculator(false)}
           initialValue={totalReturned > 0 ? order.totalAmount - totalReturned : (isEditing ? currentTotal : order.totalAmount)}
         />
+      )}
+
+      {/* 📄 사업자등록증 확대 뷰어 */}
+      {certViewer && custCert && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setCertViewer(false)}>
+          <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-white font-bold flex items-center gap-1.5"><FileText className="w-5 h-5" /> 사업자등록증 · {order.customerName}</span>
+              <div className="flex items-center gap-2">
+                <a href={custCert.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-lg text-sm font-bold text-white border border-white/40 hover:bg-white/10">원본</a>
+                <button onClick={() => setCertViewer(false)} className="px-3 py-1.5 rounded-lg text-sm font-bold text-white border border-white/40 hover:bg-white/10">닫기 ✕</button>
+              </div>
+            </div>
+            {certIsPdf ? (
+              <a href={custCert.url} target="_blank" rel="noopener noreferrer" className="block bg-white rounded-lg p-8 text-center font-bold" style={{ color: 'var(--primary)' }}>📄 PDF 새 창에서 열기</a>
+            ) : (
+              <img src={custCert.url} alt="사업자등록증" className="w-full max-h-[80vh] object-contain rounded-lg bg-white" />
+            )}
+          </div>
+        </div>
       )}
 
       {/* Return delete confirmation — wrapped in z-[65] to render above QuickCalculator (z-[60]) */}
