@@ -1,6 +1,6 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-27 (수량 클릭버그·배포사고 / 대시보드 개편·JSR위젯 / 모의견적서 / 등록증 드래그드롭·자동연동·검색연결 / TTS off·채팅스크롤 / 스토어상세·카톡금액·받는사람)
+> 마지막 업데이트: 2026-07-28 (수량 클릭버그·배포사고 / 대시보드 개편·JSR위젯 / 모의견적서 / 등록증 Ctrl+V·드래그·검색연결 / TTS off·채팅스크롤 / 스토어상세·카톡금액·받는사람 / 주문내역 신규업체·등록증배지 3곳·메모확대)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
@@ -41,6 +41,14 @@
 - **주문 상세**([OrderDetail.jsx](src/pages/OrderDetail.jsx)): 긴 네이버 카탈로그 제품명에서 **옵션(사이즈:54-15)을 칩으로 분리**(`splitNameOption`, item.option 우선). 지저분한 메모 wall(`[엠파츠]…구매자…받는분…주소…배송`) → **"🛒 스토어 주문 + 주문번호(복사) + 착불/선불 칩 + 배송메모"** 구조화 카드(`parseStoreMemo`). 전화·주소·받는분은 위 전용 카드에 이미 나오므로 중복 제거. 🚨 **사장님 자유메모 보존**: 자동필드 줄 제외한 나머지를 `rest`로 뽑아 `✏️ 메모`로 표시(안 하면 화면에서 사라짐). **DB memo 원문은 불변**(송장 발송인·착불선불 자동처리가 마커 의존).
 - **카톡 발송내역 금액**([ShippingLabel.jsx](src/pages/ShippingLabel.jsx) `buildKakaoText`): 일반 주문이 품목 줄만 찍고 **주문 총액을 안 넣어** 카톡에 택배 금액이 안 나오던 것 → **착불=푸터 `착불 N원`(기사 수금액), 선불/기타=`합계 N원`**. totalAmount 없으면 품목 합산 폴백.
 - **발송 모달 받는사람**([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx)): 일괄/단건 발송 모달이 `buyer_name`(입금자)를 표시 → **`getReceiverName`(수령인)으로 교정**. 선물·대리주문(구매자≠받는분)이면 🎁 + `· 주문 {구매자}` 병기. 택배는 받는사람 기준이라 오배송 위험이던 것.
+
+### 🆕 후속(같은 세션) — 등록증 Ctrl+V/드래그, 주문내역 신규업체·등록증 배지, 메모 확대
+- **주문내역 메모 폰트 확대**([OrderHistory.jsx](src/pages/OrderHistory.jsx)): 카드 메모가 `text-xs`(10px)라 안 보이던 것 → **`text-sm sm:text-base`(16px)** + 미확인=볼드+빨강 테두리 박스, 확인완료=중간굵기+취소선 톤다운.
+- **사업자등록증 Ctrl+V 붙여넣기 + 드래그드롭**([CertLibrary.jsx](src/pages/CertLibrary.jsx) 보관함 탭 + [CustomerList.jsx](src/pages/CustomerList.jsx) 거래처 상세): window `paste` 리스너로 클립보드 이미지 → 업로드(캡처 후 바로 붙여넣기). 거래처 상세는 `handleCertUpload`을 **`processCertFile` 코어**로 분리해 파일선택/붙여넣기/드래그 공용. 등록증 영역 `onDrop`(점선+"여기에 놓으면 업로드"). **3경로: 클릭·드래그·Ctrl+V**. 보관함 자동연동·원본보호(`isLibraryOwnedPath`) 그대로.
+- **주문내역 카드 배지 2종**([OrderHistory.jsx](src/pages/OrderHistory.jsx)): ① **🆕 신규업체** — `orders` 전체 기준 그 거래처의 **첫 주문(가장 이른)** 카드에만(주황 배지). ② **📄 등록증** — 거래처(이름 매칭)에 `business_cert_url` 연동돼 있으면 배지 → 클릭 확대 뷰어.
+- **주문 상세 모달에도 사업자등록증**([OrderDetail.jsx](src/pages/OrderDetail.jsx)): 카드 눌러 상세 열면 **"📄 사업자등록증 · 탭해서 크게 보기 →" 전용 카드**(전화/주소 카드와 동일 톤, `md:col-span-2`). `customers` 이름 매칭으로 `custCert` 조회.
+  - 🚨 **뷰어는 `createPortal(document.body)` 필수**: OrderDetail은 `useDraggableResizable`(transform) 모달이라 `fixed` 자식이 모달 박스에 갇혀 **뒤 헤더가 비쳐 투명하게** 보였음(containing-block 함정). body 포털 + `z-[9999]` + 배경 0.85로 진짜 전체화면. (OrderHistory 뷰어는 transform 부모 없어 포털 불필요)
+  - ⚠️ 모바일: 작은 코너 썸네일은 등록증인지 인지 어려움 → 라벨 있는 **전용 카드**로. 배지 줄은 기존 `flex-wrap`으로 모바일 자동 줄바꿈(추가 반응형 코드 불필요).
 
 ## 🆕 v2026-07-24 — 재주문 리스트 (재고 0 → 판매통계 우선순위 → 발주)
 
@@ -1442,6 +1450,8 @@ powershell -ExecutionPolicy Bypass -File install-scheduler.ps1  # 작업 스케�
 - 🚨 **배포 검증 = Pages 빌드 status + 라이브 해시** (v2026-07-27): `Published` 출력만 믿지 말 것. `.nojekyll` 없으면 Jekyll 빌드 errored로 **라이브가 옛 번들 고정**(사장님 "안 바뀜"의 진짜 원인이었음). `gh-pages -d dist -t`로 배포 → `pages/builds/latest`가 `built` + 라이브 index.html 번들 해시 == dist 해시 확인. minify로 함수명 grep 불가 → **기능 재현으로 검증**
 - 🚨 **버튼 클릭 검증은 좌표 실클릭으로** (v2026-07-27): JS `element.click()`은 히트테스트를 건너뛰어 **항상 성공** → 오판. 카드 `:hover:active` press-scale이 자식 +/- 버튼을 밀어 클릭이 새던 사고 → **작은 인터랙티브 컨트롤을 press-scale 컨테이너 안에 두지 말 것**. Playwright는 좌표 기반 실클릭(mouse down→up)으로 검증
 - **스토어 주문 표시 정리는 표시만, DB memo 원문 불변** (v2026-07-27): 주문상세 스토어 카드(`parseStoreMemo`)·발송 받는사람(`getReceiverName`)은 **화면 표기만** 정리. `order.memo` 원문은 절대 안 건드림(송장 발송인=엠파츠·착불선불 자동처리가 마커 의존). 자동필드 뒤 **사장님 자유메모는 `rest`로 뽑아 표시**(누락 방지). 발송은 **받는사람(수령인) 기준** — buyer_name(입금자) 아님
+- 🚨 **transform 모달 안의 전체화면 오버레이는 `createPortal(document.body)`** (v2026-07-27): OrderDetail/기타 `useDraggableResizable`(inline transform) 모달 안에서 `fixed inset-0` 오버레이(이미지 뷰어 등)를 쓰면 **transform 조상에 갇혀 뷰포트 전체를 못 덮고 뒤가 비친다**(containing-block 함정, v2026-05-25 규칙과 동일). 반드시 `createPortal`로 body에 빼낼 것. transform 부모 없는 화면(OrderHistory 등)은 불필요
+- **사업자등록증 = 거래처 이름 매칭으로 조회** (v2026-07-27): `customers`에서 `name` 공백무시 매칭 → `business_cert_url`. 주문내역 카드 배지·주문상세 카드·거래처 상세 **3곳**에서 열람(뷰어). 거래처관리에서 등록증만 올려두면(클릭/드래그/Ctrl+V) 자동 연동
 - **실시간 = Supabase Realtime(WebSocket)**: App.jsx가 `wss://…supabase.co/realtime/v1/websocket`로 **orders·products·customers·saved_carts·ai_learning** 5개 테이블 구독(`broadcast.self:false`). DB INSERT/UPDATE/DELETE 시 변경분 푸시 → 즉시 state 갱신(폴링 아님). 다른 기기/매장PC/sync.js 변경도 새로고침 없이 반영. external_orders는 StoreOrderAlerts가 별도 실시간 구독.
 - **⚠️ 비용 한도는 Vercel이 아니라 Supabase**: Free 플랜 대략 Realtime 동시연결 ~200·메시지 200만/월(매장 규모론 한참 여유) / **Egress 월 5GB가 진짜 병목**. **과거 옛 Supabase(`icqxomltplewrhopafpq`)가 egress 초과로 차단된 이력** 있어 새 프로젝트(`jubzppndcclhnvgbvrxr`)로 이전함. egress 주범은 Realtime 메시지(작음)가 아니라 **큰 목록 fetch·제품 이미지 반복 로딩** → 대용량 조회/이미지 최적화로 관리. Realtime 자체는 egress 영향 미미.
 - 🚨 **부가세는 `calcOrderVat`로 품목 단위 계산** (2026-07-16): 택배비/퀵비/수수료/커스텀은 `taxFree: true` = **받은 금액 전액이 공급가액, 부가세 0**. `calcExVat(total)`(=total/1.1)로 전체를 나누면 **비과세분에도 부가세가 붙는다**. 새 화면/텍스트에서 공급가액·부가세 표시할 땐 반드시 [utils.js](src/lib/utils.js) `calcOrderVat(items, {priceOf})` 사용
