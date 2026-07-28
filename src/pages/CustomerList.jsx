@@ -251,9 +251,8 @@ export default function CustomerList({
   const isLibraryOwnedPath = (p) => /business-cert\/library\//.test(String(p || ''));
 
   // -- 사업자등록증 업로드/교체/삭제 (기존 있으면 최신으로 교체) --
-  const handleCertUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (e.target) e.target.value = '';
+  // 파일 선택 / Ctrl+V 붙여넣기 공용 코어
+  const processCertFile = async (file) => {
     if (!file || !selectedCustomer) return;
     setCertUploading(true);
     try {
@@ -303,6 +302,27 @@ export default function CustomerList({
       setCertUploading(false);
     }
   };
+
+  const handleCertUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    await processCertFile(file);
+  };
+
+  // 📋 Ctrl+V 이미지 붙여넣기 — 거래처 상세 모달이 열려 있는 동안만
+  useEffect(() => {
+    if (!selectedCustomer) return;
+    const onPaste = (e) => {
+      const item = [...(e.clipboardData?.items || [])].find((it) => it.kind === 'file' && /^image\//.test(it.type || ''));
+      if (!item) return;
+      const file = item.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      processCertFile(file);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [selectedCustomer]);
 
   const handleCertDelete = async () => {
     if (!selectedCustomer?.business_cert_url) return;
@@ -775,7 +795,7 @@ export default function CustomerList({
                         <Upload className="w-4 h-4" /> {certUploading ? '업로드 중…' : '사업자등록증 올리기'}
                       </label>
                     )}
-                    <p className="text-xs mt-2.5" style={{ color: 'var(--muted-foreground)' }}>이미지(사진) 또는 PDF · 새로 올리면 기존 것은 최신 버전으로 교체됩니다</p>
+                    <p className="text-xs mt-2.5" style={{ color: 'var(--muted-foreground)' }}>이미지(사진)/PDF · <b>Ctrl+V 붙여넣기</b>도 가능 · 새로 올리면 기존 것은 최신 버전으로 교체됩니다</p>
                   </div>
                 );
               })()}

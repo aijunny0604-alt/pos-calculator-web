@@ -162,6 +162,21 @@ export default function CertLibrary({ customers = [], showToast }) {
     await uploadFiles(files);
   };
 
+  // 📋 Ctrl+V 이미지 붙여넣기 업로드 (보관함 탭이 열려 있는 동안). 캡처한 등록증 사진을 바로 붙여넣기
+  useEffect(() => {
+    const onPaste = (e) => {
+      const files = [...(e.clipboardData?.items || [])]
+        .filter((it) => it.kind === 'file' && /^image\//.test(it.type || ''))
+        .map((it) => it.getAsFile())
+        .filter(Boolean);
+      if (files.length === 0) return;
+      e.preventDefault();
+      uploadFiles(files);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []); // uploadFiles는 stable setter/showToast만 참조
+
   // ===== 드래그앤드롭 =====
   // dragenter/leave가 자식 위를 지날 때마다 발생해 깜빡이므로 depth 카운트로 안정화
   const dragDepth = useRef(0);
@@ -261,7 +276,7 @@ export default function CertLibrary({ customers = [], showToast }) {
           {uploading ? '업로드 중…' : dragOver ? '여기에 놓으면 등록됩니다' : '사업자등록증을 여기로 끌어다 놓으세요'}
         </p>
         <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-          클릭해서 선택할 수도 있습니다 · 이미지/PDF · 여러 장 동시 가능
+          클릭·드래그·<b>Ctrl+V 붙여넣기</b> · 이미지/PDF · 여러 장 동시 가능
         </p>
       </button>
 
