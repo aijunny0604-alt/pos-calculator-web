@@ -36,6 +36,7 @@ export default function CustomerList({
   const [categoryFilter, setCategoryFilter] = useState('all'); // 'all' | 'none' | <category name>
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [certUploading, setCertUploading] = useState(false); // 사업자등록증 업로드 중
+  const [certDragOver, setCertDragOver] = useState(false);    // 등록증 영역 파일 드래그 중
   const [certViewer, setCertViewer] = useState(null);         // 사업자등록증 이미지 확대 보기 URL
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [detailOrder, setDetailOrder] = useState(null);
@@ -306,6 +307,18 @@ export default function CustomerList({
   const handleCertUpload = async (e) => {
     const file = e.target.files?.[0];
     if (e.target) e.target.value = '';
+    await processCertFile(file);
+  };
+
+  // 🖱️ 등록증 영역 드래그앤드롭
+  const certHasFiles = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
+  const onCertDragOver = (e) => { if (!certHasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setCertDragOver(true); };
+  const onCertDragLeave = (e) => { if (!certHasFiles(e)) return; setCertDragOver(false); };
+  const onCertDrop = async (e) => {
+    if (!certHasFiles(e)) return;
+    e.preventDefault(); setCertDragOver(false);
+    if (certUploading) return;
+    const file = Array.from(e.dataTransfer.files || [])[0];
     await processCertFile(file);
   };
 
@@ -762,10 +775,21 @@ export default function CustomerList({
                 const certUrl = selectedCustomer.business_cert_url;
                 const isPdf = /\.pdf($|\?)/i.test(selectedCustomer.business_cert_path || certUrl || '');
                 return (
-                  <div className="mb-4 rounded-xl border border-[var(--border)] p-4">
+                  <div
+                    className="mb-4 rounded-xl border p-4 transition-colors"
+                    onDragOver={onCertDragOver}
+                    onDragLeave={onCertDragLeave}
+                    onDrop={onCertDrop}
+                    style={{
+                      borderColor: certDragOver ? 'var(--primary)' : 'var(--border)',
+                      background: certDragOver ? 'color-mix(in srgb, var(--primary) 8%, transparent)' : undefined,
+                      borderStyle: certDragOver ? 'dashed' : 'solid',
+                    }}
+                  >
                     <div className="flex items-center justify-between mb-2.5">
                       <p className="text-base font-bold flex items-center gap-1.5">
                         <FileText className="w-5 h-5" style={{ color: 'var(--primary)' }} /> 사업자등록증
+                        {certDragOver && <span className="text-xs font-medium" style={{ color: 'var(--primary)' }}>여기에 놓으면 업로드</span>}
                       </p>
                       {certUrl && (
                         <button onClick={handleCertDelete} className="text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1 transition-colors hover:bg-[var(--accent)]" style={{ color: 'var(--destructive)' }}>
@@ -795,7 +819,7 @@ export default function CustomerList({
                         <Upload className="w-4 h-4" /> {certUploading ? '업로드 중…' : '사업자등록증 올리기'}
                       </label>
                     )}
-                    <p className="text-xs mt-2.5" style={{ color: 'var(--muted-foreground)' }}>이미지(사진)/PDF · <b>Ctrl+V 붙여넣기</b>도 가능 · 새로 올리면 기존 것은 최신 버전으로 교체됩니다</p>
+                    <p className="text-xs mt-2.5" style={{ color: 'var(--muted-foreground)' }}>이미지(사진)/PDF · <b>드래그</b>·<b>Ctrl+V 붙여넣기</b>도 가능 · 새로 올리면 기존 것은 최신 버전으로 교체됩니다</p>
                   </div>
                 );
               })()}
