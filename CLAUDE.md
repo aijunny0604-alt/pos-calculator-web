@@ -1,9 +1,24 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-28 (수량 클릭버그·배포사고 / 대시보드 개편·JSR위젯 / 모의견적서 / 등록증 Ctrl+V·드래그·검색연결 / TTS off·채팅스크롤 / 스토어상세·카톡금액·받는사람 / 주문내역 신규업체·등록증배지 3곳·메모확대)
+> 마지막 업데이트: 2026-07-29 (📦 포장 퀘스트·실시간 공유 / 등록증 Ctrl+V·드래그 / 주문내역 신규업체·등록증배지 3곳·메모확대 / 수량 클릭버그·배포사고 / 대시보드 개편·JSR위젯 / 모의견적서 / TTS off·채팅스크롤 / 스토어상세·카톡금액·받는사람)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-07-29 — 📦 포장 퀘스트 (제품 누락 방지, 실시간 공유)
+
+사장님: "작업자가 물건 포장하며 하나씩 퀘스트처럼 체크 + 게임처럼 재미있게". 제품 빼먹기 방지 워크플로우.
+
+### 동작 ([OrderDetail.jsx](src/pages/OrderDetail.jsx))
+- 주문 상세 헤더 **[📦 포장 체크]** → 포장 퀘스트 패널: **🎯 진행 게이지(N/M·%)** + 품목별 큰 탭 영역(챙기면 ✓·취소선). 전부 챙기면 **🎉 완료 축하 연출**(portal 이모지 버스트, [index.css](src/index.css) `animate-pack-pop`/`pack-confetti`) + 헤더 **✅ 포장완료**.
+- 주문 편집돼 품목 수 바뀌면 체크 자동 리셋(index 기반이라).
+### 표시 3곳 (전부 실시간 공유)
+1. 주문 상세 패널 · 2. **주문 내역 카드**([OrderHistory.jsx](src/pages/OrderHistory.jsx)) 배지(📦✅ 포장완료 / 📦 포장중 N/M) · 3. **택배 송장 카드**([ShippingLabel.jsx](src/pages/ShippingLabel.jsx)) 📦✅ 포장완료 / 📦 포장 안됨(발송 전 확인, 출고예약은 제외)
+### 저장·실시간 ([supabase.js](src/lib/supabase.js) + 마이그 [011](../naver-sync-bridge/migrations/011_order_packing.sql) **적용완료**)
+- 테이블 **`order_packing`**(order_id PK, checked jsonb=챙긴 index배열, item_count, done, RLS anon FOR ALL). `getOrderPacking`/`setOrderPacking`(upsert `on_conflict=order_id`)/`getOrderPackingBulk`(카드용 일괄, in.()).
+- 🚨 **테이블 없어도 localStorage(`pos_packing_v1`) 폴백으로 무중단** — 테이블 미존재 1회 감지(`_orderPackingTableMissing`) 후 네트워크 스킵. SQL 적용하면 자동으로 DB(다기기 공유)로 전환.
+- 🔴 **실시간**: 마이그011이 `replica identity full` + `supabase_realtime` 발행 등록. OrderHistory/ShippingLabel/OrderDetail이 `supabaseClient.channel().on('postgres_changes', {table:'order_packing'})` 구독 → 폰에서 체크하면 PC 카드·모달에 **즉시** 반영. 같은 탭은 `window 'order-packing-changed'` 이벤트로 즉시. 라이브 검증됨(curl write→앱 카드 무새로고침 배지 등장).
+- `order.id`(=`ORD-…` 텍스트)를 키로 사용(order.id || orderNumber).
 
 ## 🆕 v2026-07-27 — 수량 클릭버그·배포사고 / 대시보드 개편 / 모의견적서 / 등록증 드래그드롭 / 스토어 상세·카톡·받는사람
 
@@ -1484,7 +1499,8 @@ powershell -ExecutionPolicy Bypass -File install-scheduler.ps1  # 작업 스케�
 ## Supabase
 
 - URL: `https://jubzppndcclhnvgbvrxr.supabase.co`
-- 테이블: orders, products, customers, customer_returns, saved_carts, ai_learning, **payment_records**, **payment_history**, **manual_paid_orders**, **external_orders**, **external_order_items**, **external_oauth_tokens**, **external_sync_cursors**, **external_sync_logs**, **external_products**(v6/10 네이버 카탈로그), **order_audit_log**(v2026-06-23 마이그007 주문 변경 감사), **business_certs**(v2026-07-09 사업자등록증 보관함), **purchase_orders**(v2026-07-15 마이그008 매입 발주), **supplier_prices**(v2026-07-15 마이그009 매입 단가표), **supplier_ledger**(v2026-07-15 마이그010 수불 장부)
+- 테이블: orders, products, customers, customer_returns, saved_carts, ai_learning, **payment_records**, **payment_history**, **manual_paid_orders**, **external_orders**, **external_order_items**, **external_oauth_tokens**, **external_sync_cursors**, **external_sync_logs**, **external_products**(v6/10 네이버 카탈로그), **order_audit_log**(v2026-06-23 마이그007 주문 변경 감사), **business_certs**(v2026-07-09 사업자등록증 보관함), **purchase_orders**(v2026-07-15 마이그008 매입 발주), **supplier_prices**(v2026-07-15 마이그009 매입 단가표), **supplier_ledger**(v2026-07-15 마이그010 수불 장부), **order_packing**(v2026-07-29 마이그011 포장 체크리스트)
+- **order_packing 주의** (v2026-07-29 마이그011): 주문 포장 체크(제품 누락 방지). `order_id` text PK(=orders.id `ORD-…`), `checked jsonb`(챙긴 index배열), `item_count`, `done`. RLS anon FOR ALL + **replica identity full + supabase_realtime 발행**(실시간 공유). 🚨 테이블 없어도 앱은 **localStorage `pos_packing_v1` 폴백**으로 동작(미존재 1회 감지 후 네트워크 스킵). 주문내역·택배송장 카드 배지 + 주문상세 퀘스트 패널이 실시간 구독
 - **purchase_orders 주의** (v2026-07-15 마이그008): **매입** 발주 — 네이버 "발주확인"(판매)과 정반대. `po_number` 비즈니스키(PO-YYMMDD, UNIQUE → 중복 등록 시 409), `items JSONB`에 `{name, spec, unit_price, qty, received_qty, note, status_override}`. **qty 음수 허용**(취소 차감). **상태는 컬럼 없음 — 프론트 계산**(입고0=미입고/입고<수량=부분입고/else 완료, status_override 우선). **공급가액=단가×발주수량**(입고수량 아님). updated_at 자동 트리거. RLS anon FOR ALL
 - **supplier_prices 주의** (v2026-07-15 마이그009): 매입 단가표(**JSR 매입가** — `products.wholesale` 도매가와 별개). UNIQUE(supplier_name, spec, quoted_at, unit_price)로 재실행 안전. **같은 마이그가 `purchase_orders`에 `quote_no`/`quote_url`/`quote_path` 3컬럼 ALTER도 함께 수행**(발주서 증빙 연결, 쉼표로 다중). 단가0/음수수량/더미행은 seed에서 제외
 - **supplier_ledger 주의** (v2026-07-15 마이그010): 빌려줌/미입고/불량품. `kind` CHECK(lent/pending/done/defect), 불량품은 `occurred_on` NULL. **비즈니스 유니크키 없음** → seed는 "데이터 있으면 건너뜀" 방식(재실행 안전). 정리 시 삭제 대신 `resolved` 토글
@@ -1528,6 +1544,7 @@ powershell -ExecutionPolicy Bypass -File install-scheduler.ps1  # 작업 스케�
 - `smartstore_widgets_collapsed` — 스토어 주문 상단 요약 위젯 접힘 상태 ('1'/'0')
 - `pos_store_alert_sound` — 전역 스토어 주문 알림음 on/off ('1'/'0', StoreOrderAlerts)
 - `pos_ai_product_search` — 제품 주문(MainPOS) AI 검색 토글 on/off ('1'/'0', 기본 ON=미설정도 ON). v2026-06-26
+- `pos_packing_v1` — 주문 포장 체크 폴백(`order_packing` 테이블 미생성/조회실패 시). `{ [orderId]: {checked:[idx], itemCount, done} }`. v2026-07-29
 
 ## 상세 문서
 
