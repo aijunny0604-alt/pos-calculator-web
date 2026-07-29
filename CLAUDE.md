@@ -288,9 +288,10 @@ MOVIS로 네이버 스토어 자동화(재고/가격/옵션 수정)를 검토하
 - **발주 등록 시 단가 자동채움**: 규격 입력 → 최근 단가·품명 자동. **이미 입력된 값은 안 덮음**. 규격칸 아래 "최근 ₩58,300 (26-05-12)" 근거 + 차액 주황 표시. datalist 자동완성
 
 ### 🤝 JSR 수불 장부 ([SupplierLedger.jsx](src/pages/SupplierLedger.jsx) 신규, 사이드바 `JSR 수불 장부` / `case 'supplier-ledger'`)
-- **테이블 `supplier_ledger`** (마이그 [010](../naver-sync-bridge/migrations/010_supplier_ledger.sql) **적용완료**): `kind` lent(빌려줌)/pending(미입고)/done(완료)/defect(불량품)
-- ⚠️ **`purchase_orders` 미입고와 별개** — 거긴 "발주서에 있는 건의 입고 잔량", 여긴 "발주서와 무관하게 오간 것"(빌려준 물건/예전 미입고/불량품 누적)
-- 적재분: 빌려준 것 68개(6건) / 미입고 164개(11건) / 불량품 29개(12종). **최고령 = 2025-10-21 미입고**(TVB 64h L/R), 빌려준 것 최고령 = 2025-12-24 CFK 93 D-G 5세트
+- **테이블 `supplier_ledger`** (마이그 [010](../naver-sync-bridge/migrations/010_supplier_ledger.sql) **적용완료**): `kind` lent(빌려줌)/done(완료)/defect(불량품). ~~pending(미입고)~~ **UI에서 제거됨**(아래 2026-07-29 참조)
+- ⚠️ **`purchase_orders` 미입고와 별개** — 거긴 "발주서에 있는 건의 입고 잔량", 여긴 "발주서와 무관하게 오간 것"(빌려준 물건/불량품 누적)
+- 적재분: 빌려준 것(회수 대상) / 불량품 12종. 빌려준 것 최고령 = 2025-12-24 CFK 93 D-G 5세트
+- 🚨 **2026-07-29 미입고 일원화**: 수불의 pending(미입고) 11건은 실제론 대부분 이미 발주 입고완료였음(stale). 구글시트 대조로 정정 → 진짜 미입고는 X64 바디 1건뿐(PO-251112 부분입고 24)이라 발주로 이관, 나머지 resolved. **수불 페이지 미입고 탭·요약카드 제거** → 미입고는 [매입 발주]에서 일원화. `KIND`에 pending 정의는 남기되(기존 데이터 배지/버킷 안전용) 탭·추가폼·요약에서 필터(`filter(([k])=>k!=='pending')`). 상세 [[feedback_jsr_supplier_ledger_vs_po]]
 - [돌려받음]/[입고됨] → `resolved` 토글. **삭제 대신 이력 보존**(삭제 확인창에서도 안내)
 - ⚠️ 시트 불량품 목록이 두 벌인데 SNPK 95S-B(1 vs 2), 95D-B(1 vs 4)가 다름 → 누적으로 보이는 쪽 채택 + 비고에 "확인 필요" 표시(화면에 ⚠️ 노출). **사장님 확인 대기**
 
@@ -1503,7 +1504,7 @@ powershell -ExecutionPolicy Bypass -File install-scheduler.ps1  # 작업 스케�
 - **order_packing 주의** (v2026-07-29 마이그011): 주문 포장 체크(제품 누락 방지). `order_id` text PK(=orders.id `ORD-…`), `checked jsonb`(챙긴 index배열), `item_count`, `done`. RLS anon FOR ALL + **replica identity full + supabase_realtime 발행**(실시간 공유). 🚨 테이블 없어도 앱은 **localStorage `pos_packing_v1` 폴백**으로 동작(미존재 1회 감지 후 네트워크 스킵). 주문내역·택배송장 카드 배지 + 주문상세 퀘스트 패널이 실시간 구독
 - **purchase_orders 주의** (v2026-07-15 마이그008): **매입** 발주 — 네이버 "발주확인"(판매)과 정반대. `po_number` 비즈니스키(PO-YYMMDD, UNIQUE → 중복 등록 시 409), `items JSONB`에 `{name, spec, unit_price, qty, received_qty, note, status_override}`. **qty 음수 허용**(취소 차감). **상태는 컬럼 없음 — 프론트 계산**(입고0=미입고/입고<수량=부분입고/else 완료, status_override 우선). **공급가액=단가×발주수량**(입고수량 아님). updated_at 자동 트리거. RLS anon FOR ALL
 - **supplier_prices 주의** (v2026-07-15 마이그009): 매입 단가표(**JSR 매입가** — `products.wholesale` 도매가와 별개). UNIQUE(supplier_name, spec, quoted_at, unit_price)로 재실행 안전. **같은 마이그가 `purchase_orders`에 `quote_no`/`quote_url`/`quote_path` 3컬럼 ALTER도 함께 수행**(발주서 증빙 연결, 쉼표로 다중). 단가0/음수수량/더미행은 seed에서 제외
-- **supplier_ledger 주의** (v2026-07-15 마이그010): 빌려줌/미입고/불량품. `kind` CHECK(lent/pending/done/defect), 불량품은 `occurred_on` NULL. **비즈니스 유니크키 없음** → seed는 "데이터 있으면 건너뜀" 방식(재실행 안전). 정리 시 삭제 대신 `resolved` 토글
+- **supplier_ledger 주의** (v2026-07-15 마이그010): 빌려줌/불량품. `kind` CHECK(lent/pending/done/defect), 불량품은 `occurred_on` NULL. **비즈니스 유니크키 없음** → seed는 "데이터 있으면 건너뜀" 방식(재실행 안전). 정리 시 삭제 대신 `resolved` 토글. 🚨 **pending(미입고)는 2026-07-29 UI 제거**(발주로 일원화, [[feedback_jsr_supplier_ledger_vs_po]]) — DB 컬럼/kind는 유지되나 화면엔 lent/done/defect만. 발주 미입고 정정은 **구글시트가 정답**(CSV 익스포트 WebFetch), 타이핑/구두 신뢰 금지, 대조 시 status_override 필터 필수
 - **order_audit_log 주의** (v2026-06-23 마이그007): 주문 변경 감사 로그. RLS **append-only**(anon insert/select만, update/delete 정책 없음=위변조/삭제 불가). `supabase.updateOrder/deleteOrder/saveOrder`이 자동 기록(actor=localStorage 기기ID). 테이블 없어도 주문 흐름 무영향(조용히 무시). 화면 뷰어 미구현
 - **products 신규 컬럼** (v2026-06-10 마이그006): `note`, `flag_color`, `initial_wholesale`, `initial_retail`, `initial_set_at`, `price_history JSONB`. `updateProduct`이 단가 변경 시 price_history 자동 append. PATCH 시 미존재 환경 대비 PGRST204 폴백 내장
 - **external_products 주의** (v2026-06-10 마이그005): 네이버 채널상품 캐시(읽기전용, 네이버=ground truth). `channel_product_no` PK, `options JSONB`(옵션조합), RLS SELECT anon 허용. sync.js `--catalog`가 채움. `external_sync_cursors`에 `force_sync` 컬럼 + provider='naver-catalog' 행 추가
