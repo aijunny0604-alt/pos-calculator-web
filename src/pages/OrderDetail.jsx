@@ -112,6 +112,8 @@ export default function OrderDetail({
     setPackingDone(done);
     if (done && !wasDone) { setCelebrate(true); setTimeout(() => setCelebrate(false), 2400); }
     supabase.setOrderPacking(oid, { checked: [...next], itemCount: items.length, done });
+    // 주문내역 카드 배지 즉시 갱신용
+    try { window.dispatchEvent(new CustomEvent('order-packing-changed', { detail: { orderId: String(oid), checkedCount: next.size, itemCount: items.length, done } })); } catch {}
   };
 
   // 📄 이 주문 거래처에 연동된 사업자등록증 (이름 매칭)

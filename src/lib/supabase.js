@@ -127,6 +127,29 @@ export const supabase = {
       return this._packingLocal(key);
     }
   },
+  // 카드 배지용 — 여러 주문의 포장 상태 일괄 조회. localStorage(이 기기, 즉시) + DB(다기기, 있으면) 병합.
+  async getOrderPackingBulk(orderIds = []) {
+    const ids = [...new Set((orderIds || []).map((x) => String(x || '')).filter(Boolean))];
+    const out = {};
+    // 1) localStorage 먼저(항상, 즉시)
+    try {
+      const all = JSON.parse(localStorage.getItem('pos_packing_v1') || '{}');
+      for (const id of ids) if (all[id]) out[id] = { checked: all[id].checked || [], itemCount: all[id].itemCount || 0, done: !!all[id].done };
+    } catch {}
+    // 2) DB 병합(테이블 있을 때만, URL 폭주 방지 위해 300개까지)
+    if (!_orderPackingTableMissing && ids.length) {
+      try {
+        const slice = ids.slice(0, 300).map((x) => encodeURIComponent(x)).join(',');
+        const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/order_packing?order_id=in.(${slice})&select=order_id,checked,item_count,done`, { headers });
+        for (const row of (Array.isArray(r) ? r : [])) {
+          out[String(row.order_id)] = { checked: Array.isArray(row.checked) ? row.checked : [], itemCount: row.item_count || 0, done: !!row.done };
+        }
+      } catch (e) {
+        if (/42P01|PGRST205|Could not find the table|relation .* does not exist/i.test(String(e?.message || e))) _orderPackingTableMissing = true;
+      }
+    }
+    return out;
+  },
   async setOrderPacking(orderId, { checked = [], itemCount = 0, done = false } = {}) {
     const key = String(orderId || '');
     if (!key) return { ok: false };

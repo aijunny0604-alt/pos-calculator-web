@@ -189,6 +189,33 @@ export default function OrderHistory({
   };
   const [certViewer, setCertViewer] = useState(null); // 사업자등록증 확대 보기 URL
 
+  // 📦 포장 상태 — 카드 배지용. { [orderId]: {checkedCount, itemCount, done} }
+  const [packingMap, setPackingMap] = useState({});
+  const orderIdOf = (o) => String(o?.id || o?.orderNumber || '');
+  useEffect(() => {
+    let alive = true;
+    const ids = (orders || []).map(orderIdOf).filter(Boolean);
+    if (ids.length === 0) { setPackingMap({}); return; }
+    (async () => {
+      const m = await supabase.getOrderPackingBulk(ids);
+      if (!alive) return;
+      const norm = {};
+      for (const [id, v] of Object.entries(m || {})) norm[id] = { checkedCount: (v.checked || []).length, itemCount: v.itemCount || 0, done: !!v.done };
+      setPackingMap(norm);
+    })();
+    return () => { alive = false; };
+  }, [orders]);
+  // 상세 모달에서 체크할 때 즉시 반영
+  useEffect(() => {
+    const onChange = (e) => {
+      const d = e.detail || {};
+      if (!d.orderId) return;
+      setPackingMap((prev) => ({ ...prev, [d.orderId]: { checkedCount: d.checkedCount || 0, itemCount: d.itemCount || 0, done: !!d.done } }));
+    };
+    window.addEventListener('order-packing-changed', onChange);
+    return () => window.removeEventListener('order-packing-changed', onChange);
+  }, []);
+
   // ESC key handling
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1114,6 +1141,27 @@ export default function OrderHistory({
                           >
                             {order.priceType === 'wholesale' ? '도매' : '소비자'}
                           </span>
+                          {/* 📦 포장 상태 — 완료=초록 도장, 진행중=주황 N/M */}
+                          {(() => {
+                            const pk = packingMap[orderIdOf(order)];
+                            if (!pk || pk.itemCount === 0 || pk.checkedCount === 0) return null;
+                            if (pk.done) {
+                              return (
+                                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black flex-shrink-0 animate-pack-pop"
+                                  style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', boxShadow: '0 1px 5px rgba(22,163,74,0.45)' }}
+                                  title="포장 완료 — 제품 다 챙김">
+                                  📦✅ 포장완료
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black flex-shrink-0"
+                                style={{ background: 'color-mix(in srgb,#f97316 16%,transparent)', color: '#ea580c', border: '1px solid color-mix(in srgb,#f97316 40%,transparent)' }}
+                                title="포장 진행 중">
+                                📦 포장중 {pk.checkedCount}/{pk.itemCount}
+                              </span>
+                            );
+                          })()}
                           {/* 🆕 신규업체 — 이 거래처의 첫 주문일 때만 */}
                           {isFirstOrder(order) && (
                             <span
