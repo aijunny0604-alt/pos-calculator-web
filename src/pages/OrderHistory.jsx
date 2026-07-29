@@ -8,7 +8,7 @@ import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetD
 import SubPrice from '@/components/ui/SubPrice';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
 import useCountUp from '@/hooks/useCountUp';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseClient } from '@/lib/supabase';
 import { classifyOrderChannel, extractNaverBuyer } from '@/lib/channelClassifier';
 import { NAVER_COURIERS, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 
@@ -205,7 +205,7 @@ export default function OrderHistory({
     })();
     return () => { alive = false; };
   }, [orders]);
-  // 상세 모달에서 체크할 때 즉시 반영
+  // 상세 모달에서 체크할 때 즉시 반영(같은 탭)
   useEffect(() => {
     const onChange = (e) => {
       const d = e.detail || {};
@@ -214,6 +214,21 @@ export default function OrderHistory({
     };
     window.addEventListener('order-packing-changed', onChange);
     return () => window.removeEventListener('order-packing-changed', onChange);
+  }, []);
+
+  // 🔴 실시간 — 다른 기기/작업자가 포장 체크하면 카드 배지 즉시 갱신 (order_packing 구독)
+  useEffect(() => {
+    const ch = supabaseClient
+      .channel('order_packing_cards')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_packing' }, (p) => {
+        const row = p.new || p.old || {};
+        const id = String(row.order_id || '');
+        if (!id) return;
+        if (p.eventType === 'DELETE') { setPackingMap((prev) => { const n = { ...prev }; delete n[id]; return n; }); return; }
+        setPackingMap((prev) => ({ ...prev, [id]: { checkedCount: (row.checked || []).length, itemCount: row.item_count || 0, done: !!row.done } }));
+      })
+      .subscribe();
+    return () => { try { supabaseClient.removeChannel(ch); } catch {} };
   }, []);
 
   // ESC key handling

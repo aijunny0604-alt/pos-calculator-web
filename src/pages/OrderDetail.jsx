@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseClient } from '@/lib/supabase';
 import {
   X, FileText, Package, Plus, Minus, Trash2, Edit3, RotateCcw,
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
@@ -115,6 +115,24 @@ export default function OrderDetail({
     // 주문내역 카드 배지 즉시 갱신용
     try { window.dispatchEvent(new CustomEvent('order-packing-changed', { detail: { orderId: String(oid), checkedCount: next.size, itemCount: items.length, done } })); } catch {}
   };
+
+  // 🔴 실시간 — 다른 작업자가 같은 주문을 체크하면 내 모달의 체크·게이지도 즉시 반영
+  useEffect(() => {
+    const oid = order?.id || order?.orderNumber;
+    if (!oid) return;
+    const ch = supabaseClient
+      .channel(`order_packing_detail_${oid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_packing', filter: `order_id=eq.${oid}` }, (p) => {
+        const row = p.new || {};
+        const cnt = (order.items || []).length;
+        // 품목 수 일치할 때만 반영(편집 중 불일치 방지)
+        if ((row.item_count || 0) !== cnt) return;
+        setPackedSet(new Set(Array.isArray(row.checked) ? row.checked : []));
+        setPackingDone(!!row.done);
+      })
+      .subscribe();
+    return () => { try { supabaseClient.removeChannel(ch); } catch {} };
+  }, [order?.id, order?.orderNumber]);
 
   // 📄 이 주문 거래처에 연동된 사업자등록증 (이름 매칭)
   const custCert = useMemo(() => {
