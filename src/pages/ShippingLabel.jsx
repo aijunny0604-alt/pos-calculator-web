@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseClient } from '@/lib/supabase';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
 import { NAVER_COURIERS, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
@@ -159,6 +159,42 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
   useEffect(() => {
     localStorage.setItem('shippingCustomEntries', JSON.stringify(customEntries));
   }, [customEntries]);
+
+  // 📦 포장 상태 — 송장 카드에 '포장완료/안됨' 표기 (실시간 공유)
+  const [packingMap, setPackingMap] = useState({});
+  const packOrderId = (o) => String(o?.id || o?.orderNumber || '');
+  useEffect(() => {
+    let alive = true;
+    const ids = (orders || []).map((o) => String(o?.id || o?.orderNumber || '')).filter(Boolean);
+    if (ids.length === 0) { setPackingMap({}); return; }
+    (async () => {
+      const m = await supabase.getOrderPackingBulk(ids);
+      if (!alive) return;
+      const norm = {};
+      for (const [id, v] of Object.entries(m || {})) norm[id] = { checkedCount: (v.checked || []).length, itemCount: v.itemCount || 0, done: !!v.done };
+      setPackingMap(norm);
+    })();
+    return () => { alive = false; };
+  }, [orders]);
+  useEffect(() => {
+    const onChange = (e) => {
+      const d = e.detail || {};
+      if (!d.orderId) return;
+      setPackingMap((prev) => ({ ...prev, [d.orderId]: { checkedCount: d.checkedCount || 0, itemCount: d.itemCount || 0, done: !!d.done } }));
+    };
+    window.addEventListener('order-packing-changed', onChange);
+    const ch = supabaseClient
+      .channel('order_packing_shipping')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_packing' }, (p) => {
+        const row = p.new || p.old || {};
+        const id = String(row.order_id || '');
+        if (!id) return;
+        if (p.eventType === 'DELETE') { setPackingMap((prev) => { const n = { ...prev }; delete n[id]; return n; }); return; }
+        setPackingMap((prev) => ({ ...prev, [id]: { checkedCount: (row.checked || []).length, itemCount: row.item_count || 0, done: !!row.done } }));
+      })
+      .subscribe();
+    return () => { window.removeEventListener('order-packing-changed', onChange); try { supabaseClient.removeChannel(ch); } catch {} };
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1072,6 +1108,23 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                                 📦 출고예약
                               </span>
                             )}
+                            {/* 📦 포장 상태 — 실제 주문만(출고예약 제외). 완료=됨/미완료=안됨 명확히 */}
+                            {!order.__fromSavedCart && (() => {
+                              const pk = packingMap[packOrderId(order)];
+                              return pk?.done ? (
+                                <span className="px-2 py-0.5 text-xs rounded-full font-black flex items-center gap-1"
+                                  style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', boxShadow: '0 1px 4px rgba(22,163,74,0.4)' }}
+                                  title="포장 완료 — 발송 OK">
+                                  📦✅ 포장완료
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 text-xs rounded-full font-black flex items-center gap-1"
+                                  style={{ background: 'color-mix(in srgb, var(--destructive) 14%, transparent)', color: 'var(--destructive)', border: '1px solid color-mix(in srgb, var(--destructive) 40%, transparent)' }}
+                                  title={pk && pk.checkedCount > 0 ? `포장 진행중 ${pk.checkedCount}/${pk.itemCount}` : '아직 포장 안 함 — 발송 전 확인'}>
+                                  📦 {pk && pk.checkedCount > 0 ? `포장중 ${pk.checkedCount}/${pk.itemCount}` : '포장 안됨'}
+                                </span>
+                              );
+                            })()}
                           </div>
                           <p className="text-[var(--muted-foreground)] text-xs break-words leading-snug">{shipAddress(order, customer) || '주소 미등록'}</p>
                           {/* 받는분(수령인)·배송메모 — 발송은 받는사람 기준 */}
