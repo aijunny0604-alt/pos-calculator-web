@@ -1041,7 +1041,7 @@ export default function OrderDetail({
                         : { color: 'var(--foreground)', background: 'var(--card)', borderColor: 'var(--border)' })}
                     title="포장 체크리스트 — 품목 하나씩 챙기며 체크"
                   >
-                    {packingDone ? '✅ 포장완료' : (packingMode ? '📦 포장중…' : '📦 포장 체크')}
+                    {packingDone ? '✅ 포장완료' : (packingMode ? '📦 포장중…' : (packedSet.size > 0 ? `📦 포장 ${packedSet.size}/${(order.items || []).length}` : '📦 포장 체크'))}
                   </button>
                   <button
                     onClick={toggleShowLineVat}
@@ -1065,6 +1065,27 @@ export default function OrderDetail({
                 </button>
               )}
             </div>
+
+            {/* 📊 포장 진행도 — 패널 안 열어도 상시 보이는 요약바 (탭하면 퀘스트 열림) */}
+            {!isEditing && !packingMode && (packedSet.size > 0 || packingDone) && (() => {
+              const cnt = (order.items || []).length;
+              const doneN = packedSet.size;
+              const pct = cnt ? Math.round((doneN / cnt) * 100) : 0;
+              return (
+                <button onClick={() => setPackingMode(true)}
+                  className="w-full mb-4 flex items-center gap-3 px-3.5 py-2.5 rounded-xl border text-left active:scale-[0.99] transition-transform"
+                  style={{ borderColor: packingDone ? 'color-mix(in srgb,#16a34a 45%,transparent)' : 'color-mix(in srgb,#f97316 40%,transparent)',
+                           background: packingDone ? 'color-mix(in srgb,#16a34a 7%,var(--card))' : 'color-mix(in srgb,#f97316 6%,var(--card))' }}>
+                  <span className="text-sm font-black whitespace-nowrap" style={{ color: packingDone ? '#16a34a' : '#ea580c' }}>
+                    {packingDone ? '✅ 포장완료' : '📦 포장 진행'}
+                  </span>
+                  <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb,var(--muted-foreground) 18%,transparent)' }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: packingDone ? 'linear-gradient(90deg,#22c55e,#16a34a)' : 'linear-gradient(90deg,#fbbf24,#f97316)' }} />
+                  </div>
+                  <span className="text-xs font-black tabular-nums whitespace-nowrap" style={{ color: packingDone ? '#16a34a' : '#ea580c' }}>{doneN}/{cnt}</span>
+                </button>
+              );
+            })()}
 
             {/* 🎯 포장 퀘스트 패널 — 작업자가 물건 하나씩 챙기며 탭해서 체크 */}
             {!isEditing && packingMode && (() => {
@@ -1413,12 +1434,25 @@ export default function OrderDetail({
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span
-                              className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
-                              style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}
-                            >
-                              No.{index + 1}
-                            </span>
+                            {isEditing ? (
+                              <span
+                                className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
+                                style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}
+                              >
+                                No.{index + 1}
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => togglePacked(index)}
+                                title={packedSet.has(index) ? '포장 완료 — 탭하면 해제' : '탭하면 포장 체크'}
+                                className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-bold inline-flex items-center gap-1 border transition-all active:scale-90"
+                                style={packedSet.has(index)
+                                  ? { background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', borderColor: 'transparent' }
+                                  : { background: 'var(--muted)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
+                              >
+                                {packedSet.has(index) ? '✓ 포장' : `No.${index + 1}`}
+                              </button>
+                            )}
                             {returnedQty > 0 && (
                               <span
                                 className="text-xs px-1.5 py-0.5 rounded flex-shrink-0"
@@ -1659,8 +1693,21 @@ export default function OrderDetail({
                     {/* Desktop table layout */}
                     <div className="hidden md:block">
                       <div className={`grid grid-cols-12 gap-3 px-5 items-center ${(showLineVat || isEditing) ? 'py-4' : 'py-2.5'}`}>
-                        <div className="col-span-1 text-center text-base font-semibold" style={{ color: 'var(--muted-foreground)' }}>
-                          {index + 1}
+                        <div className="col-span-1 flex justify-center">
+                          {isEditing ? (
+                            <span className="text-base font-semibold" style={{ color: 'var(--muted-foreground)' }}>{index + 1}</span>
+                          ) : (
+                            <button
+                              onClick={() => togglePacked(index)}
+                              title={packedSet.has(index) ? '포장 완료 — 탭하면 해제' : '탭하면 포장 체크 (제품 챙김)'}
+                              className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-black border-2 transition-all active:scale-90"
+                              style={packedSet.has(index)
+                                ? { background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', borderColor: 'transparent', boxShadow: '0 1px 6px rgba(22,163,74,0.45)' }
+                                : { background: 'transparent', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}
+                            >
+                              {packedSet.has(index) ? '✓' : (index + 1)}
+                            </button>
+                          )}
                         </div>
                         <div className="col-span-3 font-semibold flex items-center gap-2 min-w-0" style={{ color: 'var(--foreground)' }}>
                           <div className="flex-1 min-w-0">

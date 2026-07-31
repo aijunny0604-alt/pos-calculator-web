@@ -1139,7 +1139,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
                       </td>
                       <td className="px-3 py-2.5"><AgeBadge date={po.order_date} /></td>
                       <td className="px-3 py-2.5 font-bold" style={{ color: 'var(--foreground)' }}>{item.name}</td>
-                      <td className="px-3 py-2.5 font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>{item.spec}</td>
+                      <td className="px-3 py-2.5 font-mono text-base sm:text-lg font-black tracking-tight" style={{ color: 'var(--foreground)' }}>{item.spec}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap tabular-nums" style={{ color: 'var(--muted-foreground)' }}>₩{formatPrice(item.unit_price)}</td>
                       <td className="px-3 py-2.5 tabular-nums">{num(item.qty)}</td>
                       <td className="px-3 py-2.5 tabular-nums">{num(item.received_qty)}</td>

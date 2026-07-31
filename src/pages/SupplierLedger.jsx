@@ -178,7 +178,6 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
           {[
             { label: '빌려준 것', value: `${summary.lentQty}개`, sub: `${summary.lentCount}건 미회수`, alert: summary.lentCount > 0 },
-            { label: '미입고', value: `${summary.pendingQty}개`, sub: `${summary.pendingCount}건`, alert: summary.pendingCount > 0 },
             { label: '불량품 누적', value: `${summary.defectQty}개`, sub: `${summary.defectCount}종`, alert: summary.defectQty > 0 },
             { label: '가장 오래된 건', value: summary.oldest ? `${summary.oldestDays}일` : '없음', sub: summary.oldest?.occurred_on || null, alert: summary.oldestDays >= 90 },
           ].map((c) => (
@@ -191,7 +190,7 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mb-2">
-          {Object.entries(KIND).map(([k, v]) => (
+          {Object.entries(KIND).filter(([k]) => k !== 'pending').map(([k, v]) => (
             <button key={k} onClick={() => setTab(k)}
               className="px-3.5 py-2 rounded-xl text-sm font-bold border transition-all flex items-center gap-1.5"
               style={tab === k ? { background: v.color, color: 'white', borderColor: v.color } : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}>
@@ -320,7 +319,7 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
               <div>
                 <span className="text-sm font-bold" style={{ color: 'var(--muted-foreground)' }}>구분</span>
                 <div className="flex flex-wrap gap-2 mt-1.5">
-                  {Object.entries(KIND).map(([k, v]) => (
+                  {Object.entries(KIND).filter(([k]) => k !== 'pending').map(([k, v]) => (
                     <button key={k} onClick={() => setEditing({ ...editing, kind: k })}
                       className="px-3.5 py-2 rounded-xl text-sm font-bold border"
                       style={editing.kind === k ? { background: v.color, color: 'white', borderColor: v.color } : { background: 'var(--background)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}>
