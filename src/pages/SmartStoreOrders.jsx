@@ -675,8 +675,8 @@ export default function SmartStoreOrders({
   const [dispatchCompany, setDispatchCompany] = useState(DEFAULT_COURIER_CODE);
   const [dispatchTracking, setDispatchTracking] = useState('');
 
-  const reload = useCallback(async () => {
-    setLoading(true);
+  const reload = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     const list = await supabase.getExternalOrders({ limit: 200 });
     setOrders(list || []);
     // 모든 주문의 items를 단일 배치 쿼리로 로드 (N+1 제거 — 주문마다 따로 요청하던 게 로딩 지연 원인, 2026-06-22)
@@ -684,7 +684,7 @@ export default function SmartStoreOrders({
     // 주문은 있는데 items 없는 경우도 빈 배열로 채워 일관성 유지
     for (const o of (list || [])) { if (!itemsMap[o.id]) itemsMap[o.id] = []; }
     setItemsByOrder(itemsMap);
-    setLoading(false);
+    if (!silent) setLoading(false);
 
     // 상품 대문 이미지 — 주문의 네이버 productId를 모아 카탈로그 캐시에서 한 번에 조회.
     // 화면 렌더를 막지 않으려 items 세팅 뒤 별도로 채운다(도착하면 썸네일이 나타남).
@@ -710,6 +710,17 @@ export default function SmartStoreOrders({
     const onChange = () => reload();
     window.addEventListener('external-orders-changed', onChange);
     return () => window.removeEventListener('external-orders-changed', onChange);
+  }, [reload]);
+
+  // ⏱️ 열어둔 채로도 자동 최신화 — 45초 폴링 + 탭 복귀/포커스 시 즉시.
+  //   external_orders가 realtime publication에 없어 StoreOrderAlerts 구독이 죽어있어도(새 주문 미반영)
+  //   이 폴링이 안전망. silent=로딩 스피너 없이 조용히 갱신(스크롤·모달 방해 없음). 숨은 탭은 폴링 스킵.
+  useEffect(() => {
+    const iv = setInterval(() => { if (!document.hidden) reload({ silent: true }); }, 45000);
+    const onWake = () => { if (!document.hidden) reload({ silent: true }); };
+    window.addEventListener('focus', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    return () => { clearInterval(iv); window.removeEventListener('focus', onWake); document.removeEventListener('visibilitychange', onWake); };
   }, [reload]);
 
   // 날짜 조회 범위 계산 (KST 기준)
