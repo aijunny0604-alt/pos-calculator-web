@@ -180,6 +180,27 @@ export default function OrderHistory({
     return first && first.id === (order.id || order.orderNumber);
   };
 
+  // 🛒 스토어(네이버) 주문 — 이 고객이 우리 스토어에서 몇 번째 주문인지(1=신규고객, 2=2번째…).
+  //   매장 직접주문은 제외하고 스토어 주문끼리만 시간순 카운트. 구매자 기준(엠파츠 옛데이터는 memo 파싱).
+  const storeOrdinalByOrderId = useMemo(() => {
+    const byBuyer = new Map();
+    for (const o of orders || []) {
+      if (classifyOrderChannel(o) !== 'naver') continue;
+      const key = normName(extractNaverBuyer(o) || o.customerName);
+      if (!key) continue;
+      const t = new Date(o.createdAt || o.received_at || 0).getTime();
+      const arr = byBuyer.get(key) || [];
+      arr.push({ id: o.id || o.orderNumber, t });
+      byBuyer.set(key, arr);
+    }
+    const ord = new Map();
+    for (const arr of byBuyer.values()) {
+      arr.sort((a, b) => a.t - b.t);
+      arr.forEach((x, i) => ord.set(x.id, i + 1));
+    }
+    return ord;
+  }, [orders]);
+
   // 📄 거래처 사업자등록증 — 이름 매칭으로 연동된 등록증 URL 조회 (거래처관리에서 올린 것)
   const getCustomerCert = (customerName) => {
     const key = normName(customerName);
@@ -1177,8 +1198,23 @@ export default function OrderHistory({
                               </span>
                             );
                           })()}
-                          {/* 🆕 신규업체 — 이 거래처의 첫 주문일 때만 */}
-                          {isFirstOrder(order) && (
+                          {/* 🆕 배지 — 스토어 주문: 이 고객의 스토어 주문 순번(1=신규고객/N=N번째). 매장 주문: 첫 주문이면 신규업체 */}
+                          {isNaverOrder ? (() => {
+                            const n = storeOrdinalByOrderId.get(order.id || order.orderNumber);
+                            if (!n) return null;
+                            const isNew = n === 1;
+                            return (
+                              <span
+                                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black flex-shrink-0"
+                                style={isNew
+                                  ? { background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#fff', boxShadow: '0 1px 4px rgba(249,115,22,0.4)' }
+                                  : { background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff', boxShadow: '0 1px 4px rgba(79,70,229,0.4)' }}
+                                title={isNew ? '우리 스토어 첫 주문 고객입니다' : `우리 스토어 ${n}번째 주문 고객입니다`}
+                              >
+                                {isNew ? '🆕 신규고객' : `🔁 ${n}번째`}
+                              </span>
+                            );
+                          })() : (isFirstOrder(order) && (
                             <span
                               className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black flex-shrink-0"
                               style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#fff', boxShadow: '0 1px 4px rgba(249,115,22,0.4)' }}
@@ -1186,7 +1222,7 @@ export default function OrderHistory({
                             >
                               🆕 신규업체
                             </span>
-                          )}
+                          ))}
                           {/* 📄 사업자등록증 — 연동돼 있으면 클릭해서 보기 */}
                           {(() => {
                             const cert = getCustomerCert(order.customerName);
