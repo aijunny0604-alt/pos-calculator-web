@@ -1,9 +1,23 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-07-30 (📦 포장 체크 3곳 동기화[버튼·진행도바·상품행] / JSR 수불 미입고→발주 일원화·시트대조 / 발주 미입고 규격명 폰트 확대 / 포장 퀘스트·실시간 공유 / 등록증 Ctrl+V·드래그 / 주문내역 신규업체·등록증배지 3곳·메모확대)
+> 마지막 업데이트: 2026-08-03 (스토어 0원옵션 흡수·자동최신화[마이그012 realtime]·신규고객/N번째 배지 / 📦 포장 체크 3곳 동기화 / JSR 수불 미입고→발주 일원화·시트대조 / 발주 규격명 폰트 / 등록증 Ctrl+V·드래그)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-08-03 — 스토어 주문 3종 (0원옵션 흡수 · 자동최신화 · 신규고객 배지)
+
+### 0원 필수옵션 흡수 ([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx) `convertToInternalOrder`)
+- 네이버가 "상품(25만)+필수선택 옵션(0원)"을 **같은 `raw_payload.productOrder.productId`의 별도 라인 2개**로 보냄 → 전환 시 0원 줄이 명세서에 뜨고 App.saveOrder 0원 경고까지 나던 문제.
+- 수정: **0원 라인을 같은 productId의 유상 부모 라인에 흡수**(옵션 텍스트만 부모에 합침, 0원 줄 제거). **발주수량·총액 불변**. 유상 옵션(옵션가>0)은 그대로 별도 줄. productId 없거나 유상 부모 없으면 흡수 안 함(진짜 0원 품목은 기존대로 경고).
+
+### 스토어 페이지 자동 최신화 ([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx))
+- 새 주문이 열어둔 페이지에 반영 안 되던 원인 = **external_orders가 realtime publication 미등록**이라 StoreOrderAlerts 구독이 죽어있었음(sync.js·새로고침은 정상).
+- 🔴 **마이그 [012](../naver-sync-bridge/migrations/012_external_orders_realtime.sql) 적용완료**: `external_orders` replica identity full + supabase_realtime 발행 등록 → 새 주문 **즉시 반영 + 신규주문 토스트 복구**(end-to-end 검증됨).
+- 🛟 **폴링 안전망**: `reload({silent})`(로딩 스피너 없이) **45초 폴링 + 탭 포커스/복귀 시 즉시**. 실시간 죽어도 커버. 숨은 탭은 스킵.
+
+### 스토어 주문 배지 신규업체→신규고객/N번째 ([OrderHistory.jsx](src/pages/OrderHistory.jsx))
+- 스토어(네이버) 주문 카드: 그 **구매자의 스토어 주문 시간순 순번**으로 **1=🆕 신규고객(주황)** / **2+=🔁 N번째(남색)**. 매장 직접주문은 기존 **🆕 신규업체** 유지. `classifyOrderChannel`/`extractNaverBuyer` 재사용, 매장주문 제외하고 스토어끼리만 카운트.
 
 ## 🆕 v2026-07-29 — 📦 포장 퀘스트 (제품 누락 방지, 실시간 공유)
 
