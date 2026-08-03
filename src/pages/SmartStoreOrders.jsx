@@ -1393,14 +1393,40 @@ export default function SmartStoreOrders({
       if (!silent) showToast?.('주문 항목이 아직 준비 안 됐어요 — 잠시 후 다시 시도', 'error');
       return { ok: false };
     }
+    // 🔗 0원 "필수 선택" 옵션 라인은 같은 상품(productId)의 유상 부모 라인에 흡수한다.
+    //    네이버가 옵션을 별도 productOrder(0원)로 쪼개 보내서(예: 인테이크+알루미늄타입 0원)
+    //    명세서에 "0원" 별도 줄로 뜨고 0원 경고까지 나던 문제 → 부모(25만원) 한 줄에 옵션만 합치고
+    //    0원 줄은 제거한다(총액 불변). 유상 옵션(옵션가>0)은 그대로 별도 줄 유지. productId 없으면 흡수 안 함.
+    const pidOf = (it) => it?.raw_payload?.productOrder?.productId || null;
+    const pricedParentIdByPid = new Map(); // productId → 유상 부모 external_order_item.id
+    for (const it of usableItems) {
+      if (Number(it.unit_price) > 0) { const pid = pidOf(it); if (pid && !pricedParentIdByPid.has(pid)) pricedParentIdByPid.set(pid, it.id); }
+    }
+    const absorbedIds = new Set();
+    const extraOptsByParentId = new Map(); // 부모 item.id → [흡수된 옵션 라벨…]
+    for (const it of usableItems) {
+      if (Number(it.unit_price) > 0) continue; // 유상 옵션/상품은 그대로 유지
+      const pid = pidOf(it);
+      const parentId = pid ? pricedParentIdByPid.get(pid) : null;
+      if (parentId && parentId !== it.id) {
+        absorbedIds.add(it.id);
+        const lbl = (it.provider_product_option || it.provider_product_name || '').trim();
+        if (lbl) { const a = extraOptsByParentId.get(parentId) || []; a.push(lbl); extraOptsByParentId.set(parentId, a); }
+      }
+    }
     // 매칭된 item 은 product DB 연결, 매칭 안 된 item 은 freeform (네이버 제품명·금액 그대로)
-    const itemsForOrder = usableItems.map((it) => {
+    const itemsForOrder = usableItems.filter((it) => !absorbedIds.has(it.id)).map((it) => {
       const isMatched = !!(it.matched_product_id && (it.match_status === 'matched' || it.match_status === 'manual'));
       const p = isMatched ? products.find((x) => x.id === it.matched_product_id) : null;
       const baseName = it.matched_product_name || it.provider_product_name;
       // 스토어 주문 옵션(예: "사이즈: 63-90")을 내부주문에도 보존 — 상세 모달이 name을 렌더하므로
-      // 옵션을 제품명에 함께 붙여 한눈에 보이게 + option 필드도 별도 보존.
-      const opt = (it.provider_product_option || '').trim();
+      // 옵션을 제품명에 함께 붙여 한눈에 보이게 + option 필드도 별도 보존. 흡수된 0원 옵션도 함께 합친다.
+      const opts = [];
+      const selfOpt = (it.provider_product_option || '').trim();
+      if (selfOpt) opts.push(selfOpt);
+      const extra = extraOptsByParentId.get(it.id);
+      if (extra) opts.push(...extra);
+      const opt = opts.join(' / ');
       return {
         // freeform 의 id 는 productOrderId 기반 유니크 마커 (같은 주문 합산 안 되게)
         id: isMatched ? (p?.id || it.matched_product_id) : `naver-${it.provider_product_order_id || it.id}`,
