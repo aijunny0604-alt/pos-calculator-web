@@ -805,7 +805,7 @@ export default function MainPOS({
                                   )}
                                 </div>
                               )}
-                              <div className={demoImg ? 'flex-1 min-w-0 px-3 py-2 flex flex-col justify-between' : (aiSingle ? 'flex flex-row items-center justify-between gap-4 flex-1 min-w-0' : '')}>
+                              <div className={demoImg ? 'flex-1 min-w-0 px-3 py-2 flex flex-col justify-between' : (aiSingle ? 'flex flex-row flex-wrap items-center justify-between gap-x-4 gap-y-1.5 flex-1 min-w-0' : '')}>
                               {/* Product name & stock badge */}
                               <div className={`flex items-start gap-1.5 ${aiSingle ? 'flex-1 min-w-0 items-center' : 'justify-between mb-1.5'}`}>
                                 <p
@@ -924,7 +924,7 @@ export default function MainPOS({
                               {/* ⚠️ 주의사항 메모 — 카드 하단 상시 표시 */}
                               {hasNote && (
                                 <p
-                                  className="mt-1.5 px-2 py-1 rounded text-[11px] font-medium leading-snug break-words"
+                                  className={`mt-1.5 px-2 py-1 rounded text-[11px] font-medium leading-snug break-words ${aiSingle ? 'basis-full w-full' : ''}`}
                                   style={{
                                     background: `color-mix(in srgb, ${flagColor || 'var(--warning)'} 12%, transparent)`,
                                     color: flagColor || 'var(--warning)',
