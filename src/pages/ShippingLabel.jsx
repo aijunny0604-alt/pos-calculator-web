@@ -852,28 +852,29 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
       if (grouped[sender]) grouped[sender].custom.push(entry);
     });
 
-    // 숫자만 추출 (금액 문자열 방어)
-    const money = (v) => { const n = Number(String(v ?? '').replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? n : 0; };
-    // 주문 품목 → "  품명 ×수량  N,NNN원" 한 줄씩. 금액=단가×수량 (items.price는 단가, total과 합치 검증됨)
+    const num = (v) => { const n = Number(String(v ?? '').replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? n : 0; };
+    // 주문 품목 → "  품명" (수량>1이면 ×N). 🚫 제품가는 카톡 배송복사에 불필요 → 미표시(사용자 요청 2026-08-04).
     const orderItemLines = (items) => {
       const out = [];
       (items || []).forEach((i) => {
         const name = (i?.name || '').trim();
         if (!name) return;
         const qty = Number(i?.quantity) || 1;
-        const amt = money(i?.price ?? i?.wholesale ?? i?.retail) * qty;
-        const qtyStr = qty > 1 ? ` ×${qty}` : '';
-        out.push(`  ${name}${qtyStr}${amt > 0 ? `  ${formatPrice(amt)}원` : ''}`);
+        out.push(`  ${name}${qty > 1 ? ` ×${qty}` : ''}`);
       });
       if (out.length === 0) out.push('  상품');
       return out;
     };
+    // 착불/선불 푸터 — 착불이면 '배송비'만(제품값 아님), 선불이면 금액 없이 '선불'
+    const payFoot = (packaging, paymentType, shipAmount) => {
+      const isCOD = /착불/.test(paymentType || '');
+      const amt = num(shipAmount);
+      const payStr = isCOD ? `착불${amt > 0 ? ` ${formatPrice(amt)}원` : ''}` : (paymentType || '');
+      return [packaging, payStr].filter(Boolean).join(' · ');
+    };
 
-    const now = new Date();
-    const dLabel = `${now.getMonth() + 1}/${now.getDate()}`;
     const blocks = [];
     let grand = 0;
-    let grandAmount = 0;
 
     senderList.forEach(sender => {
       const { orders: sOrders, custom } = grouped[sender];
@@ -888,34 +889,22 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
         const phone = recv?.tel || customer?.phone || order.customerPhone || '';
         const address = shipAddress(order, customer);
         const setting = getOrderSetting(order.orderNumber, order.customerName, order);
-        // 🚨 주문 총액 — 기존엔 grandAmount 헤더 합산만 하고 주문별 금액 줄은 안 찍어서
-        //    카톡에 "택배 금액이 안 나온다"(특히 착불 수금액). 커스텀 항목처럼 합계/착불 줄 추가.
-        const orderTotal = money(order.totalAmount ?? order.total)
-          || (order.items || []).reduce((s, i) => s + money(i?.price ?? i?.wholesale ?? i?.retail) * (Number(i?.quantity) || 1), 0);
-        grandAmount += orderTotal;
-        const isCOD = /착불/.test(setting.paymentType || '');
         lines.push(`${idx}. ${shippingName(order)}${phone ? `  ${phone}` : ''}`);
         if (address) lines.push(`  ${address}`);
+        lines.push('');                                    // 주소 다음 빈 줄
         orderItemLines(order.items).forEach(l => lines.push(l));
-        // 착불이면 아래 푸터에 '착불 N원'으로 표시하므로 중복 방지, 그 외엔 합계 줄
-        if (orderTotal > 0 && !isCOD) lines.push(`  합계 ${formatPrice(orderTotal)}원`);
-        const payStr = isCOD && orderTotal > 0 ? `착불 ${formatPrice(orderTotal)}원` : setting.paymentType;
-        const foot = [setting.packaging, payStr].filter(Boolean).join(' · ');
+        const foot = payFoot(setting.packaging, setting.paymentType, setting.shippingCost); // 착불=배송비
         if (foot) lines.push(`  ${foot}`);
         lines.push('');
         idx++;
       });
       custom.forEach(entry => {
-        const amt = money(entry.amount);
-        grandAmount += amt;
         lines.push(`${idx}. ${entry.name || ''}${entry.phone ? `  ${entry.phone}` : ''}`);
         if (entry.address) lines.push(`  ${entry.address}`);
+        lines.push('');                                    // 주소 다음 빈 줄
         // product는 자유 입력(여러 줄 가능) — 있는 그대로 줄마다 들여쓰기
         String(entry.product || '상품').split('\n').map(s => s.trim()).filter(Boolean).forEach(p => lines.push(`  ${p}`));
-        const isCOD = /착불/.test(entry.paymentType || '');
-        if (amt > 0 && !isCOD) lines.push(`  합계 ${formatPrice(amt)}원`);
-        const payStr = isCOD && amt > 0 ? `착불 ${formatPrice(amt)}원` : entry.paymentType;
-        const foot = [entry.packaging, payStr].filter(Boolean).join(' · ');
+        const foot = payFoot(entry.packaging, entry.paymentType, entry.amount); // 커스텀은 amount=착불 배송비
         if (foot) lines.push(`  ${foot}`);
         lines.push('');
         idx++;
@@ -924,10 +913,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
     });
 
     if (grand === 0) return '';
-    const header = grandAmount > 0
-      ? `${dLabel} 택배 발송 · 총 ${grand}건 · ${formatPrice(grandAmount)}원`
-      : `${dLabel} 택배 발송 · 총 ${grand}건`;
-    return [header, '━━━━━━━━━━━━━━', ...blocks].join('\n\n');
+    return blocks.join('\n\n');
   };
 
   const copyKakaoText = async () => {
