@@ -853,19 +853,28 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
     });
 
     const num = (v) => { const n = Number(String(v ?? '').replace(/[^0-9.-]/g, '')); return Number.isFinite(n) ? n : 0; };
-    // 주문 품목 → "  품명" (수량>1이면 ×N). 🚫 제품가는 카톡 배송복사에 불필요 → 미표시(사용자 요청 2026-08-04).
-    const orderItemLines = (items) => {
+    // 📱 모바일 카톡 가독성 — 필드마다 이모지 라벨(줄바꿈돼도 뭔지 보임) + 원문자 번호 + 발송인별 블록.
+    const CIRCLED = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
+    const mark = (n) => CIRCLED[n - 1] || `${n}.`;
+    const fmtPhone = (p) => {
+      const d = String(p || '').replace(/[^0-9]/g, '');
+      if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+      if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+      return String(p || '').trim();
+    };
+    // 🚫 제품가 미표시(사용자 요청) — 품명만(수량>1이면 ×N)
+    const productLines = (items) => {
       const out = [];
       (items || []).forEach((i) => {
         const name = (i?.name || '').trim();
         if (!name) return;
         const qty = Number(i?.quantity) || 1;
-        out.push(`  ${name}${qty > 1 ? ` ×${qty}` : ''}`);
+        out.push(`🧾 ${name}${qty > 1 ? ` ×${qty}` : ''}`);
       });
-      if (out.length === 0) out.push('  상품');
+      if (out.length === 0) out.push('🧾 상품');
       return out;
     };
-    // 착불/선불 푸터 — 착불이면 '배송비'만(제품값 아님), 선불이면 금액 없이 '선불'
+    // 착불이면 '배송비'만(제품값 아님 · 사장님이 설정한 shippingCost), 선불이면 금액 없이 '선불'
     const payFoot = (packaging, paymentType, shipAmount) => {
       const isCOD = /착불/.test(paymentType || '');
       const amt = num(shipAmount);
@@ -881,33 +890,30 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
       const count = sOrders.length + custom.length;
       if (count === 0) return;
       grand += count;
-      const lines = [`[${sender}] ${count}건`, ''];
+      const lines = [`📦 [${sender}] 택배 ${count}건`, '━━━━━━━━━━━━', ''];
       let idx = 1;
+      const pushEntry = (name, phone, address, prodLines, foot) => {
+        lines.push(`${mark(idx)} ${name || ''}`.trimEnd());
+        if (phone) lines.push(`📞 ${fmtPhone(phone)}`);
+        if (address) lines.push(`📍 ${address}`);
+        prodLines.forEach(l => lines.push(l));
+        if (foot) lines.push(`🚚 ${foot}`);
+        lines.push('');                                    // 항목 사이 빈 줄
+        idx++;
+      };
       sOrders.forEach(order => {
         const customer = findCustomer(order.customerName);
         const recv = parseReceiver(order);
         const phone = recv?.tel || customer?.phone || order.customerPhone || '';
         const address = shipAddress(order, customer);
         const setting = getOrderSetting(order.orderNumber, order.customerName, order);
-        lines.push(`${idx}. ${shippingName(order)}${phone ? `  ${phone}` : ''}`);
-        if (address) lines.push(`  ${address}`);
-        lines.push('');                                    // 주소 다음 빈 줄
-        orderItemLines(order.items).forEach(l => lines.push(l));
-        const foot = payFoot(setting.packaging, setting.paymentType, setting.shippingCost); // 착불=배송비
-        if (foot) lines.push(`  ${foot}`);
-        lines.push('');
-        idx++;
+        pushEntry(shippingName(order), phone, address, productLines(order.items),
+          payFoot(setting.packaging, setting.paymentType, setting.shippingCost)); // 착불=사장님 설정 배송비
       });
       custom.forEach(entry => {
-        lines.push(`${idx}. ${entry.name || ''}${entry.phone ? `  ${entry.phone}` : ''}`);
-        if (entry.address) lines.push(`  ${entry.address}`);
-        lines.push('');                                    // 주소 다음 빈 줄
-        // product는 자유 입력(여러 줄 가능) — 있는 그대로 줄마다 들여쓰기
-        String(entry.product || '상품').split('\n').map(s => s.trim()).filter(Boolean).forEach(p => lines.push(`  ${p}`));
-        const foot = payFoot(entry.packaging, entry.paymentType, entry.amount); // 커스텀은 amount=착불 배송비
-        if (foot) lines.push(`  ${foot}`);
-        lines.push('');
-        idx++;
+        const prod = String(entry.product || '상품').split('\n').map(s => s.trim()).filter(Boolean).map(p => `🧾 ${p}`);
+        pushEntry(entry.name, entry.phone, entry.address, prod.length ? prod : ['🧾 상품'],
+          payFoot(entry.packaging, entry.paymentType, entry.shippingCost)); // 🔧 amount→shippingCost(설정한 택배비)
       });
       blocks.push(lines.join('\n').trimEnd());
     });
