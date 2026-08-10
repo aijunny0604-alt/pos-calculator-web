@@ -39,7 +39,7 @@ export default function SaveCartModal({
     containerStyle: dragStyle,
     dragHandleProps,
     handles: resizeHandles,
-  } = useDraggableResizable('pos-web.saveCartModal', { w: 700, h: 800 });
+  } = useDraggableResizable('pos-web.saveCartModal.v2', { w: 760, h: 880 });
 
   useEffect(() => {
     if (!isOpen) return;
