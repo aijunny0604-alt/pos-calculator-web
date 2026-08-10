@@ -893,12 +893,14 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
       const lines = [`📦 [${sender}] 택배 ${count}건`, '━━━━━━━━━━━━', ''];
       let idx = 1;
       const pushEntry = (name, phone, address, prodLines, foot) => {
-        lines.push(`${mark(idx)} ${name || ''}`.trimEnd());
-        if (phone) lines.push(`📞 ${fmtPhone(phone)}`);
-        if (address) lines.push(`📍 ${address}`);
-        prodLines.forEach(l => lines.push(l));
-        if (foot) lines.push(`🚚 ${foot}`);
-        lines.push('');                                    // 항목 사이 빈 줄
+        const fields = [`${mark(idx)} ${name || ''}`.trimEnd()];
+        if (phone) fields.push(`📞 ${fmtPhone(phone)}`);
+        if (address) fields.push(`📍 ${address}`);
+        prodLines.forEach(l => fields.push(l));
+        if (foot) fields.push(`🚚 ${foot}`);
+        // 항목(필드)마다 한 줄씩 띄워 모바일 카톡 가독성 ↑
+        fields.forEach((f) => { lines.push(f); lines.push(''); });
+        lines.push('');                                    // 주문 간 추가 여백(항목 1줄 vs 주문 2줄로 구분)
         idx++;
       };
       sOrders.forEach(order => {
