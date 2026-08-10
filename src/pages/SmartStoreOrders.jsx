@@ -723,6 +723,47 @@ export default function SmartStoreOrders({
     return () => { clearInterval(iv); window.removeEventListener('focus', onWake); document.removeEventListener('visibilitychange', onWake); };
   }, [reload]);
 
+  // 📦 포장 상태 — 스토어 카드 배지용. 포장은 내부주문(order_packing.order_id=ORD-…) 기준이라
+  //   외부주문의 internal_order_id 로 매핑한다. { [internalOrderId]: {checkedCount, itemCount, done} }
+  const [packingMap, setPackingMap] = useState({});
+  useEffect(() => {
+    let alive = true;
+    const ids = (orders || []).map((o) => o.internal_order_id).filter(Boolean).map(String);
+    if (ids.length === 0) { setPackingMap({}); return; }
+    (async () => {
+      const m = await supabase.getOrderPackingBulk(ids);
+      if (!alive) return;
+      const norm = {};
+      for (const [id, v] of Object.entries(m || {})) norm[id] = { checkedCount: (v.checked || []).length, itemCount: v.itemCount || 0, done: !!v.done };
+      setPackingMap(norm);
+    })();
+    return () => { alive = false; };
+  }, [orders]);
+  // 같은 탭에서 포장 체크 시 즉시 반영
+  useEffect(() => {
+    const onChange = (e) => {
+      const d = e.detail || {};
+      if (!d.orderId) return;
+      setPackingMap((prev) => ({ ...prev, [String(d.orderId)]: { checkedCount: d.checkedCount || 0, itemCount: d.itemCount || 0, done: !!d.done } }));
+    };
+    window.addEventListener('order-packing-changed', onChange);
+    return () => window.removeEventListener('order-packing-changed', onChange);
+  }, []);
+  // 🔴 실시간 — 다른 기기/작업자가 포장 체크하면 스토어 카드 배지도 즉시 갱신
+  useEffect(() => {
+    const ch = supabaseClient
+      .channel('order_packing_store_cards')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_packing' }, (p) => {
+        const row = p.new || p.old || {};
+        const id = String(row.order_id || '');
+        if (!id) return;
+        if (p.eventType === 'DELETE') { setPackingMap((prev) => { const n = { ...prev }; delete n[id]; return n; }); return; }
+        setPackingMap((prev) => ({ ...prev, [id]: { checkedCount: (row.checked || []).length, itemCount: row.item_count || 0, done: !!row.done } }));
+      })
+      .subscribe();
+    return () => { try { supabaseClient.removeChannel(ch); } catch {} };
+  }, []);
+
   // 날짜 조회 범위 계산 (KST 기준)
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -1941,6 +1982,16 @@ export default function SmartStoreOrders({
                           🎁 {recvName}
                         </span>
                       )}
+                      {/* 📦 포장 상태 — 전환된 내부주문의 포장체크를 internal_order_id로 매핑해 표시 */}
+                      {(() => {
+                        const pk = order.internal_order_id ? packingMap[String(order.internal_order_id)] : null;
+                        if (!pk || pk.itemCount === 0 || pk.checkedCount === 0) return null;
+                        return pk.done ? (
+                          <span className="text-[11px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }} title="포장 완료 — 제품 다 챙김">📦✅ 포장완료</span>
+                        ) : (
+                          <span className="text-[11px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: 'color-mix(in srgb,#f97316 16%,transparent)', color: '#ea580c', border: '1px solid color-mix(in srgb,#f97316 40%,transparent)' }} title="포장 진행 중">📦 포장중 {pk.checkedCount}/{pk.itemCount}</span>
+                        );
+                      })()}
                       <span className="text-[11px] opacity-40" title="클릭하면 상세 보기">🔍</span>
                     </div>
                     <div className="text-xs opacity-70 truncate mt-0.5">{productSummary}</div>
