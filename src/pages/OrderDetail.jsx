@@ -182,7 +182,7 @@ export default function OrderDetail({
     handles: resizeHandles,
     reset: resetModalPos,
     ensureSize,
-  } = useDraggableResizable('pos-web.orderDetailModal', { w: 1200, h: 820 }, { centerOnOpen: true });
+  } = useDraggableResizable('pos-web.orderDetailModal.v2', { w: 940, h: 980 }, { centerOnOpen: true });
 
   // 품목 수 많으면 모달 자동 확장 (최소 보장 — 사용자가 더 크게 조정한 건 유지)
   useEffect(() => {
