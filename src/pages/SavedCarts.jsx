@@ -139,9 +139,10 @@ export default function SavedCarts({
     dragHandleProps: detailDragHandle,
     handles: detailResizeHandles,
     reset: resetDetailModalPos,
-  // ⚠️ 크기가 localStorage에 저장되므로 기본값만 바꾸면 기존 저장값(1200×820)이 그대로 남는다.
-  //    더 크게 열리게 하려면 키를 올려서 새 기본값을 태워야 함. (2026-07-15 v2: 1200×820 → 1520×940)
-  } = useDraggableResizable('pos-web.savedCartDetailModal.v2', { w: 1520, h: 940 });
+  // ⚠️ 크기가 localStorage에 저장되므로 기본값만 바꾸면 기존 저장값이 그대로 남는다.
+  //    더 크게 열리게 하려면 키를 올려서 새 기본값을 태워야 함.
+  //    (2026-07-15 v2: 1200×820 → 1520×940 / 2026-08-10 v3: 세로로 길게 1520×940 → 1360×1040)
+  } = useDraggableResizable('pos-web.savedCartDetailModal.v3', { w: 1360, h: 1040 });
   const [isBottomExpanded, setIsBottomExpanded] = useState(false); // 기본 접힘 (총금액·액션버튼은 항상 노출, 공급가/부가세만 접힘) — 사장님 요청 2026-06-09
 
   // Keyboard nav for product search in detail modal (must be in component body, not inside renderDetailModal)
