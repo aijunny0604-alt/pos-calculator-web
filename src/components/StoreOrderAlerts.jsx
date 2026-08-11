@@ -101,7 +101,7 @@ export default function StoreOrderAlerts() {
   if (!event) return null;
   const danger = event.kind === 'cancel';
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] w-[92%] max-w-md animate-modal-up" onClick={() => setEvent(null)}>
+    <div className="fixed bottom-36 md:bottom-24 right-4 left-4 md:left-auto z-[9999] max-w-md ml-auto animate-modal-up" onClick={() => setEvent(null)}>
       <div className="rounded-2xl border-2 shadow-2xl px-5 py-4 flex items-center gap-4 cursor-pointer"
         style={{
           background: 'var(--card)',
