@@ -28,7 +28,7 @@ export default function Toast({ message, type = 'info', onClose, duration = 3000
   const colors = colorMap[type] || colorMap.info;
 
   return (
-    <div className="fixed bottom-20 md:bottom-4 right-4 z-50 animate-slide-in">
+    <div className="fixed bottom-20 md:bottom-4 right-4 z-[10000] animate-slide-in">
       <div
         className="flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg"
         style={{ background: colors.bg, color: colors.text }}

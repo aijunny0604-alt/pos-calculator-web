@@ -27,6 +27,7 @@ export default function CertLibrary({ customers = [], showToast }) {
   const [editEmail, setEditEmail] = useState('');
   const [editInfo, setEditInfo] = useState('');
   const [savingInfo, setSavingInfo] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false); // 저장 직후 버튼 "저장됨" 표시
   const fileRef = useRef(null);
 
   // 거래처가 200곳이 넘어 select 스크롤로 찾는 게 고역 → 검색형 콤보박스.
@@ -57,6 +58,7 @@ export default function CertLibrary({ customers = [], showToast }) {
     if (!res?.ok) { showToast?.('저장 실패: ' + (res?.error || ''), 'error'); return; }
     setCerts((prev) => prev.map((c) => (c.id === viewer.id ? { ...c, ...patch } : c)));
     setViewer((v) => (v ? { ...v, ...patch } : v));
+    setSavedFlash(true); setTimeout(() => setSavedFlash(false), 2000);
     showToast?.(res.note === 'no-extra-columns' ? '상호명만 저장됨 (이메일·업체정보는 마이그013 필요)' : '저장되었습니다 ✅', res.note ? 'warning' : 'success');
   };
 
@@ -387,8 +389,9 @@ export default function CertLibrary({ customers = [], showToast }) {
               </div>
               <div className="flex justify-end">
                 <button onClick={saveInfo} disabled={savingInfo}
-                  className="px-4 py-2 rounded-lg text-sm font-bold text-white disabled:opacity-50" style={{ background: 'var(--primary)' }}>
-                  {savingInfo ? '저장 중…' : '💾 정보 저장'}
+                  className="px-4 py-2 rounded-lg text-sm font-bold text-white disabled:opacity-50 transition-colors"
+                  style={{ background: savedFlash ? 'var(--success, #16a34a)' : 'var(--primary)' }}>
+                  {savingInfo ? '저장 중…' : (savedFlash ? '✅ 저장됨!' : '💾 정보 저장')}
                 </button>
               </div>
             </div>
