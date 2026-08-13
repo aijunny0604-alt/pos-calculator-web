@@ -105,6 +105,7 @@ export default function useAIAnalystChat({
   customerReturns = [],
   externalOrders = [],
   externalProducts = [],
+  purchaseOrders = [],
   onNavigate,   // (pageKey) => void — MOVIS 페이지 이동 도구 콜백
 } = {}) {
   const [messages, setMessages] = useState(() => loadHistory());
@@ -185,6 +186,7 @@ export default function useAIAnalystChat({
         customerReturns,
         externalOrders,
         externalProducts,
+        purchaseOrders,
       }, {
         signal: controller.signal,
         history, // ← 이전 대화 컨텍스트
@@ -327,7 +329,7 @@ export default function useAIAnalystChat({
       setLoadingSteps([]);
       abortRef.current = null;
     }
-  }, [orders, customers, products, savedCarts, aiLearningData, paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts, isLoading, recordUsage, pushStep]);
+  }, [orders, customers, products, savedCarts, aiLearningData, paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts, purchaseOrders, isLoading, recordUsage, pushStep]);
 
   // 📷 이미지 첨부 → flash vision 분류(사업자등록증/주문/기타) → 사업자등록증=등록카드, 주문=주문등록 확인모달
   const sendImage = useCallback(async (file) => {

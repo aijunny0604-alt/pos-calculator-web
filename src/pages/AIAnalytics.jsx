@@ -84,6 +84,7 @@ export default function AIAnalytics({
   const [customerReturns, setCustomerReturns] = useState([]);
   const [externalOrders, setExternalOrders] = useState([]); // 스마트스토어 주문 (MOVIS 도구용)
   const [externalProducts, setExternalProducts] = useState([]); // 네이버 스토어 상품 카탈로그 (searchNaverCatalog 도구용)
+  const [purchaseOrders, setPurchaseOrders] = useState([]); // JSR 매입 발주·미입고 (getPurchaseStatus 도구용)
   const [loadingExtra, setLoadingExtra] = useState(true);
 
   // 컴포넌트 자체 마운트 페이드인 (AppLayout wrapper의 페이드인이 Suspense swap에 의해 무력화되는 문제 fix)
@@ -110,12 +111,13 @@ export default function AIAnalytics({
     let cancelled = false;
     (async () => {
       try {
-        const [pr, ph, cr, eo, ep] = await Promise.all([
+        const [pr, ph, cr, eo, ep, po] = await Promise.all([
           supabase.getPaymentRecords({ limit: 5000 }),
           supabase.getPaymentHistory({ limit: 5000 }),
           supabase.getCustomerReturns(),
           supabase.getExternalOrders({ limit: 200 }),
           supabase.getExternalProducts({ limit: 5000 }),
+          supabase.getPurchaseOrders(),
         ]);
         if (cancelled) return;
         setPaymentRecords(pr || []);
@@ -123,6 +125,7 @@ export default function AIAnalytics({
         setCustomerReturns(cr || []);
         setExternalOrders(eo || []);
         setExternalProducts(ep || []);
+        setPurchaseOrders(Array.isArray(po) ? po : []);
       } catch (e) {
         console.warn('AI 분석용 추가 데이터 로드 실패:', e);
       } finally {
@@ -134,7 +137,7 @@ export default function AIAnalytics({
 
   const chat = useAIAnalystChat({
     orders, customers, products, savedCarts, aiLearningData,
-    paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts,
+    paymentRecords, paymentHistory, customerReturns, externalOrders, externalProducts, purchaseOrders,
     onNavigate: (page) => { try { setCurrentPage?.(page); showToast?.(`${page} 페이지로 이동`, 'success'); } catch { /* noop */ } },
   });
   const [executing, setExecuting] = useState(false);

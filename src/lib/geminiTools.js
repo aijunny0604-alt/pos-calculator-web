@@ -11,6 +11,7 @@ import { getTopProducts, getProductTrend, getRepeatPurchaseGap } from './analyti
 import { getCustomerProductAffinity } from './analytics/affinity';
 import { getCompositeSummary } from './analytics/summary';
 import { getLowStockProducts, getStockSummary, getProductsByStockStatus, getRestockRecommendations, getDeadStock } from './analytics/inventory';
+import { poOpenItems, itemRemaining } from './purchaseExport';
 import { getPaymentSummary, getOverdueCustomers, getPaymentInflow } from './analytics/payments';
 import { getReturnAnalysis } from './analytics/returns';
 import { getPendingCarts } from './analytics/carts';
@@ -346,6 +347,16 @@ export const GEMINI_TOOLS = [
         stockThreshold: { type: 'integer', description: '재고 임계 (기본 5)' },
         salesPeriod: { type: 'string', enum: PERIOD_ENUM, description: '판매량 기준 기간 (기본 1M)' },
         limit: { type: 'integer', description: 'TOP N (기본 20)' },
+      },
+    },
+  },
+  {
+    name: 'getPurchaseStatus',
+    description: 'JSR 등 매입처 발주·미입고 현황 조회(읽기전용). 반환: 발주 요약(건수·총발주액) + 미입고 목록(발주했는데 아직 안 들어온 품목: 규격/발주수량/입고/남은수량/발주일/묵은기간). "레조 100 250 54 미입고에 있어?", "미입고 뭐 있어", "발주 현황", "안 들어온 거", "이거 발주하려는데 이미 발주했나", "발주서 만들어줘" 같은 질문·발주계획에 사용. 사용자가 발주하려는 제품이 이미 미입고에 있으면 중복발주 방지 경고. ⚠️ 규격 표기가 달라도(레조 100 250 54 ↔ N100R_250L_54) 미입고 목록을 보고 문맥으로 매칭할 것. 추천 발주수량은 getRestockRecommendations(판매속도 기반) 병행해서 제시.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '특정 규격/품명 필터(선택, 공백/대소문자 무시 부분일치). 비우면 전체 미입고 목록.' },
       },
     },
   },
@@ -924,7 +935,7 @@ export const WRITE_TOOLS = new Set([
 //
 // 쓰기 도구는 즉시 실행하지 않고 pending 객체 반환 → UI에서 confirm 후 실행
 export function executeTool(name, args = {}, context = {}) {
-  const { orders = [], customers = [], products = [], aiLearningData = [], externalOrders = [], externalProducts = [] } = context;
+  const { orders = [], customers = [], products = [], aiLearningData = [], externalOrders = [], externalProducts = [], purchaseOrders = [] } = context;
 
   // ===== 쓰기 도구: dry-run (사용자 confirm 대기) =====
   if (WRITE_TOOLS.has(name)) {
@@ -1233,6 +1244,34 @@ export function executeTool(name, args = {}, context = {}) {
         return { ok: true, data: getStockSummary(products, args) };
       case 'getProductsByStockStatus':
         return { ok: true, data: getProductsByStockStatus(products, args) };
+      case 'getPurchaseStatus': {
+        const pos = purchaseOrders || [];
+        const q = String(args.query || '').toLowerCase().replace(/\s/g, '');
+        const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+        const open = [];
+        let poTotal = 0;
+        for (const po of pos) {
+          for (const it of (po.items || [])) poTotal += num(it.unit_price) * num(it.qty);
+          for (const it of poOpenItems(po)) {
+            const rem = itemRemaining(it);
+            const days = po.order_date ? Math.max(0, Math.floor((Date.now() - new Date(po.order_date).getTime()) / 86400000)) : null;
+            const hay = `${it.name || ''} ${it.spec || ''}`.toLowerCase().replace(/\s/g, '');
+            if (q && !hay.includes(q)) continue;
+            open.push({ 발주번호: po.po_number, 발주일: po.order_date, 품명: it.name, 규격: it.spec, 발주수량: num(it.qty), 입고: num(it.received_qty), 미입고: rem, 단가: num(it.unit_price), 묵은일수: days });
+          }
+        }
+        open.sort((a, b) => (b.묵은일수 || 0) - (a.묵은일수 || 0));
+        return { ok: true, data: {
+          발주건수: pos.length,
+          총발주액: poTotal,
+          미입고_품목수: open.length,
+          미입고_수량합: open.reduce((s, o) => s + o.미입고, 0),
+          미입고목록: open.slice(0, 80),
+          안내: q
+            ? `"${args.query}" 관련 미입고 ${open.length}건 (규격 표기가 달라도 문맥으로 매칭해 판단)`
+            : '미입고 = 발주했지만 아직 안 들어온 품목. 사용자가 발주하려는 제품이 여기 있으면 이미 발주된 것이니 중복발주 주의. 추천 발주수량은 getRestockRecommendations 참고.',
+        } };
+      }
       case 'getRestockRecommendations':
         return { ok: true, data: getRestockRecommendations(products, orders, args) };
       case 'getDeadStock':
@@ -2655,6 +2694,7 @@ export const ANALYST_SYSTEM_PROMPT = `당신의 이름은 "MOVIS"(무비스)입�
 - "품절/입고대기 목록" → getProductsByStockStatus (status='out' or 'incoming')
 - "재주문 추천 / 발주" → getRestockRecommendations
 - "안 나가는 재고 / 묵은 재고 / 안 팔리는 거 / 돈 묶인 재고" → getDeadStock (최근 N개월 판매 0 + 묶인금액순)
+- **매입 발주/미입고**: "발주 현황 / 미입고 뭐 있어 / 안 들어온 거 / ○○ 미입고에 있어? / 이거 발주하려는데 이미 발주했나 / 발주서 만들어줘" → **getPurchaseStatus**(JSR 매입 발주·미입고 조회). 🧾 **발주 도우미**: 사용자가 발주하려는 제품 리스트를 주면 → getPurchaseStatus로 이미 미입고에 있는지 대조(중복발주 방지, 규격 표기 달라도 문맥 매칭) + getRestockRecommendations로 판매속도 기반 추천수량 산출 + searchProducts로 단가 확인 → composeMessage로 발주서 초안 완성. 각 품목마다 "이미 미입고 N개 있음/없음 · 재고 · 추천 발주수량" 함께 안내
 - **절대 "기능이 없습니다"라고 답하지 말 것** — 위 도구들이 모두 존재한다
 - getProductInfo가 found=false 반환하면 candidates 목록을 사용자에게 보여주고 "혹시 이 중 하나인가요?"라고 되묻기
 
