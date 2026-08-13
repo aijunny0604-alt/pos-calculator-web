@@ -387,7 +387,7 @@ export async function askAnalyst(question, context, options = {}) {
         onProgress?.(call);
         let result;
         try {
-          result = await executeTool(call.name, call.args, context);
+          result = await executeTool(call.name, call.args, { ...context, question });
         } catch (error) {
           result = { error: error.message };
         }

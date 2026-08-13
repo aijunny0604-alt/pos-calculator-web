@@ -937,6 +937,13 @@ export const WRITE_TOOLS = new Set([
 export function executeTool(name, args = {}, context = {}) {
   const { orders = [], customers = [], products = [], aiLearningData = [], externalOrders = [], externalProducts = [], purchaseOrders = [] } = context;
 
+  // 🚫 백스톱: "매입 발주(공급처 주문)" 의도인데 재고변경 도구를 부르면 차단 → 발주 조회로 유도.
+  //   MOVIS가 "추가 주문/발주"를 재고 채우기로 반복 오해하는 것 방지 (2026-08-13 사장님 지적).
+  const STOCK_WRITE = new Set(['updateProductStock', 'bulkUpdateProductStock', 'bulkUpdateProductsByCondition']);
+  if (STOCK_WRITE.has(name) && /(추가\s*주문|재\s*주문|재주문|발주|들여\s*놓|들여\s*와|시켜야|주문\s*하려|주문\s*해야|주문할|주문하고)/.test(String(context.question || ''))) {
+    return { ok: false, error: '이 요청은 "매입 발주(공급처에 물건을 주문)" 의도입니다. 재고 숫자를 절대 바꾸지 마세요. 대신 getPurchaseStatus(이미 미입고인지 확인) + getRestockRecommendations(판매속도 기반 추천 발주수량)로 조회한 뒤, 발주 추천 수량과 발주서 초안을 글로 제시하세요. 재고 변경 도구는 사용 금지.' };
+  }
+
   // ===== 쓰기 도구: dry-run (사용자 confirm 대기) =====
   if (WRITE_TOOLS.has(name)) {
     return buildPendingAction(name, args, { customers, products, aiLearningData, orders });

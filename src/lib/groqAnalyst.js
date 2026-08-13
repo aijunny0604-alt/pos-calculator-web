@@ -277,7 +277,7 @@ export async function askGroq(question, context, options = {}) {
         onProgress?.({ name, args });
         let result;
         try {
-          result = await executeTool(name, args, context);
+          result = await executeTool(name, args, { ...context, question });
         } catch (e) {
           result = { error: e?.message || String(e) };
         }
