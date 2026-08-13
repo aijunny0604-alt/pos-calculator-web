@@ -1432,23 +1432,35 @@ export default function OrderHistory({
                     </div>
                   )}
 
-                  {/* 완불 상세 배너 */}
-                  {isPaid && (
-                    <div
-                      className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 mb-2 border text-[11px]"
-                      style={{
-                        background: 'color-mix(in srgb, #10b981 14%, transparent)',
-                        borderColor: 'color-mix(in srgb, #10b981 40%, var(--border))',
-                      }}
-                    >
-                      <span className="font-semibold flex items-center gap-1" style={{ color: '#059669' }}>
-                        {paidMethod?.emoji} {paidMethod?.label} 결제
-                      </span>
-                      <span style={{ color: 'var(--muted-foreground)' }}>
-                        {formatDateTime(paidInfo.paidAt)}
-                      </span>
-                    </div>
-                  )}
+                  {/* 완불 — 🟢 도장(스탬프) 스타일로 크게 표시 (사장님 요청 2026-08-13) */}
+                  {isPaid && (() => {
+                    const method = paidInfo.method;
+                    const stampText = method === 'transfer' ? '통장입금 완료'
+                      : method === 'card' ? '카드결제 완료'
+                      : method === 'cash' ? '현금결제 완료'
+                      : '결제 완료';
+                    const c = paidMethod?.color || '#10b981';
+                    return (
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-black text-base sm:text-lg whitespace-nowrap -rotate-2"
+                          style={{
+                            color: c,
+                            background: `color-mix(in srgb, ${c} 12%, var(--card))`,
+                            border: `2.5px solid ${c}`,
+                            boxShadow: `0 0 0 2px color-mix(in srgb, ${c} 22%, transparent), 0 3px 10px color-mix(in srgb, ${c} 28%, transparent)`,
+                            letterSpacing: '-0.02em',
+                          }}
+                          title={`${paidMethod?.label} 결제 완료`}
+                        >
+                          {paidMethod?.emoji} {stampText} ✅
+                        </span>
+                        <span className="text-[10px] whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>
+                          {formatDateTime(paidInfo.paidAt)}
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   {/* Action buttons */}
                   <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
