@@ -1300,10 +1300,34 @@ export default function OrderHistory({
 
                   {/* Product info */}
                   <div
-                    className="rounded-lg p-2 mb-3"
+                    className="relative rounded-lg p-2 mb-3"
                     style={{ background: 'var(--muted)' }}
                   >
-                    <div className="text-xs mb-1" style={{ color: 'var(--foreground)' }}>
+                    {/* 🟢 결제완료 도장 — 우측 여백에 찍히듯 오버레이 (사장님 요청 2026-08-13) */}
+                    {isPaid && (() => {
+                      const method = paidInfo.method;
+                      const stampText = method === 'transfer' ? '통장입금 완료'
+                        : method === 'card' ? '카드결제 완료'
+                        : method === 'cash' ? '현금결제 완료'
+                        : '결제 완료';
+                      const c = paidMethod?.color || '#10b981';
+                      return (
+                        <span
+                          className="pointer-events-none select-none absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 -rotate-6 z-[1] inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-xl font-black text-sm sm:text-lg whitespace-nowrap"
+                          style={{
+                            color: c,
+                            background: `color-mix(in srgb, ${c} 14%, var(--card))`,
+                            border: `2.5px solid ${c}`,
+                            boxShadow: `0 0 0 2px color-mix(in srgb, ${c} 22%, transparent), 0 3px 10px color-mix(in srgb, ${c} 30%, transparent)`,
+                            letterSpacing: '-0.02em',
+                          }}
+                          title={`${paidMethod?.label} 결제 완료 · ${formatDateTime(paidInfo.paidAt)}`}
+                        >
+                          {paidMethod?.emoji} {stampText} ✅
+                        </span>
+                      );
+                    })()}
+                    <div className={`text-xs mb-1 ${isPaid ? 'pr-[128px] sm:pr-[188px]' : ''}`} style={{ color: 'var(--foreground)' }}>
                       {order.items.slice(0, 3).map((item, i) => (
                         <span key={i}>
                           {item.name}({item.quantity}){i < Math.min(order.items.length - 1, 2) ? ', ' : ''}
@@ -1313,7 +1337,7 @@ export default function OrderHistory({
                         <span style={{ color: 'var(--muted-foreground)' }}> 외 {order.items.length - 3}건</span>
                       )}
                     </div>
-                    <div className="text-xs flex items-center gap-2 flex-wrap" style={{ color: 'var(--muted-foreground)' }}>
+                    <div className={`text-xs flex items-center gap-2 flex-wrap ${isPaid ? 'pr-[128px] sm:pr-[188px]' : ''}`} style={{ color: 'var(--muted-foreground)' }}>
                       <span>{order.items.length}종 / {order.items.reduce((sum, item) => sum + item.quantity, 0)}개</span>
                       {(() => {
                         const discounted = order.items.filter(it => it && it.discountType && Number(it.discountValue) > 0);
@@ -1432,35 +1456,6 @@ export default function OrderHistory({
                     </div>
                   )}
 
-                  {/* 완불 — 🟢 도장(스탬프) 스타일로 크게 표시 (사장님 요청 2026-08-13) */}
-                  {isPaid && (() => {
-                    const method = paidInfo.method;
-                    const stampText = method === 'transfer' ? '통장입금 완료'
-                      : method === 'card' ? '카드결제 완료'
-                      : method === 'cash' ? '현금결제 완료'
-                      : '결제 완료';
-                    const c = paidMethod?.color || '#10b981';
-                    return (
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-black text-base sm:text-lg whitespace-nowrap -rotate-2"
-                          style={{
-                            color: c,
-                            background: `color-mix(in srgb, ${c} 12%, var(--card))`,
-                            border: `2.5px solid ${c}`,
-                            boxShadow: `0 0 0 2px color-mix(in srgb, ${c} 22%, transparent), 0 3px 10px color-mix(in srgb, ${c} 28%, transparent)`,
-                            letterSpacing: '-0.02em',
-                          }}
-                          title={`${paidMethod?.label} 결제 완료`}
-                        >
-                          {paidMethod?.emoji} {stampText} ✅
-                        </span>
-                        <span className="text-[10px] whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>
-                          {formatDateTime(paidInfo.paidAt)}
-                        </span>
-                      </div>
-                    );
-                  })()}
 
                   {/* Action buttons */}
                   <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
