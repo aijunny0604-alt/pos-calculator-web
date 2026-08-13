@@ -444,17 +444,35 @@ export const supabase = {
     } catch (e) { return { ok: false, error: String(e?.message || e) }; }
   },
   async updateBusinessCert(id, patch) {
-    try {
+    const buildBody = (withExtra) => {
       const body = {};
       if ('customerId' in patch) body.customer_id = patch.customerId ?? null;
       if ('name' in patch) body.name = patch.name;
       if ('url' in patch) body.url = patch.url;
       if ('storagePath' in patch) body.storage_path = patch.storagePath;
-      const data = await fetchJSON(`${SUPABASE_URL}/rest/v1/business_certs?id=eq.${id}`, {
-        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(body),
-      });
+      if (withExtra) {
+        if ('email' in patch) body.email = patch.email ?? null;
+        if ('company_info' in patch) body.company_info = patch.company_info ?? null;
+      }
+      return body;
+    };
+    const doPatch = (withExtra) => fetchJSON(`${SUPABASE_URL}/rest/v1/business_certs?id=eq.${id}`, {
+      method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(buildBody(withExtra)),
+    });
+    try {
+      const data = await doPatch(true);
       return { ok: true, data: Array.isArray(data) ? data[0] : data };
-    } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+    } catch (e) {
+      // email/company_info 컬럼 미존재(마이그013 전) → 그 필드 빼고 재시도해 이름만이라도 저장
+      const msg = String(e?.message || e);
+      if (/PGRST204|column|schema cache/i.test(msg) && ('email' in patch || 'company_info' in patch)) {
+        try {
+          const data = await doPatch(false);
+          return { ok: true, data: Array.isArray(data) ? data[0] : data, note: 'no-extra-columns' };
+        } catch (e2) { return { ok: false, error: String(e2?.message || e2) }; }
+      }
+      return { ok: false, error: msg };
+    }
   },
   // 특정 거래처에 연결된 모든 사업자등록증 행의 연결 해제(1거래처=1등록증 유지용).
   async clearCustomerCertLinks(customerId, exceptId = null) {

@@ -22,6 +22,11 @@ export default function CertLibrary({ customers = [], showToast }) {
   const [linking, setLinking] = useState(false); // 연결 변경 in-flight 잠금
   const [linkSearch, setLinkSearch] = useState(''); // 거래처 연결 검색어
   const [linkOpen, setLinkOpen] = useState(false);  // 연결 드롭다운 열림
+  // ✏️ 등록증 정보 수정 (상호명/이메일/업체정보)
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editInfo, setEditInfo] = useState('');
+  const [savingInfo, setSavingInfo] = useState(false);
   const fileRef = useRef(null);
 
   // 거래처가 200곳이 넘어 select 스크롤로 찾는 게 고역 → 검색형 콤보박스.
@@ -35,7 +40,25 @@ export default function CertLibrary({ customers = [], showToast }) {
   }, [customers, linkSearch]);
 
   // 다른 등록증을 열면 이전 검색어가 남지 않게 초기화
-  useEffect(() => { setLinkOpen(false); setLinkSearch(''); }, [viewer?.id]);
+  useEffect(() => {
+    setLinkOpen(false); setLinkSearch('');
+    setEditName(viewer?.name || ''); setEditEmail(viewer?.email || ''); setEditInfo(viewer?.company_info || '');
+  }, [viewer?.id]);
+
+  // 등록증 정보 저장 — 상호명/이메일/업체정보 (이메일·업체정보 컬럼 없으면 이름만 저장 폴백)
+  const saveInfo = async () => {
+    if (!viewer) return;
+    const name = (editName || '').trim();
+    if (!name) { showToast?.('상호명을 입력하세요', 'error'); return; }
+    setSavingInfo(true);
+    const patch = { name, email: (editEmail || '').trim() || null, company_info: (editInfo || '').trim() || null };
+    const res = await supabase.updateBusinessCert(viewer.id, patch);
+    setSavingInfo(false);
+    if (!res?.ok) { showToast?.('저장 실패: ' + (res?.error || ''), 'error'); return; }
+    setCerts((prev) => prev.map((c) => (c.id === viewer.id ? { ...c, ...patch } : c)));
+    setViewer((v) => (v ? { ...v, ...patch } : v));
+    showToast?.(res.note === 'no-extra-columns' ? '상호명만 저장됨 (이메일·업체정보는 마이그013 필요)' : '저장되었습니다 ✅', res.note ? 'warning' : 'success');
+  };
 
   // 거래처명 해결 — 임베드(customers) 실패 시 customers prop으로 폴백
   const custName = (cert) =>
@@ -303,6 +326,7 @@ export default function CertLibrary({ customers = [], showToast }) {
               </div>
               <div className="p-2">
                 <p className="text-sm font-bold leading-snug break-keep line-clamp-2" style={{ color: 'var(--foreground)' }}>{cert.name}</p>
+                {cert.email && <p className="text-[10px] truncate mt-0.5" style={{ color: 'var(--muted-foreground)' }} title={cert.email}>✉ {cert.email}</p>}
                 {cert.customer_id ? (
                   <span className="inline-flex items-center gap-1 mt-1 text-[11px] font-bold" style={{ color: 'var(--primary)' }}>
                     <Building className="w-3 h-3" />{custName(cert)}
@@ -341,6 +365,32 @@ export default function CertLibrary({ customers = [], showToast }) {
               ) : (
                 <img src={viewer.url} alt={viewer.name} className="max-w-full max-h-[62vh] object-contain rounded" />
               )}
+            </div>
+            {/* ✏️ 정보 수정 — 상호명 / 이메일 / 업체정보 */}
+            <div className="px-4 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold mb-1" style={{ color: 'var(--muted-foreground)' }}>상호명</label>
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="상호명 입력"
+                    className="w-full px-2.5 py-2 rounded-lg text-sm border" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold mb-1" style={{ color: 'var(--muted-foreground)' }}>이메일</label>
+                  <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} type="email" inputMode="email" placeholder="example@domain.com"
+                    className="w-full px-2.5 py-2 rounded-lg text-sm border" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold mb-1" style={{ color: 'var(--muted-foreground)' }}>업체 정보 / 메모</label>
+                <textarea value={editInfo} onChange={(e) => setEditInfo(e.target.value)} rows={2} placeholder="주소·연락처·비고 등 자유 입력"
+                  className="w-full px-2.5 py-2 rounded-lg text-sm border resize-none" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+              </div>
+              <div className="flex justify-end">
+                <button onClick={saveInfo} disabled={savingInfo}
+                  className="px-4 py-2 rounded-lg text-sm font-bold text-white disabled:opacity-50" style={{ background: 'var(--primary)' }}>
+                  {savingInfo ? '저장 중…' : '💾 정보 저장'}
+                </button>
+              </div>
             </div>
             {/* 하단: 거래처 연결 + 삭제 */}
             <div className="px-4 py-3 border-t flex flex-wrap items-center gap-2" style={{ borderColor: 'var(--border)' }}>
