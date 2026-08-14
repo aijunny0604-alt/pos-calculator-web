@@ -219,12 +219,14 @@ export default function useAIAnalystChat({
         if (isGreeting(question)) {
           content = '안녕하세요! MOVIS AI입니다. 매출, 재고, 거래처, 미수금, 주문 내역처럼 매장 데이터에 대해 편하게 물어보세요.';
         } else {
-          const fallback = autoFallbackSearch(question, { products, customers, orders });
+          const fallback = autoFallbackSearch(question, { products, customers, orders, purchaseOrders });
           if (fallback) {
             content = fallback;
             fallbackUsed = true;
-            // 폴백 시 차트도 자동 생성 (toolCalls 모방 → ResultRenderer 자동 렌더)
-            fallbackToolCalls = buildFallbackToolCalls(question, { products, customers, orders });
+            // 발주/미입고 폴백은 표가 아니라 텍스트 대조라 차트 생략
+            fallbackToolCalls = /(미입고|발주|jsr|재주문|주문하려|주문 하려)/i.test(question)
+              ? null
+              : buildFallbackToolCalls(question, { products, customers, orders });
           } else {
             const errorMessage = typeof result.error === 'string'
               ? result.error
@@ -435,8 +437,44 @@ export default function useAIAnalystChat({
 
 // 빈 응답 자동 폴백 — 질문 키워드 추출 후 제품/거래처/주문 교차 검색해서 markdown 생성
 // 거래처+제품 키워드 둘 다 있으면 orders 교차 검색까지 (예: "WP튠 포천 FL63 주문한적?")
-function autoFallbackSearch(question, { products = [], customers = [], orders = [] }) {
+// 🧾 발주/미입고 대조 폴백 — LLM(Gemini/Groq) 실패해도 코드로 미입고 확인 답변.
+//   질문의 제품 라인(레조 100 250 54 등)을 규격 숫자키로 미입고 목록과 대조.
+function buildPurchaseFallback(question, purchaseOrders = []) {
+  const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const dkey = (s) => String(s || '').replace(/[^0-9]/g, ''); // 규격의 숫자만 (레조 100 250 54 ↔ N100R_250L_54 → 10025054)
+  const open = [];
+  for (const po of (purchaseOrders || [])) {
+    for (const it of (po.items || [])) {
+      if (it && !it.status_override && num(it.qty) > 0 && (num(it.qty) - num(it.received_qty)) > 0) {
+        open.push({ name: it.name, spec: it.spec, remaining: num(it.qty) - num(it.received_qty), date: po.order_date, key: dkey(it.spec) || dkey(it.name) });
+      }
+    }
+  }
+  const lines = String(question).split('\n').map((l) => l.trim())
+    .filter((l) => l && /[0-9]/.test(l) && !/(미입고|발주|확인|jsr|주문하려|주문 하려|이\s*제품|있는지)/i.test(l));
+  let out = '🧾 JSR 매입 미입고 대조 (자동 · LLM 미사용)\n\n';
+  if (open.length === 0) out += '현재 발주 미입고 품목이 없습니다.\n';
+  const targets = lines.length ? lines : [String(question)];
+  for (const raw of targets) {
+    const specPart = raw.replace(/\s*\d+\s*개.*$/, '').trim(); // "…54 3개" → "…54"
+    const key = dkey(specPart);
+    const hits = key.length >= 5 ? open.filter((o) => o.key && o.key === key) : []; // 정확 일치만(오탐 방지)
+    if (hits.length) {
+      out += `⚠️ ${specPart} → 이미 발주됨(미입고 ${hits.map((h) => `${h.spec} ${h.remaining}개`).join(', ')}) — 중복발주 주의\n`;
+    } else {
+      out += `✅ ${specPart} → 미입고에 없음 → 신규 발주 필요\n`;
+    }
+  }
+  out += `\n※ 규격 표기가 달라 자동매칭이 애매할 수 있어요. 전체 발주 미입고 ${open.length}품목. 추천 발주수량은 MOVIS가 정상일 때 판매속도로 산출합니다.`;
+  return out;
+}
+
+function autoFallbackSearch(question, { products = [], customers = [], orders = [], purchaseOrders = [] }) {
   if (!question) return null;
+  // 발주/미입고 조회는 최우선으로 전용 폴백 (거래처/제품 검색으로 새는 것 방지)
+  if (/(미입고|발주|jsr|재주문|주문하려|주문 하려|안\s*들어온|들여놓|들여와)/i.test(question)) {
+    return buildPurchaseFallback(question, purchaseOrders);
+  }
   const NOISE = /^(있어|있니|있나|있음|좀|좀더|어때|어떄|뭐|뭐가|뭐있|뭐있어|뭔가|얼마|얼마야|몇개|몇\s*개|개|개수|종류|종류는|제품|제품들|상품|상품들|좀|보여|보여줘|알려|알려줘|확인|조회|어떤|어떤거|뭐가|있을까|있을까요|들|들은|이|가|을|를|은|는|의|에|와|과|로|으로|및|또는|혹은|아니면|또|만|밖에|최근|최근에|주문|주문한|주문한적|적|있어|있어요|적이|적이있)$/i;
   const kw = String(question)
     .replace(/[?.,!~]/g, ' ')
