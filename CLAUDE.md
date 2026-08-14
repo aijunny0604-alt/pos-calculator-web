@@ -1,9 +1,28 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-08-03 (스토어 0원옵션 흡수·자동최신화[마이그012 realtime]·신규고객/N번째 배지 / 📦 포장 체크 3곳 동기화 / JSR 수불 미입고→발주 일원화·시트대조 / 발주 규격명 폰트 / 등록증 Ctrl+V·드래그)
+> 마지막 업데이트: 2026-08-13 (🤖 MOVIS 발주 도우미[미입고·매입단가·발주서·AI실패 폴백] / 결제완료 도장배지 / 등록증 이메일·업체정보[마이그013] / 토스트 우측하단·z-index버그 / 모달 세로확대 / 카톡배송 모바일형식 / sync 30초 / 스토어 포장배지)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-08-13 — MOVIS 발주 도우미 + UI 다수
+
+### 🤖 MOVIS 발주 도우미 (핵심 — JSR 매입 발주 자동화)
+사장님이 "이 제품들 JSR에 주문하려는데 미입고 있는지 확인해줘 + 발주서" → MOVIS가 조회·대조·발주서 작성.
+- **도구 3종 추가** ([geminiTools.js](src/lib/geminiTools.js)): `getPurchaseStatus`(발주·미입고 현황, purchase_orders 실데이터=매입발주 페이지와 동일 poOpenItems), `getSupplierPrices`(매입 단가표=발주서 단가), 기존 `getRestockRecommendations`(판매속도 추천수량). 컨텍스트에 purchaseOrders·supplierPrices 로드([AIAnalytics.jsx](src/pages/AIAnalytics.jsx)→[useAIAnalystChat.js](src/hooks/useAIAnalystChat.js)).
+- **규격 문맥매칭**: "레조 100 250 61 ↔ N100R_250L_61" — LLM이 미입고 목록 보고 매칭(하드매칭 금지 규칙). 코드 경로는 **규격 숫자키 정확일치**(dkey='10025061', endsWith는 오탐나서 === 만).
+- 🚨🚨 **발주 ≠ 재고변경 가드**: MOVIS가 "추가 주문/발주"를 재고 숫자 변경(bulkUpdateProductStock)으로 반복 오해 → **프롬프트 최상단 절대규칙 + 코드 백스톱**(executeTool에 question 전달, 발주 정규식+재고쓰기 도구면 차단→발주조회 유도). 환각 제품(SSQ2 등) 끌어오기 금지.
+- 🛟 **AI 실패 폴백도 발주서 생성**([useAIAnalystChat.js](src/hooks/useAIAnalystChat.js) `buildPurchaseFallback`): Gemini/Groq 실패 시 코드가 미입고 대조+매입단가+발주서(품목·수량·단가·금액·합계)까지 텍스트로. 단가표 없는 규격='단가확인필요'.
+
+### 그 외 UI/기능
+- **💳 결제완료 도장 배지**([OrderHistory.jsx](src/pages/OrderHistory.jsx)): 완불 주문 카드 상품요약 우측 여백에 기울인 스탬프(카드결제/통장입금/현금결제 완료, 수단색·이중테두리). 텍스트 안 겹치게 pr.
+- **스토어 주문 카드 포장완료 배지**([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx)): 외부주문의 `internal_order_id`로 order_packing 매핑(포장은 내부주문 기준).
+- **🚨 토스트 z-index 버그**: Toast가 z-50이라 모달(z-80+) 뒤에 가려져 "저장했는데 반응 없음". → **z-[10000]로 상향**([Toast.jsx](src/components/ui/Toast.jsx)) + 우측하단 이동. 스토어 알림도 우측하단([StoreOrderAlerts.jsx](src/components/StoreOrderAlerts.jsx)).
+- **사업자등록증 이메일·업체정보**(마이그013): 업로드 시 파일명이 이름됨('image') → 확대보기 모달에서 상호명/이메일/업체정보 편집([CertLibrary.jsx](src/pages/CertLibrary.jsx)). updateBusinessCert에 email·company_info + 컬럼미존재 폴백.
+- **카톡 배송복사 모바일 형식**([ShippingLabel.jsx](src/pages/ShippingLabel.jsx)): 이모지 라벨(📦①📞📍🧾🚚)+항목별 빈줄+전화 하이픈. 🚫제품가 미표시. **착불=배송비(shippingCost)** — 🐛커스텀 항목이 amount 읽던 것→shippingCost로 수정.
+- **모달 세로 확대**(저장키 버전업): 주문상세 940×980([OrderDetail.jsx](src/pages/OrderDetail.jsx) v2), 저장장바구니 1360×1040([SavedCarts.jsx](src/pages/SavedCarts.jsx) v3), 장바구니저장 760×880([SaveCartModal.jsx](src/pages/SaveCartModal.jsx) v2).
+- **주문상세 포장 체크 진입점 3곳**(v2026-07-30, 여기 기록): [📦포장체크] 버튼·상시 진행도바·**상품 표 각 행 No.=탭 포장체크**.
+- **sync.js 폴링 60→30초**([naver-sync-bridge/.env] SYNC_INTERVAL_SECONDS=30): 네이버 발주확인 반영 지연 절반. 사이클 <2초라 안전. 재시작 필요.
 
 ## 🆕 v2026-08-03 — 스토어 주문 3종 (0원옵션 흡수 · 자동최신화 · 신규고객 배지)
 
@@ -1515,7 +1534,7 @@ powershell -ExecutionPolicy Bypass -File install-scheduler.ps1  # 작업 스케�
 ## Supabase
 
 - URL: `https://jubzppndcclhnvgbvrxr.supabase.co`
-- 테이블: orders, products, customers, customer_returns, saved_carts, ai_learning, **payment_records**, **payment_history**, **manual_paid_orders**, **external_orders**, **external_order_items**, **external_oauth_tokens**, **external_sync_cursors**, **external_sync_logs**, **external_products**(v6/10 네이버 카탈로그), **order_audit_log**(v2026-06-23 마이그007 주문 변경 감사), **business_certs**(v2026-07-09 사업자등록증 보관함), **purchase_orders**(v2026-07-15 마이그008 매입 발주), **supplier_prices**(v2026-07-15 마이그009 매입 단가표), **supplier_ledger**(v2026-07-15 마이그010 수불 장부), **order_packing**(v2026-07-29 마이그011 포장 체크리스트)
+- 테이블: orders, products, customers, customer_returns, saved_carts, ai_learning, **payment_records**, **payment_history**, **manual_paid_orders**, **external_orders**, **external_order_items**, **external_oauth_tokens**, **external_sync_cursors**, **external_sync_logs**, **external_products**(v6/10 네이버 카탈로그), **order_audit_log**(v2026-06-23 마이그007 주문 변경 감사), **business_certs**(v2026-07-09 사업자등록증 보관함), **purchase_orders**(v2026-07-15 마이그008 매입 발주), **supplier_prices**(v2026-07-15 마이그009 매입 단가표), **supplier_ledger**(v2026-07-15 마이그010 수불 장부), **order_packing**(v2026-07-29 마이그011 포장 체크리스트), **external_orders realtime**(v2026-08-03 마이그012), **business_certs +email·company_info**(v2026-08-13 마이그013)
 - **order_packing 주의** (v2026-07-29 마이그011): 주문 포장 체크(제품 누락 방지). `order_id` text PK(=orders.id `ORD-…`), `checked jsonb`(챙긴 index배열), `item_count`, `done`. RLS anon FOR ALL + **replica identity full + supabase_realtime 발행**(실시간 공유). 🚨 테이블 없어도 앱은 **localStorage `pos_packing_v1` 폴백**으로 동작(미존재 1회 감지 후 네트워크 스킵). 주문내역·택배송장 카드 배지 + 주문상세 퀘스트 패널이 실시간 구독
 - **purchase_orders 주의** (v2026-07-15 마이그008): **매입** 발주 — 네이버 "발주확인"(판매)과 정반대. `po_number` 비즈니스키(PO-YYMMDD, UNIQUE → 중복 등록 시 409), `items JSONB`에 `{name, spec, unit_price, qty, received_qty, note, status_override}`. **qty 음수 허용**(취소 차감). **상태는 컬럼 없음 — 프론트 계산**(입고0=미입고/입고<수량=부분입고/else 완료, status_override 우선). **공급가액=단가×발주수량**(입고수량 아님). updated_at 자동 트리거. RLS anon FOR ALL
 - **supplier_prices 주의** (v2026-07-15 마이그009): 매입 단가표(**JSR 매입가** — `products.wholesale` 도매가와 별개). UNIQUE(supplier_name, spec, quoted_at, unit_price)로 재실행 안전. **같은 마이그가 `purchase_orders`에 `quote_no`/`quote_url`/`quote_path` 3컬럼 ALTER도 함께 수행**(발주서 증빙 연결, 쉼표로 다중). 단가0/음수수량/더미행은 seed에서 제외
