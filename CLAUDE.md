@@ -9,12 +9,13 @@
 
 ### 🤖 MOVIS 발주 도우미 (핵심 — JSR 매입 발주 자동화)
 사장님이 "이 제품들 JSR에 주문하려는데 미입고 있는지 확인해줘 + 발주서" → MOVIS가 조회·대조·발주서 작성.
-- **도구 3종 추가** ([geminiTools.js](src/lib/geminiTools.js)): `getPurchaseStatus`(발주·미입고 현황, purchase_orders 실데이터=매입발주 페이지와 동일 poOpenItems), `getSupplierPrices`(매입 단가표=발주서 단가), 기존 `getRestockRecommendations`(판매속도 추천수량). 컨텍스트에 purchaseOrders·supplierPrices 로드([AIAnalytics.jsx](src/pages/AIAnalytics.jsx)→[useAIAnalystChat.js](src/hooks/useAIAnalystChat.js)).
+- **도구 3종 추가** ([geminiTools.js](src/lib/geminiTools.js)): `getPurchaseStatus`(발주·미입고 현황, purchase_orders 실데이터=매입발주 페이지와 동일 poOpenItems, **각 항목 상태=부분입고(입고>0)/완전미입고(입고=0) + 요약카운트**), `getSupplierPrices`(매입 단가표=발주서 단가), 기존 `getRestockRecommendations`(판매속도 추천수량). 컨텍스트에 purchaseOrders·supplierPrices 로드([AIAnalytics.jsx](src/pages/AIAnalytics.jsx)→[useAIAnalystChat.js](src/hooks/useAIAnalystChat.js)).
 - **규격 문맥매칭**: "레조 100 250 61 ↔ N100R_250L_61" — LLM이 미입고 목록 보고 매칭(하드매칭 금지 규칙). 코드 경로는 **규격 숫자키 정확일치**(dkey='10025061', endsWith는 오탐나서 === 만).
-- 🚨🚨 **발주 ≠ 재고변경 가드**: MOVIS가 "추가 주문/발주"를 재고 숫자 변경(bulkUpdateProductStock)으로 반복 오해 → **프롬프트 최상단 절대규칙 + 코드 백스톱**(executeTool에 question 전달, 발주 정규식+재고쓰기 도구면 차단→발주조회 유도). 환각 제품(SSQ2 등) 끌어오기 금지.
+- 🚨🚨 **발주 ≠ 재고변경·판매주문 가드** (반복 오라우팅 방지): MOVIS가 "추가 주문/발주"를 재고 숫자 변경(bulkUpdateProductStock)이나 판매 주문 등록(saveOrder to JSR)으로 오해 → **프롬프트 최상단 절대규칙 + 코드 백스톱**(executeTool에 question 전달): ①발주 정규식+재고쓰기 도구면 차단 ②`saveOrder`인데 customerName이 JSR/매입/공급처면 차단("JSR은 매입처지 판매거래처 아님, 발주 리스트는 텍스트로"). 환각 제품(SSQ2 등) 끌어오기 금지.
 - 🛟 **AI 실패 폴백도 발주서 생성**([useAIAnalystChat.js](src/hooks/useAIAnalystChat.js) `buildPurchaseFallback`): Gemini/Groq 실패 시 코드가 미입고 대조+매입단가+발주서(품목·수량·단가·금액·합계)까지 텍스트로. 단가표 없는 규격='단가확인필요'.
 
 ### 그 외 UI/기능
+- **매입 발주 미입고 현황 서브필터**([PurchaseOrders.jsx](src/pages/PurchaseOrders.jsx)): 미입고 탭에 칩(전체/미입고/부분입고, itemStatus 기준 건수) — 선택 필터가 **카톡복사·CSV·프린트에 그대로 반영**(pendingFiltered). 불량품은 [JSR 수불장부] 불량품 탭에 별도 복사.
 - **💳 결제완료 도장 배지**([OrderHistory.jsx](src/pages/OrderHistory.jsx)): 완불 주문 카드 상품요약 우측 여백에 기울인 스탬프(카드결제/통장입금/현금결제 완료, 수단색·이중테두리). 텍스트 안 겹치게 pr.
 - **스토어 주문 카드 포장완료 배지**([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx)): 외부주문의 `internal_order_id`로 order_packing 매핑(포장은 내부주문 기준).
 - **🚨 토스트 z-index 버그**: Toast가 z-50이라 모달(z-80+) 뒤에 가려져 "저장했는데 반응 없음". → **z-[10000]로 상향**([Toast.jsx](src/components/ui/Toast.jsx)) + 우측하단 이동. 스토어 알림도 우측하단([StoreOrderAlerts.jsx](src/components/StoreOrderAlerts.jsx)).
