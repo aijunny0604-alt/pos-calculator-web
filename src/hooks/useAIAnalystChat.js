@@ -221,7 +221,7 @@ export default function useAIAnalystChat({
         if (isGreeting(question)) {
           content = '안녕하세요! MOVIS AI입니다. 매출, 재고, 거래처, 미수금, 주문 내역처럼 매장 데이터에 대해 편하게 물어보세요.';
         } else {
-          const fallback = autoFallbackSearch(question, { products, customers, orders, purchaseOrders });
+          const fallback = autoFallbackSearch(question, { products, customers, orders, purchaseOrders, supplierPrices });
           if (fallback) {
             content = fallback;
             fallbackUsed = true;
@@ -439,43 +439,65 @@ export default function useAIAnalystChat({
 
 // 빈 응답 자동 폴백 — 질문 키워드 추출 후 제품/거래처/주문 교차 검색해서 markdown 생성
 // 거래처+제품 키워드 둘 다 있으면 orders 교차 검색까지 (예: "WP튠 포천 FL63 주문한적?")
-// 🧾 발주/미입고 대조 폴백 — LLM(Gemini/Groq) 실패해도 코드로 미입고 확인 답변.
-//   질문의 제품 라인(레조 100 250 54 등)을 규격 숫자키로 미입고 목록과 대조.
-function buildPurchaseFallback(question, purchaseOrders = []) {
+// 🧾 발주/미입고 대조 + 발주서 폴백 — LLM(Gemini/Groq) 실패해도 코드로 미입고 확인 + 발주서 초안까지.
+//   질문의 제품 라인(레조 100 250 54 3개 등)을 규격 숫자키로 미입고·매입단가와 대조.
+function buildPurchaseFallback(question, purchaseOrders = [], supplierPrices = []) {
   const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-  const dkey = (s) => String(s || '').replace(/[^0-9]/g, ''); // 규격의 숫자만 (레조 100 250 54 ↔ N100R_250L_54 → 10025054)
+  const dkey = (s) => String(s || '').replace(/[^0-9]/g, ''); // 규격 숫자만 (레조 100 250 54 ↔ N100R_250L_54 → 10025054)
+  const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+  // 미입고
   const open = [];
-  for (const po of (purchaseOrders || [])) {
-    for (const it of (po.items || [])) {
-      if (it && !it.status_override && num(it.qty) > 0 && (num(it.qty) - num(it.received_qty)) > 0) {
-        open.push({ name: it.name, spec: it.spec, remaining: num(it.qty) - num(it.received_qty), date: po.order_date, key: dkey(it.spec) || dkey(it.name) });
-      }
+  for (const po of (purchaseOrders || [])) for (const it of (po.items || [])) {
+    if (it && !it.status_override && num(it.qty) > 0 && (num(it.qty) - num(it.received_qty)) > 0) {
+      open.push({ name: it.name, spec: it.spec, remaining: num(it.qty) - num(it.received_qty), key: dkey(it.spec) || dkey(it.name) });
     }
+  }
+  // 매입 단가 (규격 숫자키 → 최신)
+  const priceByKey = new Map();
+  for (const r of (supplierPrices || [])) {
+    const k = dkey(r?.spec); if (!k) continue;
+    const prev = priceByKey.get(k);
+    if (!prev || new Date(r.quoted_at || 0) > new Date(prev.quoted_at || 0)) priceByKey.set(k, r);
   }
   const lines = String(question).split('\n').map((l) => l.trim())
     .filter((l) => l && /[0-9]/.test(l) && !/(미입고|발주|확인|jsr|주문하려|주문 하려|이\s*제품|있는지)/i.test(l));
-  let out = '🧾 JSR 매입 미입고 대조 (자동 · LLM 미사용)\n\n';
-  if (open.length === 0) out += '현재 발주 미입고 품목이 없습니다.\n';
-  const targets = lines.length ? lines : [String(question)];
-  for (const raw of targets) {
+  let cmp = '🧾 JSR 매입 미입고 대조 (자동 · AI 엔진 대기 중)\n\n';
+  if (open.length === 0) cmp += '현재 발주 미입고 품목이 없습니다.\n';
+  const orderItems = [];
+  for (const raw of (lines.length ? lines : [String(question)])) {
+    const qtyM = raw.match(/(\d+)\s*개/);
+    const qty = qtyM ? num(qtyM[1]) : null;
     const specPart = raw.replace(/\s*\d+\s*개.*$/, '').trim(); // "…54 3개" → "…54"
     const key = dkey(specPart);
-    const hits = key.length >= 5 ? open.filter((o) => o.key && o.key === key) : []; // 정확 일치만(오탐 방지)
-    if (hits.length) {
-      out += `⚠️ ${specPart} → 이미 발주됨(미입고 ${hits.map((h) => `${h.spec} ${h.remaining}개`).join(', ')}) — 중복발주 주의\n`;
+    const already = key.length >= 5 ? open.filter((o) => o.key && o.key === key) : [];
+    if (already.length) {
+      cmp += `⚠️ ${specPart}${qty ? ` ${qty}개` : ''} → 이미 발주됨(미입고 ${already.map((h) => `${h.spec} ${h.remaining}개`).join(', ')}) — 중복발주 주의\n`;
     } else {
-      out += `✅ ${specPart} → 미입고에 없음 → 신규 발주 필요\n`;
+      const pr = key.length >= 5 ? priceByKey.get(key) : null;
+      cmp += `✅ ${specPart}${qty ? ` ${qty}개` : ''} → 미입고 없음 · 신규 발주${pr ? ` (매입단가 ${fmt(num(pr.unit_price))}원)` : ''}\n`;
+      orderItems.push({ spec: specPart, qty: qty || 1, unit: pr ? num(pr.unit_price) : null });
     }
   }
-  out += `\n※ 규격 표기가 달라 자동매칭이 애매할 수 있어요. 전체 발주 미입고 ${open.length}품목. 추천 발주수량은 MOVIS가 정상일 때 판매속도로 산출합니다.`;
-  return out;
+  // 발주서 초안 (신규 발주분)
+  let poDraft = '';
+  if (orderItems.length) {
+    poDraft = '\n📋 발주서 초안 — JSR (신규 발주분, 매입단가 기준)\n';
+    let total = 0, unknown = 0;
+    for (const it of orderItems) {
+      if (it.unit == null) { unknown++; poDraft += `• ${it.spec} × ${it.qty}개 — 매입단가 확인 필요\n`; }
+      else { const amt = it.unit * it.qty; total += amt; poDraft += `• ${it.spec} × ${it.qty}개 × ${fmt(it.unit)}원 = ${fmt(amt)}원\n`; }
+    }
+    poDraft += `─────────────\n합계(단가 확인분): ₩${fmt(total)}\n`;
+    if (unknown) poDraft += `※ 매입단가 확인 필요 ${unknown}건 — [매입 단가표]에 규격이 없어요. 등록 후 다시 물어보세요.\n`;
+  }
+  return cmp + poDraft + `\n※ 전체 발주 미입고 ${open.length}품목. 규격 표기 차이로 자동매칭이 애매할 수 있어요. (AI 엔진 정상일 땐 판매속도 기반 추천수량까지 산출)`;
 }
 
-function autoFallbackSearch(question, { products = [], customers = [], orders = [], purchaseOrders = [] }) {
+function autoFallbackSearch(question, { products = [], customers = [], orders = [], purchaseOrders = [], supplierPrices = [] }) {
   if (!question) return null;
   // 발주/미입고 조회는 최우선으로 전용 폴백 (거래처/제품 검색으로 새는 것 방지)
   if (/(미입고|발주|jsr|재주문|주문하려|주문 하려|안\s*들어온|들여놓|들여와)/i.test(question)) {
-    return buildPurchaseFallback(question, purchaseOrders);
+    return buildPurchaseFallback(question, purchaseOrders, supplierPrices);
   }
   const NOISE = /^(있어|있니|있나|있음|좀|좀더|어때|어떄|뭐|뭐가|뭐있|뭐있어|뭔가|얼마|얼마야|몇개|몇\s*개|개|개수|종류|종류는|제품|제품들|상품|상품들|좀|보여|보여줘|알려|알려줘|확인|조회|어떤|어떤거|뭐가|있을까|있을까요|들|들은|이|가|을|를|은|는|의|에|와|과|로|으로|및|또는|혹은|아니면|또|만|밖에|최근|최근에|주문|주문한|주문한적|적|있어|있어요|적이|적이있)$/i;
   const kw = String(question)
