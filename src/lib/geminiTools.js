@@ -953,6 +953,10 @@ export function executeTool(name, args = {}, context = {}) {
   if (STOCK_WRITE.has(name) && /(추가\s*주문|재\s*주문|재주문|발주|들여\s*놓|들여\s*와|시켜야|주문\s*하려|주문\s*해야|주문할|주문하고)/.test(String(context.question || ''))) {
     return { ok: false, error: '이 요청은 "매입 발주(공급처에 물건을 주문)" 의도입니다. 재고 숫자를 절대 바꾸지 마세요. 대신 getPurchaseStatus(이미 미입고인지 확인) + getRestockRecommendations(판매속도 기반 추천 발주수량)로 조회한 뒤, 발주 추천 수량과 발주서 초안을 글로 제시하세요. 재고 변경 도구는 사용 금지.' };
   }
+  // 🚫 saveOrder(판매 주문 등록)를 매입처(JSR 등)로 시도 → 차단. JSR은 공급처지 판매 거래처가 아니다.
+  if (name === 'saveOrder' && /(jsr|매입|공급처|발주처)/i.test(String(args.customerName || args.customer_name || ''))) {
+    return { ok: false, error: '"JSR"은 우리가 물건을 사오는 매입처(공급처)이지, 판매 주문을 등록할 거래처가 아닙니다. 판매 주문 등록(saveOrder)을 하지 마세요. 사용자는 JSR에 "발주"할 품목 정리를 원한 것이니, 발주 목록을 [품목 · 수량 · 매입단가 · 금액 · 합계] 텍스트 표로만 깔끔히 정리해서 보여주세요(모달/등록 없이).' };
+  }
 
   // ===== 쓰기 도구: dry-run (사용자 confirm 대기) =====
   if (WRITE_TOOLS.has(name)) {
@@ -2667,6 +2671,7 @@ export const ANALYST_SYSTEM_PROMPT = `당신의 이름은 "MOVIS"(무비스)입�
 - 🚫 **getRestockRecommendations 결과를 재고 변경으로 자동 전환 금지** — 그건 추천 목록 조회일 뿐, 재고를 채우는 작업이 아니다.
 - 🚫 **환각 금지**: 사용자가 말한 제품만 다뤄라. 언급하지 않은 제품(예: '레조 100 250 54'만 말했는데 SSQ2)을 끌어오지 마라.
 - 재고 숫자 변경은 오직 **"재고 20개로 바꿔 / 재고 채워 / 입고처리"**처럼 재고를 바꾸라고 명시할 때만.
+- 🚫 **JSR·매입처는 판매 거래처가 아니다** — "발주 리스트/최종 정리/주문할 것 적어줘/발주서"는 **텍스트 표로만** 답하고, **saveOrder(판매 주문 등록) 절대 호출 금지.** JSR을 거래처로 saveOrder 하지 마라. (발주는 사장님이 그 텍스트를 보고 직접 공급처에 넣는다.)
 
 ## 답변 원칙
 1. **숫자 나열 금지**: 단순 통계만 말하지 말고 반드시 인사이트 포함 (비교, 추세, 변화율, 의미)
