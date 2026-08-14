@@ -351,6 +351,16 @@ export const GEMINI_TOOLS = [
     },
   },
   {
+    name: 'getSupplierPrices',
+    description: 'JSR 매입 단가표 조회(읽기전용) — 규격/품명으로 최근 매입 단가를 반환. **발주서 초안을 만들 때 각 품목의 단가로 반드시 이걸 사용**(판매가 아님, 매입가). "레조 100 250 61 매입 단가", "발주서 만들 때 단가" 등. ⚠️ 규격 표기가 달라도(레조 100 250 61 ↔ N100R_250L_61) 숫자 규격으로 매칭됨.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '규격/품명(선택, 공백무시 부분일치 + 규격 숫자 일치). 비우면 전체.' },
+      },
+    },
+  },
+  {
     name: 'getPurchaseStatus',
     description: 'JSR 등 매입처 발주·미입고 현황 조회(읽기전용). 반환: 발주 요약(건수·총발주액) + 미입고 목록(발주했는데 아직 안 들어온 품목: 규격/발주수량/입고/남은수량/발주일/묵은기간). "레조 100 250 54 미입고에 있어?", "미입고 뭐 있어", "발주 현황", "안 들어온 거", "이거 발주하려는데 이미 발주했나", "발주서 만들어줘" 같은 질문·발주계획에 사용. 사용자가 발주하려는 제품이 이미 미입고에 있으면 중복발주 방지 경고. ⚠️ 규격 표기가 달라도(레조 100 250 54 ↔ N100R_250L_54) 미입고 목록을 보고 문맥으로 매칭할 것. 추천 발주수량은 getRestockRecommendations(판매속도 기반) 병행해서 제시.',
     parameters: {
@@ -935,7 +945,7 @@ export const WRITE_TOOLS = new Set([
 //
 // 쓰기 도구는 즉시 실행하지 않고 pending 객체 반환 → UI에서 confirm 후 실행
 export function executeTool(name, args = {}, context = {}) {
-  const { orders = [], customers = [], products = [], aiLearningData = [], externalOrders = [], externalProducts = [], purchaseOrders = [] } = context;
+  const { orders = [], customers = [], products = [], aiLearningData = [], externalOrders = [], externalProducts = [], purchaseOrders = [], supplierPrices = [] } = context;
 
   // 🚫 백스톱: "매입 발주(공급처 주문)" 의도인데 재고변경 도구를 부르면 차단 → 발주 조회로 유도.
   //   MOVIS가 "추가 주문/발주"를 재고 채우기로 반복 오해하는 것 방지 (2026-08-13 사장님 지적).
@@ -1251,6 +1261,29 @@ export function executeTool(name, args = {}, context = {}) {
         return { ok: true, data: getStockSummary(products, args) };
       case 'getProductsByStockStatus':
         return { ok: true, data: getProductsByStockStatus(products, args) };
+      case 'getSupplierPrices': {
+        const sp = supplierPrices || [];
+        const q = String(args.query || '').toLowerCase().replace(/\s/g, '');
+        const dk = (s) => String(s || '').replace(/[^0-9]/g, '');
+        const qd = dk(args.query);
+        const byKey = new Map();
+        for (const r of sp) {
+          const hay = `${r.item_name || ''} ${r.spec || ''}`.toLowerCase().replace(/\s/g, '');
+          const specD = dk(r.spec);
+          const match = !q || hay.includes(q) || (qd.length >= 5 && specD === qd);
+          if (!match) continue;
+          const key = r.spec || r.item_name;
+          const prev = byKey.get(key);
+          if (!prev || new Date(r.quoted_at || 0) > new Date(prev.quoted_at || 0)) byKey.set(key, r);
+        }
+        const rows = [...byKey.values()].map((r) => ({ 품명: r.item_name, 규격: r.spec, 매입단가: Number(r.unit_price) || 0, 견적일: r.quoted_at }))
+          .sort((a, b) => String(a.규격 || '').localeCompare(String(b.규격 || '')));
+        return { ok: true, data: {
+          건수: rows.length,
+          단가표: rows.slice(0, 60),
+          안내: q ? `"${args.query}" 관련 매입 단가 ${rows.length}건 (규격 숫자 같으면 문맥매칭). 발주서 단가로 사용.` : '전체 JSR 매입 단가표. 발주서 초안 단가로 사용(판매가 아님).',
+        } };
+      }
       case 'getPurchaseStatus': {
         const pos = purchaseOrders || [];
         const q = String(args.query || '').toLowerCase().replace(/\s/g, '');
@@ -2718,7 +2751,7 @@ export const ANALYST_SYSTEM_PROMPT = `당신의 이름은 "MOVIS"(무비스)입�
 - "품절/입고대기 목록" → getProductsByStockStatus (status='out' or 'incoming')
 - "재주문 추천 / 발주" → getRestockRecommendations
 - "안 나가는 재고 / 묵은 재고 / 안 팔리는 거 / 돈 묶인 재고" → getDeadStock (최근 N개월 판매 0 + 묶인금액순)
-- **매입 발주/미입고**: "발주 현황 / 미입고 뭐 있어 / 안 들어온 거 / ○○ 미입고에 있어? / 이거 발주하려는데 이미 발주했나 / 발주서 만들어줘" → **getPurchaseStatus**(JSR 매입 발주·미입고 조회). 🧾 **발주 도우미**: 사용자가 발주하려는 제품 리스트를 주면 → getPurchaseStatus로 이미 미입고에 있는지 대조(중복발주 방지, 규격 표기 달라도 문맥 매칭) + getRestockRecommendations로 판매속도 기반 추천수량 산출 + searchProducts로 단가 확인 → composeMessage로 발주서 초안 완성. 각 품목마다 "이미 미입고 N개 있음/없음 · 재고 · 추천 발주수량" 함께 안내
+- **매입 발주/미입고**: "발주 현황 / 미입고 뭐 있어 / 안 들어온 거 / ○○ 미입고에 있어? / 이거 발주하려는데 이미 발주했나 / 발주서 만들어줘" → **getPurchaseStatus**(JSR 매입 발주·미입고 조회). 🧾 **발주 도우미**: 사용자가 발주하려는 제품 리스트를 주면 → getPurchaseStatus로 이미 미입고에 있는지 대조(중복발주 방지, 규격 표기 달라도 문맥 매칭) + getRestockRecommendations로 판매속도 기반 추천수량 산출 + **getSupplierPrices로 매입 단가 조회(발주서 단가는 판매가 아니라 이 매입가!)** → composeMessage로 발주서 초안 완성. 각 품목마다 "이미 미입고 N개 있음/없음 · 재고 · 추천 발주수량 · 매입단가" 함께 안내. 사용자가 "발주서 뽑아줘/이대로 발주서"라 하면 즉시 getSupplierPrices로 단가 채워 [품목/규격/수량/매입단가/금액] 표 + 합계로 composeMessage 발주서 작성
 - **절대 "기능이 없습니다"라고 답하지 말 것** — 위 도구들이 모두 존재한다
 - getProductInfo가 found=false 반환하면 candidates 목록을 사용자에게 보여주고 "혹시 이 중 하나인가요?"라고 되묻기
 
