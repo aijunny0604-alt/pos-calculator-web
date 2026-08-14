@@ -1297,19 +1297,22 @@ export function executeTool(name, args = {}, context = {}) {
             const days = po.order_date ? Math.max(0, Math.floor((Date.now() - new Date(po.order_date).getTime()) / 86400000)) : null;
             const hay = `${it.name || ''} ${it.spec || ''}`.toLowerCase().replace(/\s/g, '');
             if (q && !hay.includes(q)) continue;
-            open.push({ 발주번호: po.po_number, 발주일: po.order_date, 품명: it.name, 규격: it.spec, 발주수량: num(it.qty), 입고: num(it.received_qty), 미입고: rem, 단가: num(it.unit_price), 묵은일수: days });
+            open.push({ 발주번호: po.po_number, 발주일: po.order_date, 품명: it.name, 규격: it.spec, 발주수량: num(it.qty), 입고: num(it.received_qty), 미입고: rem, 상태: num(it.received_qty) > 0 ? '부분입고' : '미입고', 단가: num(it.unit_price), 묵은일수: days });
           }
         }
         open.sort((a, b) => (b.묵은일수 || 0) - (a.묵은일수 || 0));
+        const partial = open.filter((o) => o.상태 === '부분입고');
         return { ok: true, data: {
           발주건수: pos.length,
           총발주액: poTotal,
           미입고_품목수: open.length,
+          부분입고_품목수: partial.length,     // 발주했는데 일부만 입고된 것(입고>0, 남은>0)
+          완전미입고_품목수: open.length - partial.length, // 전혀 안 들어온 것(입고=0)
           미입고_수량합: open.reduce((s, o) => s + o.미입고, 0),
-          미입고목록: open.slice(0, 80),
+          미입고목록: open.slice(0, 80),        // 각 항목에 상태(부분입고/미입고) 포함
           안내: q
-            ? `"${args.query}" 관련 미입고 ${open.length}건 (규격 표기가 달라도 문맥으로 매칭해 판단)`
-            : '미입고 = 발주했지만 아직 안 들어온 품목. 사용자가 발주하려는 제품이 여기 있으면 이미 발주된 것이니 중복발주 주의. 추천 발주수량은 getRestockRecommendations 참고.',
+            ? `"${args.query}" 관련 미입고 ${open.length}건 (부분입고 ${partial.length}건 포함, 규격 표기 달라도 문맥 매칭). 각 항목의 상태(부분입고=일부만 입고/미입고=전혀 안 옴)와 발주/입고/남은 수량 확인.`
+            : `미입고 = 발주했는데 아직 다 안 들어온 품목(부분입고 ${partial.length}건 + 완전미입고 ${open.length - partial.length}건). 부분입고는 발주수량 중 일부만 입고돼 남은수량이 있는 것. 발주하려는 제품이 여기 있으면 이미 발주된 것이니 중복 주의. 추천수량 getRestockRecommendations 참고.`,
         } };
       }
       case 'getRestockRecommendations':

@@ -449,7 +449,7 @@ function buildPurchaseFallback(question, purchaseOrders = [], supplierPrices = [
   const open = [];
   for (const po of (purchaseOrders || [])) for (const it of (po.items || [])) {
     if (it && !it.status_override && num(it.qty) > 0 && (num(it.qty) - num(it.received_qty)) > 0) {
-      open.push({ name: it.name, spec: it.spec, remaining: num(it.qty) - num(it.received_qty), key: dkey(it.spec) || dkey(it.name) });
+      open.push({ name: it.name, spec: it.spec, ordered: num(it.qty), received: num(it.received_qty), remaining: num(it.qty) - num(it.received_qty), key: dkey(it.spec) || dkey(it.name) });
     }
   }
   // 매입 단가 (규격 숫자키 → 최신)
@@ -471,7 +471,8 @@ function buildPurchaseFallback(question, purchaseOrders = [], supplierPrices = [
     const key = dkey(specPart);
     const already = key.length >= 5 ? open.filter((o) => o.key && o.key === key) : [];
     if (already.length) {
-      cmp += `⚠️ ${specPart}${qty ? ` ${qty}개` : ''} → 이미 발주됨(미입고 ${already.map((h) => `${h.spec} ${h.remaining}개`).join(', ')}) — 중복발주 주의\n`;
+      const st = already.map((h) => `${h.spec}: ${h.received > 0 ? `부분입고(발주${h.ordered}·입고${h.received}·남은${h.remaining})` : `미입고 ${h.remaining}개`}`).join(', ');
+      cmp += `⚠️ ${specPart}${qty ? ` ${qty}개` : ''} → 이미 발주됨 [${st}] — 중복발주 주의\n`;
     } else {
       const pr = key.length >= 5 ? priceByKey.get(key) : null;
       cmp += `✅ ${specPart}${qty ? ` ${qty}개` : ''} → 미입고 없음 · 신규 발주${pr ? ` (매입단가 ${fmt(num(pr.unit_price))}원)` : ''}\n`;
