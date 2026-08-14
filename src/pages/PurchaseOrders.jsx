@@ -120,6 +120,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
   const [restockHideNoSale, setRestockHideNoSale] = useState(false); // 판매 이력 없는 것 숨기기
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all'); // 'all' | '미입고' | '부분 입고' | '완료'
+  const [pendingStatus, setPendingStatus] = useState('all'); // 미입고 현황 탭 서브필터: 'all' | '미입고' | '부분 입고'
   const [dateFrom, setDateFrom] = useState(''); // 발주일 조회 시작 (YYYY-MM-DD)
   const [dateTo, setDateTo] = useState('');     // 발주일 조회 끝
   const [editing, setEditing] = useState(null);
@@ -326,6 +327,17 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
     for (const po of searched) for (const it of poOpenItems(po)) out.push({ po, item: it });
     return out.sort((a, b) => String(a.po.order_date).localeCompare(String(b.po.order_date)));
   }, [searched]);
+
+  // 미입고 현황 서브필터(전체/미입고/부분입고) — 건수 + 필터된 리스트. 복사·CSV·프린트·렌더 전부 이걸 사용.
+  const pendingCounts = useMemo(() => {
+    const c = { all: pendingItems.length, '미입고': 0, '부분 입고': 0 };
+    for (const { item } of pendingItems) { const s = itemStatus(item); if (s === '미입고') c['미입고']++; else if (s === '부분 입고') c['부분 입고']++; }
+    return c;
+  }, [pendingItems]);
+  const pendingFiltered = useMemo(
+    () => (pendingStatus === 'all' ? pendingItems : pendingItems.filter(({ item }) => itemStatus(item) === pendingStatus)),
+    [pendingItems, pendingStatus]
+  );
 
   const summary = useMemo(() => {
     const open = pos.filter((po) => poOpenItems(po).length > 0);
@@ -596,9 +608,10 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
 
   // ── 내보내기 ──
   const onCopyKakao = async () => {
-    if (!pendingItems.length) { showToast?.('복사할 미입고 품목이 없습니다', 'error'); return; }
-    const suppliers = [...new Set(pendingItems.map(({ po }) => po.supplier_name))];
-    const text = buildPendingKakaoText(pendingItems, { supplier: suppliers.length === 1 ? suppliers[0] : '' });
+    if (!pendingFiltered.length) { showToast?.('복사할 미입고 품목이 없습니다', 'error'); return; }
+    const suppliers = [...new Set(pendingFiltered.map(({ po }) => po.supplier_name))];
+    const label = pendingStatus === 'all' ? '' : `[${pendingStatus}] `;
+    const text = label + buildPendingKakaoText(pendingFiltered, { supplier: suppliers.length === 1 ? suppliers[0] : '' });
     const ok = await copyText(text);
     if (!ok) { showToast?.('복사 실패 — 길게 눌러 직접 복사해주세요', 'error'); return; }
     setCopied(true);
@@ -608,11 +621,11 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
 
   const onCSV = () => {
     const isPending = tab === 'pending';
-    if (isPending && !pendingItems.length) { showToast?.('내보낼 미입고 품목이 없습니다', 'error'); return; }
+    if (isPending && !pendingFiltered.length) { showToast?.('내보낼 미입고 품목이 없습니다', 'error'); return; }
     if (!isPending && !filtered.length) { showToast?.('내보낼 발주가 없습니다', 'error'); return; }
     const today = getTodayKST();
     downloadCSV(
-      isPending ? buildPendingCSV(pendingItems) : buildPurchaseCSV(filtered),
+      isPending ? buildPendingCSV(pendingFiltered) : buildPurchaseCSV(filtered),
       isPending ? `미입고현황_${today}.csv` : `매입발주_${today}.csv`
     );
     showToast?.('CSV를 저장했습니다', 'success');
@@ -632,9 +645,9 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
 
   const onPrint = () => {
     const isPending = tab === 'pending';
-    if (isPending && !pendingItems.length) { showToast?.('출력할 미입고 품목이 없습니다', 'error'); return; }
+    if (isPending && !pendingFiltered.length) { showToast?.('출력할 미입고 품목이 없습니다', 'error'); return; }
     if (!isPending && !filtered.length) { showToast?.('출력할 발주가 없습니다', 'error'); return; }
-    const ok = isPending ? printPendingItems(pendingItems) : printPurchaseOrders(filtered);
+    const ok = isPending ? printPendingItems(pendingFiltered) : printPurchaseOrders(filtered);
     if (!ok) showToast?.('팝업이 차단됐습니다 — 브라우저에서 팝업을 허용해주세요', 'error');
   };
 
@@ -817,6 +830,21 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
           </div>
         </div>
 
+        {/* 미입고 현황 서브필터 — 미입고/부분입고 따로 필터 (복사·CSV·프린트도 이 필터 반영) */}
+        {tab === 'pending' && (
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            {[['all', `전체 ${pendingCounts.all}`], ['미입고', `미입고 ${pendingCounts['미입고']}`], ['부분 입고', `부분입고 ${pendingCounts['부분 입고']}`]].map(([k, lbl]) => (
+              <button key={k} onClick={() => setPendingStatus(k)}
+                className="px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors"
+                style={pendingStatus === k
+                  ? { background: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' }
+                  : { background: 'var(--card)', color: 'var(--muted-foreground)', borderColor: 'var(--border)' }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* 내보내기 툴바 — 현재 탭 기준으로 동작. 재주문 리스트는 발주 데이터가 아니라 제외 */}
         <div className="flex flex-wrap items-center gap-2" style={{ display: tab === 'restock' ? 'none' : undefined }}>
           {tab === 'pending' && (
@@ -829,6 +857,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
           <ToolBtn onClick={onPrint} icon={Printer}>프린트</ToolBtn>
           <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
             {tab === 'pending' ? '미입고 현황' : '발주 목록'} 기준
+            {tab === 'pending' && pendingStatus !== 'all' ? ` (${pendingStatus}만)` : ''}
             {tab === 'orders' && status !== 'all' ? ` (${status}만)` : ''}{q ? ' (검색 결과만)' : ''}
           </span>
         </div>
@@ -1113,10 +1142,10 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
               })}
             </div>
           )
-        ) : pendingItems.length === 0 ? (
+        ) : pendingFiltered.length === 0 ? (
           <div className="py-16 text-center" style={{ color: 'var(--muted-foreground)' }}>
             <PackageCheck className="w-10 h-10 mx-auto mb-2" style={{ color: 'var(--success)' }} />
-            <div className="text-sm font-bold">미입고 품목이 없습니다</div>
+            <div className="text-sm font-bold">{pendingStatus === 'all' ? '미입고 품목이 없습니다' : `${pendingStatus} 품목이 없습니다`}</div>
           </div>
         ) : (
           <div className="rounded-xl border overflow-x-auto" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
@@ -1129,7 +1158,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
                 </tr>
               </thead>
               <tbody>
-                {pendingItems.map(({ po, item }, i) => {
+                {pendingFiltered.map(({ po, item }, i) => {
                   const lv = ageLevel(daysSince(po.order_date));
                   return (
                     <tr key={`${po.id}-${i}`} className="border-t" style={{ borderColor: 'var(--border)', background: lv === 'critical' ? 'color-mix(in srgb, var(--destructive) 7%, transparent)' : undefined }}>
