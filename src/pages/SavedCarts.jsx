@@ -127,6 +127,8 @@ export default function SavedCarts({
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
   const [customDate, setCustomDate] = useState('');
+  const [rangeFrom, setRangeFrom] = useState(''); // 기간 조회 시작일
+  const [rangeTo, setRangeTo] = useState('');     // 기간 조회 종료일
   const [deliveryFilter, setDeliveryFilter] = useState('all');
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
@@ -321,6 +323,12 @@ export default function SavedCarts({
     if (dateFilter === 'custom' && customDate) {
       return cartDateKST === customDate;
     }
+    if (dateFilter === 'range') {
+      if (!rangeFrom && !rangeTo) return true;
+      if (rangeFrom && cartDateKST < rangeFrom) return false;
+      if (rangeTo && cartDateKST > rangeTo) return false;
+      return true;
+    }
     return true;
   };
 
@@ -359,8 +367,39 @@ export default function SavedCarts({
       case 'week': return '이번 주';
       case 'month': return '이번 달';
       case 'custom': return customDate || '날짜 선택';
+      case 'range': return (rangeFrom || rangeTo) ? `${rangeFrom || '처음'} ~ ${rangeTo || '끝'}` : '기간';
       default: return '전체';
     }
+  };
+
+  // 기간(from~to) 날짜 입력 — collapsed/expanded 양쪽 재사용 (함수 → remount 방지)
+  const renderRange = (small) => (dateFilter !== 'range') ? null : (
+    <span className="inline-flex items-center gap-1">
+      <input type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)}
+        className={`${small ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-lg border focus:outline-none`}
+        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+      <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>~</span>
+      <input type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)}
+        className={`${small ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-lg border focus:outline-none`}
+        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+    </span>
+  );
+
+  // 📋 현재 필터된 장바구니 목록을 텍스트로 복사 (기간 조회 결과 출력용)
+  const copyCartList = async () => {
+    if (!filteredCarts.length) { showToast?.('복사할 장바구니가 없습니다', 'error'); return; }
+    const won = (n) => Number(n || 0).toLocaleString('ko-KR');
+    const lines = filteredCarts.map((c, i) => {
+      const items = (c.items || []).map((it) => `${it.name}×${it.quantity || 1}`).join(', ');
+      const d = String(c.created_at || c.date || '').slice(0, 10);
+      return `${i + 1}. ${c.name || '이름없음'} · ${d} · ${won(c.total)}원\n   ${items || '상품'}`;
+    });
+    const text = [`🛒 저장 장바구니 목록 (${getFilterLabel()} · ${filteredCarts.length}개 · 합계 ${won(totalAmount)}원)`, '━━━━━━━━━━━━', ...lines].join('\n');
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+      else { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+      showToast?.(`장바구니 ${filteredCarts.length}개 목록을 복사했습니다 📋`, 'success');
+    } catch { showToast?.('복사 실패 — 다시 시도해주세요', 'error'); }
   };
 
   // Centralized delete handler with loading state and logging
@@ -1438,7 +1477,7 @@ export default function SavedCarts({
                 { key: 'week', label: '이번 주' },
                 { key: 'month', label: '이번 달' },
                 { key: 'custom', label: '날짜 선택' },
-                { key: 'all', label: '전체' }
+                { key: 'range', label: '기간' }, { key: 'all', label: '전체' }
               ].map(({ key, label }) => (
                 <button
                   key={key}
@@ -1465,6 +1504,12 @@ export default function SavedCarts({
                   }}
                 />
               )}
+              {renderRange(true)}
+              <button onClick={copyCartList} disabled={filteredCarts.length === 0}
+                className="px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors disabled:opacity-40 inline-flex items-center gap-1"
+                style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} title="현재 목록을 텍스트로 복사">
+                📋 리스트 복사
+              </button>
             </div>
           )}
         </div>
@@ -1498,7 +1543,7 @@ export default function SavedCarts({
                   { key: 'week', label: '이번 주' },
                   { key: 'month', label: '이번 달' },
                   { key: 'custom', label: '날짜 선택' },
-                  { key: 'all', label: '전체' }
+                  { key: 'range', label: '기간' }, { key: 'all', label: '전체' }
                 ].map(({ key, label }) => (
                   <button
                     key={key}
@@ -1525,6 +1570,12 @@ export default function SavedCarts({
                     }}
                   />
                 )}
+                {renderRange(false)}
+                <button onClick={copyCartList} disabled={filteredCarts.length === 0}
+                  className="px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors disabled:opacity-40 inline-flex items-center gap-1.5"
+                  style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} title="현재 목록을 텍스트로 복사">
+                  📋 리스트 복사
+                </button>
               </div>
             </div>
 
@@ -1533,7 +1584,7 @@ export default function SavedCarts({
               <p className="text-[var(--muted-foreground)] text-xs mb-2">배송 예정일</p>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { key: 'all', label: '전체' },
+                  { key: 'range', label: '기간' }, { key: 'all', label: '전체' },
                   { key: 'reservation', label: '입고예약' },
                   { key: 'overdue', label: '지연' },
                   { key: 'today', label: '오늘' },

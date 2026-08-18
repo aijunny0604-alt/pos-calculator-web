@@ -61,6 +61,7 @@ export default function OrderHistory({
   isDetailModalOpen = false,
   customers = [],
   onUpdateOrder,
+  showToast,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('today');
@@ -122,6 +123,8 @@ export default function OrderHistory({
     }
   };
   const [customDate, setCustomDate] = useState('');
+  const [rangeFrom, setRangeFrom] = useState(''); // 기간 조회 시작일
+  const [rangeTo, setRangeTo] = useState('');     // 기간 조회 종료일
   const [customerFilter, setCustomerFilter] = useState('');
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -299,6 +302,10 @@ export default function OrderHistory({
     if (dateFilter === 'week') return matchRange(offsetDateKST(todayKST, -7), todayKST);
     if (dateFilter === 'month') return matchRange(offsetMonthKST(todayKST, -1), todayKST);
     if (dateFilter === 'custom' && customDate) return matchDate(customDate);
+    if (dateFilter === 'range') {
+      if (!rangeFrom && !rangeTo) return true;
+      return matchRange(rangeFrom || '0000-01-01', rangeTo || '9999-12-31');
+    }
     return true;
   };
 
@@ -434,6 +441,7 @@ export default function OrderHistory({
       case 'week': return '최근 7일';
       case 'month': return '최근 1개월';
       case 'custom': return customDate || '날짜 선택';
+      case 'range': return (rangeFrom || rangeTo) ? `${rangeFrom || '처음'} ~ ${rangeTo || '끝'}` : '기간';
       default: return '전체';
     }
   };
@@ -444,8 +452,39 @@ export default function OrderHistory({
     { key: 'week', label: '이번 주' },
     { key: 'month', label: '이번 달' },
     { key: 'custom', label: '날짜 선택' },
+    { key: 'range', label: '기간' },
     { key: 'all', label: '전체' },
   ];
+
+  // 기간(from~to) 날짜 입력 — collapsed/expanded 양쪽에서 재사용 (컴포넌트 아닌 함수 → remount 방지)
+  const renderRange = (small) => (dateFilter !== 'range') ? null : (
+    <span className="inline-flex items-center gap-1">
+      <input type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)}
+        className={`${small ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-lg border focus:outline-none`}
+        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+      <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>~</span>
+      <input type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)}
+        className={`${small ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-lg border focus:outline-none`}
+        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+    </span>
+  );
+
+  // 📋 현재 필터된 주문 목록을 텍스트로 복사 (기간 조회 결과 출력용)
+  const copyOrderList = async () => {
+    if (!filteredOrders.length) { showToast?.('복사할 주문이 없습니다', 'error'); return; }
+    const won = (n) => Number(n || 0).toLocaleString('ko-KR');
+    const lines = filteredOrders.map((o, i) => {
+      const items = (o.items || []).map((it) => `${it.name}×${it.quantity}`).join(', ');
+      const d = String(o.createdAt || '').slice(0, 10);
+      return `${i + 1}. ${o.customerName || '-'} · ${d} · ${won(o.totalAmount)}원\n   ${items || '상품'}`;
+    });
+    const text = [`📋 주문 목록 (${getFilterLabel()} · ${filteredOrders.length}건 · 합계 ${won(filteredTotalSales)}원)`, '━━━━━━━━━━━━', ...lines].join('\n');
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+      else { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+      showToast?.(`주문 ${filteredOrders.length}건 목록을 복사했습니다 📋`, 'success');
+    } catch { showToast?.('복사 실패 — 다시 시도해주세요', 'error'); }
+  };
 
   // 하루씩 앞/뒤로 이동 — 현재 기준일을 ±1일 한 뒤 '날짜 선택'(단일 날짜) 모드로 고정
   const currentAnchorDate = () => {
@@ -654,6 +693,12 @@ export default function OrderHistory({
                   }}
                 />
               )}
+              {renderRange(true)}
+              <button onClick={copyOrderList} disabled={filteredOrders.length === 0}
+                className="px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors disabled:opacity-40 inline-flex items-center gap-1"
+                style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} title="현재 목록을 텍스트로 복사">
+                📋 리스트 복사
+              </button>
             </div>
           )}
         </div>
@@ -908,6 +953,12 @@ export default function OrderHistory({
                   }}
                 />
               )}
+              {renderRange(false)}
+              <button onClick={copyOrderList} disabled={filteredOrders.length === 0}
+                className="px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors disabled:opacity-40 inline-flex items-center gap-1.5"
+                style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--foreground)' }} title="현재 목록을 텍스트로 복사">
+                📋 리스트 복사
+              </button>
               <button
                 onClick={() => setShowFilterDeleteConfirm(true)}
                 disabled={filteredOrders.length === 0}

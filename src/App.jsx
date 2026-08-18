@@ -1062,6 +1062,7 @@ export default function App() {
         return (
           <OrderHistory
             orders={orders}
+            showToast={showToast}
             onBack={() => setCurrentPage('pos')}
             onDeleteOrder={handleDeleteOrder}
             onDeleteMultiple={handleDeleteMultipleOrders}
