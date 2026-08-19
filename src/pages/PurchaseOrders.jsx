@@ -113,7 +113,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false); // 마이그008 미적용과 빈 목록을 구분
-  const [tab, setTab] = useState('orders'); // 'orders' | 'pending' | 'restock'
+  const [tab, setTab] = useState('orders'); // 'orders' | 'pending' | 'restock' | 'defect'
+  const [defectCount, setDefectCount] = useState(null); // 불량 반품 탭 뱃지(컴포넌트가 보고)
   const [restockPicked, setRestockPicked] = useState(() => new Set()); // 재주문 리스트에서 고른 제품 id
   const [restockCat, setRestockCat] = useState('전체'); // 재주문 리스트 카테고리 필터
   const [restockDays, setRestockDays] = useState(90);   // 판매 실적 집계 기간(일)
@@ -153,6 +154,14 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
     (async () => {
       const rows = await supabase.getSupplierPrices();
       if (Array.isArray(rows)) setPrices(rows);
+    })();
+  }, []);
+
+  // 불량 반품 탭 뱃지 — 탭을 열지 않아도 건수가 보이도록 초기 로드(탭 열면 컴포넌트가 실시간 갱신).
+  useEffect(() => {
+    (async () => {
+      const rows = await supabase.getDefectReturns();
+      if (Array.isArray(rows)) setDefectCount(rows.length);
     })();
   }, []);
 
@@ -721,7 +730,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
             { id: 'orders', label: '발주 목록', count: filtered.length },
             { id: 'pending', label: '미입고 현황', count: pendingItems.length },
             { id: 'restock', label: '재주문 리스트', count: restockAll.length },
-            { id: 'defect', label: '불량 반품' },
+            { id: 'defect', label: '불량 반품', count: defectCount },
           ].map((t) => (
             <button
               key={t.id}
@@ -1147,7 +1156,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
             </div>
           )
         ) : tab === 'defect' ? (
-          <DefectReturns showToast={showToast} />
+          <DefectReturns showToast={showToast} onCount={setDefectCount} />
         ) : pendingFiltered.length === 0 ? (
           <div className="py-16 text-center" style={{ color: 'var(--muted-foreground)' }}>
             <PackageCheck className="w-10 h-10 mx-auto mb-2" style={{ color: 'var(--success)' }} />

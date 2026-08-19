@@ -78,7 +78,7 @@ function buildKakaoText(row) {
   return lines.join('\n');
 }
 
-export default function DefectReturns({ showToast }) {
+export default function DefectReturns({ showToast, onCount }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -97,6 +97,8 @@ export default function DefectReturns({ showToast }) {
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
+  // 상위(매입 발주 탭 뱃지)로 건수 보고 — 로드/추가/삭제/완료 반영
+  useEffect(() => { if (!loadFailed) onCount?.(rows.length); }, [rows, loadFailed, onCount]);
 
   const openNew = () => {
     setPasteText('');
