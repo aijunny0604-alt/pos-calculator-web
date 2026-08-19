@@ -1,9 +1,22 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-08-13 (🤖 MOVIS 발주 도우미[미입고·매입단가·발주서·AI실패 폴백] / 결제완료 도장배지 / 등록증 이메일·업체정보[마이그013] / 토스트 우측하단·z-index버그 / 모달 세로확대 / 카톡배송 모바일형식 / sync 30초 / 스토어 포장배지)
+> 마지막 업데이트: 2026-08-19 (♻️ 불량품 반품 기록[마이그014, 교환 회수 추적] / 📋 스토어 연동 로그 "확인함" 뱃지 dismiss)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-08-19 — 불량품 반품 기록 + 스토어 로그 dismiss
+
+### ♻️ 불량품 반품 기록 (매입처 JSR로 되돌려 보낸 불량품 + 교환 회수 추적)
+매입 발주 페이지에 **[불량 반품] 탭** 신규([PurchaseOrders.jsx](src/pages/PurchaseOrders.jsx) tab='defect' → [DefectReturns.jsx](src/components/purchase/DefectReturns.jsx)).
+- ⚠️ 판매 반품(고객→우리, orders.returns)과 **개념 다름** — 이건 우리→매입처. 발주서 미입고(purchase_orders)·수불장부(supplier_ledger)와도 별개.
+- 🔴 **마이그 [014](../naver-sync-bridge/migrations/014_defect_returns.sql) 적용 필요**: `defect_returns`(return_date, supplier, **items jsonb**[{category,spec,qty,unit,received_qty,note}], memo, status). 미적용 시 페이지가 "마이그레이션 014" 안내(null 반환).
+- **리스트 붙여넣기 자동 파싱**(`parseDefectList`): "■ NPK"(분류)/"* NPK 114D-T : 4개"/"* VP KIT : 1세트" 인식, 소계·총합·[제목] 무시, 제목줄에서 날짜·매입처(JSR) 추출. 개/세트 단위 구분.
+- **교환 회수 추적**: 각 품목 received_qty를 카드에서 +/- 로 기록(대체품 되받음). 전량 회수되면 status 자동 '완료'. 진행바+회수 N/M 표시.
+- 카톡 복사(원본 리스트 형식)·명세서 프린트(분류별 표+총합)·수정·삭제·완료 토글.
+
+### 📋 스토어 연동 로그 "확인함" dismiss ([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx))
+연동 로그는 주문 필드(naver_confirm/dispatch) **파생**이라 DB 삭제 불가 → localStorage `pos_store_log_ack_at`(확인 시각) 방식. 📋로그 버튼 빨간 뱃지는 이제 **확인함 이후 새 실패·대기(newAlertCount)만** 카운트. 모달 요약줄의 [✓ 확인함] 버튼 누르면 뱃지 사라짐(새 이벤트 생기면 다시 표시).
 
 ## 🆕 v2026-08-13 — MOVIS 발주 도우미 + UI 다수
 

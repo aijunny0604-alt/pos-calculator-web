@@ -608,6 +608,34 @@ export const supabase = {
     } catch (e) { console.error('deleteSupplierPrice:', e); return false; }
   },
 
+  // ===== 불량품 반품 (defect_returns) — 매입처(JSR)로 되돌려 보낸 불량품 + 교환 회수 추적 =====
+  // ⚠️ 판매 반품(고객→우리)과 다름. 마이그014 미적용 시 null 반환 → 페이지가 안내 표시.
+  async getDefectReturns() {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/defect_returns?order=return_date.desc,created_at.desc`, { headers });
+    } catch (e) { console.error('getDefectReturns:', e); return null; }
+  },
+  async addDefectReturn(row) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/defect_returns`, {
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify(row)
+      });
+    } catch (e) { console.error('addDefectReturn:', e); return null; }
+  },
+  async updateDefectReturn(id, patch) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/defect_returns?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(patch)
+      });
+    } catch (e) { console.error('updateDefectReturn:', e); return null; }
+  },
+  async deleteDefectReturn(id) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/defect_returns?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      return r.ok;
+    } catch (e) { console.error('deleteDefectReturn:', e); return false; }
+  },
+
   // ===== 매입처 수불 장부 (supplier_ledger) — 빌려준 것 / 예전 미입고 / 불량품 =====
   // ⚠️ 발주서 기반 미입고(purchase_orders)와 별개. 발주서 없이 오간 것들을 추적.
   async getSupplierLedger() {

@@ -517,6 +517,9 @@ export default function SmartStoreOrders({
   const [sortBy, setSortBy] = useState('recent'); // recent | amount | status
   // 네이버 연동 로그 모니터 (발주확인/발송 API 성공·실패 내역)
   const [showLogModal, setShowLogModal] = useState(false);
+  // 로그 "확인함" 시각 — 이후 새 실패만 뱃지에 표시 (로그는 주문 필드 파생이라 삭제 대신 확인 처리)
+  const [logAckAt, setLogAckAt] = useState(() => Number(localStorage.getItem('pos_store_log_ack_at')) || 0);
+  const ackLog = () => { const now = Date.now(); setLogAckAt(now); try { localStorage.setItem('pos_store_log_ack_at', String(now)); } catch { /* noop */ } };
   // 뷰 모드 — localStorage 영구 저장 (주문 많을 때 컴팩트로 한눈에)
   const [viewMode, setViewMode] = useState(() => {
     try { return localStorage.getItem('smartstore_view_mode') || 'card'; } catch { return 'card'; }
@@ -904,6 +907,8 @@ export default function SmartStoreOrders({
     fail: integrationLog.filter((e) => e.result === 'fail').length,
     pending: integrationLog.filter((e) => e.result === 'pending').length,
   }), [integrationLog]);
+  // 뱃지엔 "확인함" 이후 발생한 실패·대기만 — 확인하면 뱃지 사라짐
+  const newAlertCount = useMemo(() => integrationLog.filter((e) => (e.result === 'fail' || e.result === 'pending') && new Date(e.t || 0).getTime() > logAckAt).length, [integrationLog, logAckAt]);
 
   // 조회 결과 요약 (현재 필터 적용 기준)
   const filteredSummary = useMemo(() => ({
@@ -1615,8 +1620,8 @@ export default function SmartStoreOrders({
           title="네이버 연동 로그 — 발주확인/발송 API 성공·실패 내역"
         >
           📋<span className="hidden sm:inline">로그</span>
-          {logCounts.fail > 0 && (
-            <span className="px-1 rounded-full text-[10px] font-bold" style={{ background: '#ff4d6d', color: 'white' }}>{logCounts.fail}</span>
+          {newAlertCount > 0 && (
+            <span className="px-1 rounded-full text-[10px] font-bold" style={{ background: '#ff4d6d', color: 'white' }}>{newAlertCount}</span>
           )}
         </button>
         <button
@@ -2858,7 +2863,11 @@ export default function SmartStoreOrders({
               <span className="px-2 py-1 rounded-md font-bold" style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a' }}>✓ 성공 {logCounts.success}</span>
               <span className="px-2 py-1 rounded-md font-bold" style={{ background: 'rgba(255,77,109,0.15)', color: '#ff4d6d' }}>✗ 실패 {logCounts.fail}</span>
               <span className="px-2 py-1 rounded-md font-bold" style={{ background: 'rgba(255,176,32,0.15)', color: '#e6961b' }}>⏳ 대기 {logCounts.pending}</span>
-              <span className="ml-auto opacity-50">최근 {integrationLog.length}건</span>
+              {newAlertCount > 0 ? (
+                <button onClick={ackLog} className="ml-auto px-2 py-1 rounded-md font-bold" style={{ background: 'var(--primary)', color: '#00121a' }} title="현재까지의 실패·대기 알림을 확인 처리해 뱃지를 없앱니다">✓ 확인함 ({newAlertCount})</button>
+              ) : (
+                <span className="ml-auto opacity-50">최근 {integrationLog.length}건</span>
+              )}
             </div>
             {/* 로그 리스트 */}
             <div className="overflow-y-auto px-2 py-2" style={{ WebkitOverflowScrolling: 'touch' }}>
