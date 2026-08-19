@@ -1266,12 +1266,13 @@ export default function OrderHistory({
                               </span>
                             );
                           })() : (isFirstOrder(order) && (
+                            // 도매(업체)만 '신규업체', 소비자는 '신규고객'으로 — 소비자에게 '업체' 오분류 방지
                             <span
                               className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black flex-shrink-0"
                               style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#fff', boxShadow: '0 1px 4px rgba(249,115,22,0.4)' }}
-                              title="이 거래처의 첫 주문입니다"
+                              title={order.priceType === 'wholesale' ? '이 거래처의 첫 주문입니다' : '이 고객의 첫 주문입니다'}
                             >
-                              🆕 신규업체
+                              {order.priceType === 'wholesale' ? '🆕 신규업체' : '🆕 신규고객'}
                             </span>
                           ))}
                           {/* 📄 사업자등록증 — 연동돼 있으면 클릭해서 보기 */}
