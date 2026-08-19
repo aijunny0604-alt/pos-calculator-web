@@ -228,6 +228,13 @@ export default function DefectReturns({ showToast }) {
 
   return (
     <div className="space-y-3">
+      <div className="p-3 rounded-xl border flex items-start gap-2.5 text-xs" style={{ background: 'rgba(0,212,255,0.06)', borderColor: 'var(--primary)' }}>
+        <RotateCcw className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--primary)' }} />
+        <div style={{ color: 'var(--foreground)' }}>
+          <b>JSR로 발송한 불량품 묶음 + 교환품 회수</b>를 추적하는 곳입니다.
+          <br />발생만 하고 아직 안 보낸 <b>누적 불량품 목록</b>은 <b>[JSR 수불 장부] → 불량품</b> 탭에서 봅니다.
+        </div>
+      </div>
       <div className="flex items-center gap-2">
         <button onClick={openNew} className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white" style={{ background: 'var(--primary)' }}>
           <Plus className="w-4 h-4" /> 새 불량 반품 기록

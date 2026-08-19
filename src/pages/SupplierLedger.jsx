@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { HandCoins, Search, ArrowLeft, Database, Plus, Trash2, Check, AlertTriangle, Copy, FileDown, Clock, Undo2, X } from 'lucide-react';
+import { HandCoins, Search, ArrowLeft, Database, Plus, Trash2, Check, AlertTriangle, Copy, FileDown, Clock, X } from 'lucide-react';
 import { formatPrice, getTodayKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { copyText, downloadCSV, daysSince, ageLevel } from '@/lib/purchaseExport';
@@ -67,8 +67,8 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
 
   const filtered = useMemo(() => {
     let list = byKind[tab] || [];
-    // 빌려줌/미입고는 정리 안 된 것부터, 완료된 건 뒤로
-    if (tab === 'lent' || tab === 'pending') list = [...list].sort((a, b) => Number(a.resolved) - Number(b.resolved) || String(a.occurred_on).localeCompare(String(b.occurred_on)));
+    // 빌려줌/미입고/불량품은 정리 안 된 것부터, 완료된 건 뒤로
+    if (tab === 'lent' || tab === 'pending' || tab === 'defect') list = [...list].sort((a, b) => Number(a.resolved) - Number(b.resolved) || String(a.occurred_on || '').localeCompare(String(b.occurred_on || '')));
     const ql = q.trim().toLowerCase();
     if (ql) list = list.filter((r) => `${r.item_name} ${r.spec || ''} ${r.note || ''}`.toLowerCase().includes(ql));
     return list;
@@ -83,8 +83,8 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
       lentCount: openLent.length,
       pendingQty: openPending.reduce((s, r) => s + num(r.qty), 0),
       pendingCount: openPending.length,
-      defectQty: byKind.defect.reduce((s, r) => s + num(r.qty), 0),
-      defectCount: byKind.defect.length,
+      defectQty: byKind.defect.filter((r) => !r.resolved).reduce((s, r) => s + num(r.qty), 0),
+      defectCount: byKind.defect.filter((r) => !r.resolved).length,
       oldestDays: oldest?.occurred_on ? daysSince(oldest.occurred_on) : 0,
       oldest,
     };
@@ -233,6 +233,16 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
           </div>
         )}
 
+        {tab === 'defect' && (
+          <div className="mb-3 p-3 rounded-xl border flex items-start gap-2.5 text-xs" style={{ background: 'color-mix(in srgb, #a855f7 8%, transparent)', borderColor: '#a855f7' }}>
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#a855f7' }} />
+            <div style={{ color: 'var(--foreground)' }}>
+              <b>여기는 누적 불량품 목록</b>입니다 — 발생할 때마다 품목별로 쌓아두는 곳(우리가 보유 중인 불량 재고).
+              <br />JSR로 <b>실제 발송하고 교환품 회수를 추적</b>하려면 <b>[매입 발주] → [불량 반품]</b> 탭을 쓰세요. 발송 처리한 건은 여기서 완료 스위치를 켜 정리하면 됩니다.
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>불러오는 중...</div>
         ) : filtered.length === 0 ? (
@@ -280,14 +290,16 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
                         {r.note || ''}
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          {r.kind !== 'defect' && (
-                            <button onClick={() => toggleResolved(r)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap"
-                              style={r.resolved ? { background: 'var(--muted)', color: 'var(--muted-foreground)' } : { background: 'var(--success)', color: 'white' }}>
-                              {r.resolved ? <><Undo2 className="w-3.5 h-3.5" /> 되돌리기</> : <><Check className="w-3.5 h-3.5" /> {r.kind === 'lent' ? '돌려받음' : '입고됨'}</>}
-                            </button>
-                          )}
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => toggleResolved(r)} role="switch" aria-checked={!!r.resolved}
+                            title={r.resolved ? '완료 → 되돌리기' : `${r.kind === 'lent' ? '돌려받음' : r.kind === 'defect' ? '완료(처리됨)' : '입고됨'}으로 표시`}
+                            className="relative inline-flex items-center h-6 w-11 rounded-full transition-colors flex-shrink-0"
+                            style={{ background: r.resolved ? 'var(--success)' : 'var(--muted)' }}>
+                            <span className="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform" style={{ transform: r.resolved ? 'translateX(22px)' : 'translateX(2px)' }} />
+                          </button>
+                          <span className="text-xs font-bold w-10" style={{ color: r.resolved ? 'var(--success)' : 'var(--muted-foreground)' }}>
+                            {r.resolved ? '완료' : (r.kind === 'lent' ? '미회수' : r.kind === 'defect' ? '미처리' : '미입고')}
+                          </span>
                           <button onClick={() => setConfirmDelete(r)} className="p-1.5 rounded-lg hover:bg-[var(--accent)]" style={{ color: 'var(--muted-foreground)' }} aria-label="삭제">
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -387,7 +399,7 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
               <b>{confirmDelete.item_name}</b> {num(confirmDelete.qty)}{confirmDelete.unit}
               <br />
               <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                정리된 건이면 삭제 말고 <b>[{confirmDelete.kind === 'lent' ? '돌려받음' : '입고됨'}]</b>을 쓰세요 — 이력이 남습니다.
+                정리된 건이면 삭제 말고 <b>완료 스위치</b>를 켜세요 — 이력이 남습니다.
               </span>
             </div>
             <div className="flex justify-end gap-2">
