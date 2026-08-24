@@ -608,6 +608,33 @@ export const supabase = {
     } catch (e) { console.error('deleteSupplierPrice:', e); return false; }
   },
 
+  // ===== 매입 증빙 보관 (purchase_docs) — 견적서/명세서 사진 서랍(증거물). 마이그015 =====
+  async getPurchaseDocs() {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/purchase_docs?order=doc_date.desc,created_at.desc`, { headers });
+    } catch (e) { console.error('getPurchaseDocs:', e); return null; }
+  },
+  async addPurchaseDoc(row) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/purchase_docs`, {
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify(row)
+      });
+    } catch (e) { console.error('addPurchaseDoc:', e); return null; }
+  },
+  async updatePurchaseDoc(id, patch) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/purchase_docs?id=eq.${id}`, {
+        method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(patch)
+      });
+    } catch (e) { console.error('updatePurchaseDoc:', e); return null; }
+  },
+  async deletePurchaseDoc(id) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/purchase_docs?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      return r.ok;
+    } catch (e) { console.error('deletePurchaseDoc:', e); return false; }
+  },
+
   // ===== 불량품 반품 (defect_returns) — 매입처(JSR)로 되돌려 보낸 불량품 + 교환 회수 추적 =====
   // ⚠️ 판매 반품(고객→우리)과 다름. 마이그014 미적용 시 null 반환 → 페이지가 안내 표시.
   async getDefectReturns() {
