@@ -1654,7 +1654,7 @@ export default function SmartStoreOrders({
             📊 요약 위젯
             {widgetsCollapsed && (
               <span className="text-[10px] sm:text-xs font-normal opacity-60">
-                (전체 {stats.total} · 대기 {stats.pending}{stats.overdue > 0 ? ` · 초과 ${stats.overdue}` : ''})
+                (전체 {stats.total} · 대기 {stageCounts.stages[0]}{stats.overdue > 0 ? ` · 초과 ${stats.overdue}` : ''})
               </span>
             )}
           </span>
@@ -1674,9 +1674,9 @@ export default function SmartStoreOrders({
         <KpiCard label="오늘" value={stats.todayCount} accent="#4dffff"
           hint="오늘 들어온 주문만 보기"
           onClick={() => { setWidgetFilter('none'); setStatusFilter('all'); setDatePreset('today'); }} />
-        <KpiCard label="대기" value={stats.pending} accent="#ffaa00"
-          hint="결제완료 / 발주확인 대기 주문 보기"
-          onClick={() => { setWidgetFilter('none'); setStatusFilter('PAYED'); setDatePreset('all'); }} />
+        <KpiCard label="대기" value={stageCounts.stages[0]} accent="#ffaa00"
+          hint="결제완료(발주확인 대기) 주문 보기"
+          onClick={() => { setWidgetFilter('none'); setStatusFilter('s0'); setDatePreset('all'); }} />
         <KpiCard label="오늘 매출" value={`${fmtNum(stats.todayRevenue)}원`} small
           hint="오늘 매출 상세 카드 보기"
           onClick={() => { setWidgetFilter('none'); setStatusFilter('all'); setDatePreset('today'); }} />
