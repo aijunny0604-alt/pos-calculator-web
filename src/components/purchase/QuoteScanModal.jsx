@@ -12,6 +12,7 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
 export default function QuoteScanModal({ scan, pos, onClose, onConfirm, saving, imgUrl }) {
   const [q, setQ] = useState(scan);
+  const [zoom, setZoom] = useState(false); // 원본 사진 전체화면 확대
   // 무상 보전 행 → 어느 발주의 미입고를 채울지. { [행 index]: {poId, itemSpec} }
   const [fills, setFills] = useState(() => {
     const init = {};
@@ -78,7 +79,7 @@ export default function QuoteScanModal({ scan, pos, onClose, onConfirm, saving, 
             </div>
           )}
 
-          <div className="grid lg:grid-cols-[1fr_360px] gap-5">
+          <div className="grid lg:grid-cols-[1fr_minmax(440px,44%)] gap-5">
             <div>
               {/* 발주 정보 */}
               <div className="grid grid-cols-3 gap-3 mb-4">
@@ -179,13 +180,32 @@ export default function QuoteScanModal({ scan, pos, onClose, onConfirm, saving, 
               )}
             </div>
 
-            {/* 원본 사진 — 판독 결과와 나란히 대조 */}
+            {/* 원본 사진 — 판독 결과와 나란히 대조 (sticky로 스크롤 따라옴 + 클릭 확대) */}
             <div>
-              <div className="text-sm font-bold mb-2" style={{ color: 'var(--muted-foreground)' }}>원본 사진 (대조용)</div>
-              {imgUrl && <img src={imgUrl} alt="발주서 원본" className="w-full rounded-xl border bg-white" style={{ borderColor: 'var(--border)' }} />}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-bold" style={{ color: 'var(--muted-foreground)' }}>원본 사진 (대조용)</span>
+                {imgUrl && <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>· 클릭하면 크게</span>}
+              </div>
+              {imgUrl && (
+                <div className="lg:sticky lg:top-0">
+                  <button type="button" onClick={() => setZoom(true)} className="block w-full cursor-zoom-in" title="클릭하면 전체화면으로 크게 봅니다">
+                    <img src={imgUrl} alt="발주서 원본" className="w-full rounded-xl border bg-white" style={{ borderColor: 'var(--border)', maxHeight: '82vh', objectFit: 'contain' }} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
+
+        {/* 원본 사진 전체화면 확대 */}
+        {zoom && imgUrl && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }} onClick={() => setZoom(false)}>
+            <button className="absolute top-4 right-4 p-2 rounded-lg z-10" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }} onClick={() => setZoom(false)}><X className="w-6 h-6" /></button>
+            <div className="w-full h-full overflow-auto flex items-start justify-center" onClick={(e) => e.stopPropagation()}>
+              <img src={imgUrl} alt="발주서 원본 확대" className="rounded-lg bg-white" style={{ width: '95vw', maxWidth: '1600px', height: 'auto', cursor: 'zoom-out' }} onClick={() => setZoom(false)} />
+            </div>
+          </div>
+        )}
 
         {/* 푸터 */}
         <div className="flex-shrink-0 px-6 py-4 border-t flex items-center gap-2" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>
