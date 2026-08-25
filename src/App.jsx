@@ -1336,7 +1336,7 @@ export default function App() {
 
       case 'supplier-ledger':
         return (
-          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>수불 장부 로드 중...</div>}>
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>대여·불량 관리 로드 중...</div>}>
             <SupplierLedger
               showToast={showToast}
               setCurrentPage={setCurrentPage}

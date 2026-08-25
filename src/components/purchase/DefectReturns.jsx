@@ -234,7 +234,7 @@ export default function DefectReturns({ showToast, onCount }) {
         <RotateCcw className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--primary)' }} />
         <div style={{ color: 'var(--foreground)' }}>
           <b>JSR로 발송한 불량품 묶음 + 교환품 회수</b>를 추적하는 곳입니다.
-          <br />발생만 하고 아직 안 보낸 <b>누적 불량품 목록</b>은 <b>[JSR 수불 장부] → 불량품</b> 탭에서 봅니다.
+          <br />발생만 하고 아직 안 보낸 <b>누적 불량품 목록</b>은 <b>[JSR 대여·불량 관리] → 불량품</b> 탭에서 봅니다.
         </div>
       </div>
       <div className="flex items-center gap-2">

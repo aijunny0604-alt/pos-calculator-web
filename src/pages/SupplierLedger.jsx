@@ -169,7 +169,7 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <HandCoins className="w-6 h-6" style={{ color: 'var(--primary)' }} />
-          <h1 className="text-xl sm:text-2xl font-black" style={{ color: 'var(--foreground)' }}>JSR 수불 장부</h1>
+          <h1 className="text-xl sm:text-2xl font-black" style={{ color: 'var(--foreground)' }}>JSR 대여·불량 관리</h1>
           <button onClick={() => setEditing(emptyRow())} className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white" style={{ background: 'var(--primary)' }}>
             <Plus className="w-4 h-4" /> 추가
           </button>
@@ -224,7 +224,7 @@ export default function SupplierLedger({ showToast, setCurrentPage }) {
           <div className="mb-4 p-4 rounded-xl border flex items-start gap-3" style={{ background: 'var(--card)', borderColor: 'var(--destructive)' }}>
             <Database className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--destructive)' }} />
             <div className="text-sm" style={{ color: 'var(--foreground)' }}>
-              <div className="font-bold mb-1">수불 장부 테이블을 찾을 수 없습니다</div>
+              <div className="font-bold mb-1">대여·불량 관리 테이블을 찾을 수 없습니다</div>
               <div style={{ color: 'var(--muted-foreground)' }}>
                 Supabase 대시보드 &gt; SQL Editor 에서 <b>migrations/010_supplier_ledger.sql</b> 을 실행해주세요.
                 (실행하면 시트의 체크리스트 18건 + 불량품 12종이 함께 들어옵니다)
