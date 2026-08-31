@@ -70,11 +70,14 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
   const dragState = useRef(null);
   const resizeState = useRef(null);
 
-  // viewport resize: 모달 clamp + 데스크톱/모바일 전환
+  // viewport resize: 창을 줄이거나 최소화 후 복원하면 모달이 구석에 박혀 위치가 틀어지던 문제 →
+  //   크기는 유지(뷰포트보다 크면 축소)하되 위치는 중앙으로 정위치 복귀. + 데스크톱/모바일 전환.
   useEffect(() => {
     const onResize = () => {
       setIsDesktop(window.innerWidth >= DESKTOP_BREAKPOINT);
-      setRect((r) => clampRect(r));
+      // 드래그/리사이즈 조작 중에는 방해하지 않음
+      if (dragState.current || resizeState.current) { setRect((r) => clampRect(r)); return; }
+      setRect((r) => centerRect({ w: r.w, h: r.h }));
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);

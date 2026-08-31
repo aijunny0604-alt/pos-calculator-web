@@ -1027,6 +1027,24 @@ export default function SmartStoreOrders({
     return { stages, canceled, unpaid };
   }, [ordersInRange, itemsByOrder]);
 
+  // 🚚 발송 대기 — 발주확인만 하고 아직 발송 못한 주문(재고 없어 대기 등). orderStage 단계1(발주확인·발송 전) 기준.
+  //   기한 초과(dispatch_due_date 지남)와 가장 오래된 건을 함께 집계 — "발송해야 할 것" 리마인더.
+  const shipWatch = useMemo(() => {
+    const now = Date.now();
+    let count = 0, overdue = 0, oldest = null;
+    for (const o of ordersInRange) {
+      const { stage, canceled, unpaid } = orderStage(o);
+      if (canceled || unpaid || getClaimInfo(o, itemsByOrder[o.id])) continue;
+      if (stage !== 1) continue; // 발주확인 완료, 아직 발송 전
+      count++;
+      const dispatchDue = o.dispatch_due_date || o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
+      if (dispatchDue && new Date(dispatchDue).getTime() < now) overdue++;
+      const t = new Date(o.naver_confirm_succeeded_at || o.received_at || 0).getTime();
+      if (t && (!oldest || t < oldest)) oldest = t;
+    }
+    return { count, overdue, oldestDays: oldest ? Math.floor((now - oldest) / 86400000) : 0 };
+  }, [ordersInRange, itemsByOrder]);
+
   // Mock 데이터 주입 (Phase 1 테스트용)
   const injectMockOrder = async () => {
     const productSamples = products.slice(0, 5);
@@ -1704,10 +1722,10 @@ export default function SmartStoreOrders({
               hint="자동 발주확인/발송 큐에 대기 중"
               active={widgetFilter === 'autoPending'}
               onClick={() => { setWidgetFilter((f) => f === 'autoPending' ? 'none' : 'autoPending'); setStatusFilter('all'); setDatePreset('all'); }} />
-            <NaverStatBox icon="🚚" label="발주 후 신규" value={stats.newAfterConfirm} accent="#03c75a"
-              hint="발주확인 완료, 아직 발송 미처리"
-              active={widgetFilter === 'newAfterConfirm'}
-              onClick={() => { setWidgetFilter((f) => f === 'newAfterConfirm' ? 'none' : 'newAfterConfirm'); setStatusFilter('all'); setDatePreset('all'); }} />
+            <NaverStatBox icon="🚚" label="발송 대기" value={shipWatch.count} accent="#ffaa00" alert={shipWatch.overdue > 0}
+              hint={`발주확인만 하고 아직 발송 안 함 (재고 준비되면 발송)${shipWatch.overdue > 0 ? ` · 기한 초과 ${shipWatch.overdue}건` : ''}`}
+              active={statusFilter === 's1'}
+              onClick={() => { setWidgetFilter('none'); setStatusFilter((s) => s === 's1' ? 'all' : 's1'); setDatePreset('all'); }} />
             <NaverStatBox icon="🚨" label="취소·반품 요청" value={stats.cancelRequest} alert={stats.cancelRequest > 0}
               hint="구매자가 취소·반품·교환을 요청한 주문 — 클릭하면 전체 기간에서 모아보기 (claimStatus 포함)"
               active={widgetFilter === 'cancel'}
@@ -1736,6 +1754,25 @@ export default function SmartStoreOrders({
         />
       </div>
       </>)}
+
+      {/* 🚚 발송 대기 리마인더 — 위젯 접어도 항상 보임. 발주확인만 하고 미발송(재고 대기 등) 기억용. */}
+      {shipWatch.count > 0 && (
+        <div className="px-3 sm:px-4 pb-2">
+          <button
+            onClick={() => { setWidgetFilter('none'); setStatusFilter('s1'); setDatePreset('all'); }}
+            className="w-full flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-bold transition-all hover:brightness-105"
+            style={shipWatch.overdue > 0
+              ? { background: 'rgba(255,77,109,0.10)', borderColor: '#ff4d6d', color: '#ff4d6d' }
+              : { background: 'rgba(255,170,0,0.10)', borderColor: '#e6961b', color: '#e6961b' }}>
+            <span className="text-base">🚚</span>
+            <span>발송 대기 {shipWatch.count}건</span>
+            <span className="font-normal opacity-80">— 발주확인만 하고 아직 발송 안 함</span>
+            {shipWatch.overdue > 0 && <span className="px-1.5 py-0.5 rounded-full text-[11px] font-black" style={{ background: '#ff4d6d', color: '#fff' }}>🔥 기한 초과 {shipWatch.overdue}건</span>}
+            {shipWatch.oldestDays > 0 && <span className="text-[11px] font-semibold opacity-80">가장 오래된 {shipWatch.oldestDays}일째</span>}
+            <span className="ml-auto text-[11px] font-semibold opacity-70">클릭 = 모아보기</span>
+          </button>
+        </div>
+      )}
 
       {/* 날짜 조회 (네이버 관리자 페이지 스타일) */}
       <div className="flex flex-wrap items-center gap-2 px-3 sm:px-4 pb-2">
