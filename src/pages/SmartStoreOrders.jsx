@@ -862,6 +862,9 @@ export default function SmartStoreOrders({
           if (!(o.needs_naver_confirm || o.needs_naver_dispatch)) return false;
         } else if (widgetFilter === 'newAfterConfirm') {
           if (!(o.naver_confirm_succeeded_at && !o.naver_dispatch_succeeded_at && o.order_status !== 'shipped')) return false;
+        } else if (widgetFilter === 'needShip') {
+          // 발송 대기 = 아직 발송 안 한 미처리 전부(결제완료·발주확인). shipWatch 카운트와 1:1.
+          if (!needsAction(o) || getClaimInfo(o, itemsByOrder[o.id])) return false;
         } else if (widgetFilter === 'cancel') {
           const st = o.order_status;
           const claim = getClaimInfo(o, itemsByOrder[o.id]);
@@ -1027,15 +1030,16 @@ export default function SmartStoreOrders({
     return { stages, canceled, unpaid };
   }, [ordersInRange, itemsByOrder]);
 
-  // 🚚 발송 대기 — 발주확인만 하고 아직 발송 못한 주문(재고 없어 대기 등). orderStage 단계1(발주확인·발송 전) 기준.
-  //   기한 초과(dispatch_due_date 지남)와 가장 오래된 건을 함께 집계 — "발송해야 할 것" 리마인더.
+  // 🚚 발송 대기 — 아직 발송 못한 미처리 주문 전부(결제완료·발주확인 단계). 재고 없어 발주확인만 해둔 것 포함.
+  //   ⚠️ 전체 orders 기준(날짜 무관) — 네이버에서 직접 발주확인해 우리 시스템엔 '결제완료'로 남은 옛 주문도
+  //      절대 놓치지 않도록. isOrderPending(=메뉴 배지와 동일 기준)으로 판정.
+  //   기한 초과(dispatch_due_date 지남)·가장 오래된 건을 함께 집계 — "발송해야 할 것" 리마인더.
   const shipWatch = useMemo(() => {
     const now = Date.now();
     let count = 0, overdue = 0, oldest = null;
-    for (const o of ordersInRange) {
-      const { stage, canceled, unpaid } = orderStage(o);
-      if (canceled || unpaid || getClaimInfo(o, itemsByOrder[o.id])) continue;
-      if (stage !== 1) continue; // 발주확인 완료, 아직 발송 전
+    for (const o of orders) {
+      if (!needsAction(o)) continue; // 발송 안 한 미처리(결제완료 or 발주확인) — 전환·완료·배송중·입금대기 제외
+      if (getClaimInfo(o, itemsByOrder[o.id])) continue; // 취소·반품 클레임은 별도 배너
       count++;
       const dispatchDue = o.dispatch_due_date || o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
       if (dispatchDue && new Date(dispatchDue).getTime() < now) overdue++;
@@ -1043,7 +1047,7 @@ export default function SmartStoreOrders({
       if (t && (!oldest || t < oldest)) oldest = t;
     }
     return { count, overdue, oldestDays: oldest ? Math.floor((now - oldest) / 86400000) : 0 };
-  }, [ordersInRange, itemsByOrder]);
+  }, [orders, itemsByOrder]);
 
   // Mock 데이터 주입 (Phase 1 테스트용)
   const injectMockOrder = async () => {
@@ -1723,9 +1727,9 @@ export default function SmartStoreOrders({
               active={widgetFilter === 'autoPending'}
               onClick={() => { setWidgetFilter((f) => f === 'autoPending' ? 'none' : 'autoPending'); setStatusFilter('all'); setDatePreset('all'); }} />
             <NaverStatBox icon="🚚" label="발송 대기" value={shipWatch.count} accent="#ffaa00" alert={shipWatch.overdue > 0}
-              hint={`발주확인만 하고 아직 발송 안 함 (재고 준비되면 발송)${shipWatch.overdue > 0 ? ` · 기한 초과 ${shipWatch.overdue}건` : ''}`}
-              active={statusFilter === 's1'}
-              onClick={() => { setWidgetFilter('none'); setStatusFilter((s) => s === 's1' ? 'all' : 's1'); setDatePreset('all'); }} />
+              hint={`아직 발송 안 한 미처리 주문 전부 (결제완료·발주확인, 재고 대기 포함)${shipWatch.overdue > 0 ? ` · 기한 초과 ${shipWatch.overdue}건` : ''}`}
+              active={widgetFilter === 'needShip'}
+              onClick={() => { setStatusFilter('all'); setWidgetFilter((f) => f === 'needShip' ? 'none' : 'needShip'); setDatePreset('all'); }} />
             <NaverStatBox icon="🚨" label="취소·반품 요청" value={stats.cancelRequest} alert={stats.cancelRequest > 0}
               hint="구매자가 취소·반품·교환을 요청한 주문 — 클릭하면 전체 기간에서 모아보기 (claimStatus 포함)"
               active={widgetFilter === 'cancel'}
@@ -1759,14 +1763,14 @@ export default function SmartStoreOrders({
       {shipWatch.count > 0 && (
         <div className="px-3 sm:px-4 pb-2">
           <button
-            onClick={() => { setWidgetFilter('none'); setStatusFilter('s1'); setDatePreset('all'); }}
+            onClick={() => { setStatusFilter('all'); setWidgetFilter('needShip'); setDatePreset('all'); }}
             className="w-full flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-bold transition-all hover:brightness-105"
             style={shipWatch.overdue > 0
               ? { background: 'rgba(255,77,109,0.10)', borderColor: '#ff4d6d', color: '#ff4d6d' }
               : { background: 'rgba(255,170,0,0.10)', borderColor: '#e6961b', color: '#e6961b' }}>
             <span className="text-base">🚚</span>
             <span>발송 대기 {shipWatch.count}건</span>
-            <span className="font-normal opacity-80">— 발주확인만 하고 아직 발송 안 함</span>
+            <span className="font-normal opacity-80">— 아직 발송 안 한 미처리 주문 (결제완료·발주확인)</span>
             {shipWatch.overdue > 0 && <span className="px-1.5 py-0.5 rounded-full text-[11px] font-black" style={{ background: '#ff4d6d', color: '#fff' }}>🔥 기한 초과 {shipWatch.overdue}건</span>}
             {shipWatch.oldestDays > 0 && <span className="text-[11px] font-semibold opacity-80">가장 오래된 {shipWatch.oldestDays}일째</span>}
             <span className="ml-auto text-[11px] font-semibold opacity-70">클릭 = 모아보기</span>
