@@ -26,9 +26,10 @@ function custMatch(a, b) {
 const stmtLineTotal = (it) => num(it.supply) + num(it.tax);
 const near = (a, b) => Math.abs(a - b) <= Math.max(150, a * 0.02);
 
+const MATCH_WINDOW_DAYS = 7; // 발행일 정확매칭 없을 때 이 일수 내(±) 그 거래처 주문으로 확장 대조
 const dayDiff = (a, b) => Math.abs((new Date(`${a}T00:00:00`).getTime() - new Date(`${b}T00:00:00`).getTime()) / 86400000);
 
-function reconcile(stmt, orders, windowDays = 3) {
+function reconcile(stmt, orders, windowDays = MATCH_WINDOW_DAYS) {
   const target = stmt.issue_date; // 명세서 발행일(YYYY-MM-DD)
   // 1) 거래처(어순무관 토큰매칭)로 먼저 후보를 좁힌다
   const byCust = (orders || []).filter((o) => custMatch(stmt.customer, o.customerName));
@@ -115,15 +116,29 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
     return () => window.removeEventListener('paste', onPaste);
   }, [handleFiles]);
 
+  // 문서 전체 드롭 — 카톡창에서 이미지를 끌어와 창 어디에 놓아도 인식(+ 파일 열림으로 페이지 이탈 방지)
+  useEffect(() => {
+    const onOver = (e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; if (!dragOver) setDragOver(true); };
+    const onDrop = (e) => {
+      e.preventDefault();
+      setDragOver(false);
+      const files = extractImages(e.dataTransfer);
+      if (files.length) handleFiles(files);
+      else showToast?.('이미지를 인식하지 못했어요 — 카톡에서 이미지 복사(Ctrl+C) 후 붙여넣기(Ctrl+V) 해보세요', 'error');
+    };
+    const onLeave = (e) => { if (e.relatedTarget == null) setDragOver(false); };
+    document.addEventListener('dragover', onOver);
+    document.addEventListener('drop', onDrop);
+    document.addEventListener('dragleave', onLeave);
+    return () => { document.removeEventListener('dragover', onOver); document.removeEventListener('drop', onDrop); document.removeEventListener('dragleave', onLeave); };
+  }, [handleFiles, dragOver, showToast]);
+
   const removeResult = (id) => setResults((r) => r.filter((x) => x.id !== id));
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
       <div className="relative w-full sm:max-w-3xl rounded-t-2xl sm:rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92vh' }}
-        onClick={(e) => e.stopPropagation()}
-        onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
-        onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOver(false); }}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); const files = extractImages(e.dataTransfer); if (files.length) handleFiles(files); else showToast?.('이미지를 인식하지 못했어요 — 복사(Ctrl+C) 후 붙여넣기(Ctrl+V)도 됩니다', 'error'); }}>
+        onClick={(e) => e.stopPropagation()}>
         {dragOver && (
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed pointer-events-none" style={{ background: 'rgba(0,212,255,0.12)', borderColor: 'var(--primary)' }}>
             <div className="text-center font-black" style={{ color: 'var(--primary)' }}>
@@ -208,7 +223,7 @@ function StatementResult({ r, onRemove }) {
           <div className="text-xs mt-1" style={{ color: '#ff4d6d' }}>
             {rec.custFound === 0
               ? <><b>{stmt.customer || '이 거래처'}</b> 주문내역을 찾지 못했습니다. 거래처명이 다르게 등록됐거나 주문 등록이 누락됐을 수 있어요.</>
-              : <><b>{stmt.customer}</b> 주문은 있으나 <b>{stmt.issue_date}</b> 전후 {'±'}3일 내에 없습니다. 주문 날짜를 확인하세요.</>}
+              : <><b>{stmt.customer}</b> 주문은 있으나 <b>{stmt.issue_date}</b> 전후 {'±'}{MATCH_WINDOW_DAYS}일 내에 없습니다. 주문 날짜를 확인하세요.</>}
           </div>
         ) : (
           <div className="text-xs mt-1 flex flex-wrap gap-x-3 gap-y-0.5" style={{ color: 'var(--foreground)' }}>
