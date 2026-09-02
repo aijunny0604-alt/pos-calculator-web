@@ -78,7 +78,8 @@ function syncCollect(dt) {
   const files = [];
   const urls = new Set();
   if (dt?.files?.length) for (const f of dt.files) if (/^image\//.test(f.type || '')) files.push(f);
-  if (dt?.items) for (const it of dt.items) {
+  // ⚠️ items는 files가 비었을 때만 — 클립보드는 같은 이미지를 files·items 양쪽에 노출해 2배 중복됨
+  if (!files.length && dt?.items) for (const it of dt.items) {
     if (it.kind === 'file' && /^image\//.test(it.type || '')) { const f = it.getAsFile(); if (f) files.push(f); }
   }
   if (!files.length) {
