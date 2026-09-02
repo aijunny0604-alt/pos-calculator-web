@@ -29,44 +29,72 @@ const near = (a, b) => Math.abs(a - b) <= Math.max(150, a * 0.02);
 const MATCH_WINDOW_DAYS = 7; // 발행일 정확매칭 없을 때 이 일수 내(±) 그 거래처 주문으로 확장 대조
 const dayDiff = (a, b) => Math.abs((new Date(`${a}T00:00:00`).getTime() - new Date(`${b}T00:00:00`).getTime()) / 86400000);
 
+// 조합(묶음) 매칭 — 명세서 1줄이 POS 여러 줄의 합일 때(예: "AL70 45-2 90-5" 7개 = 70-90 5개 + 70-45 2개).
+// 남은 POS 라인들 중 합이 goal에 근사한 작은 부분집합을 찾는다(크기 2~4).
+function findSubset(items, goal) {
+  const n = items.length;
+  const tol = Math.max(200, goal * 0.02);
+  const rec = (start, size, acc, sum) => {
+    if (size === 0) return Math.abs(sum - goal) <= tol ? acc.slice() : null;
+    for (let i = start; i <= n - size; i++) {
+      const r = rec(i + 1, size - 1, [...acc, items[i]], sum + items[i].total);
+      if (r) return r;
+    }
+    return null;
+  };
+  for (let size = 2; size <= Math.min(4, n); size++) { const r = rec(0, size, [], 0); if (r) return r; }
+  return null;
+}
+
 function reconcile(stmt, orders, windowDays = MATCH_WINDOW_DAYS) {
   const target = stmt.issue_date; // 명세서 발행일(YYYY-MM-DD)
-  // 1) 거래처(어순무관 토큰매칭)로 먼저 후보를 좁힌다
+  const stmtTotal = num(stmt.stated_total);
+  const inWindow = (o) => { const ds = toDateKST(o.createdAt); return ds && (!target || dayDiff(ds, target) <= windowDays); };
+
+  // 1) 거래처(어순무관 토큰매칭) → 정확 날짜 → ±window
   const byCust = (orders || []).filter((o) => custMatch(stmt.customer, o.customerName));
-  // 2) 발행일과 정확히 같은 날 주문 우선
   let matchedOrders = target ? byCust.filter((o) => toDateKST(o.createdAt) === target) : [];
-  let dateFuzzy = false;
-  // 3) 정확한 날짜가 없으면 발행일 ±windowDays 내 그 거래처 주문으로 확장(입력일이 하루 어긋나도 대조)
+  let dateFuzzy = false, matchBy = 'customer';
   if (!matchedOrders.length && byCust.length) {
-    if (target) {
-      const within = byCust.filter((o) => { const ds = toDateKST(o.createdAt); return ds && dayDiff(ds, target) <= windowDays; });
-      if (within.length) { matchedOrders = within; dateFuzzy = true; }
-    } else {
-      matchedOrders = byCust; dateFuzzy = true; // 발행일 판독 실패 → 그 거래처 전체로 대조
-    }
+    const within = byCust.filter(inWindow);
+    if (within.length) { matchedOrders = within; dateFuzzy = true; }
+    else if (!target) { matchedOrders = byCust; dateFuzzy = true; }
   }
+  // 2) 거래처 매칭 실패(상호명 OCR 오독 등) → 금액+날짜 폴백: ±window 내 합계가 명세서 합계와 근사한 주문
+  if (!matchedOrders.length && stmtTotal > 0) {
+    const single = (orders || []).filter((o) => inWindow(o) && near(stmtTotal, num(o.totalAmount)));
+    if (single.length) { matchedOrders = single; dateFuzzy = true; matchBy = 'amount'; }
+  }
+
   const matchedDates = [...new Set(matchedOrders.map((o) => toDateKST(o.createdAt)))].filter(Boolean).sort();
+  const matchedCustomers = [...new Set(matchedOrders.map((o) => o.customerName).filter(Boolean))];
+
   // POS 라인 펼치기
   const posLines = [];
-  for (const o of matchedOrders) {
-    for (const it of (o.items || [])) {
-      posLines.push({ name: it.name || '', qty: num(it.quantity), total: itemPrice(it) * num(it.quantity), used: false, order: o });
-    }
+  for (const o of matchedOrders) for (const it of (o.items || [])) {
+    posLines.push({ name: it.name || '', qty: num(it.quantity), total: itemPrice(it) * num(it.quantity), used: false });
   }
   const posTotal = matchedOrders.reduce((s, o) => s + num(o.totalAmount), 0);
-  // 라인 대조 — 명세서 각 라인을 POS 라인과 (금액 근사 + 수량) 매칭
+  const totalDiff = stmtTotal - posTotal;
+  const totalOk = Math.abs(totalDiff) <= Math.max(200, stmtTotal * 0.01);
+
+  // 라인 대조: 1:1(수량+금액→금액) → 조합(명세서 1줄 = POS 여러 줄)
   const stmtRows = stmt.items.map((it) => {
     const want = stmtLineTotal(it);
     let hit = posLines.find((p) => !p.used && p.qty === num(it.qty) && near(want, p.total));
-    if (!hit) hit = posLines.find((p) => !p.used && near(want, p.total)); // 수량 다르면 금액만
+    if (!hit) hit = posLines.find((p) => !p.used && near(want, p.total));
     if (hit) hit.used = true;
-    return { ...it, lineTotal: want, matched: !!hit, posName: hit?.name || null, posQty: hit?.qty ?? null };
+    return { name: it.name, spec: it.spec, qty: num(it.qty), lineTotal: want, matched: !!hit, combo: false, refs: hit ? [{ name: hit.name, qty: hit.qty }] : [] };
   });
+  for (const row of stmtRows) {
+    if (row.matched) continue;
+    const combo = findSubset(posLines.filter((p) => !p.used), row.lineTotal);
+    if (combo) { combo.forEach((p) => { p.used = true; }); row.matched = true; row.combo = true; row.refs = combo.map((p) => ({ name: p.name, qty: p.qty })); }
+  }
   const posOnly = posLines.filter((p) => !p.used);
   return {
-    matchedOrders, matchedDates, dateFuzzy, custFound: byCust.length,
-    posTotal, stmtRows, posOnly,
-    totalDiff: num(stmt.stated_total) - posTotal,
+    matchedOrders, matchedDates, matchedCustomers, dateFuzzy, matchBy, custFound: byCust.length,
+    posTotal, totalDiff, totalOk, stmtRows, posOnly,
     missingCount: stmtRows.filter((r) => !r.matched).length,
   };
 }
@@ -164,7 +192,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
-      <div className="relative w-full sm:max-w-3xl rounded-t-2xl sm:rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92vh' }}
+      <div className="relative w-full sm:max-w-5xl rounded-t-2xl sm:rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '94vh' }}
         onClick={(e) => e.stopPropagation()}>
         {dragOver && (
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed pointer-events-none" style={{ background: 'rgba(0,212,255,0.12)', borderColor: 'var(--primary)' }}>
@@ -174,14 +202,14 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
           </div>
         )}
         {/* 헤더 */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
-          <FileSearch className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-          <h3 className="text-base font-bold flex-1">명세서 대조</h3>
-          <button onClick={onClose}><X className="w-5 h-5 opacity-60" /></button>
+        <div className="flex items-center gap-2 px-5 py-3.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <FileSearch className="w-6 h-6" style={{ color: 'var(--primary)' }} />
+          <h3 className="text-xl font-black flex-1">명세서 대조</h3>
+          <button onClick={onClose}><X className="w-6 h-6 opacity-60" /></button>
         </div>
 
-        <div className="overflow-y-auto px-4 py-3 space-y-3">
-          <div className="text-xs rounded-lg p-2.5 border" style={{ background: 'rgba(0,212,255,0.06)', borderColor: 'var(--primary)', color: 'var(--foreground)' }}>
+        <div className="overflow-y-auto px-5 py-4 space-y-3.5">
+          <div className="text-sm rounded-lg p-3 border" style={{ background: 'rgba(0,212,255,0.06)', borderColor: 'var(--primary)', color: 'var(--foreground)' }}>
             거래명세서 사진을 <b>여러 장 올려두고</b>, 아래 <b>[일괄 조회]</b>를 누르면 <b>같은 거래처·비슷한 날짜(±7일)의 주문내역</b>과 한꺼번에 대조해 <b>빠진 품목</b>을 찾아줍니다.
             <br />📎 올리기: <b>클릭 업로드</b> · <b>Ctrl+V 붙여넣기</b>(카톡에서 이미지 복사 후) · 드래그드롭. <span style={{ color: '#e6961b' }}>카톡 드래그가 안 되면 <b>복사→붙여넣기(Ctrl+V)</b>가 가장 확실해요.</span>
           </div>
@@ -251,39 +279,50 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 function StatementResult({ r, onRemove }) {
   const { stmt, rec } = r;
   const noOrder = rec.matchedOrders.length === 0;
-  const totalOk = Math.abs(rec.totalDiff) <= 150;
-  const allGood = !noOrder && totalOk && rec.missingCount === 0 && rec.posOnly.length === 0;
+  const totalOk = rec.totalOk;
+  const linesClean = rec.missingCount === 0 && rec.posOnly.length === 0;
+  const allGood = !noOrder && totalOk && linesClean;
+  const totalMatchOnly = !noOrder && totalOk && !linesClean; // 합계는 맞고 품목 묶음만 다름
+  const badge = allGood ? { t: '✅ 일치', c: 'var(--success)' }
+    : totalMatchOnly ? { t: '✅ 합계 일치', c: 'var(--success)' }
+    : noOrder ? { t: '❌ 주문내역 없음', c: '#ff4d6d' }
+    : { t: '⚠️ 확인 필요', c: '#e6961b' };
 
   return (
     <div>
       {/* 헤더 요약 */}
-      <div className="p-3" style={{ background: allGood ? 'rgba(16,185,129,0.08)' : noOrder ? 'rgba(255,77,109,0.08)' : 'rgba(255,170,0,0.08)' }}>
+      <div className="p-3.5" style={{ background: (allGood || totalMatchOnly) ? 'rgba(16,185,129,0.08)' : noOrder ? 'rgba(255,77,109,0.08)' : 'rgba(255,170,0,0.08)' }}>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-black text-sm">{stmt.customer || '(거래처 미판독)'}</span>
-          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{stmt.issue_date || '날짜?'}</span>
-          <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-bold text-white"
-            style={{ background: allGood ? 'var(--success)' : noOrder ? '#ff4d6d' : '#e6961b' }}>
-            {allGood ? '✅ 일치' : noOrder ? '❌ 주문내역 없음' : '⚠️ 확인 필요'}
-          </span>
-          <button onClick={onRemove}><Trash2 className="w-3.5 h-3.5 opacity-50" /></button>
+          <span className="font-black text-lg">{stmt.customer || '(거래처 미판독)'}</span>
+          <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{stmt.issue_date || '날짜?'}</span>
+          <span className="ml-auto text-sm px-2.5 py-1 rounded-full font-black text-white" style={{ background: badge.c }}>{badge.t}</span>
+          <button onClick={onRemove}><Trash2 className="w-4 h-4 opacity-50" /></button>
         </div>
         {noOrder ? (
-          <div className="text-xs mt-1" style={{ color: '#ff4d6d' }}>
+          <div className="text-sm mt-1.5" style={{ color: '#ff4d6d' }}>
             {rec.custFound === 0
               ? <><b>{stmt.customer || '이 거래처'}</b> 주문내역을 찾지 못했습니다. 거래처명이 다르게 등록됐거나 주문 등록이 누락됐을 수 있어요.</>
               : <><b>{stmt.customer}</b> 주문은 있으나 <b>{stmt.issue_date}</b> 전후 {'±'}{MATCH_WINDOW_DAYS}일 내에 없습니다. 주문 날짜를 확인하세요.</>}
           </div>
         ) : (
-          <div className="text-xs mt-1 flex flex-wrap gap-x-3 gap-y-0.5" style={{ color: 'var(--foreground)' }}>
+          <div className="text-sm mt-1.5 flex flex-wrap gap-x-3 gap-y-1" style={{ color: 'var(--foreground)' }}>
             <span>명세서 합계 <b>₩{formatPrice(stmt.stated_total)}</b></span>
             <span>주문내역 합계 <b>₩{formatPrice(rec.posTotal)}</b></span>
-            <span style={{ color: totalOk ? 'var(--success)' : '#ff4d6d', fontWeight: 700 }}>
+            <span style={{ color: totalOk ? 'var(--success)' : '#ff4d6d', fontWeight: 800 }}>
               차액 {rec.totalDiff === 0 ? '없음 ✓' : `₩${formatPrice(Math.abs(rec.totalDiff))} ${rec.totalDiff > 0 ? '(명세서가 많음)' : '(주문내역이 많음)'}`}
             </span>
             <span style={{ color: 'var(--muted-foreground)' }}>· 매칭 주문 {rec.matchedOrders.length}건 ({rec.matchedDates.join(', ')})</span>
-            {rec.dateFuzzy && (
-              <span className="px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(255,170,0,0.18)', color: '#e6961b' }}>
-                ⚠️ 발행일({stmt.issue_date})과 주문 날짜가 달라 근처 날짜로 대조함
+            {totalMatchOnly && (
+              <span className="w-full text-[13px] font-semibold" style={{ color: 'var(--success)' }}>합계가 정확히 맞습니다 — 아래 표시는 <b>품목 묶음/표기 차이</b>일 뿐, 빠진 물건이 아닙니다.</span>
+            )}
+            {rec.matchBy === 'amount' && (
+              <span className="w-full px-1.5 py-0.5 rounded-lg font-bold" style={{ background: 'rgba(255,170,0,0.18)', color: '#e6961b' }}>
+                ⚠️ 상호명 판독이 불확실해 <b>합계금액·날짜로 매칭</b>했습니다 (거래처: {rec.matchedCustomers.join(', ') || '?'}). 맞는지 확인하세요.
+              </span>
+            )}
+            {rec.dateFuzzy && rec.matchBy !== 'amount' && (
+              <span className="px-1.5 py-0.5 rounded-lg font-bold" style={{ background: 'rgba(255,170,0,0.18)', color: '#e6961b' }}>
+                ⚠️ 발행일과 주문 날짜가 달라 근처 날짜(±{MATCH_WINDOW_DAYS}일)로 대조함
               </span>
             )}
           </div>
@@ -293,43 +332,49 @@ function StatementResult({ r, onRemove }) {
       {/* 라인 대조 */}
       {!noOrder && (
         <div className="border-t" style={{ borderColor: 'var(--border)' }}>
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
               <tr style={{ background: 'var(--muted)' }}>
                 {['', '명세서 품목', '수량', '금액', '상태'].map((h, i) => (
-                  <th key={i} className="px-2 py-1.5 text-left font-bold" style={{ color: 'var(--muted-foreground)' }}>{h}</th>
+                  <th key={i} className="px-2.5 py-2 text-left text-sm font-bold" style={{ color: 'var(--muted-foreground)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {rec.stmtRows.map((row, i) => (
-                <tr key={i} className="border-t" style={{ borderColor: 'var(--border)', background: row.matched ? undefined : 'rgba(255,77,109,0.07)' }}>
-                  <td className="px-2 py-1.5">{row.matched ? <Check className="w-3.5 h-3.5" style={{ color: 'var(--success)' }} /> : <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#ff4d6d' }} />}</td>
-                  <td className="px-2 py-1.5 font-semibold" style={{ color: 'var(--foreground)' }}>
-                    {row.name}{row.spec ? ` (${row.spec})` : ''}
-                    {row.matched && row.posName && row.posName.replace(/\s/g, '') !== row.name.replace(/\s/g, '') && (
-                      <div className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>↔ 주문: {row.posName}{row.posQty != null && row.posQty !== num(row.qty) ? ` (수량 ${row.posQty})` : ''}</div>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5 tabular-nums">{num(row.qty)}</td>
-                  <td className="px-2 py-1.5 tabular-nums">₩{formatPrice(row.lineTotal)}</td>
-                  <td className="px-2 py-1.5 font-bold" style={{ color: row.matched ? 'var(--success)' : '#ff4d6d' }}>{row.matched ? '일치' : '누락?'}</td>
-                </tr>
-              ))}
+              {rec.stmtRows.map((row, i) => {
+                // 합계가 맞으면 미매칭도 '묶음 확인'(주황), 합계가 틀리면 '누락?'(빨강)
+                const okColor = row.matched ? 'var(--success)' : totalOk ? '#e6961b' : '#ff4d6d';
+                const rowBg = row.matched ? undefined : totalOk ? 'rgba(255,170,0,0.07)' : 'rgba(255,77,109,0.07)';
+                const label = row.matched ? (row.combo ? '일치(묶음)' : '일치') : totalOk ? '묶음 확인' : '누락?';
+                const refStr = row.refs.map((f) => `${f.name}${f.qty != null ? `(${f.qty})` : ''}`).join(' + ');
+                const showRef = row.matched && refStr && (row.combo || refStr.replace(/\s/g, '') !== String(row.name).replace(/\s/g, ''));
+                return (
+                  <tr key={i} className="border-t" style={{ borderColor: 'var(--border)', background: rowBg }}>
+                    <td className="px-2.5 py-2 align-top">{row.matched ? <Check className="w-4 h-4" style={{ color: 'var(--success)' }} /> : <AlertTriangle className="w-4 h-4" style={{ color: okColor }} />}</td>
+                    <td className="px-2.5 py-2 font-semibold" style={{ color: 'var(--foreground)' }}>
+                      {row.name}{row.spec ? ` (${row.spec})` : ''}
+                      {showRef && <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>↔ 주문: {refStr}{row.combo ? ' [묶음]' : ''}</div>}
+                    </td>
+                    <td className="px-2.5 py-2 tabular-nums">{num(row.qty)}</td>
+                    <td className="px-2.5 py-2 tabular-nums">₩{formatPrice(row.lineTotal)}</td>
+                    <td className="px-2.5 py-2 font-bold" style={{ color: okColor }}>{label}</td>
+                  </tr>
+                );
+              })}
               {/* POS엔 있는데 명세서엔 없는 것 */}
               {rec.posOnly.map((p, i) => (
                 <tr key={`p${i}`} className="border-t" style={{ borderColor: 'var(--border)', background: 'rgba(255,170,0,0.07)' }}>
-                  <td className="px-2 py-1.5">⚠️</td>
-                  <td className="px-2 py-1.5" style={{ color: '#e6961b' }}>{p.name} <span className="text-[10px]">(주문내역엔 있는데 명세서에 없음)</span></td>
-                  <td className="px-2 py-1.5 tabular-nums">{p.qty}</td>
-                  <td className="px-2 py-1.5 tabular-nums">₩{formatPrice(p.total)}</td>
-                  <td className="px-2 py-1.5 font-bold" style={{ color: '#e6961b' }}>명세서 X</td>
+                  <td className="px-2.5 py-2">⚠️</td>
+                  <td className="px-2.5 py-2" style={{ color: '#e6961b' }}>{p.name} <span className="text-xs">({totalOk ? '묶음/표기 차이' : '주문내역엔 있는데 명세서에 없음'})</span></td>
+                  <td className="px-2.5 py-2 tabular-nums">{p.qty}</td>
+                  <td className="px-2.5 py-2 tabular-nums">₩{formatPrice(p.total)}</td>
+                  <td className="px-2.5 py-2 font-bold" style={{ color: '#e6961b' }}>명세서 X</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="px-2 py-1.5 text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
-            ※ 금액·수량 기준 자동 대조라 품목명이 달라도 금액이 맞으면 일치로 봅니다. 최종은 눈으로 한 번 더 확인하세요.
+          <div className="px-2.5 py-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            ※ 금액·수량 기준 자동 대조(묶음 표기 차이 자동 인식). 품목명이 달라도 금액이 맞으면 일치로 봅니다. 최종은 눈으로 한 번 더 확인하세요.
           </div>
         </div>
       )}
