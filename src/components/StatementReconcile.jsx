@@ -26,10 +26,25 @@ function custMatch(a, b) {
 const stmtLineTotal = (it) => num(it.supply) + num(it.tax);
 const near = (a, b) => Math.abs(a - b) <= Math.max(150, a * 0.02);
 
-function reconcile(stmt, orders) {
-  const matchedOrders = (orders || []).filter((o) =>
-    toDateKST(o.createdAt) === stmt.issue_date && custMatch(stmt.customer, o.customerName)
-  );
+const dayDiff = (a, b) => Math.abs((new Date(`${a}T00:00:00`).getTime() - new Date(`${b}T00:00:00`).getTime()) / 86400000);
+
+function reconcile(stmt, orders, windowDays = 3) {
+  const target = stmt.issue_date; // 명세서 발행일(YYYY-MM-DD)
+  // 1) 거래처(어순무관 토큰매칭)로 먼저 후보를 좁힌다
+  const byCust = (orders || []).filter((o) => custMatch(stmt.customer, o.customerName));
+  // 2) 발행일과 정확히 같은 날 주문 우선
+  let matchedOrders = target ? byCust.filter((o) => toDateKST(o.createdAt) === target) : [];
+  let dateFuzzy = false;
+  // 3) 정확한 날짜가 없으면 발행일 ±windowDays 내 그 거래처 주문으로 확장(입력일이 하루 어긋나도 대조)
+  if (!matchedOrders.length && byCust.length) {
+    if (target) {
+      const within = byCust.filter((o) => { const ds = toDateKST(o.createdAt); return ds && dayDiff(ds, target) <= windowDays; });
+      if (within.length) { matchedOrders = within; dateFuzzy = true; }
+    } else {
+      matchedOrders = byCust; dateFuzzy = true; // 발행일 판독 실패 → 그 거래처 전체로 대조
+    }
+  }
+  const matchedDates = [...new Set(matchedOrders.map((o) => toDateKST(o.createdAt)))].filter(Boolean).sort();
   // POS 라인 펼치기
   const posLines = [];
   for (const o of matchedOrders) {
@@ -48,7 +63,8 @@ function reconcile(stmt, orders) {
   });
   const posOnly = posLines.filter((p) => !p.used);
   return {
-    matchedOrders, posTotal, stmtRows, posOnly,
+    matchedOrders, matchedDates, dateFuzzy, custFound: byCust.length,
+    posTotal, stmtRows, posOnly,
     totalDiff: num(stmt.stated_total) - posTotal,
     missingCount: stmtRows.filter((r) => !r.matched).length,
   };
@@ -190,7 +206,9 @@ function StatementResult({ r, onRemove }) {
         </div>
         {noOrder ? (
           <div className="text-xs mt-1" style={{ color: '#ff4d6d' }}>
-            <b>{stmt.customer}</b>의 <b>{stmt.issue_date}</b> 주문내역을 찾지 못했습니다. 주문 등록이 누락됐거나, 거래처명/날짜가 다를 수 있어요.
+            {rec.custFound === 0
+              ? <><b>{stmt.customer || '이 거래처'}</b> 주문내역을 찾지 못했습니다. 거래처명이 다르게 등록됐거나 주문 등록이 누락됐을 수 있어요.</>
+              : <><b>{stmt.customer}</b> 주문은 있으나 <b>{stmt.issue_date}</b> 전후 {'±'}3일 내에 없습니다. 주문 날짜를 확인하세요.</>}
           </div>
         ) : (
           <div className="text-xs mt-1 flex flex-wrap gap-x-3 gap-y-0.5" style={{ color: 'var(--foreground)' }}>
@@ -199,7 +217,12 @@ function StatementResult({ r, onRemove }) {
             <span style={{ color: totalOk ? 'var(--success)' : '#ff4d6d', fontWeight: 700 }}>
               차액 {rec.totalDiff === 0 ? '없음 ✓' : `₩${formatPrice(Math.abs(rec.totalDiff))} ${rec.totalDiff > 0 ? '(명세서가 많음)' : '(주문내역이 많음)'}`}
             </span>
-            <span style={{ color: 'var(--muted-foreground)' }}>· 매칭 주문 {rec.matchedOrders.length}건</span>
+            <span style={{ color: 'var(--muted-foreground)' }}>· 매칭 주문 {rec.matchedOrders.length}건 ({rec.matchedDates.join(', ')})</span>
+            {rec.dateFuzzy && (
+              <span className="px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(255,170,0,0.18)', color: '#e6961b' }}>
+                ⚠️ 발행일({stmt.issue_date})과 주문 날짜가 달라 근처 날짜로 대조함
+              </span>
+            )}
           </div>
         )}
       </div>

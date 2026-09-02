@@ -528,7 +528,8 @@ export default function OrderHistory({
         <label
           className={`${mid} relative rounded-xl font-extrabold tabular-nums whitespace-nowrap cursor-pointer inline-flex items-center gap-1.5 transition-all hover:-translate-y-px hover:shadow-md`}
           style={{ background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
-          title="클릭하여 날짜 선택"
+          title="클릭하여 날짜 선택 (달력)"
+          onClick={(e) => { const inp = e.currentTarget.querySelector('input[type=date]'); try { inp?.showPicker?.(); } catch { /* showPicker 미지원 시 포커스로 폴백 */ } }}
         >
           <span aria-hidden className={small ? 'text-sm' : 'text-base'}>📅</span>
           {mmddLabel(currentAnchorDate())}
@@ -537,6 +538,7 @@ export default function OrderHistory({
             value={currentAnchorDate() || ''}
             max={getTodayKST()}
             onChange={(e) => pickDate(e.target.value)}
+            onClick={(e) => { e.stopPropagation(); try { e.currentTarget.showPicker?.(); } catch { /* noop */ } }}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             aria-label="날짜 선택"
           />
