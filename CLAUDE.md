@@ -1,9 +1,34 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-08-19 (♻️ 불량품 반품 기록[마이그014, 교환 회수 추적] / 📋 스토어 연동 로그 "확인함" 뱃지 dismiss)
+> 마지막 업데이트: 2026-09-02 (📷 명세서 대조[Gemini 판독→주문내역 자동 대조] / 🚚 발송 대기 모니터 / 증빙 보관[마이그015] / JSR 대여·불량 관리 리네임 / 배송메모 엑셀·강조 / 날짜 달력)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-09-02 — 명세서 대조 + 발송 대기 + 증빙 보관 외
+
+### 📷 명세서 대조 ([StatementReconcile.jsx](src/components/StatementReconcile.jsx) + [statementVision.js](src/lib/statementVision.js), [OrderHistory.jsx](src/pages/OrderHistory.jsx) 📷버튼)
+부장님이 단톡방에 올린 **거래명세서 사진** → 판독 → **오늘 주문내역과 자동 대조**해 누락 확인. 카톡 직접접근 불가라 이미지만 받음.
+- **판독**: Gemini 무료 flash(quoteVision 패턴), 프롬프트에 실제 명세서 few-shot 대량 학습(거래처명 위치·무브오토모티브=발행자 함정·가게 용어). 거래처/발행일/합계/품목별 공급가액·세액.
+- **매칭**: 거래처(어순무관 토큰매칭) + 발행일 **±7일** 유연. 🚨**상호명 OCR 오독 대응**: 거래처 못 찾으면 **±7일내 합계금액 근사 주문으로 폴백**(matchBy=amount, 합계금액이 크고 정확해 신뢰도 높음).
+- 🚨**조합(묶음) 매칭**(`findSubset`): 명세서 1줄이 POS 여러 줄의 합일 때(예 "AL70 45-2 90-5" 7개 = 70-90 5개+70-45 2개) 자동 일치. **합계 일치(±1%)면 미매칭 라인=빨강'누락'→주황'묶음 확인'**(진짜 누락 아님).
+- ⚠️**규격 문자열 자동매칭 금지**(금액2배 사고 방지) — 라인은 **(수량+금액 근사)**로, 이름은 사람이 눈으로.
+- **일괄 조회**: 올려도 바로 조회 안 하고 대기열(썸네일)에 쌓은 뒤 [일괄 조회] 클릭 시 한꺼번에. 업로드=클릭/드래그드롭(문서 전체 드롭존·다중경로 추출)/**Ctrl+V**(카톡 이미지 복사 후 붙여넣기가 가장 확실). 🐛클립보드 files·items 이중노출로 2배 복제→items는 files 비었을때만.
+
+### 🚚 발송 대기 모니터 ([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx))
+발주확인만 하고 미발송(재고 대기 등) 주문 놓침 방지. `shipWatch`=**전체 orders 기준 needsAction(isOrderPending)**(날짜무관, 메뉴배지와 일치)=결제완료+발주확인 미발송 전부. 위젯('발주 후 신규' 교체)+**항상 보이는 리마인더 배너**(위젯 접어도), 클릭=widgetFilter 'needShip' 모아보기. 기한초과·최고령 표시. 🚨[네이버 직접 발주확인=PAYED 유지](../naver-sync-bridge) 문제 커버: 네이버서 발주확인해도 우리 시스템은 결제완료로 남아 stage 나누면 누락됨→미처리 전부로.
+- 🐛 '대기' 위젯 클릭시 빈목록: statusFilter='PAYED'(무효값)→s0(결제완료)으로 수정, 카운트도 stageCounts.stages[0] 통일.
+
+### 📁 증빙 보관 ([PurchaseDocs.jsx](src/components/purchase/PurchaseDocs.jsx), 매입발주 탭. 마이그[015](../naver-sync-bridge/migrations/015_purchase_docs.sql))
+견적서/명세서 사진을 증거물로 보관(품목처리 없음). purchase_docs(doc_date, supplier, doc_type, total_amount, image_url, memo). JSR 미출고 보전·대여 섞인 견적서는 여기 저장, 돈나가는 새발주만 정식등록 원칙.
+
+### 그 외
+- **JSR 수불 장부 → "JSR 대여·불량 관리"** 리네임(수불=회계용어). 처리열을 **완료 스위치**로 통일(빌려줌·미입고·불량품, resolved 플래그).
+- **배송메모 엑셀/CSV 반영**([ShippingLabel.jsx](src/pages/ShippingLabel.jsx)): 주소행에 리치텍스트(굵은 주황). 화면도 주황글씨→앰버배경 강조칩(고대비).
+- **주문내역 날짜 라벨 클릭→달력**: opacity-0 date input이 포커스만 되던것→`showPicker()` 명시호출.
+- **소비자 첫주문 배지 '신규업체'→'신규고객'**([OrderHistory.jsx](src/pages/OrderHistory.jsx)): priceType wholesale만 신규업체.
+- **발주서 판독 원본 이미지 확대**([QuoteScanModal.jsx](src/components/purchase/QuoteScanModal.jsx)): 열폭 44%+sticky+클릭 전체화면.
+- **불량 반품 탭**(마이그[014](../naver-sync-bridge/migrations/014_defect_returns.sql) defect_returns): 리스트 붙여넣기 파싱+교환 회수 추적.
 
 ## 🆕 v2026-08-19 — 불량품 반품 기록 + 스토어 로그 dismiss
 
