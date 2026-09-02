@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
 import SubPrice from '@/components/ui/SubPrice';
+import StatementReconcile from '@/components/StatementReconcile';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
 import useCountUp from '@/hooks/useCountUp';
 import { supabase, supabaseClient } from '@/lib/supabase';
@@ -212,6 +213,7 @@ export default function OrderHistory({
     return c?.business_cert_url ? { url: c.business_cert_url, path: c.business_cert_path || c.business_cert_url } : null;
   };
   const [certViewer, setCertViewer] = useState(null); // 사업자등록증 확대 보기 URL
+  const [showStatementReconcile, setShowStatementReconcile] = useState(false); // 명세서 대조 모달
 
   // 📦 포장 상태 — 카드 배지용. { [orderId]: {checkedCount, itemCount, done} }
   const [packingMap, setPackingMap] = useState({});
@@ -622,6 +624,14 @@ export default function OrderHistory({
                   ({selectedOrders.length})
                 </button>
               )}
+              <button
+                onClick={() => setShowStatementReconcile(true)}
+                className="text-sm px-2.5 sm:px-3 py-2 rounded-lg flex items-center gap-1.5 font-bold transition-colors"
+                style={{ background: 'rgba(0,212,255,0.12)', color: 'var(--primary)', border: '1px solid var(--border)' }}
+                title="거래명세서 사진을 올려 주문내역과 대조 (누락 확인)"
+              >
+                📷<span className="hidden sm:inline">명세서 대조</span>
+              </button>
               <button
                 onClick={onRefresh}
                 disabled={isLoading}
@@ -1850,6 +1860,10 @@ export default function OrderHistory({
       )}
 
       {/* 📄 사업자등록증 확대 뷰어 */}
+      {showStatementReconcile && (
+        <StatementReconcile orders={orders} showToast={showToast} onClose={() => setShowStatementReconcile(false)} />
+      )}
+
       {certViewer && (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center p-4"
