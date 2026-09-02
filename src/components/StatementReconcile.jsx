@@ -72,68 +72,94 @@ function reconcile(stmt, orders, windowDays = MATCH_WINDOW_DAYS) {
 }
 
 // DataTransfer/Clipboard에서 이미지 파일 뽑기 — 카톡 드래그(파일) + Ctrl+V(이미지 blob) 모두 대응.
-function extractImages(dt) {
-  const out = [];
-  if (dt?.files?.length) for (const f of dt.files) if (/^image\//.test(f.type || '')) out.push(f);
+// 드래그/클립보드에서 이미지를 뽑는다. DataTransfer는 이벤트 중에만 유효 → 동기로 files/urls 수집.
+//  카톡 등은 파일 대신 HTML(<img src>)·URL로 넘기기도 해서 그 경로까지 커버.
+function syncCollect(dt) {
+  const files = [];
+  const urls = new Set();
+  if (dt?.files?.length) for (const f of dt.files) if (/^image\//.test(f.type || '')) files.push(f);
   if (dt?.items) for (const it of dt.items) {
-    if (it.kind === 'file' && /^image\//.test(it.type || '')) { const f = it.getAsFile(); if (f && !out.includes(f)) out.push(f); }
+    if (it.kind === 'file' && /^image\//.test(it.type || '')) { const f = it.getAsFile(); if (f) files.push(f); }
+  }
+  if (!files.length) {
+    try { const h = dt.getData('text/html'); const m = h && h.match(/<img[^>]+src=["']([^"']+)["']/i); if (m) urls.add(m[1]); } catch { /* noop */ }
+    try { const u = dt.getData('text/uri-list'); if (u) u.split(/\r?\n/).forEach((x) => { const t = x.trim(); if (t && !t.startsWith('#')) urls.add(t); }); } catch { /* noop */ }
+    try { const t = dt.getData('text/plain'); const s = (t || '').trim(); if (s && /^(data:image|https?:|blob:)/.test(s)) urls.add(s); } catch { /* noop */ }
+  }
+  return { files, urls: [...urls] };
+}
+async function urlsToFiles(urls) {
+  const out = [];
+  for (const u of urls) {
+    try { const b = await (await fetch(u)).blob(); if (/^image\//.test(b.type)) out.push(new File([b], 'dropped.png', { type: b.type })); } catch { /* CORS/파일접근 실패는 무시 */ }
   }
   return out;
 }
 
 export default function StatementReconcile({ orders, showToast, onClose }) {
   const [busy, setBusy] = useState(false);
-  const [results, setResults] = useState([]); // [{ id, stmt, rec, imgUrl, error }]
+  const [pending, setPending] = useState([]); // 올려둔(아직 조회 안 한) 이미지 [{id,file,url}]
+  const [results, setResults] = useState([]); // 조회 결과 [{ id, stmt, rec, imgUrl, error }]
   const [dragOver, setDragOver] = useState(false);
 
-  const handleFiles = useCallback(async (fileList) => {
-    const files = [...(fileList || [])].filter((f) => /^image\//.test(f.type || ''));
-    if (!files.length) { showToast?.('이미지를 인식하지 못했어요 — 카톡에서 이미지 복사(Ctrl+C) 후 여기서 붙여넣기(Ctrl+V) 해보세요', 'error'); return; }
-    setBusy(true);
-    for (const file of files) {
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const imgUrl = URL.createObjectURL(file);
-      try {
-        const { base64, mimeType } = await fileToScaledBase64(file, 1600);
-        const res = await extractStatement(base64, mimeType);
-        if (!res.ok) { setResults((r) => [...r, { id, imgUrl, error: res.error }]); continue; }
-        const rec = reconcile(res.data, orders);
-        setResults((r) => [...r, { id, imgUrl, stmt: res.data, rec }]);
-      } catch (e) {
-        setResults((r) => [...r, { id, imgUrl, error: e.message || '판독 실패' }]);
-      }
-    }
-    setBusy(false);
-  }, [orders, showToast]);
+  // 이미지 파일을 대기열에 추가만 (조회는 [일괄 조회] 버튼에서)
+  const addFiles = useCallback((fileList) => {
+    const imgs = [...(fileList || [])].filter((f) => /^image\//.test(f.type || ''));
+    if (!imgs.length) { showToast?.('이미지를 인식하지 못했어요 — 카톡에서 복사(Ctrl+C) 후 붙여넣기(Ctrl+V) 해보세요', 'error'); return; }
+    setPending((p) => [...p, ...imgs.map((f) => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, file: f, url: URL.createObjectURL(f) }))]);
+  }, [showToast]);
 
-  // Ctrl+V 붙여넣기 — 카톡에서 이미지 복사 후 이 모달에서 바로 붙여넣기 (여러 장도)
+  const removePending = (id) => setPending((p) => p.filter((x) => x.id !== id));
+  const clearPending = () => setPending([]);
+  const removeResult = (id) => setResults((r) => r.filter((x) => x.id !== id));
+
+  // [일괄 조회] — 대기열 전부를 판독+대조
+  const runReconcile = useCallback(async () => {
+    if (!pending.length) { showToast?.('먼저 명세서 사진을 올려주세요', 'error'); return; }
+    setBusy(true);
+    const out = [];
+    for (const p of pending) {
+      try {
+        const { base64, mimeType } = await fileToScaledBase64(p.file, 1600);
+        const res = await extractStatement(base64, mimeType);
+        if (!res.ok) out.push({ id: p.id, imgUrl: p.url, error: res.error });
+        else out.push({ id: p.id, imgUrl: p.url, stmt: res.data, rec: reconcile(res.data, orders) });
+      } catch (e) { out.push({ id: p.id, imgUrl: p.url, error: e.message || '판독 실패' }); }
+    }
+    setResults((r) => [...out, ...r]); // 최신 조회가 위로
+    setPending([]);
+    setBusy(false);
+    showToast?.(`${out.length}장 대조 완료`, 'success');
+  }, [pending, orders, showToast]);
+
+  // Ctrl+V 붙여넣기 — 카톡 이미지 복사 후 붙여넣기 (대기열에 추가만)
   useEffect(() => {
     const onPaste = (e) => {
-      const files = extractImages(e.clipboardData);
-      if (files.length) { e.preventDefault(); handleFiles(files); }
+      const { files, urls } = syncCollect(e.clipboardData);
+      if (files.length) { e.preventDefault(); addFiles(files); }
+      else if (urls.length) { e.preventDefault(); urlsToFiles(urls).then((fs) => fs.length ? addFiles(fs) : showToast?.('붙여넣기에서 이미지를 못 읽었어요 — 사진으로 복사됐는지 확인해주세요', 'error')); }
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [handleFiles]);
+  }, [addFiles, showToast]);
 
-  // 문서 전체 드롭 — 카톡창에서 이미지를 끌어와 창 어디에 놓아도 인식(+ 파일 열림으로 페이지 이탈 방지)
+  // 문서 전체 드롭 — 카톡창에서 끌어와 창 어디에 놓아도 인식(+ 파일 열림으로 페이지 이탈 방지)
   useEffect(() => {
     const onOver = (e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; if (!dragOver) setDragOver(true); };
     const onDrop = (e) => {
       e.preventDefault();
       setDragOver(false);
-      const files = extractImages(e.dataTransfer);
-      if (files.length) handleFiles(files);
-      else showToast?.('이미지를 인식하지 못했어요 — 카톡에서 이미지 복사(Ctrl+C) 후 붙여넣기(Ctrl+V) 해보세요', 'error');
+      const { files, urls } = syncCollect(e.dataTransfer); // ⚠️ 동기 수집(이벤트 후엔 dataTransfer 무효)
+      if (files.length) addFiles(files);
+      else if (urls.length) urlsToFiles(urls).then((fs) => fs.length ? addFiles(fs) : showToast?.('드래그로는 이미지를 못 가져왔어요 — 카톡에서 복사(Ctrl+C)→붙여넣기(Ctrl+V)가 확실합니다', 'error'));
+      else showToast?.('드래그로는 이미지를 못 가져왔어요 — 카톡에서 복사(Ctrl+C)→붙여넣기(Ctrl+V)가 확실합니다', 'error');
     };
     const onLeave = (e) => { if (e.relatedTarget == null) setDragOver(false); };
     document.addEventListener('dragover', onOver);
     document.addEventListener('drop', onDrop);
     document.addEventListener('dragleave', onLeave);
     return () => { document.removeEventListener('dragover', onOver); document.removeEventListener('drop', onDrop); document.removeEventListener('dragleave', onLeave); };
-  }, [handleFiles, dragOver, showToast]);
-
-  const removeResult = (id) => setResults((r) => r.filter((x) => x.id !== id));
+  }, [addFiles, dragOver, showToast]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
@@ -155,24 +181,45 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 
         <div className="overflow-y-auto px-4 py-3 space-y-3">
           <div className="text-xs rounded-lg p-2.5 border" style={{ background: 'rgba(0,212,255,0.06)', borderColor: 'var(--primary)', color: 'var(--foreground)' }}>
-            부장님이 올린 <b>거래명세서 사진</b>을 올리면, <b>같은 거래처·같은 날짜의 주문내역</b>과 자동 대조해 <b>빠진 품목</b>을 찾아줍니다.
-            <br />📎 <b>카톡 이미지 복사(Ctrl+C) → 여기서 붙여넣기(Ctrl+V)</b> 또는 <b>드래그드롭</b>, 클릭 업로드 모두 됩니다. <b>여러 장 한꺼번에</b> OK.
+            거래명세서 사진을 <b>여러 장 올려두고</b>, 아래 <b>[일괄 조회]</b>를 누르면 <b>같은 거래처·비슷한 날짜(±7일)의 주문내역</b>과 한꺼번에 대조해 <b>빠진 품목</b>을 찾아줍니다.
+            <br />📎 올리기: <b>클릭 업로드</b> · <b>Ctrl+V 붙여넣기</b>(카톡에서 이미지 복사 후) · 드래그드롭. <span style={{ color: '#e6961b' }}>카톡 드래그가 안 되면 <b>복사→붙여넣기(Ctrl+V)</b>가 가장 확실해요.</span>
           </div>
 
           {/* 업로드 */}
           <label className="flex flex-col items-center justify-center gap-1 py-4 rounded-xl border-2 border-dashed cursor-pointer font-bold text-sm"
             style={{ borderColor: 'var(--primary)', color: 'var(--primary)', background: 'var(--background)' }}>
-            <span className="flex items-center gap-2">
-              {busy ? <><Loader2 className="w-5 h-5 animate-spin" /> 판독 중...</> : <><Camera className="w-5 h-5" /> 명세서 사진 올리기 (카메라·갤러리)</>}
-            </span>
-            {!busy && <span className="flex items-center gap-1 text-[11px] font-semibold opacity-70"><ClipboardPaste className="w-3.5 h-3.5" /> 클릭 · 드래그드롭 · Ctrl+V 붙여넣기</span>}
+            <span className="flex items-center gap-2"><Camera className="w-5 h-5" /> 명세서 사진 올리기 (카메라·갤러리)</span>
+            <span className="flex items-center gap-1 text-[11px] font-semibold opacity-70"><ClipboardPaste className="w-3.5 h-3.5" /> 클릭 · 드래그드롭 · Ctrl+V 붙여넣기</span>
             <input type="file" accept="image/*" capture="environment" multiple className="hidden" disabled={busy}
-              onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} />
+              onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
           </label>
 
-          {results.length === 0 && !busy && (
+          {/* 대기열(올려둔 사진) + 일괄 조회 버튼 */}
+          {pending.length > 0 && (
+            <div className="rounded-xl border p-2.5" style={{ borderColor: 'var(--primary)', background: 'rgba(0,212,255,0.05)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold" style={{ color: 'var(--foreground)' }}>올려둔 명세서 {pending.length}장</span>
+                <button onClick={clearPending} className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>모두 지우기</button>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-2.5">
+                {pending.map((p) => (
+                  <div key={p.id} className="relative w-16 h-16 rounded-lg overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+                    <img src={p.url} alt="명세서" className="w-full h-full object-cover" />
+                    <button onClick={() => removePending(p.id)} className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center text-white" style={{ background: 'rgba(0,0,0,0.6)' }}><X className="w-3 h-3" /></button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={runReconcile} disabled={busy}
+                className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ background: 'var(--primary)' }}>
+                {busy ? <><Loader2 className="w-4 h-4 animate-spin" /> 대조 중...</> : <><FileSearch className="w-4 h-4" /> 일괄 조회 ({pending.length}장 대조)</>}
+              </button>
+            </div>
+          )}
+
+          {pending.length === 0 && results.length === 0 && !busy && (
             <div className="text-center py-8 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-              아직 올린 명세서가 없어요. 위 버튼으로 사진을 올려보세요.
+              아직 올린 명세서가 없어요. 위 버튼/붙여넣기로 사진을 올린 뒤 <b>[일괄 조회]</b>를 누르세요.
             </div>
           )}
 
