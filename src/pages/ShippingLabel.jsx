@@ -562,8 +562,10 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
           const phone = recv?.tel || customer?.phone || order.customerPhone || '';
           const address = shipAddress(order, customer);
           const setting = getOrderSetting(order.orderNumber, order.customerName, order);
+          const smemoC = parseShippingMemo(order);
           csv += `${index},${shippingName(order)},${setting.paymentType},${setting.packaging},${setting.shippingCost},${mostExpensive},${phone}\n`;
-          if (address) csv += `${address}\n`;
+          const addrLine = [address, smemoC ? `📝 배송메모: ${smemoC}` : ''].filter(Boolean).join(' / ');
+          if (addrLine) csv += `${addrLine}\n`;
           index++;
         });
         custom.forEach((entry) => {
@@ -670,14 +672,28 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
           const maxLines = Math.max((packagingValue.match(/,/g) || []).length + 1, (shippingCostValue.match(/,/g) || []).length + 1);
           dataRow.height = Math.max(dataHeight, 35 * maxLines);
           rowNum++;
-          if (address) {
+          const smemoX = parseShippingMemo(order);
+          const addrText = [address, smemoX ? `📝 배송메모: ${smemoX}` : ''].filter(Boolean).join('\n');
+          if (addrText) {
             worksheet.mergeCells(`A${rowNum}:G${rowNum}`);
             const addrRow = worksheet.getRow(rowNum);
-            addrRow.getCell(1).value = address;
-            addrRow.getCell(1).font = { size: 12, bold: isPrepaid, name: 'Malgun Gothic' };
+            // 주소는 검정, 배송메모는 굵은 주황으로 — 엑셀에서도 눈에 띄게(리치텍스트)
+            if (smemoX && address) {
+              addrRow.getCell(1).value = {
+                richText: [
+                  { text: address + '\n', font: { size: 12, bold: isPrepaid, name: 'Malgun Gothic', color: { argb: 'FF000000' } } },
+                  { text: `📝 배송메모: ${smemoX}`, font: { size: 12, bold: true, name: 'Malgun Gothic', color: { argb: 'FFC2410C' } } },
+                ],
+              };
+            } else if (smemoX) {
+              addrRow.getCell(1).value = { richText: [{ text: `📝 배송메모: ${smemoX}`, font: { size: 12, bold: true, name: 'Malgun Gothic', color: { argb: 'FFC2410C' } } }] };
+            } else {
+              addrRow.getCell(1).value = address;
+              addrRow.getCell(1).font = { size: 12, bold: isPrepaid, name: 'Malgun Gothic' };
+            }
             addrRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
             addrRow.getCell(1).border = thinBorder;
-            addrRow.height = addrHeight;
+            addrRow.height = smemoX ? addrHeight + 22 : addrHeight;
             rowNum++;
           }
         });
@@ -1136,7 +1152,10 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                                   </p>
                                 )}
                                 {smemo && (
-                                  <p className="text-xs break-words leading-snug" style={{ color: 'var(--warning)' }}>📝 배송메모: {smemo}</p>
+                                  <p className="text-sm break-words leading-snug font-bold px-2 py-1 rounded-lg border-l-4"
+                                    style={{ color: 'var(--foreground)', background: 'color-mix(in srgb, #f59e0b 22%, var(--card))', borderColor: '#d97706' }}>
+                                    📝 배송메모: {smemo}
+                                  </p>
                                 )}
                                 {note && (
                                   <p className="text-xs break-words leading-snug font-semibold px-1.5 py-1 rounded" style={{ color: 'var(--info)', background: 'color-mix(in srgb, var(--info) 10%, transparent)' }}>🗒️ 주문 메모: {note}</p>
