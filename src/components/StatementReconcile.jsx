@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Camera, Loader2, Check, AlertTriangle, FileSearch, Trash2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Camera, Loader2, Check, AlertTriangle, FileSearch, Trash2, ClipboardPaste } from 'lucide-react';
 import { fileToScaledBase64 } from '@/lib/certVision';
 import { extractStatement } from '@/lib/statementVision';
 import { formatPrice, toDateKST } from '@/lib/utils';
@@ -54,13 +54,24 @@ function reconcile(stmt, orders) {
   };
 }
 
+// DataTransfer/Clipboard에서 이미지 파일 뽑기 — 카톡 드래그(파일) + Ctrl+V(이미지 blob) 모두 대응.
+function extractImages(dt) {
+  const out = [];
+  if (dt?.files?.length) for (const f of dt.files) if (/^image\//.test(f.type || '')) out.push(f);
+  if (dt?.items) for (const it of dt.items) {
+    if (it.kind === 'file' && /^image\//.test(it.type || '')) { const f = it.getAsFile(); if (f && !out.includes(f)) out.push(f); }
+  }
+  return out;
+}
+
 export default function StatementReconcile({ orders, showToast, onClose }) {
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState([]); // [{ id, stmt, rec, imgUrl, error }]
+  const [dragOver, setDragOver] = useState(false);
 
-  const handleFiles = async (fileList) => {
+  const handleFiles = useCallback(async (fileList) => {
     const files = [...(fileList || [])].filter((f) => /^image\//.test(f.type || ''));
-    if (!files.length) { showToast?.('이미지 파일을 선택해주세요', 'error'); return; }
+    if (!files.length) { showToast?.('이미지를 인식하지 못했어요 — 카톡에서 이미지 복사(Ctrl+C) 후 여기서 붙여넣기(Ctrl+V) 해보세요', 'error'); return; }
     setBusy(true);
     for (const file of files) {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -76,13 +87,34 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
       }
     }
     setBusy(false);
-  };
+  }, [orders, showToast]);
+
+  // Ctrl+V 붙여넣기 — 카톡에서 이미지 복사 후 이 모달에서 바로 붙여넣기 (여러 장도)
+  useEffect(() => {
+    const onPaste = (e) => {
+      const files = extractImages(e.clipboardData);
+      if (files.length) { e.preventDefault(); handleFiles(files); }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [handleFiles]);
 
   const removeResult = (id) => setResults((r) => r.filter((x) => x.id !== id));
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
-      <div className="w-full sm:max-w-3xl rounded-t-2xl sm:rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92vh' }} onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full sm:max-w-3xl rounded-t-2xl sm:rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92vh' }}
+        onClick={(e) => e.stopPropagation()}
+        onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
+        onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOver(false); }}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); const files = extractImages(e.dataTransfer); if (files.length) handleFiles(files); else showToast?.('이미지를 인식하지 못했어요 — 복사(Ctrl+C) 후 붙여넣기(Ctrl+V)도 됩니다', 'error'); }}>
+        {dragOver && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed pointer-events-none" style={{ background: 'rgba(0,212,255,0.12)', borderColor: 'var(--primary)' }}>
+            <div className="text-center font-black" style={{ color: 'var(--primary)' }}>
+              <Camera className="w-10 h-10 mx-auto mb-2" />여기에 명세서 사진을 놓으세요
+            </div>
+          </div>
+        )}
         {/* 헤더 */}
         <div className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <FileSearch className="w-5 h-5" style={{ color: 'var(--primary)' }} />
@@ -92,15 +124,17 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 
         <div className="overflow-y-auto px-4 py-3 space-y-3">
           <div className="text-xs rounded-lg p-2.5 border" style={{ background: 'rgba(0,212,255,0.06)', borderColor: 'var(--primary)', color: 'var(--foreground)' }}>
-            부장님이 올린 <b>거래명세서 사진</b>을 올리면, <b>같은 거래처·같은 날짜의 주문내역</b>과 자동 대조해 <b>빠진 품목</b>을 찾아줍니다. 여러 장 한꺼번에 가능.
+            부장님이 올린 <b>거래명세서 사진</b>을 올리면, <b>같은 거래처·같은 날짜의 주문내역</b>과 자동 대조해 <b>빠진 품목</b>을 찾아줍니다.
+            <br />📎 <b>카톡 이미지 복사(Ctrl+C) → 여기서 붙여넣기(Ctrl+V)</b> 또는 <b>드래그드롭</b>, 클릭 업로드 모두 됩니다. <b>여러 장 한꺼번에</b> OK.
           </div>
 
           {/* 업로드 */}
-          <label className="flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-dashed cursor-pointer font-bold text-sm"
-            style={{ borderColor: 'var(--primary)', color: 'var(--primary)', background: 'var(--background)' }}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer?.files); }}>
-            {busy ? <><Loader2 className="w-5 h-5 animate-spin" /> 판독 중...</> : <><Camera className="w-5 h-5" /> 명세서 사진 올리기 (카메라·갤러리)</>}
+          <label className="flex flex-col items-center justify-center gap-1 py-4 rounded-xl border-2 border-dashed cursor-pointer font-bold text-sm"
+            style={{ borderColor: 'var(--primary)', color: 'var(--primary)', background: 'var(--background)' }}>
+            <span className="flex items-center gap-2">
+              {busy ? <><Loader2 className="w-5 h-5 animate-spin" /> 판독 중...</> : <><Camera className="w-5 h-5" /> 명세서 사진 올리기 (카메라·갤러리)</>}
+            </span>
+            {!busy && <span className="flex items-center gap-1 text-[11px] font-semibold opacity-70"><ClipboardPaste className="w-3.5 h-3.5" /> 클릭 · 드래그드롭 · Ctrl+V 붙여넣기</span>}
             <input type="file" accept="image/*" capture="environment" multiple className="hidden" disabled={busy}
               onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} />
           </label>
