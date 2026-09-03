@@ -1,9 +1,31 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-09-02 (📷 명세서 대조[Gemini 판독→주문내역 자동 대조] / 🚚 발송 대기 모니터 / 증빙 보관[마이그015] / JSR 대여·불량 관리 리네임 / 배송메모 엑셀·강조 / 날짜 달력)
+> 마지막 업데이트: 2026-09-03 (💾 명세서 대조 기록 저장[마이그016] / 매칭 강화[역조합·오차0.3%] / 🚨 스토어 취소요청 상시 경고 / 🏢 업체 교체 선택기)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 🆕 v2026-09-03 — 대조 기록 저장 / 취소요청 경고 / 업체 교체
+
+### 💾 명세서 대조 "확인 완료" 기록 (마이그[016](../naver-sync-bridge/migrations/016_statement_recon_logs.sql) **적용완료**)
+결과 카드 **[확인 완료]** → `statement_recon_logs`에 저장(+원본 사진 Storage `statement-recons/`). 저장 항목: 거래처·발행일·명세서합계·주문합계·차액·상태·match_by·매칭날짜/건수·**라인 전체 jsonb**·pos_only.
+- `statusOf(rec)` **단일 소스** — 화면 뱃지와 저장 상태가 항상 같은 기준(일치/합계일치/확인필요/주문내역없음).
+- 헤더 **[지난 기록]** 토글 → 목록(썸네일·상태·금액·차액·확인시각)+삭제. REST 검증 완료(INSERT 200 / DELETE 204).
+
+### 📷 명세서 대조 매칭 정확도 강화 ([StatementReconcile.jsx](src/components/StatementReconcile.jsx))
+- 🚨 **금액 허용오차 2% → 0.3%**(`near`, 최소 50원): 돈이라 헐거우면 *다른 물건*을 일치로 오판. 부가세 절사 차이만 흡수.
+- **3차 역조합 매칭**: POS 1줄 = 명세서 여러 줄(POS가 묶어 적은 경우)도 매칭. (2차 정조합=명세서 1줄=POS 여러 줄과 쌍)
+- **0원(무상/서비스) 라인 가드**: 매칭 대상 제외 — 엉뚱한 POS 라인을 먹어버리던 오탐 제거.
+- **📋 결과 복사**: 누락/추가 항목을 정리된 텍스트로 → 카톡으로 부장님께 전달.
+
+### 🚨 스토어 취소·반품 요청 놓침 방지
+- **전역 팝업 유지**([StoreOrderAlerts.jsx](src/components/StoreOrderAlerts.jsx)): 신규주문은 10초 자동닫힘, **취소/반품은 자동으로 안 닫힘**(직접 닫을 때까지) — 자리 비워도 놓치지 않음.
+- **상시 빨간 경고 배너**([SmartStoreOrders.jsx](src/pages/SmartStoreOrders.jsx) `claimWatch`): 요약 위젯 접어도 항상 최상단 표시, 클릭=취소 필터. 🚨 `order_status` 취소류뿐 아니라 **PAYED로 남아있어도 claimStatus 클레임 걸린 건(getClaimInfo)** 포함, **전체 orders 기준(날짜 무관)**으로 처리 전까지 계속 노출.
+
+### 🏢 업체 교체 선택기 ([CustomerPickerModal.jsx](src/components/CustomerPickerModal.jsx))
+"제품 교체"처럼 **등록된 거래처 목록에서 골라 업체 변경**. 직접 타이핑하면 오타·미등록 상호가 생겨 **명세서 대조·미수 집계가 어긋나므로** 목록 선택 우선(검색어 그대로 입력하는 폴백도 제공).
+- **주문 상세**([OrderDetail.jsx](src/pages/OrderDetail.jsx)) 편집 모드 업체명 옆 [업체 교체] — 선택 시 전화/주소가 **비어 있을 때만** 함께 채움(기존 값 보존).
+- **저장된 장바구니**([SavedCarts.jsx](src/pages/SavedCarts.jsx)) 상세 편집에서도 동일.
 
 ## 🆕 v2026-09-02 — 명세서 대조 + 발송 대기 + 증빙 보관 외
 

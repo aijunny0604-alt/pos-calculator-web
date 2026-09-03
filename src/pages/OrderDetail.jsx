@@ -14,6 +14,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
+import CustomerPickerModal from '@/components/CustomerPickerModal';
 
 // Safe price getter - fallback for items without price field
 const getItemPrice = (item) => item.price ?? item.wholesale ?? 0;
@@ -79,6 +80,7 @@ export default function OrderDetail({
   // Product replace state
   const [replacingItemIndex, setReplacingItemIndex] = useState(null);
   const [replaceSearchTerm, setReplaceSearchTerm] = useState('');
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false); // 업체 교체 선택 모달
   const [certViewer, setCertViewer] = useState(false); // 사업자등록증 확대 보기
 
   // 🎯 포장 퀘스트 — 작업자가 품목별로 챙기며 체크(제품 누락 방지). DB 저장(order_packing) + localStorage 폴백.
@@ -853,14 +855,26 @@ export default function OrderDetail({
                 <div className="flex-1 min-w-0">
                   <div className="text-xs md:text-sm mb-0.5 md:mb-1 font-semibold" style={{ color: 'var(--muted-foreground)' }}>업체명</div>
                   {isEditing ? (
-                    <input
-                      type="text"
-                      value={editedOrder.customerName || ''}
-                      onChange={(e) => setEditedOrder({ ...editedOrder, customerName: e.target.value })}
-                      className="w-full px-2 py-1 rounded-lg border text-sm md:text-base focus:outline-none focus:ring-2"
-                      style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
-                      placeholder="업체명 입력"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={editedOrder.customerName || ''}
+                        onChange={(e) => setEditedOrder({ ...editedOrder, customerName: e.target.value })}
+                        className="flex-1 min-w-0 px-2 py-1 rounded-lg border text-sm md:text-base focus:outline-none focus:ring-2"
+                        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                        placeholder="업체명 입력"
+                      />
+                      {/* 제품 교체처럼 등록된 거래처에서 골라 교체 (오타·미등록 상호 방지) */}
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomerPicker(true)}
+                        className="px-2.5 py-1.5 rounded-lg text-xs md:text-sm font-bold whitespace-nowrap flex items-center gap-1 text-white flex-shrink-0"
+                        style={{ background: 'var(--primary)' }}
+                        title="등록된 거래처에서 선택해 업체를 교체합니다"
+                      >
+                        <Building2 className="w-3.5 h-3.5" /> 업체 교체
+                      </button>
+                    </div>
                   ) : (
                     <div className="font-bold text-base md:text-xl break-words leading-snug" style={{ color: 'var(--foreground)' }}>
                       {order.customerName || '-'}
@@ -2777,6 +2791,20 @@ export default function OrderDetail({
           </div>
         </div>
       )}
+
+      {/* 업체 교체 — 등록된 거래처에서 선택. 고르면 전화/주소가 비어 있을 때 함께 채운다. */}
+      <CustomerPickerModal
+        open={showCustomerPicker}
+        customers={customers}
+        current={editedOrder.customerName || ''}
+        onClose={() => setShowCustomerPicker(false)}
+        onPick={(c) => setEditedOrder((prev) => ({
+          ...prev,
+          customerName: c.name,
+          customerPhone: (prev.customerPhone || '').trim() || c.phone || prev.customerPhone,
+          customerAddress: (prev.customerAddress || '').trim() || c.address || prev.customerAddress,
+        }))}
+      />
     </div>
   );
 }

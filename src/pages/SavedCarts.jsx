@@ -15,6 +15,7 @@ import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
+import CustomerPickerModal from '@/components/CustomerPickerModal';
 
 export default function SavedCarts({
   savedCarts,
@@ -108,6 +109,7 @@ export default function SavedCarts({
   };
   const [isEditingDetail, setIsEditingDetail] = useState(false);
   const [editedDetailCart, setEditedDetailCart] = useState(null);
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false); // 업체 교체 선택 모달
   const [showProductSearchDetail, setShowProductSearchDetail] = useState(false);
   const [productSearchTermDetail, setProductSearchTermDetail] = useState('');
   const detailSearchRef = useRef(null); // [제품 추가] 누르면 바로 타이핑되게 포커스
@@ -555,13 +557,24 @@ export default function SavedCarts({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap">
                   {isEditingDetail ? (
-                    <input
-                      type="text"
-                      value={currentCart.name}
-                      onChange={(e) => setEditedDetailCart({ ...editedDetailCart, name: e.target.value })}
-                      className="flex-1 min-w-0 text-base sm:text-lg font-bold text-white bg-white/20 px-2 py-1 rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
-                      placeholder="업체명/이름"
-                    />
+                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={currentCart.name}
+                        onChange={(e) => setEditedDetailCart({ ...editedDetailCart, name: e.target.value })}
+                        className="flex-1 min-w-0 text-base sm:text-lg font-bold text-white bg-white/20 px-2 py-1 rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
+                        placeholder="업체명/이름"
+                      />
+                      {/* 등록된 거래처에서 골라 업체 교체 (오타·미등록 상호 방지) */}
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomerPicker(true)}
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 text-white bg-white/25 border border-white/30 hover:bg-white/35"
+                        title="등록된 거래처에서 선택해 업체를 교체합니다"
+                      >
+                        업체 교체
+                      </button>
+                    </div>
                   ) : (
                     <h2 className="text-lg sm:text-2xl font-black text-white break-keep leading-snug min-w-0 truncate tracking-tight">{currentCart.name}</h2>
                   )}
@@ -1921,6 +1934,15 @@ export default function SavedCarts({
           </div>
         </div>
       )}
+
+      {/* 업체 교체 — 등록된 거래처에서 선택 (장바구니 상세 편집 중) */}
+      <CustomerPickerModal
+        open={showCustomerPicker}
+        customers={customers}
+        current={editedDetailCart?.name || ''}
+        onClose={() => setShowCustomerPicker(false)}
+        onPick={(c) => setEditedDetailCart((prev) => ({ ...(prev || {}), name: c.name }))}
+      />
     </div>
   );
 }
