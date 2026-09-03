@@ -608,6 +608,26 @@ export const supabase = {
     } catch (e) { console.error('deleteSupplierPrice:', e); return false; }
   },
 
+  // ===== 명세서 대조 기록 (statement_recon_logs) — 거래명세서↔주문내역 대조 '확인 완료' 이력. 마이그016 =====
+  async getStatementReconLogs(limit = 200) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/statement_recon_logs?order=checked_at.desc&limit=${limit}`, { headers });
+    } catch (e) { console.error('getStatementReconLogs:', e); return null; }
+  },
+  async addStatementReconLog(row) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/statement_recon_logs`, {
+        method: 'POST', headers: headersWithReturn, body: JSON.stringify(row)
+      });
+    } catch (e) { console.error('addStatementReconLog:', e); return null; }
+  },
+  async deleteStatementReconLog(id) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/statement_recon_logs?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
+      return r.ok;
+    } catch (e) { console.error('deleteStatementReconLog:', e); return false; }
+  },
+
   // ===== 매입 증빙 보관 (purchase_docs) — 견적서/명세서 사진 서랍(증거물). 마이그015 =====
   async getPurchaseDocs() {
     try {

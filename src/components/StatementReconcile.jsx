@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Camera, Loader2, Check, AlertTriangle, FileSearch, Trash2, ClipboardPaste } from 'lucide-react';
+import { X, Camera, Loader2, Check, AlertTriangle, FileSearch, Trash2, ClipboardPaste, Save, History } from 'lucide-react';
 import { fileToScaledBase64 } from '@/lib/certVision';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { extractStatement } from '@/lib/statementVision';
 import { formatPrice, toDateKST } from '@/lib/utils';
 
@@ -125,11 +126,38 @@ async function urlsToFiles(urls) {
   return out;
 }
 
+// 대조 상태 한 단어 — 저장 기록과 화면 뱃지가 같은 기준을 쓰도록 단일 소스
+function statusOf(rec) {
+  if (!rec || rec.matchedOrders.length === 0) return '주문내역없음';
+  const linesClean = rec.missingCount === 0 && rec.posOnly.length === 0;
+  if (rec.totalOk && linesClean) return '일치';
+  if (rec.totalOk) return '합계일치';
+  return '확인필요';
+}
+const STATUS_COLOR = { 일치: 'var(--success)', 합계일치: 'var(--success)', 확인필요: '#e6961b', 주문내역없음: '#ff4d6d' };
+
+// 명세서 원본을 증거로 Storage에 보관 (실패해도 기록 저장은 진행)
+async function uploadStatementImage(file) {
+  const ext = (file.name?.match(/\.(jpe?g|png|webp)$/i) || [, 'png'])[1];
+  const path = `statement-recons/recon-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+  const r = await fetch(`${SUPABASE_URL}/storage/v1/object/product-images/${path}`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': file.type || 'image/png', 'x-upsert': 'true' },
+    body: file,
+  });
+  if (!r.ok) throw new Error(`upload ${r.status}`);
+  return { url: `${SUPABASE_URL}/storage/v1/object/public/product-images/${path}`, path };
+}
+
 export default function StatementReconcile({ orders, showToast, onClose }) {
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState([]); // 올려둔(아직 조회 안 한) 이미지 [{id,file,url}]
   const [results, setResults] = useState([]); // 조회 결과 [{ id, stmt, rec, imgUrl, error }]
   const [dragOver, setDragOver] = useState(false);
+  const [savedIds, setSavedIds] = useState(() => new Set()); // 확인 완료 저장된 결과 id
+  const [savingId, setSavingId] = useState(null);
+  const [showLogs, setShowLogs] = useState(false);
+  const [logs, setLogs] = useState(null); // null=미로드, []=없음
 
   // 이미지 파일을 대기열에 추가만 (조회는 [일괄 조회] 버튼에서)
   const addFiles = useCallback((fileList) => {
@@ -137,6 +165,49 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
     if (!imgs.length) { showToast?.('이미지를 인식하지 못했어요 — 카톡에서 복사(Ctrl+C) 후 붙여넣기(Ctrl+V) 해보세요', 'error'); return; }
     setPending((p) => [...p, ...imgs.map((f) => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, file: f, url: URL.createObjectURL(f) }))]);
   }, [showToast]);
+
+  // 지난 대조 기록 조회
+  const loadLogs = useCallback(async () => {
+    const res = await supabase.getStatementReconLogs(100);
+    if (res === null) { showToast?.('기록 조회 실패 — 마이그레이션 016 적용 여부를 확인해주세요', 'error'); setLogs([]); return; }
+    setLogs(res || []);
+  }, [showToast]);
+
+  // [✅ 확인 완료] — 이 대조 결과를 기록으로 저장(원본 사진 포함)
+  const saveLog = useCallback(async (r) => {
+    if (!r?.rec || savedIds.has(r.id)) return;
+    setSavingId(r.id);
+    try {
+      let image_url = null, image_path = null;
+      if (r.file) { try { const up = await uploadStatementImage(r.file); image_url = up.url; image_path = up.path; } catch { /* 사진 실패해도 기록은 남긴다 */ } }
+      const { rec, stmt } = r;
+      const payload = {
+        customer: stmt.customer || null,
+        issue_date: stmt.issue_date || null,
+        stated_total: num(stmt.stated_total),
+        pos_total: num(rec.posTotal),
+        total_diff: num(rec.totalDiff),
+        status: statusOf(rec),
+        match_by: rec.matchBy || null,
+        matched_dates: (rec.matchedDates || []).join(', ') || null,
+        order_count: rec.matchedOrders.length,
+        lines: rec.stmtRows.map((x) => ({ name: x.name, qty: x.qty, lineTotal: x.lineTotal, matched: x.matched, combo: x.combo, refs: x.refs })),
+        pos_only: rec.posOnly.map((x) => ({ name: x.name, qty: x.qty, total: x.total })),
+        image_url, image_path,
+      };
+      const res = await supabase.addStatementReconLog(payload);
+      if (!res) { showToast?.('저장 실패 — 마이그레이션 016 적용 여부를 확인해주세요', 'error'); return; }
+      setSavedIds((sv) => new Set([...sv, r.id]));
+      showToast?.('대조 기록을 저장했습니다 ✅', 'success');
+      if (showLogs) loadLogs();
+    } finally { setSavingId(null); }
+  }, [savedIds, showToast, showLogs, loadLogs]);
+
+  const deleteLog = async (id) => {
+    const ok = await supabase.deleteStatementReconLog(id);
+    if (!ok) { showToast?.('삭제 실패', 'error'); return; }
+    setLogs((l) => (l || []).filter((x) => x.id !== id));
+  };
 
   const removePending = (id) => setPending((p) => p.filter((x) => x.id !== id));
   const clearPending = () => setPending([]);
@@ -151,9 +222,9 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
       try {
         const { base64, mimeType } = await fileToScaledBase64(p.file, 1600);
         const res = await extractStatement(base64, mimeType);
-        if (!res.ok) out.push({ id: p.id, imgUrl: p.url, error: res.error });
-        else out.push({ id: p.id, imgUrl: p.url, stmt: res.data, rec: reconcile(res.data, orders) });
-      } catch (e) { out.push({ id: p.id, imgUrl: p.url, error: e.message || '판독 실패' }); }
+        if (!res.ok) out.push({ id: p.id, imgUrl: p.url, file: p.file, error: res.error });
+        else out.push({ id: p.id, imgUrl: p.url, file: p.file, stmt: res.data, rec: reconcile(res.data, orders) });
+      } catch (e) { out.push({ id: p.id, imgUrl: p.url, file: p.file, error: e.message || '판독 실패' }); }
     }
     setResults((r) => [...out, ...r]); // 최신 조회가 위로
     setPending([]);
@@ -205,6 +276,11 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
         <div className="flex items-center gap-2 px-5 py-3.5 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <FileSearch className="w-6 h-6" style={{ color: 'var(--primary)' }} />
           <h3 className="text-xl font-black flex-1">명세서 대조</h3>
+          <button onClick={() => { const n = !showLogs; setShowLogs(n); if (n && logs === null) loadLogs(); }}
+            className="text-sm px-2.5 py-1.5 rounded-lg font-bold border flex items-center gap-1.5"
+            style={showLogs ? { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' } : { background: 'var(--card)', color: 'var(--foreground)', borderColor: 'var(--border)' }}>
+            <History className="w-4 h-4" /> 지난 기록
+          </button>
           <button onClick={onClose}><X className="w-6 h-6 opacity-60" /></button>
         </div>
 
@@ -252,6 +328,44 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
             </div>
           )}
 
+          {/* 지난 대조 기록 */}
+          {showLogs && (
+            <div className="rounded-xl border" style={{ borderColor: 'var(--border)', background: 'var(--background)' }}>
+              <div className="px-3 py-2 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
+                <History className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                <span className="text-sm font-bold">지난 대조 기록 {logs ? `(${logs.length}건)` : ''}</span>
+                <button onClick={loadLogs} className="ml-auto text-xs font-semibold" style={{ color: 'var(--primary)' }}>새로고침</button>
+              </div>
+              {logs === null ? (
+                <div className="px-3 py-4 text-sm" style={{ color: 'var(--muted-foreground)' }}>불러오는 중...</div>
+              ) : logs.length === 0 ? (
+                <div className="px-3 py-4 text-sm" style={{ color: 'var(--muted-foreground)' }}>저장된 기록이 없습니다. 대조 후 [확인 완료]를 누르면 여기에 쌓입니다.</div>
+              ) : (
+                <div className="max-h-72 overflow-y-auto divide-y" style={{ borderColor: 'var(--border)' }}>
+                  {logs.map((l) => (
+                    <div key={l.id} className="px-3 py-2 flex items-center gap-2 text-sm">
+                      {l.image_url && <img src={l.image_url} alt="명세서" className="w-9 h-9 rounded object-cover border" style={{ borderColor: 'var(--border)' }} />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <b>{l.customer || '(거래처?)'}</b>
+                          <span style={{ color: 'var(--muted-foreground)' }}>{l.issue_date || '-'}</span>
+                          <span className="px-1.5 py-0.5 rounded-full text-xs font-bold text-white" style={{ background: STATUS_COLOR[l.status] || 'var(--muted-foreground)' }}>{l.status}</span>
+                          {l.match_by === 'amount' && <span className="text-xs font-bold" style={{ color: '#e6961b' }}>금액매칭</span>}
+                        </div>
+                        <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                          명세서 ₩{formatPrice(l.stated_total)} / 주문 ₩{formatPrice(l.pos_total)}
+                          {num(l.total_diff) !== 0 ? ` · 차액 ₩${formatPrice(Math.abs(num(l.total_diff)))}` : ' · 차액 없음'}
+                          {l.checked_at ? ` · ${String(l.checked_at).slice(0, 16).replace('T', ' ')}` : ''}
+                        </div>
+                      </div>
+                      <button onClick={() => deleteLog(l.id)} style={{ color: 'var(--destructive)' }}><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 결과 카드들 */}
           {results.map((r) => (
             <div key={r.id} className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
@@ -262,7 +376,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
                   <button onClick={() => removeResult(r.id)}><Trash2 className="w-4 h-4 opacity-60" /></button>
                 </div>
               ) : (
-                <StatementResult r={r} onRemove={() => removeResult(r.id)} />
+                <StatementResult r={r} onRemove={() => removeResult(r.id)} onSave={() => saveLog(r)} saved={savedIds.has(r.id)} saving={savingId === r.id} />
               )}
             </div>
           ))}
@@ -276,7 +390,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
   );
 }
 
-function StatementResult({ r, onRemove }) {
+function StatementResult({ r, onRemove, onSave, saved, saving }) {
   const { stmt, rec } = r;
   const noOrder = rec.matchedOrders.length === 0;
   const totalOk = rec.totalOk;
@@ -296,6 +410,15 @@ function StatementResult({ r, onRemove }) {
           <span className="font-black text-lg">{stmt.customer || '(거래처 미판독)'}</span>
           <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{stmt.issue_date || '날짜?'}</span>
           <span className="ml-auto text-sm px-2.5 py-1 rounded-full font-black text-white" style={{ background: badge.c }}>{badge.t}</span>
+          {/* 확인 완료 → 대조 기록 저장(원본 사진 포함) */}
+          <button onClick={onSave} disabled={saved || saving}
+            className="text-sm px-2.5 py-1 rounded-lg font-bold border flex items-center gap-1 disabled:opacity-60"
+            style={saved
+              ? { background: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'var(--success)' }
+              : { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }}
+            title="이 대조 결과를 기록으로 저장합니다">
+            {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 저장 중</> : saved ? <><Check className="w-3.5 h-3.5" /> 저장됨</> : <><Save className="w-3.5 h-3.5" /> 확인 완료</>}
+          </button>
           <button onClick={onRemove}><Trash2 className="w-4 h-4 opacity-50" /></button>
         </div>
         {noOrder ? (
