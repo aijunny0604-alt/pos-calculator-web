@@ -25,7 +25,8 @@ function custMatch(a, b) {
 
 // 명세서 라인 VAT포함 총액 = 공급가액+세액. POS 라인 = 단가(VAT포함)×수량.
 const stmtLineTotal = (it) => num(it.supply) + num(it.tax);
-const near = (a, b) => Math.abs(a - b) <= Math.max(150, a * 0.02);
+// 금액 허용오차 — 돈이라 헐거우면 '다른 물건'을 일치로 오판한다. 부가세 절사 차이(수 원)만 흡수.
+const near = (a, b) => Math.abs(a - b) <= Math.max(50, Math.abs(a) * 0.003);
 
 const MATCH_WINDOW_DAYS = 7; // 발행일 정확매칭 없을 때 이 일수 내(±) 그 거래처 주문으로 확장 대조
 const dayDiff = (a, b) => Math.abs((new Date(`${a}T00:00:00`).getTime() - new Date(`${b}T00:00:00`).getTime()) / 86400000);
@@ -34,7 +35,8 @@ const dayDiff = (a, b) => Math.abs((new Date(`${a}T00:00:00`).getTime() - new Da
 // 남은 POS 라인들 중 합이 goal에 근사한 작은 부분집합을 찾는다(크기 2~4).
 function findSubset(items, goal) {
   const n = items.length;
-  const tol = Math.max(200, goal * 0.02);
+  if (!(goal > 0)) return null;
+  const tol = Math.max(50, goal * 0.003);
   const rec = (start, size, acc, sum) => {
     if (size === 0) return Math.abs(sum - goal) <= tol ? acc.slice() : null;
     for (let i = start; i <= n - size; i++) {
@@ -82,15 +84,28 @@ function reconcile(stmt, orders, windowDays = MATCH_WINDOW_DAYS) {
   // 라인 대조: 1:1(수량+금액→금액) → 조합(명세서 1줄 = POS 여러 줄)
   const stmtRows = stmt.items.map((it) => {
     const want = stmtLineTotal(it);
+    // 0원(무상/서비스) 라인은 매칭 대상에서 제외 — 엉뚱한 POS 라인을 먹어버리는 오탐 방지
+    if (!(want > 0)) return { name: it.name, spec: it.spec, qty: num(it.qty), lineTotal: want, matched: true, zero: true, combo: false, refs: [] };
     let hit = posLines.find((p) => !p.used && p.qty === num(it.qty) && near(want, p.total));
     if (!hit) hit = posLines.find((p) => !p.used && near(want, p.total));
     if (hit) hit.used = true;
     return { name: it.name, spec: it.spec, qty: num(it.qty), lineTotal: want, matched: !!hit, combo: false, refs: hit ? [{ name: hit.name, qty: hit.qty }] : [] };
   });
+  // 2차 정조합: 명세서 1줄 = POS 여러 줄 (명세서가 묶어 적은 경우)
   for (const row of stmtRows) {
     if (row.matched) continue;
     const combo = findSubset(posLines.filter((p) => !p.used), row.lineTotal);
     if (combo) { combo.forEach((p) => { p.used = true; }); row.matched = true; row.combo = true; row.refs = combo.map((p) => ({ name: p.name, qty: p.qty })); }
+  }
+  // 3차 역조합: POS 1줄 = 명세서 여러 줄 (POS가 묶어 적은 경우)
+  for (const p of posLines) {
+    if (p.used) continue;
+    const open = stmtRows.filter((r) => !r.matched && r.lineTotal > 0).map((r) => ({ total: r.lineTotal, row: r }));
+    const combo = findSubset(open, p.total);
+    if (combo) {
+      p.used = true;
+      combo.forEach((c) => { c.row.matched = true; c.row.combo = true; c.row.refs = [{ name: p.name, qty: p.qty }]; });
+    }
   }
   const posOnly = posLines.filter((p) => !p.used);
   return {
@@ -390,6 +405,18 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
   );
 }
 
+// 대조 결과를 카톡에 붙여넣을 텍스트로 (누락/추가 항목 정리)
+function buildResultText(r) {
+  const { stmt, rec } = r;
+  const L = [`[명세서 대조] ${stmt.customer || '?'} · ${stmt.issue_date || '?'} · ${statusOf(rec)}`];
+  L.push(`명세서 ₩${formatPrice(stmt.stated_total)} / 주문 ₩${formatPrice(rec.posTotal)} · 차액 ${num(rec.totalDiff) === 0 ? '없음' : `₩${formatPrice(Math.abs(num(rec.totalDiff)))}`}`);
+  const miss = rec.stmtRows.filter((x) => !x.matched);
+  if (miss.length) { L.push('', '■ 명세서엔 있는데 주문내역에 없음'); miss.forEach((x) => L.push(`· ${x.name} ${x.qty}개 — ₩${formatPrice(x.lineTotal)}`)); }
+  if (rec.posOnly.length) { L.push('', '■ 주문내역엔 있는데 명세서에 없음'); rec.posOnly.forEach((x) => L.push(`· ${x.name} ${x.qty}개 — ₩${formatPrice(x.total)}`)); }
+  if (!miss.length && !rec.posOnly.length) L.push('', '모든 품목 일치 ✅');
+  return L.join('\n');
+}
+
 function StatementResult({ r, onRemove, onSave, saved, saving }) {
   const { stmt, rec } = r;
   const noOrder = rec.matchedOrders.length === 0;
@@ -410,6 +437,9 @@ function StatementResult({ r, onRemove, onSave, saved, saving }) {
           <span className="font-black text-lg">{stmt.customer || '(거래처 미판독)'}</span>
           <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{stmt.issue_date || '날짜?'}</span>
           <span className="ml-auto text-sm px-2.5 py-1 rounded-full font-black text-white" style={{ background: badge.c }}>{badge.t}</span>
+          <button onClick={() => { navigator.clipboard?.writeText(buildResultText(r)); }}
+            className="text-sm px-2 py-1 rounded-lg font-bold border" style={{ background: 'var(--card)', color: 'var(--foreground)', borderColor: 'var(--border)' }}
+            title="대조 결과를 카톡에 붙여넣게 복사">📋</button>
           {/* 확인 완료 → 대조 기록 저장(원본 사진 포함) */}
           <button onClick={onSave} disabled={saved || saving}
             className="text-sm px-2.5 py-1 rounded-lg font-bold border flex items-center gap-1 disabled:opacity-60"

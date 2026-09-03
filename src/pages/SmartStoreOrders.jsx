@@ -1049,6 +1049,22 @@ export default function SmartStoreOrders({
     return { count, overdue, oldestDays: oldest ? Math.floor((now - oldest) / 86400000) : 0 };
   }, [orders, itemsByOrder]);
 
+  // 🚨 취소·반품 요청 감시 — 구매자가 취소/반품/교환을 요청한 건(놓치면 큰일).
+  //   order_status가 취소류이거나, PAYED여도 claimStatus 클레임이 걸린 건(getClaimInfo) 모두 포함.
+  //   ⚠️ 전체 orders 기준(날짜 무관) — 어제 들어온 취소요청도 처리 전엔 계속 보이게.
+  const claimWatch = useMemo(() => {
+    const rows = [];
+    for (const o of orders) {
+      const st = o.order_status;
+      const isCancelStatus = st === 'CANCEL_REQUEST' || /cancel/i.test(o.raw_payload?.cancelRequest || '');
+      const claim = getClaimInfo(o, itemsByOrder[o.id]);
+      if (!isCancelStatus && !claim) continue;
+      if (isOrderTerminal(o) && !claim) continue; // 이미 종결된 취소는 제외(진행 클레임만)
+      rows.push({ id: o.id, name: o.buyer_name || '구매자', at: o.received_at });
+    }
+    return { count: rows.length, names: rows.slice(0, 3).map((r) => r.name) };
+  }, [orders, itemsByOrder]);
+
   // Mock 데이터 주입 (Phase 1 테스트용)
   const injectMockOrder = async () => {
     const productSamples = products.slice(0, 5);
@@ -1758,6 +1774,21 @@ export default function SmartStoreOrders({
         />
       </div>
       </>)}
+
+      {/* 🚨 취소·반품 요청 — 위젯 접어도 항상 보이는 빨간 경고. 놓치면 안 되는 건이라 최상단. */}
+      {claimWatch.count > 0 && (
+        <div className="px-3 sm:px-4 pt-1 pb-2">
+          <button
+            onClick={() => { setWidgetFilter('none'); setStatusFilter('cancel'); setDatePreset('all'); }}
+            className="w-full flex items-center gap-2 rounded-xl border-2 px-3 py-3 text-left font-black transition-all hover:brightness-105 animate-pulse"
+            style={{ background: 'rgba(255,77,109,0.14)', borderColor: '#ff4d6d', color: '#ff4d6d', boxShadow: '0 0 0 3px rgba(255,77,109,0.12)' }}>
+            <span className="text-xl">🚨</span>
+            <span className="text-base">취소·반품 요청 {claimWatch.count}건</span>
+            <span className="font-semibold text-sm opacity-90">— 구매자 요청 대기 중{claimWatch.names.length ? ` (${claimWatch.names.join(', ')}${claimWatch.count > claimWatch.names.length ? ' 외' : ''})` : ''}</span>
+            <span className="ml-auto text-xs font-bold px-2 py-1 rounded-lg" style={{ background: '#ff4d6d', color: '#fff' }}>클릭 = 확인하기</span>
+          </button>
+        </div>
+      )}
 
       {/* 🚚 발송 대기 리마인더 — 위젯 접어도 항상 보임. 발주확인만 하고 미발송(재고 대기 등) 기억용. */}
       {shipWatch.count > 0 && (

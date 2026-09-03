@@ -64,9 +64,9 @@ export default function StoreOrderAlerts() {
     return () => window.removeEventListener('pointerdown', ask);
   }, []);
 
-  // 팝업 10초 자동 닫힘
+  // 팝업 자동 닫힘 — 신규주문만 10초. ⚠️취소/반품 요청은 놓치면 안 되므로 직접 닫을 때까지 유지.
   useEffect(() => {
-    if (!event) return;
+    if (!event || event.kind === 'cancel') return;
     const t = setTimeout(() => setEvent(null), 10000);
     return () => clearTimeout(t);
   }, [event]);
