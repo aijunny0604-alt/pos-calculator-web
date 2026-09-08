@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft, Menu, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
-  ChevronDown, CheckCircle2, CircleDollarSign, Truck, X
+  ChevronDown, CheckCircle2, CircleDollarSign, Truck, X, Copy
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
 import SubPrice from '@/components/ui/SubPrice';
@@ -485,6 +485,40 @@ export default function OrderHistory({
       if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
       else { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
       showToast?.(`주문 ${filteredOrders.length}건 목록을 복사했습니다 📋`, 'success');
+    } catch { showToast?.('복사 실패 — 다시 시도해주세요', 'error'); }
+  };
+
+  // 📋 카드에서 바로 이 주문 1건을 카톡용 텍스트로 복사 (상세보기 안 열고도 바로 보내기)
+  //    포맷은 주문상세 [복사]와 동일 — 두 곳이 달라지면 받는 쪽이 헷갈린다.
+  const copySingleOrder = async (order) => {
+    const won = (n) => Number(n || 0).toLocaleString('ko-KR');
+    const priceOf = (it) => Number(it?.price ?? it?.wholesale ?? 0);
+    const items = order.items || [];
+    const totalQty = items.reduce((s, it) => s + Number(it.quantity || 0), 0);
+    const total = Number(order.totalAmount || 0);
+    const supply = Math.round(total / 1.1);
+    let text = `[ 주문서 ]\n\n`;
+    text += `주문번호: ${order.orderNumber || '-'}\n`;
+    text += `주문일자: ${String(order.createdAt || '').slice(0, 10)}\n`;
+    if (order.customerName) text += `고객명: ${order.customerName}\n`;
+    if (order.customerPhone) text += `연락처: ${order.customerPhone}\n`;
+    text += `단가기준: ${order.priceType === 'wholesale' ? '도매가 (부가세 포함)' : '소비자가 (부가세 포함)'}\n\n`;
+    text += `[ 상품 목록 ]\n\n`;
+    items.forEach((it, i) => {
+      text += `${i + 1}. ${it.name}\n`;
+      text += `   ${won(priceOf(it))}원 × ${it.quantity}개 = ${won(priceOf(it) * Number(it.quantity || 0))}원\n\n`;
+    });
+    text += `[ 결제 정보 ]\n\n`;
+    text += `총 수량: ${totalQty}개\n`;
+    text += `공급가액: ${won(supply)}원\n`;
+    text += `부가세: ${won(total - supply)}원\n`;
+    text += `총 금액: ${won(total)}원\n\n`;
+    text += `입금 계좌: 신한은행 010-5858-6046 무브모터스\n\n`;
+    text += `※ 입금 확인 후 빠른 출고로 보답하겠습니다.\n`;
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+      else { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+      showToast?.(`${order.customerName || '주문'} 내역을 복사했습니다 📋`, 'success');
     } catch { showToast?.('복사 실패 — 다시 시도해주세요', 'error'); }
   };
 
@@ -1530,6 +1564,21 @@ export default function OrderHistory({
                     >
                       <Eye className="w-3.5 h-3.5" />
                       상세보기
+                    </button>
+
+                    {/* 📋 내역 복사 — 상세보기 안 열고 카드에서 바로 카톡 전송용 텍스트 복사 */}
+                    <button
+                      onClick={() => copySingleOrder(order)}
+                      className="py-2 px-2.5 rounded-lg text-xs font-medium whitespace-nowrap flex items-center justify-center gap-1 border transition-colors"
+                      style={{
+                        borderColor: 'color-mix(in srgb, var(--primary) 40%, var(--border))',
+                        color: 'var(--primary)',
+                        background: 'color-mix(in srgb, var(--primary) 8%, transparent)',
+                      }}
+                      title="이 주문 내역을 카톡용 텍스트로 복사"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      내역 복사
                     </button>
 
                     {/* 완불 체크 / 해제 */}
