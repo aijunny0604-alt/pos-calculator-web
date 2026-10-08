@@ -2,6 +2,18 @@
 
 MOVIS는 매장 PC에서 실행되는 Codex App Server를 통해 ChatGPT 구독 사용량으로 작동합니다. 기본 모델은 `gpt-6-astra`, 추론 강도는 지원 시 `high`입니다. 다른 모델로 자동 전환하거나 API 키로 과금하지 않습니다.
 
+## 운영 사이트와 배포
+
+운영 주소: https://aijunny0604-alt.github.io/pos-calculator-web/
+
+2026-10-08 업그레이드 소스는 `master`, 정적 배포본은 `gh-pages` 루트를 사용합니다. 운영 사이트에서도 이 매장 PC의 `Start-MOVIS.cmd`를 먼저 실행해야 합니다. 기존 화면이 남으면 Ctrl+Shift+R로 새로고침하세요. 브라우저가 로컬 네트워크 접근을 요청하면 허용하고, MOVIS 상단 Codex 연결에서 연결 상태를 확인합니다. 정적 웹사이트만으로는 구독 모델이 실행되지 않습니다.
+
+배포 절차: `npm run test:movis` → `npm run build` → `dist` 전체(숨김 파일 `.nojekyll` 포함)를 `gh-pages`에 커밋·push → GitHub Pages 최신 빌드 `built`와 운영 index.html 번들 해시 일치 확인. 소스만 master에 합치면 운영 정적 파일은 갱신되지 않습니다.
+
+## 시작 애니메이션
+
+MOVIS 메뉴에 들어갈 때 코어 점등, 원근 격자, 스캔 라인과 로고가 약 2.4초 동안 나타납니다. **바로 시작** 버튼 또는 Escape로 건너뛸 수 있으며, OS의 동작 줄이기가 켜져 있으면 생략합니다. 화면 진입 연출이며 실제 인증·자료 조회 성공을 의미하지 않습니다. 실제 연결은 상단 Codex 연결 상태로 확인합니다.
+
 ## 실행
 
 Node.js와 Codex 데스크톱 앱이 설치된 PC에서 `Start-MOVIS.cmd`를 실행합니다. 소스 체크아웃에서는 먼저 `npm ci`, `npm run build`를 실행하세요. 빌드된 배포 패키지는 추가 패키지 설치 없이 실행할 수 있습니다.
@@ -50,3 +62,10 @@ npm run test:movis
 - [ChatGPT 구독 인증](https://learn.chatgpt.com/docs/auth)
 
 App Server의 dynamic tools는 실험 기능입니다. Codex 업데이트 이후 연결이 바뀌면 위 회귀 테스트와 샘플 통합 테스트를 다시 실행하세요.
+
+## 다른 PC와 모바일
+
+- 다른 Windows PC: Node.js와 Codex를 설치하고 ChatGPT 로그인 후 이 실행 패키지의 `Start-MOVIS.cmd`를 실행합니다. 운영 사이트는 그 PC의 localhost 브리지에 연결합니다.
+- 같은 ChatGPT 계정은 구독 사용량을 공유합니다. POS 업무 데이터는 같은 DB를 사용하며 대화 기록은 브라우저별로 저장됩니다.
+- PC 재부팅 뒤 연결 프로그램은 자동 시작되지 않습니다. `Start-MOVIS.cmd`를 한 번 실행하세요. 브리지가 켜져 있고 로그인이 유효하면 질문마다 Codex를 직접 열 필요가 없습니다.
+- 모바일은 POS 화면을 사용할 수 있지만 현재 MOVIS의 Astra 연결은 지원하지 않습니다. 모바일 요청을 매장 PC로 중계하는 인증·원격 연결 기능은 구현되어 있지 않습니다.

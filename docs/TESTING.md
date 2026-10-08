@@ -1,4 +1,11 @@
 # 테스트 & 검증 (Testing)
+
+## MOVIS v2 검증 — 2026-10-08
+
+`npm run test:movis`로 회귀 검사를 실행합니다. HTTP 검사까지 수행하려면 브리지를 켠 뒤 `MOVIS_TEST_URL=http://127.0.0.1:43127/api/movis`를 설정합니다. 19개 검사와 production build가 통과했습니다.
+
+실제 Astra 문맥/계산/입고 미리보기/허용된 샘플 화면 인식, 실제 POS 읽기, 5개 화면 폭과 응답 중지/HTML 주입 방어를 확인했습니다. 운영 데이터 쓰기 검증은 하지 않았습니다. `tests/movis-boot.mjs`는 진입 연출의 자동 종료·건너뛰기·Escape·동작 줄이기를 검사합니다. [검증 범위와 한계](MOVIS-INTELLIGENCE.md)
+
 > 핵심 플로우 검증 체크리스트, 모바일 검증, 알려진 이슈
 > 관련: [프로젝트 구조](ARCHITECTURE.md) | [변경 이력](CHANGELOG.md)
 

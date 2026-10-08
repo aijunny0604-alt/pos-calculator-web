@@ -1,5 +1,12 @@
 # AI 기능 작동 원리
 
+## 현재 MOVIS 엔진 — 2026-10-08
+
+MOVIS 대화는 `aiAnalyst.js` → `codexAnalyst.js` → 로컬 Codex App Server → GPT-6 Astra로 실행합니다. ChatGPT 구독 인증만 허용합니다. `geminiTools.js`는 기존 업무 도구 실행기를 재사용하는 파일명이며 MOVIS 모델 호출은 Gemini를 사용하지 않습니다. 아래 Gemini/Groq MOVIS 상세 설명은 이전 구현 기록입니다. MOVIS 외 사진 판독·주문 인식 엔진은 기존 구현을 유지합니다.
+
+현재 데이터 범위·검증·실행 절차는 [MOVIS Intelligence 운영 문서](MOVIS-INTELLIGENCE.md)를 기준으로 합니다.
+
+
 > 이 앱의 모든 AI 기능이 **어떻게 동작하고, 왜 이렇게 설계됐는지**를 정리한 문서.
 > 관련: [프로젝트 구조](ARCHITECTURE.md) | [변경 이력](CHANGELOG.md) | [DB 스키마](DATABASE.md)
 > 코드가 정답 — 이 문서와 코드가 어긋나면 코드를 믿고 이 문서를 고칠 것.
@@ -13,7 +20,7 @@
 | 발주서 사진 판독 | 견적서 사진 → 발주 데이터 | Gemini flash **vision** | [quoteVision.js](../src/lib/quoteVision.js) |
 | 사업자등록증 판독 | 등록증 사진 → 상호·번호·주소 | Gemini flash **vision** | [certVision.js](../src/lib/certVision.js) |
 | AI 주문 인식 | 주문 텍스트 → 구조화 주문 | Gemini flash **text** (+Groq 폴백) | [TextAnalyze.jsx](../src/pages/TextAnalyze.jsx) |
-| MOVIS 분석 어시스턴트 | 자연어 질문 → 데이터 분석 답변 | Gemini **Function Calling** (58 도구) | [geminiAnalyst.js](../src/lib/geminiAnalyst.js) · [geminiTools.js](../src/lib/geminiTools.js) |
+| MOVIS 분석 어시스턴트 | 자연어 질문 → 조회·분석·변경 미리보기 | Codex App Server / GPT-6 Astra | [codexAnalyst.js](../src/lib/codexAnalyst.js) |
 | 제품 **AI 검색** | 검색어(오타·초성) → 관련도순 제품 | **로컬 fuzzy 랭킹** (LLM 아님) | [MainPOS.jsx](../src/pages/MainPOS.jsx) · [productMatch.js](../src/lib/productMatch.js) |
 | 제품 매칭 | 품명 문자열 → 내부 제품 | 규칙 기반 (AI 학습 우선) | [productMatch.js](../src/lib/productMatch.js) |
 | MOVIS 리뷰 답글 | 리뷰 붙여넣기 → 답글 2안 초안 | Gemini text (수동 붙여넣기) | [geminiAnalyst.js](../src/lib/geminiAnalyst.js) |

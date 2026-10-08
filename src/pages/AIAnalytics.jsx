@@ -6,6 +6,7 @@ import OrderConfirmEditable from '@/components/analytics/OrderConfirmEditable';
 import '@/components/analytics/ai-analytics.css';
 import '@/components/analytics/movis-v2.css';
 import MovisConnection from '@/components/analytics/MovisConnection';
+import MovisBoot from '@/components/analytics/MovisBoot';
 import { checkActionBeforeCommit } from '@/lib/movisActionGuard';
 import useAIAnalystChat from '@/hooks/useAIAnalystChat';
 
@@ -659,6 +660,7 @@ export default function AIAnalytics({
     opacity: 1,
     transition: 'opacity 1100ms cubic-bezier(0.4, 0, 0.2, 1)'
   }}>
+      <MovisBoot />
       <div className="flex flex-col h-full overflow-hidden">
 
       {/* 우주 배경 제거 — 사용자 요청: 스페이스 블랙 + 양자 sphere만 */}
