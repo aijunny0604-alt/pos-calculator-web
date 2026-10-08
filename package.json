@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "movis": "node bridge/server.mjs",
+    "test:movis": "node --test tests/movis-*.test.mjs"
   },
   "dependencies": {
     "@sentry/react": "^10.47.0",

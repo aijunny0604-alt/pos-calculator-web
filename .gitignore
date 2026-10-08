@@ -18,3 +18,5 @@ test-screenshots/
 # Test scripts
 test-pos-app.mjs
 /*.yml
+.movis-runtime/
+tests/.artifacts/
