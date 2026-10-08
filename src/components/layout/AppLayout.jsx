@@ -46,7 +46,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
   }, []);
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-[var(--background)]">
+    <div className={`flex h-[100dvh] overflow-hidden bg-[var(--background)] ${currentPage === 'ai-analytics' ? 'movis-shell' : ''}`}>
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r border-[var(--border)] bg-[var(--card)]">
         <Sidebar currentPage={currentPage} onNavigate={onNavigate} isOnline={isOnline} orderCount={orderCount} savedCartCount={savedCartCount} shippingCount={shippingCount} smartstoreCount={smartstoreCount} />

@@ -1,4 +1,14 @@
 # 변경 이력 (Changelog)
+
+## 2026-10-08 — MOVIS Intelligence v2
+
+- MOVIS를 ChatGPT 구독 기반 Codex App Server / GPT-6 Astra로 전환.
+- 실제 자료 조회와 대화 문맥, 22개 테이블·이미지 저장소 연결.
+- 변경 인자·업무 목적·금액·자료 근거 검사 및 확인 직전 재조회.
+- WebGL 코어, 반응형 다크 UI, 스트리밍, 2.4초 접속 연출과 건너뛰기.
+- 기존 저품질 TTS·음성 입력 제거. MOVIS 외 AI 기능은 기존 엔진 유지.
+- Windows 실행 패키지 및 [운영 설명서](MOVIS-INTELLIGENCE.md) 추가.
+
 > 날짜별 구현/수정 사항 기록
 > 관련: [프로젝트 구조](ARCHITECTURE.md) | [DB 스키마](DATABASE.md) | [보안 설정](SECURITY-SETUP.md)
 

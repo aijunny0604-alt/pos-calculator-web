@@ -1,4 +1,11 @@
 # 프로젝트 구조 (Architecture)
+
+## 현재 MOVIS 구조 — 2026-10-08
+
+`AIAnalytics` → `useAIAnalystChat` → `codexAnalyst` → localhost:43127 → Codex App Server → ChatGPT 구독 모델. 서버는 loopback에만 바인딩하며 허용 Origin과 세션 토큰을 검사합니다. 업무 도구는 브라우저에서 실행하고 변경은 기존 확인 UI를 거칩니다.
+
+`movisLibraries`는 22개 테이블과 이미지 저장소를 제공하고, `movisValidation`/`movisActionGuard`는 인자·업무 목적·계산·원본 변경을 검사합니다. `MovisCore`는 WebGL 3D 시각화, `MovisBoot`는 2.4초 진입 연출입니다. [상세 운영 문서](MOVIS-INTELLIGENCE.md)
+
 > POS Calculator Web의 파일 구조, 아키텍처 패턴, Props 연결 구조
 > 관련: [DB 스키마](DATABASE.md) | [디자인 시스템](STYLE-GUIDE.md)
 

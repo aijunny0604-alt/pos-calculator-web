@@ -1,9 +1,19 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-09-03 (💾 명세서 대조 기록 저장[마이그016] / 매칭 강화[역조합·오차0.3%] / 🚨 스토어 취소요청 상시 경고 / 🏢 업체 교체 선택기)
+> 마지막 업데이트: 2026-10-08 (MOVIS Astra 구독 연결 · 3D UI · 자체 검증 · 시스템 진입 연출)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## v2026-10-08 — MOVIS Intelligence v2
+
+현재 MOVIS는 로컬 Codex App Server → GPT-6 Astra(high 지원 시) 경로를 사용합니다. 아래 과거 이력의 MOVIS Gemini/Groq·음성·키워드 라우팅 설명은 현재 구현을 뜻하지 않습니다. MOVIS 외 주문 인식/증빙 판독의 기존 엔진은 유지합니다.
+
+- [현재 운영·실행·제약 안내](docs/MOVIS-INTELLIGENCE.md)
+- `Start-MOVIS.cmd`로 매장 PC의 브리지를 켜고 운영 사이트의 MOVIS를 사용합니다. 브라우저 요청 시 로컬 네트워크 접근을 허용합니다.
+- 22개 POS 테이블 + 이미지 저장소 조회, 업무 목적/인자/금액 검사, 확인 직전 원본 재조회.
+- WebGL 3D 코어, 2.4초 시스템 진입 연출(바로 시작/Escape/동작 줄이기 지원), TTS·음성 제거.
+- 운영 배포는 `gh-pages` 루트에 `dist` 전체와 `.nojekyll`을 포함합니다. Pages 빌드 성공과 라이브 번들 일치를 모두 확인합니다.
 
 ## 🆕 v2026-09-03 — 대조 기록 저장 / 취소요청 경고 / 업체 교체
 
