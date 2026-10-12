@@ -4,7 +4,7 @@
 // - 내부 주문으로 전환 (saveOrder)
 // - Mock 데이터 주입 (Phase 1 — API 키 받기 전 테스트용)
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu, Ban, Copy, Maximize2, Minimize2, Store, Clock } from 'lucide-react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/components/StoreOrderAlerts';
@@ -12,6 +12,7 @@ import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
 import { isOrderDone, isOrderTerminal, isOrderPending, PAYMENT_PENDING_STATUSES } from '@/lib/orderStatus';
 import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
+import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/storeOrderSafety';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
@@ -227,21 +228,6 @@ const CLAIM_COLORS = { CANCEL: '#fb923c', RETURN: '#ec4899', EXCHANGE: '#d946ef'
 // productOrder.claimStatus(CANCEL_REQUEST 등)에 넣고 productOrderStatus는 PAYED/DELIVERED로 둔다.
 // 그래서 order_status만 보면 취소요청이 안 보임 → raw_payload의 claimStatus/claimType을 직접 읽는다.
 // 단건은 order.raw_payload.productOrder, 다건은 items[].raw_payload.productOrder에 있을 수 있어 둘 다 본다.
-function getClaimInfo(order, items = []) {
-  const pos = [order?.raw_payload?.productOrder, ...(items || []).map((it) => it?.raw_payload?.productOrder)].filter(Boolean);
-  for (const po of pos) {
-    const cs = po.claimStatus || '';
-    const ct = po.claimType || '';
-    if (!cs && !ct) continue;
-    // 이미 종결/거부/철회된 클레임은 제외 (order_status가 처리). 진행 중(요청/수거/검수)만 표기.
-    if (/DONE|REJECT|WITHDRAW|COMPLET|CANCEL_NOT|NOT_REQUEST/i.test(cs)) continue;
-    const type = /RETURN/i.test(ct + cs) ? 'RETURN' : /EXCHANGE/i.test(ct + cs) ? 'EXCHANGE' : 'CANCEL';
-    const label = type === 'RETURN' ? '반품요청' : type === 'EXCHANGE' ? '교환요청' : '취소요청';
-    return { type, label, claimStatus: cs, claimType: ct };
-  }
-  return null;
-}
-
 // 발주확인 가능 상태 (네이버 원본 + 내부 status 모두 포함)
 const PENDING_CONFIRM_STATUSES = new Set(['received', 'PAYED', 'PAYMENT_WAITING', 'matched']);
 
@@ -1161,18 +1147,20 @@ export default function SmartStoreOrders({
   };
 
   const confirmOrder = async (order) => {
+    try {
     // 큐 방식 전환 — Edge Function (IP 차단 위험) 제거, sync.js 매장 PC bridge 가 처리
     if (order.naver_confirm_succeeded_at) {
       showToast?.('이미 발주확인 완료된 주문입니다', 'info');
       return;
     }
-    await supabase.updateExternalOrder(order.id, {
+    await saveStoreQueue((id, patch) => supabase.updateExternalOrder(id, patch), order.id, {
       needs_naver_confirm: true,
       naver_confirm_retry_count: 0,
       naver_confirm_next_retry_at: null,
     });
     showToast?.('발주확인 대기열 등록 — 매장 PC 가 60초 내 자동 처리', 'success');
     reload();
+    } catch (e) { showToast?.(e.message || '처리 요청 저장 실패', 'error'); }
   };
 
   const openDispatch = (order) => {
@@ -1186,6 +1174,7 @@ export default function SmartStoreOrders({
   // 🏬 방문수령 처리 — 송장번호 없이 네이버에 deliveryMethod=VISIT_RECEIPT 로 발송처리.
   // 큐/실패 안전망은 택배 발송과 동일 재사용. sync.js가 company_code==='VISIT_RECEIPT' 를 방문수령으로 인식.
   const submitVisitReceipt = async () => {
+    try {
     if (!visitReceiptOrder) return;
     const order = visitReceiptOrder;
     const needsConfirm = !order.naver_confirm_succeeded_at;
@@ -1202,7 +1191,7 @@ export default function SmartStoreOrders({
       patch.naver_confirm_retry_count = 0;
       patch.naver_confirm_next_retry_at = null;
     }
-    await supabase.updateExternalOrder(order.id, patch);
+    await saveStoreQueue((id, patch) => supabase.updateExternalOrder(id, patch), order.id, patch);
     showToast?.(
       needsConfirm
         ? '발주확인 + 방문수령 처리 대기열 등록 — 60초 내 순차 자동 처리'
@@ -1211,9 +1200,11 @@ export default function SmartStoreOrders({
     );
     setVisitReceiptOrder(null);
     reload();
+    } catch (e) { showToast?.(e.message || '처리 요청 저장 실패', 'error'); }
   };
 
   const submitDispatch = async () => {
+    try {
     // 큐 방식 전환 — 매장 PC sync.js 가 네이버 dispatch API 호출 (IP 화이트리스트 우회)
     if (!dispatchModalOrder || !dispatchTracking.trim()) return;
     const company = DELIVERY_COMPANIES.find((c) => c.code === dispatchCompany);
@@ -1234,7 +1225,7 @@ export default function SmartStoreOrders({
       patch.naver_confirm_retry_count = 0;
       patch.naver_confirm_next_retry_at = null;
     }
-    await supabase.updateExternalOrder(order.id, patch);
+    await saveStoreQueue((id, patch) => supabase.updateExternalOrder(id, patch), order.id, patch);
     showToast?.(
       needsConfirm
         ? `발주확인 + 발송처리 대기열 등록 (${company?.name} · ${dispatchTracking.trim()}) — 60초 내 순차 자동 처리`
@@ -1243,6 +1234,7 @@ export default function SmartStoreOrders({
     );
     setDispatchModalOrder(null);
     reload();
+    } catch (e) { showToast?.(e.message || '처리 요청 저장 실패', 'error'); }
   };
 
   // 주문 취소 — needs_naver_cancel 큐 등록 + 로컬 상태 cancelled (Task #108)
@@ -1280,30 +1272,9 @@ export default function SmartStoreOrders({
 
   // 구매자 취소요청 "승인" — needs_naver_cancel 큐 등록 → 매장PC sync.js가 네이버 취소승인 API 호출 (비가역)
   const doApproveCancel = async () => {
-    if (!approveCancelOrder) return;
-    setApproveCancelSubmitting(true);
-    try {
-      const ok = await supabase.updateExternalOrder(approveCancelOrder.id, {
-        needs_naver_cancel: true,
-        naver_cancel_reason: '구매자 취소요청 승인',
-        // 재시도 카운터 초기화 (새 시도)
-        naver_cancel_retry_count: 0,
-        naver_cancel_next_retry_at: null,
-        naver_cancel_claimed_at: null,
-        naver_cancel_error: null,
-      });
-      if (ok) {
-        showToast?.('취소 승인 대기열 등록 — 매장PC가 최대 60초 내 네이버에 취소 승인 처리합니다', 'success');
-        setApproveCancelOrder(null);
-        reload();
-      } else {
-        showToast?.('취소 승인 등록 실패 — 다시 시도해주세요', 'error');
-      }
-    } catch (e) {
-      showToast?.(`취소 승인 실패: ${e.message}`, 'error');
-    } finally {
-      setApproveCancelSubmitting(false);
-    }
+    window.open('https://sell.smartstore.naver.com/', '_blank', 'noopener,noreferrer');
+    showToast?.('판매자센터에서 해당 주문의 취소요청을 확인하고 승인해주세요. 이 화면에서는 환불을 실행하지 않습니다.', 'info');
+    setApproveCancelOrder(null);
   };
 
   // 일괄 발송 — 다수 주문 선택 후 한 번에 등록 (Task #109)
@@ -1433,10 +1404,22 @@ export default function SmartStoreOrders({
 
   // 내부 주문으로 전환 — 네이버 스토어 주문은 "엠파츠" 거래처로 통합
   // 매칭 안 된 item 도 네이버 제품명·금액 그대로 freeform 으로 포함 (사용자 정책)
+  const convertingOrders = useRef(new Set());
+  const convertedOrders = useRef(new Set());
   const convertToInternalOrder = async (order, opts = {}) => {
     // sendConfirm: 네이버 발주확인 큐 등록 / silent: 일괄 처리 시 개별 토스트·reload 억제(끝에서 한 번만)
     const { sendConfirm = false, silent = false } = opts;
-    const items = itemsByOrder[order.id] || [];
+    if (convertingOrders.current.has(order.id)) return {ok:false};
+    if (convertedOrders.current.has(order.id)) { showToast?.('이미 내부 주문이 저장되었습니다. 중복 전환하지 말고 주문 연결 상태를 확인해주세요.', 'error'); return {ok:false}; }
+    convertingOrders.current.add(order.id);
+    try {
+    const {data:latestOrder,error:orderError}=await supabaseClient.from('external_orders').select('*').eq('id',order.id).single();
+    if(orderError||!latestOrder) throw new Error('최신 주문을 확인하지 못해 전환을 중단했습니다.');
+    if(latestOrder.internal_order_id) throw new Error('이미 내부 주문으로 전환된 주문입니다. 새로고침해주세요.');
+    order=latestOrder;
+    const {data:items,error:itemsError}=await supabaseClient.from('external_order_items').select('*').eq('external_order_id',order.id);
+    if(itemsError||!items) throw new Error('주문 항목을 확인하지 못해 전환을 중단했습니다.');
+    validateStoreConversion(order,items);
     if (items.length === 0) {
       if (!silent) showToast?.('주문 항목이 없어요', 'error');
       return { ok: false };
@@ -1484,7 +1467,7 @@ export default function SmartStoreOrders({
     const usableItems = items.filter((it) =>
       it.provider_product_name && !it.provider_product_name.includes('⏳') && it.provider_product_name !== '확인 필요'
     );
-    if (usableItems.length === 0) {
+    if (usableItems.length !== items.length || usableItems.length === 0) {
       if (!silent) showToast?.('주문 항목이 아직 준비 안 됐어요 — 잠시 후 다시 시도', 'error');
       return { ok: false };
     }
@@ -1551,6 +1534,8 @@ export default function SmartStoreOrders({
       // 였던 버그(전환 백링크 미기록 → 중복전환 가능) 수정. merged 경로는 객체 반환이라 그대로 통과. (2026-06-16 bug-hunt)
       const savedOrder = Array.isArray(result) ? result[0] : result;
       const internalOrderId = savedOrder?.id ?? null;
+      convertedOrders.current.add(order.id);
+      if(!internalOrderId) throw new Error('내부 주문 저장 응답의 ID를 확인하지 못했습니다. 중복 전환하지 말고 주문 내역을 확인해주세요.');
       // 네이버 발주확인 큐 — 사용자가 전환 시 "보내기" 선택한 경우에만 등록 (2026-06-15: 자동→선택)
       // Codex 권장: order_status 로컬값 의존 X → 큐 복구 보장
       const alreadyConfirmed = !!order.naver_confirm_succeeded_at;
@@ -1558,13 +1543,14 @@ export default function SmartStoreOrders({
       // ⚠️ order_status 는 건드리지 않는다 — 'converted'로 덮으면 sync.js STATUS_RANK(99)에 막혀
       // 그 뒤 네이버 상태(발송/배송중/배송완료)가 영영 반영 안 됨. 전환 여부는 internal_order_id 로만 표시.
       // (2026-06-02: 메인 상태 칩 = 네이버 실시간 상태 유지가 핵심)
-      await supabase.updateExternalOrder(order.id, {
+      const linked = await supabase.updateExternalOrder(order.id, {
         internal_order_id: internalOrderId,
         needs_naver_confirm: queueConfirm,
         // retry_count 도 초기화 — 새 시도이므로 backoff 도 처음부터
         naver_confirm_retry_count: queueConfirm ? 0 : undefined,
         naver_confirm_next_retry_at: queueConfirm ? null : undefined,
       });
+      if(!linked?.internal_order_id) throw new Error(`내부 주문 ${internalOrderId}은 저장됐지만 스토어 연결에 실패했습니다. 다시 전환하지 말고 해당 주문을 확인해주세요.`);
       if (!silent) {
         showToast?.(
           queueConfirm
@@ -1579,6 +1565,7 @@ export default function SmartStoreOrders({
       return { ok: true };
     }
     return { ok: false };
+    } catch(e) { showToast?.(e.message || '주문 전환 실패', 'error'); return {ok:false}; } finally {convertingOrders.current.delete(order.id);}
   };
 
   // 전환 버튼 진입점 — 네이버 미확인 주문이면 "발주확인도 보낼까요?" 모달, 그 외엔 바로 전환
@@ -2145,7 +2132,7 @@ export default function SmartStoreOrders({
                       const claim = getClaimInfo(order, itemsForOrder);
                       if (claim?.type !== 'CANCEL') return null;
                       if (order.naver_cancel_succeeded_at) return <span className="text-[11px] font-bold px-2 py-1 rounded" style={{ color: '#22c55e', background: 'rgba(34,197,94,0.12)' }}>✓ 취소승인됨</span>;
-                      if (order.needs_naver_cancel) return <span className="text-[11px] font-bold px-2 py-1 rounded animate-pulse" style={{ color: '#fb923c', background: 'rgba(251,146,60,0.12)' }}>취소승인 처리중…</span>;
+                      if (order.needs_naver_cancel) return <span className="text-[11px] font-bold px-2 py-1 rounded animate-pulse" style={{ color: '#fb923c', background: 'rgba(251,146,60,0.12)' }}>취소승인 요청 기록 · 판매자센터 확인</span>;
                       return <ActionBtn onClick={() => setApproveCancelOrder(order)} icon={ClipboardCheck} label="취소 승인" variant="red" title="구매자 취소요청을 네이버에 승인 — 환불 확정(비가역)" />;
                     })()}
                   </div>
@@ -2875,7 +2862,7 @@ export default function SmartStoreOrders({
                     onClick={() => cancelOrder(order)}
                     className={CARD_ACTION_CLASS}
                     style={{ background: ACTION_VARIANTS.red.bg, color: ACTION_VARIANTS.red.color, borderColor: ACTION_VARIANTS.red.border }}
-                    title="주문 취소 — 네이버 취소 큐 등록 (사유 입력 필요)"
+                    title="POS 화면에만 취소 표시 (네이버 실제 취소는 판매자센터)"
                   >
                     <Ban className="w-4 h-4" />주문취소
                   </button>
@@ -2888,7 +2875,7 @@ export default function SmartStoreOrders({
                     <div className="col-span-2 sm:col-span-4 py-2 text-center text-sm font-bold" style={{ color: '#22c55e' }}>✓ 취소 승인 완료 (네이버 환불 확정)</div>
                   );
                   if (order.needs_naver_cancel) return (
-                    <div className="col-span-2 sm:col-span-4 py-2 text-center text-sm font-bold animate-pulse" style={{ color: '#fb923c' }}>취소 승인 처리 중… (매장PC가 네이버에 전송)</div>
+                    <div className="col-span-2 sm:col-span-4 py-2 text-center text-sm font-bold animate-pulse" style={{ color: '#fb923c' }}>취소승인 요청 기록 — 판매자센터에서 처리 여부 확인</div>
                   );
                   return (
                     <button
@@ -3614,14 +3601,14 @@ export default function SmartStoreOrders({
             </div>
             <div className="p-5">
               <div className="mb-4 p-3 rounded-xl border text-[13px] leading-relaxed" style={{ background: 'rgba(255,77,109,0.08)', borderColor: 'rgba(255,77,109,0.35)' }}>
-                구매자의 <b>취소요청을 네이버에 승인</b>합니다. 승인하면 <b style={{ color: '#ff4d6d' }}>환불이 확정되어 되돌릴 수 없습니다.</b><br />
-                <span className="opacity-70 text-[12px]">매장PC(sync.js)가 최대 60초 내 네이버 API로 처리하며, 실패 시 주문 카드에 사유가 표시됩니다.</span>
+                현재 매장 연결 프로그램은 <b>취소승인 자동 처리를 지원하지 않습니다.</b> 네이버 판매자센터에서 해당 주문을 확인하고 처리해주세요.<br />
+                <span className="opacity-70 text-[12px]">이 버튼은 판매자센터만 엽니다. POS에서 승인 완료나 환불 확정으로 표시하지 않습니다.</span>
               </div>
               <div className="flex flex-col gap-2">
                 <button onClick={doApproveCancel} disabled={approveCancelSubmitting}
                   className="w-full py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 border transition-all duration-150 hover:-translate-y-px hover:shadow-md active:translate-y-0 disabled:opacity-50"
                   style={{ background: '#ff4d6d', color: '#fff', borderColor: 'transparent' }}>
-                  <ClipboardCheck className="w-4 h-4" />{approveCancelSubmitting ? '등록 중…' : '취소 승인 (환불 확정)'}
+                  <ClipboardCheck className="w-4 h-4" />{approveCancelSubmitting ? '등록 중…' : '판매자센터에서 취소 확인'}
                 </button>
                 <button onClick={() => setApproveCancelOrder(null)} disabled={approveCancelSubmitting}
                   className="w-full py-2 rounded-lg text-sm opacity-60 hover:opacity-100 transition-opacity disabled:opacity-40">

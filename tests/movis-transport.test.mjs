@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {createMovisTransport} from '../src/lib/movisTransport.js';
+test('PC 연결 프로그램 재시작 후 401 인증을 갱신하고 한 번만 재전송한다',async()=>{let sessions=0,turns=0;const request=createMovisTransport(async(url)=>{if(url.endsWith('/session'))return Response.json({token:'t'+(++sessions)});turns++;return turns===1?Response.json({}, {status:401}):Response.json({ok:true})});assert.equal((await request('turn',{question:'test'})).status,200);assert.equal(sessions,2);assert.equal(turns,2)});
+test('통신 실패는 자동 재시도하지 않는다',async()=>{let turns=0;const request=createMovisTransport(async(url)=>{if(url.endsWith('/session'))return Response.json({token:'t'});turns++;throw new TypeError('network')});await assert.rejects(request('turn',{}));assert.equal(turns,1)});
+test('인증 발급 중 중지된 요청은 업무를 전송하지 않는다',async()=>{const c=new AbortController();let turns=0;const request=createMovisTransport(async(url)=>{if(url.endsWith('/session')){c.abort();return Response.json({token:'t'})}turns++;return Response.json({})});await assert.rejects(request('turn',{},c.signal),{name:'AbortError'});assert.equal(turns,0)});

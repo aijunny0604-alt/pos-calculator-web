@@ -1,0 +1,3 @@
+import {chromium} from 'playwright';import assert from 'node:assert/strict';
+const b=await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader']});const p=await b.newPage({viewport:{width:1440,height:1000}});const errors=[];p.on('pageerror',e=>errors.push(e.message));
+await p.goto('http://127.0.0.1:43127/pos-calculator-web/');await p.getByText('스마트스토어 주문',{exact:true}).first().click();await p.waitForTimeout(1800);assert.equal(await p.getByText('스마트스토어 주문',{exact:true}).count()>0,true);await p.getByText('MOVIS',{exact:true}).first().click();await p.getByRole('button',{name:'바로 시작'}).click();await p.getByRole('textbox',{name:'무비스에게 요청'}).waitFor();assert.deepEqual(errors,[]);console.log('스마트스토어/MOVIS 화면 진입: PASS');await b.close();

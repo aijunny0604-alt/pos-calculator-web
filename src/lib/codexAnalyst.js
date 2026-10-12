@@ -4,8 +4,7 @@ import { validateArguments, validatePending, validateIntent, MUTATION_INTENTS, v
 import { capturePreconditions } from './movisActionGuard';
 import { checkToolData } from './movisToolData';
 import { listMovisImages } from './movisLibraries';
-const ENDPOINT = 'http://127.0.0.1:43127/api/movis';
-let sessionToken;
+import { fetchMovis } from './movisTransport';
 export function getMovisModel() {
   return localStorage.getItem('movis_model_v2') || 'gpt-6-astra';
 }
@@ -16,31 +15,9 @@ export function setMovisModel(model) {
 export function clearMovisThread() {
   sessionStorage.removeItem('movis_thread_v2');
 }
-async function headers() {
-  if (!sessionToken) {
-    const res = await fetch(`${ENDPOINT}/session`, {
-      headers: {
-        'X-Movis-Client': 'pos'
-      },
-      signal: AbortSignal.timeout(5000)
-    });
-    if (!res.ok) throw new Error('매장 PC의 MOVIS 실행 바로가기로 열어주세요.');
-    sessionToken = (await res.json()).token;
-  }
-  return {
-    Authorization: `Bearer ${sessionToken}`,
-    'Content-Type': 'application/json'
-  };
-}
 export async function movisRequest(route, body, signal) {
   try {
-    const res = await fetch(`${ENDPOINT}/${route}`, {
-      method: body === undefined ? 'GET' : 'POST',
-      headers: await headers(),
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: signal || AbortSignal.timeout(60000)
-    });
-    if (res.status === 401) sessionToken = null;
+    const res = await fetchMovis(route, body, signal || AbortSignal.timeout(60000));
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'MOVIS 연결 오류');
     return data;
@@ -81,22 +58,10 @@ export async function askCodex(question, context, options = {}) {
     completed = false,
     result;
   try {
-    const res = await fetch(`${ENDPOINT}/turn`, {
-      method: 'POST',
-      headers: await headers(),
-      signal: options.signal,
-      body: JSON.stringify({
-        requestKey,
-        question,
-        tools,
-        threadId,
-        model: getMovisModel(),
-        history: options.history || [],
-        actions: (options.history || []).filter(m => m.role === 'system').slice(-20),
-        dataState: context.dataState || {},
-        image: options.image
-      })
-    });
+    const res = await fetchMovis('turn', {
+      requestKey, question, tools, threadId, model:getMovisModel(), history:options.history||[],
+      actions:(options.history||[]).filter(m=>m.role==='system').slice(-20), dataState:context.dataState||{}, image:options.image
+    },options.signal);
     if (!res.ok) {
       const e = await res.json();
       throw new Error(e.error || '연결에 실패했습니다.');

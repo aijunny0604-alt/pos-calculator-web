@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {storeAlert,getClaimInfo,saveStoreQueue} from '../src/lib/storeOrderSafety.js';
+test('PAYED 상태라도 취소요청 클레임을 알린다',()=>{assert.equal(storeAlert({id:1,order_status:'PAYED',raw_payload:{productOrder:{claimStatus:'CANCEL_REQUEST',claimType:'CANCEL'}}}).label,'취소요청')});
+test('동일 주문의 반품·교환은 별도 알림 키를 가진다',()=>{const o={id:1,raw_payload:{productOrder:{claimStatus:'RETURN_REQUEST',claimType:'RETURN'}}};const a=storeAlert(o);o.raw_payload.productOrder={claimStatus:'EXCHANGE_REQUEST',claimType:'EXCHANGE'};assert.notEqual(a.key,storeAlert(o).key)});
+test('철회된 클레임과 정상 주문에는 요청 알림이 없다',()=>{assert.equal(getClaimInfo({raw_payload:{productOrder:{claimStatus:'CANCEL_WITHDRAW',claimType:'CANCEL'}}}),null);assert.equal(storeAlert({order_status:'PAYED'}),null)});
+test('DB 저장 실패·빈 결과는 대기열 등록 성공이 아니다',async()=>{await assert.rejects(saveStoreQueue(async()=>null,1,{}));await assert.rejects(saveStoreQueue(async()=>({}),1,{}));assert.equal((await saveStoreQueue(async()=>({id:1}),1,{})).id,1)});
+import {validateStoreConversion} from '../src/lib/storeOrderSafety.js';
+const item={provider_product_name:'테스트상품',quantity:2,unit_price:1000};
+test('이미 전환·미결제·진행중 클레임은 새 내부 주문으로 만들지 않는다',()=>{assert.throws(()=>validateStoreConversion({internal_order_id:'already'},[item]));assert.throws(()=>validateStoreConversion({order_status:'PAYMENT_WAITING'},[item]));assert.throws(()=>validateStoreConversion({order_status:'PAYED',raw_payload:{productOrder:{claimStatus:'CANCEL_REQUEST'}}},[item]))});
+test('일부 미수신 품목과 잘못된 수량/금액은 전체 전환을 막는다',()=>{const o={order_status:'PAYED'};assert.throws(()=>validateStoreConversion(o,[item,{...item,provider_product_name:'⏳ 대기'}]));assert.throws(()=>validateStoreConversion(o,[{...item,quantity:0}]));assert.throws(()=>validateStoreConversion(o,[{...item,unit_price:null}]));assert.doesNotThrow(()=>validateStoreConversion(o,[item,{...item,unit_price:0}]))});
