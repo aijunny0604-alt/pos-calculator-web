@@ -3,6 +3,7 @@
 // 실시간 구독은 여기 1곳에서만 → 변경 시 'external-orders-changed' 이벤트로 각 페이지가 reload.
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { storeAlert } from '@/lib/storeOrderSafety';
 import { supabaseClient } from '@/lib/supabase';
 
 const SOUND_KEY = 'pos_store_alert_sound';
@@ -47,7 +48,6 @@ function osNotify(title, body, kind) {
   } catch {}
 }
 
-const CANCELISH = { CANCEL_REQUEST: '취소 요청', CANCELED: '취소', CANCEL: '취소', RETURNED: '반품', EXCHANGED: '교환' };
 
 export default function StoreOrderAlerts() {
   const [event, setEvent] = useState(null);
@@ -78,16 +78,17 @@ export default function StoreOrderAlerts() {
         const o = p.new || {};
         if (isStoreAlertSoundOn()) playAlertSound('order');
         osNotify('🛍️ 새 주문 도착!', `${o.buyer_name || '구매자'}${o.total_amount ? ` · ${fmt(o.total_amount)}원` : ''}`, 'order');
-        setEvent({ kind: 'order', title: '🛍️ 새 주문 도착!', name: o.buyer_name || '구매자', sub: o.total_amount ? `${fmt(o.total_amount)}원` : '', ts: Date.now() });
+        setEvent(previous => previous?.kind === 'cancel' ? previous : { kind: 'order', title: '🛍️ 새 주문 도착!', name: o.buyer_name || '구매자', sub: o.total_amount ? `${fmt(o.total_amount)}원` : '', ts: Date.now() });
         window.dispatchEvent(new CustomEvent('external-orders-changed'));
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'external_orders' }, (p) => {
         const o = p.new || {};
-        const label = CANCELISH[o.order_status];
-        if (label && !cancelRef.current.has(o.id)) {
+        const alert = storeAlert(o);
+        const label = alert?.label;
+        if (label && !cancelRef.current.has(alert.key)) {
           // 최근 취소 id만 기억(중복알림 억제). 종일 가동 시 Set 무한증가 방지 — 상한 초과 시 비움.
           if (cancelRef.current.size > 500) cancelRef.current.clear();
-          cancelRef.current.add(o.id);
+          cancelRef.current.add(alert.key);
           if (isStoreAlertSoundOn()) playAlertSound('cancel');
           osNotify(`⚠️ ${label} 발생`, `${o.buyer_name || '구매자'}${o.provider_order_id ? ` · #${o.provider_order_id}` : ''}`, 'cancel');
           setEvent({ kind: 'cancel', title: `⚠️ ${label} 발생`, name: o.buyer_name || '구매자', sub: o.provider_order_id ? `주문 #${o.provider_order_id}` : '', ts: Date.now() });
