@@ -1,6 +1,6 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-10-12 (모델 선택 · 사용률 게이지 · 강제 애니메이션 · 모바일 인증 게이트웨이)
+> 마지막 업데이트: 2026-10-12 (모델 선택 · 사용률 게이지 · 강제 애니메이션 · 모바일 제외·PC 전용)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
