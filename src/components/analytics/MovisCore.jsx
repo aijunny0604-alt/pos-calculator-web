@@ -76,7 +76,6 @@ export default function MovisCore({
       visible = true,
       disposed = false,
       last = 0;
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
     const compile = (type, src) => {
       const s = gl.createShader(type);
       gl.shaderSource(s, src);
@@ -128,7 +127,7 @@ export default function MovisCore({
     });
     function draw(now = 0) {
       if (disposed) return;
-      if (visible && !document.hidden && (reduced.matches || now - last > 1000 / 30)) {
+      if (visible && !document.hidden && (now - last > 1000 / 30)) {
         last = now;
         const dpr = Math.min(devicePixelRatio || 1, 1.75),
           w = Math.round(el.clientWidth * dpr),
@@ -142,7 +141,7 @@ export default function MovisCore({
           gl.clear(gl.COLOR_BUFFER_BIT);
           const busy = stateRef.current === 'thinking',
             review = stateRef.current === 'review';
-          gl.uniform1f(u.time, reduced.matches ? 12 : now / 1000 * (busy ? 1.65 : 1));
+          gl.uniform1f(u.time, now / 1000 * (busy ? 1.65 : 1));
           gl.uniform1f(u.aspect, w / h);
           gl.uniform1f(u.pixelRatio, dpr);
           gl.uniform1f(u.energy, busy ? .8 : 0);
@@ -159,7 +158,7 @@ export default function MovisCore({
           }
         }
       }
-      if (!reduced.matches && visible && !document.hidden) frame = requestAnimationFrame(draw);
+      if (visible && !document.hidden) frame = requestAnimationFrame(draw);
     }
     const restart = () => {
       cancelAnimationFrame(frame);
@@ -173,7 +172,6 @@ export default function MovisCore({
     const resize = new ResizeObserver(restart);
     resize.observe(el);
     document.addEventListener('visibilitychange', restart);
-    reduced.addEventListener('change', restart);
     const lost = e => {
       e.preventDefault();
       setFallback(true);
@@ -187,7 +185,6 @@ export default function MovisCore({
       observer.disconnect();
       resize.disconnect();
       document.removeEventListener('visibilitychange', restart);
-      reduced.removeEventListener('change', restart);
       el.removeEventListener('webglcontextlost', lost);
       groups.forEach(i => gl.deleteBuffer(i.b));
       gl.deleteProgram(program);

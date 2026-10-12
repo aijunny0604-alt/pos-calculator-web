@@ -3,7 +3,7 @@ import MovisCore from './MovisCore';
 
 // 진입 연출이며 인증/자료 조회의 성공 여부를 표시하지 않는다.
 export default function MovisBoot() {
-  const [visible, setVisible] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [visible, setVisible] = useState(true);
   const root = useRef(null);
   useEffect(() => {
     if (!visible) return;
@@ -12,15 +12,12 @@ export default function MovisBoot() {
     const previous = document.activeElement;
     if (content) content.inert = true;
     root.current?.querySelector('button')?.focus({ preventScroll: true });
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
     const close = () => setVisible(false);
     const key = e => { if (e.key === 'Escape') close(); };
     const timer = setTimeout(close, 2400);
-    media.addEventListener('change', close);
     document.addEventListener('keydown', key);
     return () => {
       clearTimeout(timer);
-      media.removeEventListener('change', close);
       document.removeEventListener('keydown', key);
       if (content) content.inert = false;
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });

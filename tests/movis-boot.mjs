@@ -8,7 +8,7 @@ for(const mode of ['automatic','skip','escape','reduce']){
  await page.goto(process.env.MOVIS_UI_URL||'http://127.0.0.1:5173/pos-calculator-web/');
  await page.getByText('MOVIS',{exact:true}).first().click();
  const boot=page.getByRole('region',{name:'무비스 시작 화면'});
- if(mode==='reduce'){await page.getByRole('textbox',{name:'무비스에게 요청'}).waitFor();assert.equal(await boot.count(),0);}
+ if(mode==='reduce'){await boot.waitFor();await page.getByRole('button',{name:'바로 시작'}).click();await boot.waitFor({state:'detached'});}
  else{
   await boot.waitFor();
   if(mode==='skip')await page.getByRole('button',{name:'바로 시작'}).click();
