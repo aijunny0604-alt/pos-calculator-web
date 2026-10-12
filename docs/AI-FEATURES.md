@@ -1,5 +1,10 @@
 # AI 기능 작동 원리
 
+## 2026-10-12 — 모델 선택·사용량·모바일 연결 준비
+
+상단 모델 선택과 계정 한도 게이지(사용/남은 퍼센트, 10초 자동 갱신), OS 동작 줄이기와 무관한 애니메이션을 적용했습니다. 일회용 모바일 페어링·기기 인증 게이트웨이를 추가했습니다. 외부 모바일 운영은 고정 HTTPS 주소 구성이 완료되어야 합니다. [현재 운영 문서](MOVIS-INTELLIGENCE.md)를 참고하세요.
+
+
 ## 현재 MOVIS 엔진 — 2026-10-08
 
 MOVIS 대화는 `aiAnalyst.js` → `codexAnalyst.js` → 로컬 Codex App Server → GPT-6 Astra로 실행합니다. ChatGPT 구독 인증만 허용합니다. `geminiTools.js`는 기존 업무 도구 실행기를 재사용하는 파일명이며 MOVIS 모델 호출은 Gemini를 사용하지 않습니다. 아래 Gemini/Groq MOVIS 상세 설명은 이전 구현 기록입니다. MOVIS 외 사진 판독·주문 인식 엔진은 기존 구현을 유지합니다.

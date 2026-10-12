@@ -1,98 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link2, RefreshCw, X, ShieldCheck } from 'lucide-react';
-import { movisRequest, getMovisModel, setMovisModel } from '@/lib/codexAnalyst';
-export default function MovisConnection({
-  onChange,
-  busy
-}) {
-  const dialogRef = useRef(null);
-  const [status, setStatus] = useState(null),
-    [error, setError] = useState(''),
-    [open, setOpen] = useState(false),
-    [checking, setChecking] = useState(false),
-    [model, setModel] = useState(getMovisModel),
-    [loginUrl, setLoginUrl] = useState('');
-  const refresh = useCallback(async () => {
-    setChecking(true);
-    try {
-      const s = await movisRequest('status');
-      setStatus(s);
-      setError('');
-      onChange?.(s);
-    } catch (e) {
-      setError(e.message);
-      setStatus(null);
-      onChange?.(null);
-    } finally {
-      setChecking(false);
-    }
-  }, [onChange]);
-  useEffect(() => {
-    refresh();
-    const t = setInterval(() => {
-      if (!document.hidden && !busy) refresh();
-    }, 60000);
-    return () => clearInterval(t);
-  }, [refresh, busy]);
-  useEffect(() => {
-    if (!open) return;
-    const previous = document.activeElement;
-    const first = dialogRef.current?.querySelector('button');
-    first?.focus();
-    const key = e => {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        return;
-      }
-      if (e.key === 'Tab') {
-        const nodes = [...dialogRef.current.querySelectorAll('button:not(:disabled),select:not(:disabled),a[href]')];
-        const a = nodes[0],
-          b = nodes.at(-1);
-        if (e.shiftKey && document.activeElement === a) {
-          e.preventDefault();
-          b?.focus();
-        } else if (!e.shiftKey && document.activeElement === b) {
-          e.preventDefault();
-          a?.focus();
-        }
-      }
-    };
-    document.addEventListener('keydown', key);
-    return () => {
-      document.removeEventListener('keydown', key);
-      previous?.focus();
-    };
-  }, [open]);
-  const login = async () => {
-    try {
-      const s = await movisRequest('login', {});
-      setLoginUrl(s.authUrl || '');
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-  const limits = status?.rateLimits?.rateLimitsByLimitId || (status?.rateLimits?.rateLimits ? {
-    main: status.rateLimits.rateLimits
-  } : {});
-  return <>
-    <button className={`movis-link ${status?.connected ? 'is-connected' : ''}`} onClick={() => setOpen(true)} aria-label="Codex 연결 설정"><span className="movis-status-dot" /><span>{status?.connected ? 'CODEX 연결' : 'PC 연결 확인'}</span><Link2 size={13} /></button>
-    {open && <div className="movis-modal-backdrop" onClick={() => setOpen(false)}><section ref={dialogRef} className="movis-settings" role="dialog" aria-modal="true" aria-label="Codex 연결 설정" onClick={e => e.stopPropagation()}>
-      <div className="movis-settings-title"><div><small>ENGINE CONNECTION</small><h2>무비스의 지능을 연결하세요</h2></div><button onClick={() => setOpen(false)} aria-label="닫기"><X size={20} /></button></div>
-      <p>매장 PC에서 실행되는 Codex와 연결합니다. ChatGPT 구독 한도를 사용하며, 유료 API로 자동 전환하지 않습니다.</p>
-      <div className="movis-connection-state"><ShieldCheck size={19} /><span>{status?.connected ? `계정 연결됨 · ${status.plan || 'ChatGPT'}` : checking ? '연결 확인 중…' : 'PC 연결 또는 로그인이 필요합니다'}</span></div>
-      {error && <p role="alert" className="movis-error-text">{error}</p>}
-      <label className="movis-field">판단 모델<select value={model} disabled={busy || !status?.models?.length} onChange={e => {
-            setModel(e.target.value);
-            setMovisModel(e.target.value);
-          }}>
-        {!status?.models?.length && <option value={model}>{model}</option>}
-        {status?.models?.map(m => <option key={m.model} value={m.model}>{m.displayName || m.model}</option>)}
-      </select></label>
-      <p className="movis-fineprint">모델을 바꾸면 새로운 엔진 대화로 시작합니다. 화면의 이전 대화는 배경 자료로 전달됩니다. 선택 모델의 실제 사용 가능 여부는 요청 실행 시 확인됩니다.</p>
-      {Object.entries(limits).map(([key, bucket]) => <div key={key} className="movis-usage"><small>{key}</small>{['primary', 'secondary'].map(k => bucket?.[k] && <div key={k}><span>{bucket[k].windowDurationMins === 10080 ? '주간' : '사용 한도'} · {typeof bucket[k].usedPercent === 'number' ? `${Math.max(0, 100 - bucket[k].usedPercent)}% 남음` : '확인 불가'}</span>{typeof bucket[k].usedPercent === 'number' && <progress max="100" value={Math.max(0, 100 - bucket[k].usedPercent)} />}</div>)}</div>)}
-      {!Object.keys(limits).length && <p className="movis-fineprint">남은 사용량: 아직 확인되지 않음</p>}
-      <div className="movis-settings-actions"><button onClick={refresh} disabled={checking || busy}><RefreshCw size={15} /> 연결 새로고침</button>{!status?.connected && <button onClick={login} disabled={busy}>ChatGPT 로그인</button>}</div>
-      {loginUrl && <a href={loginUrl} target="_blank" rel="noreferrer" className="movis-login-link">로그인 창 열기 → 완료 후 연결 새로고침</a>}
-    </section></div>}
-  </>;
+import { Link2, RefreshCw, X } from 'lucide-react';
+import { movisRequest, getMovisModel, setMovisModel, mobilePairing, pairMobile, mobileOrigin, disconnectMobile } from '@/lib/codexAnalyst';
+import { usageWindows } from '@/lib/movisUsage';
+export default function MovisConnection({onChange,busy}) {
+ const [pairing,setPairing]=useState(mobilePairing),[remote,setRemote]=useState(mobileOrigin);
+ const dialogRef=useRef(null), pending=useRef(false), mounted=useRef(true);
+ const [status,setStatus]=useState(null),[error,setError]=useState(''),[open,setOpen]=useState(false),[checking,setChecking]=useState(false),[model,setModel]=useState(getMovisModel),[loginUrl,setLoginUrl]=useState(''),[updated,setUpdated]=useState(null);
+ const refresh=useCallback(async()=>{
+  if(pending.current)return;pending.current=true;setChecking(true);
+  try {const s=await movisRequest('status');if(!mounted.current)return;setStatus(s);setUpdated(new Date());setError('');onChange?.(s);}
+  catch(e){if(mounted.current){setError(e.message);onChange?.(null);}}
+  finally{pending.current=false;if(mounted.current)setChecking(false);}
+ },[onChange]);
+ useEffect(()=>{mounted.current=true;refresh();const t=setInterval(()=>{if(!document.hidden)refresh()},10000);const visible=()=>{if(!document.hidden)refresh()};document.addEventListener('visibilitychange',visible);window.addEventListener('focus',visible);return()=>{mounted.current=false;clearInterval(t);document.removeEventListener('visibilitychange',visible);window.removeEventListener('focus',visible)}},[refresh]);
+ useEffect(()=>{if(!busy)refresh()},[busy,refresh]);
+ useEffect(()=>{
+  if(!open)return;const previous=document.activeElement;dialogRef.current?.querySelector('button')?.focus();
+  const key=e=>{if(e.key==='Escape')setOpen(false);if(e.key==='Tab'){const ns=[...dialogRef.current.querySelectorAll('button:not(:disabled),select:not(:disabled),a[href]')];const a=ns[0],b=ns.at(-1);if(e.shiftKey&&document.activeElement===a){e.preventDefault();b?.focus()}else if(!e.shiftKey&&document.activeElement===b){e.preventDefault();a?.focus()}}};
+  document.addEventListener('keydown',key);return()=>{document.removeEventListener('keydown',key);previous?.focus()};
+ },[open]);
+ const limits=usageWindows(status?.rateLimits),connected=status?.connected&&!error;
+ const select=<label className="movis-model-select"><span>GPT 모델</span><select aria-label="GPT 모델 선택" value={model} disabled={busy||!connected||!status?.models?.length} onChange={e=>{setModel(e.target.value);setMovisModel(e.target.value)}}>
+ {!status?.models?.some(m=>m.model===model)&&<option value={model}>{model}</option>}
+ {status?.models?.map(m=><option key={m.model} value={m.model}>{m.displayName||m.model}</option>)}
+ </select></label>;
+ const gauges=<div className="movis-live-gauges">{limits.length?limits.map(w=><div key={w.id} className={`movis-live-gauge ${w.used>=90?'is-high':''}`} title={`${w.bucket} · ${w.resetsAt?'초기화 '+new Date(w.resetsAt*1000).toLocaleString('ko-KR'):'초기화 시각 미제공'}`}>
+ <div><span>{w.bucket} · {w.label}</span><strong>{w.used===null?'확인 불가':`${w.used}% 사용`}</strong></div>
+ {w.used!==null&&<progress aria-label={`${w.bucket} ${w.label} 사용률`} max="100" value={w.used}/>}
+ <small>{w.remaining===null?'사용량 정보 미제공':`${w.remaining}% 남음`}{error?' · 갱신 실패': ''}</small>
+ </div>):<span className="movis-fineprint">{checking?'사용량 확인 중…':'사용량 정보 미제공'}</span>}</div>;
+ return <>
+ {pairing&&<div className="movis-pair-banner"><strong>이 모바일을 매장 PC에 연결</strong><span>{pairing.origin}</span><p>매장 PC에서 발급한 주소인지 확인하세요. 연결 후 GPT 요청과 조회 자료가 이 PC를 통해 처리됩니다.</p><button disabled={checking||busy} onClick={async()=>{try{await pairMobile(pairing);setRemote(mobileOrigin());setPairing(null);refresh()}catch(e){setError(e.message)}}}>이 매장 PC와 연결</button>{error&&<p role="alert">{error}</p>}</div>}
+
+ <div className="movis-live-control">{select}{gauges}<div className="movis-live-actions"><button className={`movis-link ${connected?'is-connected':''}`} onClick={()=>setOpen(true)} aria-label="Codex 연결 설정"><span className="movis-status-dot"/><span>{connected?'연결됨':'연결 확인'}</span><Link2 size={13}/></button><button onClick={refresh} disabled={checking} aria-label="사용량 새로고침"><RefreshCw size={14}/></button><small>{error?'갱신 실패 · 연결 확인':updated?`${updated.toLocaleTimeString('ko-KR',{hour12:false})} · 10초 자동 갱신`:'연결 확인 중'}</small></div></div>
+ {open&&<div className="movis-modal-backdrop" onClick={()=>setOpen(false)}><section ref={dialogRef} className="movis-settings" role="dialog" aria-modal="true" aria-label="Codex 연결 설정" onClick={e=>e.stopPropagation()}><div className="movis-settings-title"><div><small>ENGINE CONNECTION</small><h2>GPT 연결 및 사용량</h2></div><button onClick={()=>setOpen(false)} aria-label="닫기"><X size={20}/></button></div><p>계정에 제공되는 모델을 상단에서 선택하세요. 응답 중에는 모델 변경이 잠깐 잠깁니다. 모델을 변경하면 새 엔진 대화에 최근 문맥을 전달합니다.</p><p>사용률은 계정 전체의 구독 한도입니다. 모델별 대응 정보가 없는 한도를 임의로 연결하지 않습니다. 10초마다 조회하고, 응답 완료와 화면 복귀 때 즉시 갱신합니다.</p>{error&&<p role="alert" className="movis-error-text">{error}</p>}{gauges}{remote&&<p className="movis-fineprint">모바일 연결: {remote} <button disabled={busy} onClick={async()=>{try{await disconnectMobile();setRemote('');refresh()}catch(e){setError(e.message)}}}>이 기기 연결 해제</button></p>}<p className="movis-fineprint">{status?.plan?`계정 요금제: ${status.plan} · `:''}API 키 과금으로 자동 전환하지 않습니다.</p><div className="movis-settings-actions"><button onClick={refresh} disabled={checking}><RefreshCw size={15}/> 연결 새로고침</button>{!connected&&!remote&&<button disabled={busy} onClick={async()=>{try{const s=await movisRequest('login',{});setLoginUrl(s.authUrl||'')}catch(e){setError(e.message)}}}>ChatGPT 로그인</button>}</div>{loginUrl&&<a href={loginUrl} target="_blank" rel="noreferrer">로그인 창 열기 → 완료 후 연결 새로고침</a>}</section></div>}
+ </>;
 }

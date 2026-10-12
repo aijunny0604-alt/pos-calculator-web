@@ -4,7 +4,28 @@ import { validateArguments, validatePending, validateIntent, MUTATION_INTENTS, v
 import { capturePreconditions } from './movisActionGuard';
 import { checkToolData } from './movisToolData';
 import { listMovisImages } from './movisLibraries';
-const ENDPOINT = 'http://127.0.0.1:43127/api/movis';
+const LOCAL_ENDPOINT = 'http://127.0.0.1:43127/api/movis';
+function mobileConnection() { try { return JSON.parse(localStorage.getItem('movis_mobile_v1') || 'null'); } catch { return null; } }
+function endpoint() { const c = mobileConnection(); return c ? c.origin + '/api/movis' : LOCAL_ENDPOINT; }
+export function mobilePairing() {
+  try { const raw = new URLSearchParams(location.hash.slice(1)).get('movis-link'); if (!raw) return null;
+    const c = JSON.parse(atob(raw.replace(/-/g, '+').replace(/_/g, '/')));
+    if (new URL(c.origin).protocol !== 'https:' || new URL(c.origin).origin !== c.origin || !/^[\w-]{43}$/.test(c.key)) return null;
+    return c;
+  } catch { return null; }
+}
+export function mobileOrigin() { return mobileConnection()?.origin || ''; }
+export async function pairMobile(c) {
+  const r = await fetch(c.origin + '/api/movis/pair', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({key:c.key}), signal: AbortSignal.timeout(15000) });
+  const result = await r.json(); if (!r.ok) throw new Error(result.error || '기기 연결 실패');
+  localStorage.setItem('movis_mobile_v1', JSON.stringify({origin:c.origin, token:result.token, expiresAt:result.expiresAt}));
+  history.replaceState(null, '', location.pathname + location.search); clearMovisThread(); sessionToken = null;
+}
+export async function disconnectMobile() {
+  const c = mobileConnection();
+  if (c) { const r = await fetch(c.origin + '/api/movis/disconnect', {method:'POST',headers:{Authorization:'Bearer '+c.token},signal:AbortSignal.timeout(10000)}); if (!r.ok) throw new Error('기기 연결 해제를 완료하지 못했습니다.'); }
+  localStorage.removeItem('movis_mobile_v1'); sessionToken = null; clearMovisThread();
+}
 let sessionToken;
 export function getMovisModel() {
   return localStorage.getItem('movis_model_v2') || 'gpt-6-astra';
@@ -17,8 +38,13 @@ export function clearMovisThread() {
   sessionStorage.removeItem('movis_thread_v2');
 }
 async function headers() {
+  const remote = mobileConnection();
+  if (remote) {
+    if (Date.now() >= remote.expiresAt) throw new Error('모바일 기기 연결이 만료되었습니다. PC에서 새 연결 링크를 발급하세요.');
+    return {Authorization: `Bearer ${remote.token}`, 'Content-Type':'application/json'};
+  }
   if (!sessionToken) {
-    const res = await fetch(`${ENDPOINT}/session`, {
+    const res = await fetch(`${endpoint()}/session`, {
       headers: {
         'X-Movis-Client': 'pos'
       },
@@ -34,7 +60,7 @@ async function headers() {
 }
 export async function movisRequest(route, body, signal) {
   try {
-    const res = await fetch(`${ENDPOINT}/${route}`, {
+    const res = await fetch(`${endpoint()}/${route}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: await headers(),
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -81,7 +107,7 @@ export async function askCodex(question, context, options = {}) {
     completed = false,
     result;
   try {
-    const res = await fetch(`${ENDPOINT}/turn`, {
+    const res = await fetch(`${endpoint()}/turn`, {
       method: 'POST',
       headers: await headers(),
       signal: options.signal,
