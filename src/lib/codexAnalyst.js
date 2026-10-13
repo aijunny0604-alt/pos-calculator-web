@@ -1,3 +1,4 @@
+import { navigationBlocked } from './movisReliability';
 import { POS_WORKFLOW_TOOLS, POS_WORKFLOWS, preparePosWorkflow } from './movisPosWorkflows';
 import { GEMINI_TOOLS, WRITE_TOOLS, executeTool } from './geminiTools';
 import { MOVIS_DATA_TOOLS, executeDataTool } from './movisDataTools';
@@ -105,7 +106,7 @@ export async function askCodex(question, context, options = {}) {
           error: errors.join('\n')
         };else {
           try {
-            output = checkToolData(name, context) || (name === 'listAvailableTools' ? { ok: true, data: { tools: tools.map(t => ({ name: t.name, description: t.description, requiresConfirmation: WRITE_TOOLS.has(t.name) || !!POS_WORKFLOWS[t.name] })), note: '이 목록은 실제 전달된 도구입니다. 미구현 작업은 임의 SQL이나 다른 작업으로 대체하지 마세요.' } } : name === 'verifyWork' ? verifyWork(calls, context) : name === 'listImageFiles' ? await listMovisImages(args, options.signal) : preparePosWorkflow(name, args, context) || executeDataTool(name, args, context) || (await executeTool(name, args, {
+            output = navigationBlocked(name, calls) || checkToolData(name, context) || (name === 'listAvailableTools' ? { ok: true, data: { tools: tools.map(t => ({ name: t.name, description: t.description, requiresConfirmation: WRITE_TOOLS.has(t.name) || !!POS_WORKFLOWS[t.name] })), note: '이 목록은 실제 전달된 도구입니다. 미구현 작업은 임의 SQL이나 다른 작업으로 대체하지 마세요.' } } : name === 'verifyWork' ? verifyWork(calls, context) : name === 'listImageFiles' ? await listMovisImages(args, options.signal) : preparePosWorkflow(name, args, context) || executeDataTool(name, args, context) || (await executeTool(name, args, {
               ...context,
               question,
               enforceLegacyIntent: false

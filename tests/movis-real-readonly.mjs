@@ -1,0 +1,22 @@
+import { build } from 'esbuild';
+import { writeFileSync } from 'node:fs';
+const storage=()=>{const m=new Map();return{getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)}};
+globalThis.localStorage=storage();globalThis.sessionStorage=storage();
+await build({entryPoints:['src/lib/supabase.js'],bundle:true,platform:'node',format:'esm',outfile:'tests/.artifacts/readonly-db.mjs',logLevel:'silent'});
+const {supabaseClient}=await import('./.artifacts/readonly-db.mjs');
+await build({entryPoints:['src/lib/codexAnalyst.js'],bundle:true,platform:'node',format:'esm',outfile:'tests/.artifacts/readonly-engine.mjs',logLevel:'silent'});
+const {askCodex}=await import('./.artifacts/readonly-engine.mjs');
+// 실제 상품 1건의 필요한 필드만 읽는다. 고객·주문·이미지·인증정보는 입력하지 않는다.
+const {data,error}=await supabaseClient.from('products').select('id,name,category,stock,wholesale,retail').gt('stock',0).gt('wholesale',0).order('id').limit(1);
+if(error||data?.length!==1)throw Error('실제 상품 조회 실패');
+const row=data[0];
+const nativeFetch=globalThis.fetch;
+globalThis.fetch=(url,opts)=>{if(new URL(String(url)).origin!=='http://127.0.0.1:43127')throw Error('추가 외부 접근 차단');return nativeFetch(url,opts)};
+const question=`상품 ID ${row.id}의 이름과 현재 재고, 도매가 기준 2개 합계를 확인해줘. 단순 조회·계산이며 변경하지 마.`;
+const r=await askCodex(question,{products:data,dataState:{products:{status:'loaded',coverage:'partial',rows:1,fetchedAt:new Date().toISOString()}}},{signal:AbortSignal.timeout(180000),onProgress:c=>console.log('TOOL',c.name)});
+const total=Number(row.wholesale)*2;
+const normalized=r.answer.replace(/,/g,'');
+const pass=!r.toolCalls.some(c=>c.result?.data?.__pending)&&normalized.includes(String(total))&&normalized.includes(String(row.stock));
+writeFileSync('tests/.artifacts/live-real-readonly.json',JSON.stringify({pass,model:r.model,question,answer:r.answer,expected:{stock:row.stock,twoWholesale:total},tools:r.toolCalls.map(c=>({name:c.name,ok:c.result?.ok})),scope:'실제 상품 1건 읽기 전용. 변경 없음.'},null,2));
+console.log(JSON.stringify({pass,model:r.model,source:'실제 상품 1건',writes:0}));
+if(!pass)process.exitCode=1;
