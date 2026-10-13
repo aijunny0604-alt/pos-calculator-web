@@ -50,6 +50,7 @@ function shouldLearn(originalInput, matchedName) {
   return a !== b; // 다른 경우만 학습 (별칭/오타/줄임말 → 정답 매핑)
 }
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { commitPosWorkflow, POS_WORKFLOWS } from '@/lib/movisPosWorkflows';
 import { commitOrderContact } from '@/lib/movisOrderContact';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { uploadCertToLibrary, deleteImages } from '@/lib/imageUpload';
@@ -62,6 +63,7 @@ export default function AIAnalytics({
   setProducts,
   setCustomers,
   setOrders,
+  setSavedCarts,
   setCurrentPage,
   showToast,
   saveOrder: saveOrderProp
@@ -179,7 +181,13 @@ export default function AIAnalytics({
     try {
       await checkActionBeforeCommit(pending);
       committedActions.current.add(pending.id);
-      if (pending.action === 'addProduct') {
+      if (pending.action === 'posWorkflow') {
+        const result = await commitPosWorkflow(pending.params, supabaseClient);
+        const setter = { products: setProducts, savedCarts: setSavedCarts }[result.library];
+        if (setter && result.row) setter(prev => prev.map(row => String(row.id) === String(result.row.id) ? { ...row, ...result.row } : row));
+        chat.addSystemMessage(`✅ ${result.title}: 저장 및 재조회 확인 완료${result.deleted ? ' (삭제 확인)' : ''}`);
+        showToast?.(`${result.title} 완료`, 'success');
+      } else if (pending.action === 'addProduct') {
         const payload = {
           ...pending.params
         };
@@ -811,7 +819,7 @@ export default function AIAnalytics({
             Icon: Undo2
           }
         };
-        const meta = titleMap[pending.action] || {
+        const meta = (pending.action === 'posWorkflow' ? { title: `${POS_WORKFLOWS[pending.params.tool]?.title || '업무'} 확인`, Icon: Truck } : titleMap[pending.action]) || {
           title: '작업 확인',
           Icon: AlertTriangle
         };
