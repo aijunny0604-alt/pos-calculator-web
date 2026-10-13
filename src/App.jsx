@@ -1283,6 +1283,7 @@ export default function App() {
         return (
           <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>AI 분석 로드 중...</div>}>
             <AIAnalytics
+              setOrders={setOrders}
               orders={orders}
               customers={customers}
               products={products}

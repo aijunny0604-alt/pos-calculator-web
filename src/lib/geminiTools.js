@@ -6,6 +6,7 @@
 //
 // 실행 라우터(executeTool)는 도구 이름 + 인자를 받아 lib/analytics 함수 호출 후 결과 반환
 
+import { prepareOrderContact } from './movisOrderContact';
 import { getTopCustomers, getCustomerTrend, getCustomerSegments, getDormantCustomers } from './analytics/customers';
 import { getTopProducts, getProductTrend, getRepeatPurchaseGap } from './analytics/products';
 import { getCustomerProductAffinity } from './analytics/affinity';
@@ -573,6 +574,15 @@ export const GEMINI_TOOLS = [
   },
   // ===== 쓰기 도구 (사용자 confirm 필수) =====
   {
+    name: 'updateOrderContact',
+    description: '기존 판매 주문의 연락처·배송주소를 실제 주문 필드에 수정합니다. 주문을 먼저 조회한 뒤 정확한 orderNumber로 호출하세요. 고객 기본정보 updateCustomer 또는 메모로 대체하지 마세요. 두 곳 변경 요청이면 각각 확인을 준비합니다. 생략 필드는 보존, 빈 문자열은 명시적인 삭제 요청에만 사용. 확인 후 저장·재조회합니다. businessIntent=order_contact.',
+    parameters: { type: 'object', properties: {
+      orderNumber: { type: 'string', description: '조회로 확인한 정확한 주문번호' },
+      phone: { type: 'string', description: '이 주문의 연락처' },
+      address: { type: 'string', description: '이 주문의 배송주소' }
+    }, required: ['orderNumber'] },
+  },
+  {
     name: 'updateOrderMemo',
     description: '내부 주문에 메모를 추가하거나 교체합니다. "김철수 주문에 메모 남겨줘", "어제 강남오토 주문 메모에 착불로 변경이라고 적어줘" 같은 의도일 때 호출. orderNumber를 알면 직접, 모르면 customerName의 가장 최근 주문에 적용. mode=append(기존 메모 뒤에 추가, 기본)/replace(교체). 사용자 confirm 후 적용.',
     parameters: {
@@ -929,6 +939,7 @@ export const WRITE_TOOLS = new Set([
   'bulkUpdateProductPrice',
   'revertProductPrice',
   'updateProductName',
+  'updateOrderContact',
   'updateOrderMemo',
   'markOrderPaid',
   'createReturn',
@@ -1383,6 +1394,8 @@ export function executeTool(name, args = {}, context = {}) {
             orders: list.slice(0, limit).map((o) => ({
               orderNumber: o.orderNumber || o.id,
               customer: o.customerName || o.customer_name || '',
+              customerPhone: o.customer_phone ?? o.customerPhone ?? '',
+              customerAddress: o.customer_address ?? o.customerAddress ?? '',
               date: o.createdAt || o.created_at || '',
               amount: Number(o.totalAmount ?? o.total ?? o.total_amount) || 0,
               items: (o.items || []).map((it) => `${it?.name || ''}${(it?.quantity || 1) > 1 ? `×${it.quantity}` : ''}`).slice(0, 6),
@@ -2133,6 +2146,7 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
       },
     };
   }
+  if (name === 'updateOrderContact') return prepareOrderContact(args, orders);
   if (name === 'updateOrderMemo') {
     const { orderNumber, customerName, memo, mode } = args;
     if (!memo || !String(memo).trim()) return { ok: false, error: '메모 내용이 필요합니다.' };
@@ -2708,6 +2722,7 @@ export const ANALYST_SYSTEM_PROMPT = `당신의 이름은 "MOVIS"(무비스)입�
 
 ## 📖 자연어 동의어 사전 (★ 매장 사장님 실제 표현 → 도구/필드 매핑. 단어가 달라도 의미로 매핑하라)
 사장님은 정식 용어 대신 현장 표현을 쓴다. 아래를 같은 뜻으로 인식해 **알맞은 쓰기 도구를 functionCall**하라:
+- 주문 연락처·배송지 변경은 **updateOrderContact**로 해당 주문을 수정한다. 거래처 기본정보(updateCustomer)나 메모 수정만으로 주문까지 변경됐다고 말하지 않는다.
 - **거래처(updateCustomer/addCustomer)**: 거래처=업체=고객=손님=매장=납품처=거래선. "배송지/배송주소/납품처/보내는곳/위치/주소지"=**address**, "연락처/번호/핸드폰/폰/휴대폰"=**phone**.
   · "스페셜라인 배송지 부산 강서구 대저2동 울만로 430-18로 바꿔" → updateCustomer{customerName:'스페셜라인', address:'부산 강서구 대저2동 울만로 430-18'}
   · "명성모터스 번호 010-1111-2222" → updateCustomer{customerName:'명성모터스', phone:'010-1111-2222'}

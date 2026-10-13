@@ -1,3 +1,4 @@
+import { orderContactPatch } from './movisOrderContact.js';
 // Pure, deterministic checks shared by the client and regression tests.
 export function validateArguments(value, schema, path = '입력') {
   const errors = [];
@@ -23,7 +24,7 @@ export function validateArguments(value, schema, path = '입력') {
 }
 export function verifyWork(calls, context = {}) {
   const failures = calls.filter(c => c.name !== 'verifyWork' && c.result?.ok === false);
-  const reads = calls.filter(c => c.result?.ok && !c.result?.data?.__pending && !['verifyWork', 'calculate'].includes(c.name));
+  const reads = calls.filter(c => c.result?.ok && !c.result?.data?.__pending && !['verifyWork', 'calculate', 'listAvailableTools', 'listLibraries'].includes(c.name));
   const pending = calls.filter(c => c.result?.data?.__pending);
   const warnings = [...new Set(calls.flatMap(c => c.result?.warnings || c.result?.data?.warnings || []))];
   for (const [key, state] of Object.entries(context.dataState || {})) {
@@ -47,7 +48,7 @@ export function verifyWork(calls, context = {}) {
 }
 export function validatePending(result, calls) {
   if (!result?.data?.__pending) return result;
-  if (!calls.some(c => c.result?.ok && !c.result?.data?.__pending && !['verifyWork', 'calculate'].includes(c.name))) {
+  if (!calls.some(c => c.result?.ok && !c.result?.data?.__pending && !['verifyWork', 'calculate', 'listAvailableTools', 'listLibraries'].includes(c.name))) {
     return {
       ok: false,
       error: '변경 미리보기 전에 원본 제품/거래처/주문을 조회하고 대조하세요.'
@@ -60,11 +61,12 @@ export function validatePending(result, calls) {
   };
   return result;
 }
-export const MUTATION_INTENTS = ['sales_order', 'purchase_order', 'goods_received', 'goods_dispatched', 'inventory_correction', 'price_change', 'customer_update', 'catalog_update', 'payment', 'return', 'order_memo'];
+export const MUTATION_INTENTS = ['sales_order', 'purchase_order', 'goods_received', 'goods_dispatched', 'inventory_correction', 'price_change', 'customer_update', 'catalog_update', 'payment', 'return', 'order_memo', 'order_contact'];
 export function validateIntent(name, intent, args) {
   if (!MUTATION_INTENTS.includes(intent)) return ['변경의 업무 목적을 먼저 분명하게 지정하세요.'];
   if (intent === 'purchase_order') return ['매입 발주는 판매 주문/재고 변경으로 처리할 수 없습니다. 발주서 초안을 제시하세요.'];
   if (/Stock|ByCondition/.test(name) && !['goods_received', 'goods_dispatched', 'inventory_correction', 'price_change'].includes(intent)) return ['재고 변경 목적이 아닙니다. 사용자의 요청을 다시 확인하세요.'];
+  if (name === 'updateOrderContact' && intent !== 'order_contact') return ['주문 연락처·배송지 변경 목적을 지정하세요.'];
   if (name === 'saveOrder' && intent !== 'sales_order') return ['판매 주문 요청만 saveOrder로 처리할 수 있습니다.'];
   const errors = [];
   const visit = obj => {
@@ -81,6 +83,11 @@ export function validateIntent(name, intent, args) {
 export function validateAction(action, params = {}) {
   const errors = [];
   if (params.missing?.length || params.invalid?.length) errors.push('일부 대상이 누락되었습니다. 누락 항목을 해결한 뒤 전체 미리보기를 다시 만드세요.');
+  if (action === 'updateOrderContact') {
+    if (!params.orderId || !['string', 'number'].includes(typeof params.orderId)) errors.push('정확한 주문 ID가 필요합니다.');
+    if (Object.keys(params).some(k => !['orderId', 'customerName', 'phone', 'address'].includes(k))) errors.push('허용되지 않은 주문 변경 필드입니다.');
+    try { orderContactPatch(params); } catch (e) { errors.push(e.message); }
+  }
   if (action === 'saveOrder') {
     if (!params.customerName?.trim()) errors.push('판매 거래처가 필요합니다.');
     if (!Array.isArray(params.items) || !params.items.length) errors.push('주문 품목이 없습니다.');

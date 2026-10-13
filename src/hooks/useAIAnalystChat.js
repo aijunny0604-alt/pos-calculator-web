@@ -116,6 +116,7 @@ export default function useAIAnalystChat(context = {}) {
         priceType: o.priceType ?? o.price_type,
         totalAmount: o.totalAmount ?? o.total ?? o.total_amount ?? 0,
         customerPhone: o.customerPhone ?? o.customer_phone,
+        customerAddress: o.customerAddress ?? o.customer_address,
         totalReturned: o.totalReturned ?? o.total_returned ?? 0,
         returns: o.returns || [],
         items: o.items || []
