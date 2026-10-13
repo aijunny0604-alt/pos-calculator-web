@@ -40,3 +40,9 @@ export function turnNavigation(calls, hasPending) {
  const nav = calls.find(c => c.result?.ok && c.result?.data?.__navigate)?.result.data;
  return !nav ? {} : hasPending ? { notice: `확인 대기 작업을 보호하기 위해 ${nav.label || nav.page} 화면 이동을 보류했습니다. 확인을 마친 뒤 이동을 요청해주세요.` } : { page: nav.page };
 }
+
+export function navigationBlocked(name, calls) {
+ return name === 'navigatePage' && calls.some(c => c.result?.ok && c.result?.data?.__pending)
+  ? { ok: false, error: '확인 대기 작업이 있어 화면 이동을 실행하지 않았습니다. 열었다고 답하지 마세요. 먼저 변경 확인을 마친 뒤 이동해야 합니다.' }
+  : null;
+}

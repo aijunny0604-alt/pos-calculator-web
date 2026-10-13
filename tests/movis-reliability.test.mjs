@@ -57,3 +57,11 @@ test('실제 정산 함수가 입금 이력 저장 실패 후 금액을 올리�
  api.addPaymentHistory=async()=>[{id:5}];api.updatePaymentRecord=async()=>null;
  assert.equal((await api.syncOrderPaidRecord('ORDER-TEST','transfer',orders[0],customers)).reason,'partial_payment');
 });
+import { navigationBlocked } from '../src/lib/movisReliability.js';
+test('확인 대기 뒤 화면 이동 도구에는 실행하지 않았다는 결과를 반환한다',()=>{
+ const calls=[{name:'updateOrderMemo',result:{ok:true,data:{__pending:true}}}];
+ assert.equal(navigationBlocked('navigatePage',calls).ok,false);
+ assert.match(navigationBlocked('navigatePage',calls).error,/실행하지 않았습니다/);
+ assert.equal(navigationBlocked('getRecord',calls),null);
+ assert.equal(navigationBlocked('navigatePage',[]),null);
+});
