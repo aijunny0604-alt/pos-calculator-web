@@ -1,4 +1,4 @@
-﻿param([switch]$CheckOnly)
+﻿param([switch]$CheckOnly, [switch]$EnableAutoStart, [switch]$AskAutoStart)
 $ErrorActionPreference = 'Stop'
 try {
   if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
@@ -17,6 +17,10 @@ try {
   }
   if ($CheckOnly) { Write-Output 'PASS: 설치 구성 및 Node.js·Codex 확인'; exit 0 }
 
+  if ($AskAutoStart) {
+    $movisAnswer = Read-Host 'Windows 로그인 시 자동 연결을 켤까요? Y를 입력하면 켜집니다. Enter는 사용 안 함'
+    $EnableAutoStart = $movisAnswer.Trim() -eq 'Y'
+  }
   $movisDestination = Join-Path $env:LOCALAPPDATA 'MOVIS-Intelligence'
   New-Item -ItemType Directory -Path $movisDestination -Force | Out-Null
   # 명시한 프로그램 파일만 복사한다. 원본 PC의 인증·로그·바로가기는 복사하지 않는다.
@@ -29,9 +33,11 @@ try {
   $movisPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
   $movisArguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $movisDestination 'Start-MOVIS.ps1') + '"'
   $movisLinks = @(
-    @{Path=(Join-Path ([Environment]::GetFolderPath('Desktop')) 'MOVE POS.lnk'); Arguments=$movisArguments},
-    @{Path=(Join-Path ([Environment]::GetFolderPath('Startup')) 'MOVIS 자동 연결.lnk'); Arguments=($movisArguments + ' -BackgroundOnly')}
+    @{Path=(Join-Path ([Environment]::GetFolderPath('Desktop')) 'MOVE POS.lnk'); Arguments=$movisArguments}
   )
+  if ($EnableAutoStart) {
+    $movisLinks += @{Path=(Join-Path ([Environment]::GetFolderPath('Startup')) 'MOVIS 자동 연결.lnk'); Arguments=($movisArguments + ' -BackgroundOnly')}
+  }
   foreach ($movisEntry in $movisLinks) {
     $movisShortcut = $movisShell.CreateShortcut($movisEntry.Path)
     $movisShortcut.TargetPath = $movisPowerShell

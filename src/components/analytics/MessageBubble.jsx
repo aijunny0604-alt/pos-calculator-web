@@ -9,6 +9,7 @@ import MarkdownLite from './MovisMarkdown';
 export default function MessageBubble({
   message,
   enableTypewriter = false,
+  animateEntrance = false,
   onFollowUpClick,
   userQuery,
   customers = [],
@@ -16,6 +17,7 @@ export default function MessageBubble({
 }) {
   const [showTools, setShowTools] = useState(false);
   const bubbleRef = useRef(null);
+  const [enteredAsNew] = useState(animateEntrance);
   if (!message) return null;
   const {
     role,
@@ -118,8 +120,8 @@ export default function MessageBubble({
   // 차트 있는 assistant는 더 넓게, 일반 텍스트는 가독성 위해 lg에서 픽셀 제한
   // (한 줄이 너무 길면 시선 이동이 커져 읽기 어려움)
   const maxWidthClass = hasCharts ? 'max-w-full sm:max-w-[92%]' : 'max-w-[90%] sm:max-w-[78%] lg:max-w-[640px]';
-  return <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-2 animate-jarvis-card-emerge`}>
-      <div ref={bubbleRef} className={`${maxWidthClass} rounded-2xl px-3 sm:px-4 py-2 min-w-0 group relative`} title={ts ? formatTime(ts) : ''} style={bubbleStyle}>
+  return <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-2 movis-message-row ${isUser ? 'is-user' : 'is-assistant'} ${enteredAsNew ? 'is-entering' : ''}`} >
+      <div ref={bubbleRef} className={`movis-message-card ${maxWidthClass} rounded-2xl px-3 sm:px-4 py-2 min-w-0 group relative`} title={ts ? formatTime(ts) : ''} style={bubbleStyle}>
         {/* 헤더 (assistant/error 만) */}
         {!isUser && <div className="flex items-center gap-2 mb-2 text-[11px] font-semibold opacity-80 min-w-0">
             {isError ? <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> : <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />}
@@ -276,7 +278,7 @@ export default function MessageBubble({
           </div>}
 
         {/* 시간 (hover 시) */}
-        {ts && <div className="absolute -bottom-4 left-2 text-[10px] text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 transition-opacity">
+        {ts && <div className="movis-message-time absolute -bottom-4 left-2 text-[10px] text-[var(--muted-foreground)] opacity-0 group-hover:opacity-100 transition-opacity">
             {formatTime(ts)}
           </div>}
       </div>

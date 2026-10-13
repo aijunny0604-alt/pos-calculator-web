@@ -1,3 +1,4 @@
+import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseClient } from '@/lib/supabase';
@@ -633,7 +634,7 @@ export default function OrderDetail({
     text += `주문번호: ${order.orderNumber}\n`;
     text += `주문일자: ${formatDate(order.createdAt)}\n`;
     if (order.customerName) text += `고객명: ${order.customerName}\n`;
-    if (order.customerPhone) text += `연락처: ${order.customerPhone}\n`;
+    text += orderContactText(order, customers);
     text += `단가기준: ${order.priceType === 'wholesale' ? '도매가 (부가세 포함)' : '소비자가 (부가세 포함)'}\n\n`;
     text += `[ 상품 목록 ]\n\n`;
     order.items.forEach((item, index) => {

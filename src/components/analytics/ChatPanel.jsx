@@ -1,3 +1,4 @@
+import './movis-chat-motion.css';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Paperclip, Square, ArrowUpRight, Plus, ShieldCheck, Database, ScanLine, X, ChevronDown } from 'lucide-react';
 import MovisCore from './MovisCore';
@@ -46,6 +47,9 @@ export default function ChatPanel({
     [dragging, setDragging] = useState(false),
     [reading, setReading] = useState(false);
   const dragDepth = useRef(0), sending = useRef(false);
+  const messageKey = (m, i) => m.id || `${m.role}:${m.ts ?? i}`;
+  const seenMessages = useRef(new Set(messages.map(messageKey)));
+  useEffect(() => { messages.forEach((m, i) => seenMessages.current.add(messageKey(m, i))); }, [messages]);
   const input = useRef(null),
     scroll = useRef(null),
     file = useRef(null),
@@ -54,7 +58,7 @@ export default function ChatPanel({
     latest = messages.filter(m => m.verification).at(-1)?.verification;
   const libraries = Object.values(dataState),
     loaded = libraries.filter(s => s.status === 'loaded').length;
-  const state = awaitingConfirmation ? 'review' : isLoading ? 'thinking' : streamingText ? 'responding' : 'standby';
+  const state = awaitingConfirmation ? 'review' : streamingText ? 'responding' : isLoading ? 'thinking' : 'standby';
   useEffect(() => {
     if (follow.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
   }, [messages.length, streamingText, loadingStep, isLoading]);
@@ -102,7 +106,7 @@ export default function ChatPanel({
     setAttached(f);
   };
   const hasFiles = e => Array.from(e.dataTransfer?.types || []).includes('Files');
-  return <div className={`movis-workspace ${populated ? 'has-conversation' : ''} ${dragging ? 'is-file-dragging' : ''}`}
+  return <div className={`movis-workspace ${populated ? 'has-conversation' : ''} ${dragging ? 'is-file-dragging' : ''} chat-state-${state}`} 
     onDragEnter={e => { if (hasFiles(e)) { e.preventDefault(); dragDepth.current++; setDragging(true); } }}
     onDragOver={e => { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = disabled || isLoading || reading ? 'none' : 'copy'; } }}
     onDragLeave={e => { if (hasFiles(e)) { e.preventDefault(); dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); } }}
@@ -130,7 +134,7 @@ export default function ChatPanel({
         <div className="movis-telemetry-footer"><ShieldCheck size={14} /><span>변경 전 확인 · 구독 사용량 기반</span></div>
       </div>
     </div>}
-    {populated && <div className="movis-session-strip"><MovisCore compact state={state} /><div><span>{awaitingConfirmation ? '실행 확인 대기' : isLoading ? 'MOVIS 작업 중' : '대화를 이어가세요'}</span><small>{isLoading ? loadingStep : '맥락을 유지하며 필요한 자료를 다시 확인합니다.'}</small></div><div className="movis-session-data"><Database size={13} />{loaded ? `${loaded}개 자료 연결` : '요청 시 자료 확인'}</div></div>}
+    {populated && <div className="movis-session-strip"><MovisCore compact state={state} /><div><span>{awaitingConfirmation ? '실행 확인 대기' : streamingText ? '답변 작성 중' : isLoading ? 'MOVIS 작업 중' : '대화를 이어가세요'}</span><small>{isLoading ? loadingStep : '맥락을 유지하며 필요한 자료를 다시 확인합니다.'}</small></div><div className="movis-session-data"><Database size={13} />{loaded ? `${loaded}개 자료 연결` : '요청 시 자료 확인'}</div></div>}
     {!populated && <div className="movis-task-grid">{TASKS.map(({
         label,
         detail,
@@ -141,8 +145,8 @@ export default function ChatPanel({
       const el = scroll.current;
       follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
     }}>
-      <div className="movis-conversation-inner">{messages.map((m, i) => <MessageBubble key={m.id || i} message={m} enableTypewriter={false} customers={customers} onCertRegister={onCertRegister} onFollowUpClick={q => !isLoading && !disabled && onSend?.(q)} userQuery={[...messages.slice(0, i)].reverse().find(x => x.role === 'user')?.content} />)}
-      {isLoading && <div className="movis-live-answer" role="status"><div className="movis-live-header"><span className="movis-status-dot" /> MOVIS <button onClick={() => setShowTrace(v => !v)}>{loadingStep}<ChevronDown size={13} /></button></div>{showTrace && <ol className="movis-trace">{loadingSteps.map(s => <li key={s.id} className={s.status}>{s.status === 'done' ? '✓' : '•'} {s.label}</li>)}</ol>}{streamingText ? <MovisMarkdown content={streamingText} /> : <div className="movis-thinking-bars"><i /><i /><i /></div>}</div>}
+      <div className="movis-conversation-inner">{messages.map((m, i) => <MessageBubble key={messageKey(m, i)} animateEntrance={!seenMessages.current.has(messageKey(m, i))} message={m} enableTypewriter={false} customers={customers} onCertRegister={onCertRegister} onFollowUpClick={q => !isLoading && !disabled && onSend?.(q)} userQuery={[...messages.slice(0, i)].reverse().find(x => x.role === 'user')?.content} />)}
+      {isLoading && <div className={`movis-live-answer ${streamingText ? 'is-streaming' : 'is-thinking'}`} aria-busy="true"><div className="movis-live-header"><span className="movis-answer-orbit" aria-hidden="true" /> MOVIS <span className="movis-answer-phase" role="status">{streamingText ? '답변 작성 중' : '생각 정리 중'}</span><button onClick={() => setShowTrace(v => !v)}>{loadingStep}<ChevronDown size={13} /></button></div>{showTrace && <ol className="movis-trace">{loadingSteps.map(s => <li key={s.id} className={s.status}>{s.status === 'done' ? '✓' : '•'} {s.label}</li>)}</ol>}{streamingText ? <div className="movis-stream-content"><MovisMarkdown content={streamingText} /><span className="movis-stream-cursor" aria-hidden="true" /></div> : <div className="movis-thinking-bars" aria-hidden="true"><i /><i /><i /><i /><i /></div>}</div>}
       </div>
     </div>}
     <div className="movis-composer-wrap">

@@ -4,7 +4,7 @@
 
 ## 현재 제공 가능한 Windows 설치
 
-배포 ZIP에는 인증정보를 포함하지 않는다. 다른 PC에서 Node.js LTS와 Codex 데스크톱 앱을 준비한 뒤 ZIP 전체를 풀고 Install-MOVIS.cmd를 실행한다. 현재 Windows 사용자의 LocalAppData에 설치하고 바탕화면 MOVE POS 및 로그인 시 자동 연결 바로가기를 만든다. 관리자 권한을 요구하지 않는다.
+배포 ZIP에는 인증정보를 포함하지 않는다. 다른 PC에서 Node.js LTS와 Codex 데스크톱 앱을 준비한 뒤 ZIP 전체를 풀고 Install-MOVIS.cmd를 실행한다. 현재 Windows 사용자의 LocalAppData에 설치하고 바탕화면 MOVE POS 및 설치 중 동의한 경우에만 로그인 시 자동 연결 바로가기를 만든다. 기본값은 자동 시작 사용 안 함이다. 관리자 권한을 요구하지 않는다.
 
 각 PC는 해당 Windows 사용자의 로컬 인증을 사용한다. 첫 연결 또는 인증 만료 시 본인의 ChatGPT 계정으로 로그인한다. 이는 여러 사람이 한 Windows 계정을 공유하는 환경에서 사용자별 격리를 보장하는 기능은 아니다.
 
@@ -41,3 +41,6 @@
 - https://developers.openai.com/siwc/request-client-id
 - https://developers.openai.com/siwc/website
 - https://developers.openai.com/siwc/token-sharing-open-source
+
+
+2026-10-13 추가: 무비스 연결 설정 안에서 Windows 설치 ZIP을 직접 선택해 다운로드할 수 있다. 화면 진입만으로 다운로드·설치·로그인 창을 실행하지 않는다. 신규 설치의 Windows 자동 시작은 기본 해제이며 사용자가 선택한다. 이 매장 PC에서 앞서 명시적으로 설정한 자동 시작은 유지한다.
