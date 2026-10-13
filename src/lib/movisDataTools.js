@@ -24,6 +24,14 @@ const LIBRARIES = {
   storageFiles: 'POS 이미지 저장소(폴더별 필요 시 조회)'
 };
 export const MOVIS_DATA_TOOLS = [{
+  name: 'getSystemHealth',
+  description: '현재 요청에서 조회한 POS 보관함별 접근 성공·실패·부분 로드·조회 시각을 진단합니다. 문제가 있는 자료를 빈 데이터로 오해하지 마세요. 이 도구 자체는 변경 대상 조회 근거가 아닙니다.',
+  parameters: { type: 'object', properties: {} }
+}, {
+  name: 'getRecord',
+  description: '보관함의 정확한 ID로 레코드 하나를 조회합니다. 주문번호를 알고 있으면 기간 검색 대신 사용하세요. 이름의 부분 일치로 다른 대상을 선택하지 않습니다.',
+  parameters: { type: 'object', properties: { library: { type: 'string', enum: Object.keys(LIBRARIES).filter(k => k !== 'storageFiles') }, id: { type: 'string' } }, required: ['library', 'id'] }
+}, {
   name: 'listImageFiles',
   description: 'POS 이미지 저장소의 폴더/파일을 직접 조회합니다. 처음에는 prefix를 비우고, 반환된 폴더 path를 prefix로 넣어 탐색합니다. 이미지 URL은 inspectLibraryImage로 볼 수 있습니다.',
   parameters: {
@@ -119,6 +127,17 @@ export const MOVIS_DATA_TOOLS = [{
   }
 }];
 export function executeDataTool(name, args, context) {
+  if (name === 'getSystemHealth') {
+    const libraries = Object.entries(LIBRARIES).map(([key, label]) => ({ library: key, label, ...(context.dataState?.[key] || { status: 'unavailable' }) }));
+    return { ok: true, data: { libraries, needsAttention: libraries.filter(s => !['loaded', 'on-demand'].includes(s.status) || s.coverage === 'partial').map(s => s.library), note: '현재 요청의 조회 상태이며 실행 권한이나 모든 기능의 정상 동작을 보증하지 않습니다.' } };
+  }
+  if (name === 'getRecord') {
+    if (!Object.hasOwn(LIBRARIES, args.library) || !Array.isArray(context[args.library]) || ['error', 'loading', 'unavailable'].includes(context.dataState?.[args.library]?.status)) return { ok: false, error: '이 보관함 원본 조회에 실패했습니다. 접근 상태부터 확인하세요.' };
+    const key = args.library === 'externalProducts' ? 'channel_product_no' : ['orderPacking', 'manualPaidOrders'].includes(args.library) ? 'order_id' : 'id';
+    const rows = context[args.library].filter(r => String(r[key]) === String(args.id));
+    if (rows.length !== 1) return { ok: false, error: '현재 조회 범위에서 정확한 ID의 레코드를 하나로 확인하지 못했습니다.', warnings: context.dataState?.[args.library]?.coverage !== 'complete' ? ['일부 자료만 조회되어 누락됐을 수 있습니다.'] : [] };
+    return { ok: true, data: { library: args.library, record: Object.fromEntries(Object.entries(rows[0]).filter(([k]) => !/embedding|vector/i.test(k))), fetchedAt: context.dataState?.[args.library]?.fetchedAt || null } };
+  }
   if (name === 'inspectLibraryImage') {
     const rows = context[args.library];
     if (!Object.hasOwn(LIBRARIES, args.library) || !Array.isArray(rows) || !/^https:\/\//.test(args.imageUrl)) return {

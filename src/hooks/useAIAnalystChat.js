@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { turnNavigation } from '../lib/movisReliability';
 import { askCodex, clearMovisThread } from '../lib/codexAnalyst';
 import { loadMovisLibraries } from '../lib/movisLibraries';
 const HISTORY = 'movis_history_v2',
@@ -154,8 +155,9 @@ export default function useAIAnalystChat(context = {}) {
         verification: result.verification
       }));
       setPendingActions(pending);
-      const nav = result.toolCalls.find(c => c.result?.ok && c.result?.data?.__navigate);
-      if (nav) current.onNavigate?.(nav.result.data.page);
+      const navigation = turnNavigation(result.toolCalls, pending.length > 0);
+      if (navigation.notice) addSystemMessage(navigation.notice);
+      if (navigation.page) current.onNavigate?.(navigation.page);
     } catch (error) {
       if (alive.current) {
         if (error.name === 'AbortError') addSystemMessage('요청을 중지했습니다. 확인하지 않은 변경은 적용하지 않았습니다.');else setMessages(prev => [...prev, {

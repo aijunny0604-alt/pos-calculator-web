@@ -1,3 +1,4 @@
+import { NON_EVIDENCE_TOOLS, missingActionEvidence } from './movisReliability.js';
 import { orderContactPatch } from './movisOrderContact.js';
 // Pure, deterministic checks shared by the client and regression tests.
 export function validateArguments(value, schema, path = '입력') {
@@ -24,7 +25,7 @@ export function validateArguments(value, schema, path = '입력') {
 }
 export function verifyWork(calls, context = {}) {
   const failures = calls.filter(c => c.name !== 'verifyWork' && c.result?.ok === false);
-  const reads = calls.filter(c => c.result?.ok && !c.result?.data?.__pending && !['verifyWork', 'calculate', 'listAvailableTools', 'listLibraries'].includes(c.name));
+  const reads = calls.filter(c => c.result?.ok && !c.result?.data?.__pending && !NON_EVIDENCE_TOOLS.has(c.name));
   const pending = calls.filter(c => c.result?.data?.__pending);
   const warnings = [...new Set(calls.flatMap(c => c.result?.warnings || c.result?.data?.warnings || []))];
   for (const [key, state] of Object.entries(context.dataState || {})) {
@@ -48,12 +49,14 @@ export function verifyWork(calls, context = {}) {
 }
 export function validatePending(result, calls) {
   if (!result?.data?.__pending) return result;
-  if (!calls.some(c => c.result?.ok && !c.result?.data?.__pending && !['verifyWork', 'calculate', 'listAvailableTools', 'listLibraries'].includes(c.name))) {
+  if (!calls.some(c => c.result?.ok && !c.result?.data?.__pending && !NON_EVIDENCE_TOOLS.has(c.name))) {
     return {
       ok: false,
       error: '변경 미리보기 전에 원본 제품/거래처/주문을 조회하고 대조하세요.'
     };
   }
+  const missing = missingActionEvidence(result.data, calls);
+  if (missing.length) return { ok: false, error: `변경할 대상의 원본 조회가 필요합니다: ${missing.join(', ')}. 다른 종류의 자료 조회는 근거가 아닙니다.` };
   const invalid = validateAction(result.data.action, result.data.params);
   if (invalid.length) return {
     ok: false,
