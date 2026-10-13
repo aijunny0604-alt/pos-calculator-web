@@ -1,0 +1,77 @@
+/* 채팅 모션은 CSS만으로 동작한다. OS 모션 설정과 무관한 연출은 사용자 요청에 따른다. */
+.movis-v2 .movis-message-row { margin-block:16px 23px; }
+.movis-v2 .movis-message-card {
+  isolation:isolate;
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,border-color .3s ease;
+}
+.movis-message-card::before {
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  background:radial-gradient(ellipse at 12% 0%,#80d8ee17,transparent 65%);
+  opacity:0;transition:opacity .3s ease;
+}
+.movis-v2 .movis-message-card:focus-within {
+  border-color:#87d5eb85!important;box-shadow:0 10px 30px #0005,0 0 20px #79d4ee10!important;
+}
+.movis-message-card:focus-within::before {opacity:1}
+.movis-message-card:focus-within .movis-message-time {opacity:1}
+@media (hover:hover) and (pointer:fine) {
+  .movis-v2 .movis-message-card:hover {
+    transform:translateY(-2px);border-color:#87d5eb85!important;
+    box-shadow:0 14px 32px #0006,0 0 25px #79d4ee12,inset 0 1px 0 #d8faff16!important;
+  }
+  .movis-message-card:hover::before {opacity:1}
+  .movis-v2 .movis-composer:hover {border-color:#8bcbdf55}
+  .movis-send:not(:disabled):hover svg {transform:translateY(-3px)}
+  .movis-send:not(:disabled):hover {box-shadow:0 0 22px #91e6f244}
+}
+.movis-message-row.is-entering.is-user {animation:movis-user-arrive .42s cubic-bezier(.16,1,.3,1) both}
+.movis-message-row.is-entering.is-assistant {animation:movis-answer-arrive .58s cubic-bezier(.16,1,.3,1) both}
+.movis-message-row.is-entering .movis-message-card::before {animation:movis-answer-settle 1.1s ease-out}
+.movis-v2 .movis-live-answer {
+  position:relative;isolation:isolate;overflow:hidden;min-height:102px;
+  margin:16px 0 23px;padding:20px;border:1px solid #80d8ef35;border-radius:16px;
+  background:linear-gradient(145deg,#102532bd,#0b141dd9);
+  box-shadow:0 12px 36px #0003;animation:movis-answer-arrive .48s ease-out both;
+}
+.movis-live-answer::before {
+  content:'';position:absolute;pointer-events:none;z-index:-1;inset:0;
+  background:radial-gradient(ellipse at 0% 0%,#75d6f015,transparent 65%);
+  animation:movis-answer-glow 3s ease-in-out infinite;
+}
+.movis-live-answer::after {
+  content:'';position:absolute;pointer-events:none;left:0;right:0;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,#a6efffcc,transparent);
+  animation:movis-answer-flow 2.8s ease-in-out infinite;
+}
+.movis-v2 .movis-live-header {flex-wrap:wrap;gap:8px;min-height:22px}
+.movis-live-header button {margin-left:auto;min-height:32px;text-align:left;max-width:100%}
+.movis-answer-phase {font:10px/1.6 system-ui;color:#9ac8d9}
+.movis-answer-orbit {width:15px;height:15px;border:1px solid #7edeee30;border-top-color:#a1e9f8;border-right-color:#7edeeea0;border-radius:50%;animation:movis-spin 1.5s linear infinite}
+.movis-v2 .movis-thinking-bars {height:32px;align-items:center;gap:5px}
+.movis-v2 .movis-thinking-bars i {width:3px;height:17px;border-radius:4px;background:#8ad9eb;animation:movis-signal-wave 1.2s ease-in-out infinite}
+.movis-v2 .movis-thinking-bars i:nth-child(2) {animation-delay:.12s}
+.movis-v2 .movis-thinking-bars i:nth-child(3) {animation-delay:.24s}
+.movis-v2 .movis-thinking-bars i:nth-child(4) {animation-delay:.36s}
+.movis-v2 .movis-thinking-bars i:nth-child(5) {animation-delay:.48s}
+.movis-stream-content>.movis-markdown>* {animation:movis-line-arrive .32s ease-out both}
+.movis-stream-cursor {display:inline-block;width:5px;height:13px;margin-top:8px;border-radius:2px;background:#9be4f1;box-shadow:0 0 10px #72d7f055;animation:movis-answer-glow 1s ease-in-out infinite}
+.movis-v2 .movis-composer {position:relative;transition:border-color .3s,box-shadow .3s,background .3s}
+.movis-composer::before {content:'';position:absolute;top:0;left:12%;right:12%;height:1px;background:linear-gradient(90deg,transparent,#afeef6,transparent);opacity:0;pointer-events:none;transition:opacity .35s}
+.movis-v2 .movis-composer:focus-within {box-shadow:0 8px 36px #0004,0 0 28px #64c6e10b;border-color:#81c9df80}
+.movis-composer:focus-within::before {opacity:.8}
+.movis-send,.movis-send svg {transition:transform .22s ease,box-shadow .22s ease}
+.movis-send:not(:disabled):active {transform:scale(.93)}
+.chat-state-thinking .movis-composer::before,.chat-state-responding .movis-composer::before {opacity:.65;animation:movis-answer-glow 2s ease-in-out infinite}
+@media (hover:none) { .movis-message-time {position:static!important;opacity:.7!important;margin-top:7px} }
+@media (max-width:540px) {
+ .movis-v2 .movis-live-answer {padding:14px;border-radius:12px}
+ .movis-live-header button {min-height:44px}
+ .movis-answer-phase {font-size:10px}
+}
+@keyframes movis-user-arrive {from{opacity:0;transform:translate(10px,14px)}to{opacity:1;transform:none}}
+@keyframes movis-answer-arrive {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes movis-line-arrive {from{opacity:.2;transform:translateY(3px)}to{opacity:1;transform:none}}
+@keyframes movis-answer-settle {0%,40%{opacity:1}100%{opacity:0}}
+@keyframes movis-answer-glow {0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes movis-answer-flow {0%{transform:translateX(-100%);opacity:0}30%,65%{opacity:.8}100%{transform:translateX(100%);opacity:0}}
+@keyframes movis-signal-wave {0%,100%{transform:scaleY(.3);opacity:.35}45%{transform:scaleY(1);opacity:1}}

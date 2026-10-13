@@ -17,6 +17,12 @@ try {
  await picker.selectOption('auto');
  assert.equal(await page.evaluate(()=>localStorage.getItem('movis_model_v2')),'auto');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.getByLabel('Codex 연결 설정').click();
+ const download=page.getByRole('link',{name:'Windows 설치 파일 다운로드 ↗'});
+ assert.match(await download.getAttribute('href'),/releases\/download\/movis-windows-2026.10.13\/MOVIS-Intelligence.zip$/);
+ await page.getByText('설치 방법 · 다른 PC에서 사용하기',{exact:true}).click();
+ await page.getByText(/기본값은 사용 안 함입니다/).waitFor();
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.screenshot({path:'tests/.artifacts/movis-model-picker.png'});
  assert.deepEqual(errors,[]);
  console.log('PASS: 요금제 표시, 자동 추천, 수동 선택 유지, 자동 복귀, 모바일 폭');

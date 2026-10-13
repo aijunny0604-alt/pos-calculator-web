@@ -1,3 +1,4 @@
+import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft, Menu, Save, Search, ShoppingCart, Trash2, Check, RefreshCw,
@@ -63,6 +64,7 @@ export default function SavedCarts({
 
     let text = `[ 주문서 ]\n\n`;
     if (cart.name) text += `고객명: ${cart.name}\n`;
+    text += orderContactText(cart, customers);
     text += `단가기준: ${priceType === 'wholesale' ? '도매가 (부가세 포함)' : '소비자가 (부가세 포함)'}\n\n`;
     text += `[ 상품 목록 ]\n\n`;
     (cart.items || []).forEach((item, index) => {

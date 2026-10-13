@@ -1,3 +1,4 @@
+import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FileText, X, Building, Phone, MapPin, Search, Plus, Minus,
@@ -252,7 +253,7 @@ export default function OrderPage({
     text += `주문번호: ${orderNumber}\n`;
     text += `주문일자: ${formatDate(today.toISOString())}\n`;
     if (customerName) text += `고객명: ${customerName}\n`;
-    if (customerPhone) text += `연락처: ${customerPhone}\n`;
+    text += orderContactText({ customerName, customerPhone, customerAddress, customerId: selectedCustomerId }, customers);
     text += `단가기준: ${priceType === 'wholesale' ? '도매가 (부가세 포함)' : '소비자가 (부가세 포함)'}\n\n`;
 
     text += `[ 상품 목록 ]\n\n`;
