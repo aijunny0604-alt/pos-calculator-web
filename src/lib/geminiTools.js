@@ -584,7 +584,7 @@ export const GEMINI_TOOLS = [
   },
   {
     name: 'updateOrderMemo',
-    description: '내부 주문에 메모를 추가하거나 교체합니다. "김철수 주문에 메모 남겨줘", "어제 강남오토 주문 메모에 착불로 변경이라고 적어줘" 같은 의도일 때 호출. orderNumber를 알면 직접, 모르면 customerName의 가장 최근 주문에 적용. mode=append(기존 메모 뒤에 추가, 기본)/replace(교체). 사용자 confirm 후 적용.',
+    description: '내부 주문에 메모를 추가하거나 교체합니다. "김철수 주문에 메모 남겨줘", "어제 강남오토 주문 메모에 착불로 변경이라고 적어줘" 같은 의도일 때 호출. searchOrders 또는 getRecord로 확인한 정확한 orderNumber가 필수. 고객명만으로 다른 주문을 추측해 변경하지 않습니다. mode=append(기존 메모 뒤에 추가, 기본)/replace(교체). 사용자 confirm 후 적용.',
     parameters: {
       type: 'object',
       properties: {
@@ -593,12 +593,12 @@ export const GEMINI_TOOLS = [
         memo: { type: 'string', description: '남길 메모 내용' },
         mode: { type: 'string', enum: ['append', 'replace'], description: 'append=기존 메모 뒤에 줄바꿈 추가(기본), replace=통째 교체' },
       },
-      required: ['memo'],
+      required: ['orderNumber', 'memo'],
     },
   },
   {
     name: 'markOrderPaid',
-    description: '주문을 완불(전액 입금) 처리합니다. "명성 방금 주문 입금 처리해줘", "강남오토 어제 주문 계좌이체로 완불", "이 주문 현금 받았어" 같은 의도일 때 호출. orderNumber를 알면 직접, 모르면 customerName의 가장 최근 주문에 적용. method는 결제수단(카드/현금/계좌이체/기타). 사용자 confirm 후 적용되며 나중에 되돌릴 수 있음.',
+    description: '주문을 완불(전액 입금) 처리합니다. "명성 방금 주문 입금 처리해줘", "강남오토 어제 주문 계좌이체로 완불", "이 주문 현금 받았어" 같은 의도일 때 호출. searchOrders 또는 getRecord로 확인한 정확한 orderNumber가 필수. 고객명만으로 다른 주문을 추측해 변경하지 않습니다. method는 결제수단(카드/현금/계좌이체/기타). 사용자 confirm 후 적용되며 나중에 되돌릴 수 있음.',
     parameters: {
       type: 'object',
       properties: {
@@ -606,7 +606,7 @@ export const GEMINI_TOOLS = [
         customerName: { type: 'string', description: '거래처 이름 — 이 거래처의 가장 최근 주문에 적용 (orderNumber 없을 때)' },
         method: { type: 'string', enum: ['card', 'cash', 'transfer', 'other'], description: '결제수단: card=카드, cash=현금, transfer=계좌이체(기본), other=기타' },
       },
-      required: [],
+      required: ['orderNumber', ],
     },
   },
   {
@@ -620,7 +620,7 @@ export const GEMINI_TOOLS = [
         orderNumber: { type: 'string', description: '주문번호 (선택)' },
         customerName: { type: 'string', description: '거래처 이름 (orderNumber 없을 때 — 이 거래처의 해당 제품 최근 주문에서 반품)' },
       },
-      required: ['itemName', 'quantity'],
+      required: ['orderNumber', 'itemName', 'quantity'],
     },
   },
   {
@@ -1000,10 +1000,11 @@ export function executeTool(name, args = {}, context = {}) {
         if (!q) return { ok: false, error: 'customerName이 필요합니다.' };
         const ql = q.toLowerCase().replace(/\s+/g, '');
         // 부분 매칭
-        const target = (customers || []).find((c) => {
-          const cn = String(c.name || '').toLowerCase().replace(/\s+/g, '');
-          return cn === ql || cn.includes(ql) || ql.includes(cn);
-        });
+        const normalized = c => String(c.name || '').toLowerCase().replace(/\s+/g, '');
+        const exact = customers.filter(c => normalized(c) === ql);
+        const matches = exact.length ? exact : customers.filter(c => normalized(c) && (normalized(c).includes(ql) || ql.includes(normalized(c))));
+        if (matches.length > 1) return { ok: false, error: '거래처 후보가 여러 곳입니다. 이름·전화번호로 구분한 다음 getRecord로 정확한 ID를 확인하세요.', candidates: matches.slice(0, 10).map(c => ({ id: c.id, name: c.name, phone: c.phone })) };
+        const target = matches[0];
         if (!target) {
           const candidates = (customers || [])
             .filter((c) => {
@@ -1833,11 +1834,13 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
       return { ok: false, error: '전화번호·주소·새 상호·블랙리스트 중 하나는 지정해야 합니다.' };
     }
     let target = null;
-    if (customerId != null) target = customers.find((c) => c.id === customerId);
-    if (!target && customerName) {
+    if (customerId != null) target = customers.find(c => String(c.id) === String(customerId));
+    if (customerId == null && customerName) {
       const lower = customerName.trim().toLowerCase();
-      target = customers.find((c) => (c?.name || '').toLowerCase() === lower)
-            || customers.find((c) => (c?.name || '').toLowerCase().includes(lower));
+      const exact = customers.filter(c => (c?.name || '').toLowerCase() === lower);
+      const candidates = exact.length ? exact : customers.filter(c => (c?.name || '').toLowerCase().includes(lower));
+      if (candidates.length > 1) return { ok: false, error: '같은 이름 또는 비슷한 거래처가 여러 곳입니다. searchCustomers로 확인한 정확한 customerId를 지정하세요.' };
+      target = candidates[0];
     }
     if (!target) {
       return { ok: false, error: `거래처 "${customerName || customerId}"을(를) 찾을 수 없습니다.` };
@@ -1886,11 +1889,12 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
         continue;
       }
       let target = null;
-      if (u?.customerId != null) target = customers.find((c) => c.id === u.customerId);
-      if (!target && customerName) {
+      if (u?.customerId != null) target = customers.find(c => String(c.id) === String(u.customerId));
+      if (u?.customerId == null && customerName) {
         const lower = customerName.toLowerCase();
-        target = customers.find((c) => (c?.name || '').toLowerCase() === lower)
-              || customers.find((c) => (c?.name || '').toLowerCase().includes(lower));
+        const exact = customers.filter(c => (c?.name || '').toLowerCase() === lower);
+        const matches = exact.length ? exact : customers.filter(c => (c?.name || '').toLowerCase().includes(lower));
+        if (matches.length === 1) target = matches[0];
       }
       if (!target) {
         missing.push(customerName || String(u?.customerId || '(거래처명 없음)'));
@@ -2148,6 +2152,7 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
   }
   if (name === 'updateOrderContact') return prepareOrderContact(args, orders);
   if (name === 'updateOrderMemo') {
+    if (!args.orderNumber) return { ok: false, error: '먼저 주문을 조회한 뒤 정확한 주문번호로 요청하세요. 다른 주문을 추측해 변경하지 않습니다.' };
     const { orderNumber, customerName, memo, mode } = args;
     if (!memo || !String(memo).trim()) return { ok: false, error: '메모 내용이 필요합니다.' };
     let target = null;
@@ -2155,7 +2160,7 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
       const on = String(orderNumber).trim();
       target = orders.find((o) => String(o.orderNumber || o.id) === on);
     }
-    if (!target && customerName) {
+    if (!target && !orderNumber && customerName) {
       const nq = String(customerName).trim().toLowerCase();
       target = [...orders]
         .filter((o) => String(o.customerName || o.customer_name || '').toLowerCase().includes(nq))
@@ -2177,6 +2182,7 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
     };
   }
   if (name === 'markOrderPaid') {
+    if (!args.orderNumber) return { ok: false, error: '먼저 주문을 조회한 뒤 정확한 주문번호로 요청하세요. 다른 주문을 추측해 변경하지 않습니다.' };
     const { orderNumber, customerName, method } = args;
     const methodKey = ['card', 'cash', 'transfer', 'other'].includes(method) ? method : 'transfer';
     const methodLabel = { card: '카드', cash: '현금', transfer: '계좌이체', other: '기타' }[methodKey];
@@ -2185,7 +2191,7 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
       const on = String(orderNumber).trim();
       target = orders.find((o) => String(o.orderNumber || o.id) === on);
     }
-    if (!target && customerName) {
+    if (!target && !orderNumber && customerName) {
       const nq = String(customerName).trim().toLowerCase();
       target = [...orders]
         .filter((o) => String(o.customerName || o.customer_name || '').toLowerCase().includes(nq))
@@ -2210,6 +2216,7 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
     };
   }
   if (name === 'createReturn') {
+    if (!args.orderNumber) return { ok: false, error: '먼저 주문을 조회한 뒤 정확한 주문번호로 요청하세요. 다른 주문을 추측해 변경하지 않습니다.' };
     const { itemName, quantity, orderNumber, customerName } = args;
     if (!itemName || !String(itemName).trim()) return { ok: false, error: '반품할 제품명이 필요합니다.' };
     const qty = Math.floor(Number(quantity) || 0);
@@ -2219,13 +2226,17 @@ function buildPendingAction(name, args, { customers, products, aiLearningData = 
     const recent = (list) => [...list].sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0))[0] || null;
     let target = null;
     if (orderNumber) target = orders.find((o) => String(o.orderNumber || o.id) === String(orderNumber).trim());
-    if (!target && customerName) {
+    if (!target && !orderNumber && customerName) {
       const nq = String(customerName).trim().toLowerCase();
       target = recent(orders.filter((o) => String(o.customerName || o.customer_name || '').toLowerCase().includes(nq) && hasItem(o)));
     }
     if (!target && !orderNumber) target = recent(orders.filter(hasItem)); // 제품명만 준 경우 그 제품 최근 주문
     if (!target) return { ok: false, error: `반품할 주문을 찾을 수 없습니다 (${customerName || orderNumber || itemName}). 거래처명이나 주문번호를 알려주세요.` };
-    const item = (target.items || []).find((it) => String(it.name || it.productName || '').toLowerCase().replace(/\s+/g, '').includes(inq));
+    const candidates = (target.items || []).filter(it => String(it.name || it.productName || '').toLowerCase().replace(/\s+/g, '').includes(inq));
+    const exactItems = candidates.filter(it => String(it.name || it.productName || '').toLowerCase().replace(/\s+/g, '') === inq);
+    const matchedItems = exactItems.length ? exactItems : candidates;
+    if (matchedItems.length > 1) return { ok: false, error: '반품 대상 품목이 여러 줄입니다. 주문 상세에서 정확한 품목을 선택해주세요.' };
+    const item = matchedItems[0];
     if (!item) return { ok: false, error: `주문 ${target.orderNumber || target.id}에서 "${itemName}" 제품을 찾을 수 없습니다.` };
     const orderedQty = Number(item.quantity || item.qty || 0);
     if (orderedQty > 0 && qty > orderedQty) return { ok: false, error: `반품 수량(${qty})이 주문 수량(${orderedQty})보다 많습니다.` };

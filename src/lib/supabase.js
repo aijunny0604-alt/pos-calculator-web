@@ -1,3 +1,4 @@
+import { isPersistedResult } from './movisReliability';
 import { createClient } from '@supabase/supabase-js';
 
 export const SUPABASE_URL = 'https://jubzppndcclhnvgbvrxr.supabase.co';
@@ -1138,18 +1139,20 @@ export const supabase = {
       const methodLabel = ({ card: '카드', cash: '현금', transfer: '계좌이체', other: '기타' }[methodKey] || methodKey);
       const remaining = Math.max(0, Number(record.balance ?? total) - 0);
       if (remaining > 0) {
-        await this.addPaymentHistory({
+        const historySaved = await this.addPaymentHistory({
           payment_record_id: record.id,
           amount: remaining,
           method: methodKey,
           paid_at: new Date().toISOString(),
           memo: `[자동] 완불체크 (${methodLabel})`,
         });
+        if (!isPersistedResult(historySaved)) return { success: false, reason: 'history_save_failed' };
         // payment_records 갱신 — balance/payment_status는 generated columns이라 paid_amount만 갱신
         const newPaid = Number(record.paid_amount || 0) + remaining;
-        await this.updatePaymentRecord(record.id, {
+        const paidSaved = await this.updatePaymentRecord(record.id, {
           paid_amount: newPaid,
         });
+        if (!isPersistedResult(paidSaved)) return { success: false, reason: 'partial_payment' };
       }
       return { success: true, record };
     } catch (e) {

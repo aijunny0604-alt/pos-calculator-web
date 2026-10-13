@@ -50,6 +50,7 @@ function shouldLearn(originalInput, matchedName) {
   return a !== b; // 다른 경우만 학습 (별칭/오타/줄임말 → 정답 매핑)
 }
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { commitOrderMemo, isPersistedResult, verifyOrderPaid } from '@/lib/movisReliability';
 import { commitPosWorkflow, POS_WORKFLOWS } from '@/lib/movisPosWorkflows';
 import { commitOrderContact } from '@/lib/movisOrderContact';
 import { supabase, supabaseClient } from '@/lib/supabase';
@@ -192,7 +193,7 @@ export default function AIAnalytics({
           ...pending.params
         };
         const created = await supabase.addProduct(payload);
-        if (created) {
+        if (isPersistedResult(created)) {
           setProducts?.(prev => [...prev, created]);
           chat.addSystemMessage(`✅ 제품 "${pending.params.name}" 등록 완료 (id: ${created.id})`);
           showToast?.(`제품 "${pending.params.name}" 추가됨`, 'success');
@@ -205,7 +206,7 @@ export default function AIAnalytics({
           products: productRows
         } = pending.params;
         const results = await Promise.all(productRows.map(product => supabase.addProduct(product).then(created => ({
-          ok: Boolean(created),
+          ok: isPersistedResult(created),
           created,
           product
         })).catch(() => ({
@@ -223,7 +224,7 @@ export default function AIAnalytics({
         showToast?.(summary, okList.length > 0 ? 'success' : 'error');
       } else if (pending.action === 'addCustomer') {
         const created = await supabase.addCustomer(pending.params);
-        if (created) {
+        if (isPersistedResult(created)) {
           setCustomers?.(prev => [...prev, created]);
           chat.addSystemMessage(`✅ 거래처 "${pending.params.name}" 등록 완료 (id: ${created.id})`);
           showToast?.(`거래처 "${pending.params.name}" 추가됨`, 'success');
@@ -236,7 +237,7 @@ export default function AIAnalytics({
           customers: customerRows
         } = pending.params;
         const results = await Promise.all(customerRows.map(customer => supabase.addCustomer(customer).then(created => ({
-          ok: Boolean(created),
+          ok: isPersistedResult(created),
           created,
           customer
         })).catch(() => ({
@@ -532,16 +533,10 @@ export default function AIAnalytics({
           customerName,
           memo
         } = pending.params;
-        const updated = await supabase.updateOrder(orderId, {
-          memo
-        });
-        if (updated) {
-          chat.addSystemMessage(`✅ 주문 ${orderId} (${customerName}) 메모 저장 완료`);
-          showToast?.('주문 메모 저장됨', 'success');
-        } else {
-          chat.addSystemMessage(`❌ 주문 ${orderId} 메모 저장 실패`);
-          showToast?.('메모 저장 실패', 'error');
-        }
+        const updated = await commitOrderMemo({ orderId, memo }, supabase, supabaseClient);
+        setOrders?.(prev => prev.map(o => String(o.id) === String(orderId) ? { ...o, memo: updated.memo } : o));
+        chat.addSystemMessage(`✅ 주문 ${orderId} (${customerName}) 메모 저장·재조회 확인 완료`);
+        showToast?.('주문 메모 저장 확인됨', 'success');
       } else if (pending.action === 'markOrderPaid') {
         const {
           orderId,
@@ -551,7 +546,8 @@ export default function AIAnalytics({
         } = pending.params;
         const order = orders.find(o => String(o.orderNumber || o.id) === String(orderId)) || null;
         const res = await supabase.syncOrderPaidRecord(orderId, method, order, customers);
-        if (res?.success !== false) {
+        if (res?.success === true) {
+          await verifyOrderPaid(orderId, supabaseClient);
           const label = {
             card: '카드',
             cash: '현금',
@@ -561,7 +557,7 @@ export default function AIAnalytics({
           chat.addSystemMessage(`✅ "${customerName}" 주문(${orderId}) 완불 처리 완료 — ${Number(amount || 0).toLocaleString('ko-KR')}원 (${label})`);
           showToast?.('완불 처리됨', 'success');
         } else {
-          const reason = res?.reason === 'no_customer' ? '거래처 매핑 실패 (완불 기록 안 됨)' : '완불 처리 실패';
+          const reason = res?.reason === 'no_customer' ? '거래처 매핑 실패 (완불 기록 안 됨)' : res?.reason === 'partial_payment' ? '입금 이력은 저장됐지만 정산 반영이 실패했습니다. 재실행 전에 정산 내역을 확인하세요.' : '완불 처리 실패 — 정산 내역을 확인하세요.';
           chat.addSystemMessage(`❌ ${reason}`);
           showToast?.(reason, 'error');
         }
@@ -573,7 +569,7 @@ export default function AIAnalytics({
           row
         } = pending.params;
         const saved = await supabase.addCustomerReturn(row);
-        if (saved) {
+        if (isPersistedResult(saved)) {
           chat.addSystemMessage(`✅ "${customerName}" ${itemName} ${quantity}개 반품 처리 완료 (주문 ${row.order_number})`);
           showToast?.('반품 처리됨', 'success');
         } else {
@@ -607,6 +603,8 @@ export default function AIAnalytics({
         const summary = `✅ 제품명 ${okList.length}건 변경 완료${failCount > 0 ? ` (실패 ${failCount}건)` : ''}`;
         chat.addSystemMessage(summary);
         showToast?.(summary, okList.length > 0 ? 'success' : 'error');
+      } else {
+        throw new Error('지원되지 않는 작업입니다. 실행하지 않았습니다.');
       }
     } catch (e) {
       chat.addSystemMessage(`❌ 오류: ${e.message || e}`);

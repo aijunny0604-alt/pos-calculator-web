@@ -111,7 +111,7 @@ export async function askCodex(question, context, options = {}) {
               enforceLegacyIntent: false
             })));
             if (name === 'listImageFiles' && output.ok) context.storageFiles = [...(context.storageFiles || []), ...output.data.records];
-            if (POS_WORKFLOWS[name] && output?.data?.__pending && !calls.some(c => c.name === 'readLibrary' && c.args?.library === POS_WORKFLOWS[name].library && c.result?.ok)) output = { ok: false, error: `변경 전에 readLibrary(${POS_WORKFLOWS[name].library})로 해당 원본을 조회하세요.` };
+            if (POS_WORKFLOWS[name] && output?.data?.__pending && !calls.some(c => ['readLibrary', 'getRecord'].includes(c.name) && c.args?.library === POS_WORKFLOWS[name].library && c.result?.ok)) output = { ok: false, error: `변경 전에 readLibrary(${POS_WORKFLOWS[name].library})로 해당 원본을 조회하세요.` };
             output = validatePending(output, calls);
             if (output?.data?.__pending) {
               const signature = name + JSON.stringify(output.data.params);
