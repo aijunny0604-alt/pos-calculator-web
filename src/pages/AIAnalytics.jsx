@@ -50,7 +50,8 @@ function shouldLearn(originalInput, matchedName) {
   return a !== b; // 다른 경우만 학습 (별칭/오타/줄임말 → 정답 매핑)
 }
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { supabase } from '@/lib/supabase';
+import { commitOrderContact } from '@/lib/movisOrderContact';
+import { supabase, supabaseClient } from '@/lib/supabase';
 import { uploadCertToLibrary, deleteImages } from '@/lib/imageUpload';
 export default function AIAnalytics({
   orders = [],
@@ -60,6 +61,7 @@ export default function AIAnalytics({
   aiLearningData = [],
   setProducts,
   setCustomers,
+  setOrders,
   setCurrentPage,
   showToast,
   saveOrder: saveOrderProp
@@ -509,6 +511,13 @@ export default function AIAnalytics({
           chat.addSystemMessage(`❌ "${oldName}" 제품명 변경 실패`);
           showToast?.('제품명 변경 실패', 'error');
         }
+      } else if (pending.action === 'updateOrderContact') {
+        const row = await commitOrderContact(pending.params, supabase, supabaseClient);
+        setOrders?.(prev => prev.map(o => String(o.id) === String(row.id) ? {
+          ...o, ...row, customerPhone: row.customer_phone, customerAddress: row.customer_address
+        } : o));
+        chat.addSystemMessage(`✅ 주문 ${row.id} 연락처·배송주소 저장 및 재조회 확인 완료. 거래처 기본정보와 다른 주문은 변경하지 않았습니다.`);
+        showToast?.('주문 배송정보 저장 확인 완료', 'success');
       } else if (pending.action === 'updateOrderMemo') {
         const {
           orderId,
@@ -611,6 +620,7 @@ export default function AIAnalytics({
       bulkUpdateProductPrice: `가격 ${pending.params.updates?.length || 0}건 일괄 변경`,
       updateProductName: `"${pending.params.oldName}" 제품명 변경`,
       bulkUpdateProductName: `제품명 ${pending.params.updates?.length || 0}건 일괄 변경`,
+      updateOrderContact: `주문 ${pending.params.orderId} 배송정보`,
       updateOrderMemo: `주문 ${pending.params.orderId} 메모`,
       saveOrder: `"${pending.params.customerName}" 주문 등록`,
       updateCustomer: `"${pending.params.customerName}" 정보 수정`,
@@ -771,6 +781,7 @@ export default function AIAnalytics({
             title: '주문 등록 확인',
             Icon: Truck
           },
+          updateOrderContact: { title: '주문 연락처·배송지 수정 확인', Icon: Truck },
           updateCustomer: {
             title: '거래처 정보 수정 확인',
             Icon: Users

@@ -20,7 +20,7 @@ export function capturePreconditions(action, context) {
     });
   }
   const customerIds = [p.customerId, ...(p.updates || []).map(u => u.customerId)].filter(v => v !== undefined && v !== null);
-  if (p.customerName) {
+  if (p.customerName && action.action !== 'updateOrderContact') {
     const c = context.customers?.find(c => c.name === p.customerName);
     if (c) customerIds.push(c.id);
   }
@@ -42,6 +42,7 @@ export function capturePreconditions(action, context) {
       table: 'orders',
       id: row.id,
       values: {
+        ...(action.action === 'updateOrderContact' ? { customer_phone: row.customer_phone ?? row.customerPhone ?? null, customer_address: row.customer_address ?? row.customerAddress ?? null } : {}),
         total: row.total,
         memo: row.memo,
         paid: row.paid,
@@ -54,6 +55,7 @@ export function capturePreconditions(action, context) {
 export async function checkActionBeforeCommit(pending, client = supabaseClient) {
   const errors = validateAction(pending.action, pending.params);
   if (errors.length) throw new Error(errors.join(' '));
+  if (pending.action === 'updateOrderContact' && !pending.preconditions?.some(p => p.table === 'orders' && String(p.id) === String(pending.params.orderId))) throw new Error('주문 원본 확인이 누락됐습니다. 다시 조회하세요.');
   const tables = new Set((pending.preconditions || []).map(p => p.table));
   for (const table of tables) {
     const checks = pending.preconditions.filter(p => p.table === table);
