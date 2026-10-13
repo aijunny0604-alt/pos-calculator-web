@@ -1,9 +1,20 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-10-12 (모델 선택 · 사용률 게이지 · 강제 애니메이션 · 모바일 제외·PC 전용)
+> 마지막 업데이트: 2026-10-13 (장애 복구 점검 · 초기 연결 재시도 · 조회 부하 완화 · 보안 평가 갱신)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 2026-10-13 현재 운영 판단
+
+[최신 점검 보고서](docs/AUDIT-2026-10-13.md), [보안 전환 가이드](docs/SECURITY-SETUP.md), [검증 범위](docs/TESTING.md)를 우선 참고한다. 아래 과거 이력은 현재 상태의 보증이 아니다.
+
+- 공용 POS는 GitHub Pages + Supabase, MOVIS 브리지는 각 PC의 localhost:43127이다. 브리지 종료와 공용 DB 장애를 구분한다.
+- 초기 핵심 자료 실패는 OFFLINE으로 처리하고 재시도한다. 오프라인 쓰기의 영속 저장/자동 전송 기능은 없다.
+- MOVIS는 연결 선확인 후 테이블 동시 조회 2개/전체 60초 제한을 적용한다. 조회량 감소의 최종 해법은 필요한 자료만 읽는 구조다.
+- 실시간 변경은 `posRealtime.js`의 Supabase SDK 채널로 처리한다. 운영 publication과 정책도 충족해야 한다.
+- 내부 사용/관리자 PIN/공개 키의 존재는 DB 접근 통제가 아니다. 인증·RLS 전환, 재고 원자성, 비밀 키 이관은 남은 작업이다.
+- 이 소스 변경을 기존 배포 ZIP/운영 Pages에 자동 적용된 것으로 간주하지 않는다. 배포 커밋과 라이브 번들을 별도로 검증한다.
 
 ## v2026-10-08 — MOVIS Intelligence v2
 

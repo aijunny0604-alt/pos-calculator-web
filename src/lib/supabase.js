@@ -1,4 +1,5 @@
 import { isPersistedResult } from './movisReliability';
+import { fetchPosJSON as fetchJSON } from './posConnection';
 import { createClient } from '@supabase/supabase-js';
 
 export const SUPABASE_URL = 'https://jubzppndcclhnvgbvrxr.supabase.co';
@@ -17,11 +18,6 @@ const headers = {
 const headersWithReturn = { ...headers, 'Prefer': 'return=representation' };
 const headersNoContent = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` };
 
-async function fetchJSON(url, options = {}) {
-  const response = await fetch(url, options);
-  if (!response.ok) { const body = await response.text(); throw new Error(`API error: ${response.status} - ${body}`); }
-  return response.json();
-}
 
 // 마이그레이션 006(제품 메모/색상/초기금액/단가이력) 컬럼 미적용 대비 — 컬럼없음 에러 감지 + 필드 제거
 const PRODUCT_006_RE = /PGRST204|column .* does not exist|could not find/i;
