@@ -1,4 +1,5 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿param([switch]$BackgroundOnly)
+$ErrorActionPreference = 'Stop'
 $movisRoot = $PSScriptRoot
 $movisUrl = 'http://127.0.0.1:43127/pos-calculator-web/'
 $movisRuntime = Join-Path $movisRoot '.movis-runtime'
@@ -19,9 +20,9 @@ try {
     }
     if (-not $movisRunning) { throw 'MOVIS 연결 프로그램이 시작되지 않았습니다. .movis-runtime/server-error.log를 확인해주세요.' }
   }
-  Start-Process $movisUrl
+  if (-not $BackgroundOnly) { Start-Process $movisUrl }
 } catch {
   Write-Host $_.Exception.Message -ForegroundColor Red
-  Read-Host 'Enter를 누르면 닫힙니다'
+  if (-not $BackgroundOnly) { Read-Host 'Enter를 누르면 닫힙니다' }
   exit 1
 }

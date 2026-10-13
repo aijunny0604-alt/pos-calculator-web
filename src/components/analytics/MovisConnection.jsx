@@ -4,7 +4,7 @@ import { movisRequest, getMovisModel, setMovisModel } from '@/lib/codexAnalyst';
 import { usageWindows } from '@/lib/movisUsage';
 export default function MovisConnection({onChange,busy}) {
  const dialogRef=useRef(null), pending=useRef(false), mounted=useRef(true);
- const [status,setStatus]=useState(null),[error,setError]=useState(''),[open,setOpen]=useState(false),[checking,setChecking]=useState(false),[model,setModel]=useState(getMovisModel),[loginUrl,setLoginUrl]=useState(''),[updated,setUpdated]=useState(null);
+ const [status,setStatus]=useState(null),[error,setError]=useState(''),[open,setOpen]=useState(false),[checking,setChecking]=useState(false),[model,setModel]=useState(getMovisModel),[loginUrl,setLoginUrl]=useState(''),[updated,setUpdated]=useState(null),[loggingIn,setLoggingIn]=useState(false);
  const refresh=useCallback(async()=>{
   if(pending.current)return;pending.current=true;setChecking(true);
   try {const s=await movisRequest('status');if(!mounted.current)return;setStatus(s);setUpdated(new Date());setError('');onChange?.(s);}
@@ -31,6 +31,17 @@ export default function MovisConnection({onChange,busy}) {
  return <>
 
  <div className="movis-live-control">{select}{gauges}<div className="movis-live-actions"><button className={`movis-link ${connected?'is-connected':''}`} onClick={()=>setOpen(true)} aria-label="Codex 연결 설정"><span className="movis-status-dot"/><span>{connected?'연결됨':'연결 확인'}</span><Link2 size={13}/></button><button onClick={refresh} disabled={checking} aria-label="사용량 새로고침"><RefreshCw size={14}/></button><small>{error?'갱신 실패 · 연결 확인':updated?`${updated.toLocaleTimeString('ko-KR',{hour12:false})} · 10초 자동 갱신`:'연결 확인 중'}</small></div></div>
- {open&&<div className="movis-modal-backdrop" onClick={()=>setOpen(false)}><section ref={dialogRef} className="movis-settings" role="dialog" aria-modal="true" aria-label="Codex 연결 설정" onClick={e=>e.stopPropagation()}><div className="movis-settings-title"><div><small>ENGINE CONNECTION</small><h2>GPT 연결 및 사용량</h2></div><button onClick={()=>setOpen(false)} aria-label="닫기"><X size={20}/></button></div><p>계정에 제공되는 모델을 상단에서 선택하세요. 응답 중에는 모델 변경이 잠깐 잠깁니다. 모델을 변경하면 새 엔진 대화에 최근 문맥을 전달합니다.</p><p>사용률은 계정 전체의 구독 한도입니다. 모델별 대응 정보가 없는 한도를 임의로 연결하지 않습니다. 10초마다 조회하고, 응답 완료와 화면 복귀 때 즉시 갱신합니다.</p>{error&&<p role="alert" className="movis-error-text">{error}</p>}{gauges}<p className="movis-fineprint">{status?.plan?`계정 요금제: ${status.plan} · `:''}API 키 과금으로 자동 전환하지 않습니다.</p><div className="movis-settings-actions"><button onClick={refresh} disabled={checking}><RefreshCw size={15}/> 연결 새로고침</button>{!connected&&<button disabled={busy} onClick={async()=>{try{const s=await movisRequest('login',{});setLoginUrl(s.authUrl||'')}catch(e){setError(e.message)}}}>ChatGPT 로그인</button>}</div>{loginUrl&&<a href={loginUrl} target="_blank" rel="noreferrer">로그인 창 열기 → 완료 후 연결 새로고침</a>}</section></div>}
+ {open&&<div className="movis-modal-backdrop" onClick={()=>setOpen(false)}><section ref={dialogRef} className="movis-settings" role="dialog" aria-modal="true" aria-label="Codex 연결 설정" onClick={e=>e.stopPropagation()}><div className="movis-settings-title"><div><small>ENGINE CONNECTION</small><h2>GPT 연결 및 사용량</h2></div><button onClick={()=>setOpen(false)} aria-label="닫기"><X size={20}/></button></div><p>계정에 제공되는 모델을 상단에서 선택하세요. 응답 중에는 모델 변경이 잠깐 잠깁니다. 모델을 변경하면 새 엔진 대화에 최근 문맥을 전달합니다.</p><p>사용률은 계정 전체의 구독 한도입니다. 모델별 대응 정보가 없는 한도를 임의로 연결하지 않습니다. 10초마다 조회하고, 응답 완료와 화면 복귀 때 즉시 갱신합니다.</p>{error&&<p role="alert" className="movis-error-text">{error}</p>}{status?.needsLogin&&!error&&<p role="status" className="movis-error-text">PC 연결은 정상입니다. 무비스용 ChatGPT 인증이 필요합니다. 아래 로그인 버튼으로 연결을 완료해주세요.</p>}{error&&<p><a href="http://127.0.0.1:43127/pos-calculator-web/" target="_blank" rel="noreferrer">PC용 무비스 열기 →</a></p>}{gauges}<p className="movis-fineprint">{status?.plan?`계정 요금제: ${status.plan} · `:''}API 키 과금으로 자동 전환하지 않습니다.</p><div className="movis-settings-actions"><button onClick={refresh} disabled={checking}><RefreshCw size={15}/> 연결 새로고침</button>{!connected&&<button disabled={busy||loggingIn} onClick={async()=>{
+ setLoggingIn(true);setError('');
+ const popup=window.open('about:blank','_blank');
+ if(popup)popup.opener=null;
+ try{
+  const s=await movisRequest('login',{});
+  const url=new URL(s.authUrl);
+  if(url.protocol!=='https:'||url.hostname!=='auth.openai.com')throw new Error('인증 주소를 확인하지 못했습니다. 다시 시도해주세요.');
+  setLoginUrl(url.href);
+  if(popup)popup.location.replace(url.href);
+ }catch(e){popup?.close();setError(e.message)}finally{setLoggingIn(false)}
+}}>{loggingIn?'로그인 창 준비 중…':'ChatGPT 로그인'}</button>}</div>{loginUrl&&<a href={loginUrl} target="_blank" rel="noreferrer">로그인 창 열기 → 완료 후 연결 새로고침</a>}</section></div>}
  </>;
 }
