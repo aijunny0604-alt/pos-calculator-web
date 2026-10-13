@@ -70,7 +70,7 @@ export default function MessageBubble({
     if (isSuccess || isFail) {
       const accent = isSuccess ? '#00e676' : '#ff5a7a';
       const tint = isSuccess ? 'rgba(0,230,118,0.13)' : 'rgba(255,90,122,0.13)';
-      return <div className="flex justify-center my-3 px-2 animate-modal-up">
+      return <div className="movis-result-row flex justify-center my-3 px-2 animate-modal-up">
           <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm sm:text-[15px] font-bold max-w-[92%] break-words" style={{
           color: accent,
           background: tint,
@@ -82,7 +82,7 @@ export default function MessageBubble({
           </div>
         </div>;
     }
-    return <div className="flex justify-center my-2 px-2">
+    return <div className="movis-result-row flex justify-center my-2 px-2">
         <span className="text-[11px] font-medium px-3 py-2 rounded-full min-w-0 break-words" style={{
         color: 'var(--jarvis-text-muted)',
         background: 'rgba(0, 212, 255, 0.08)',

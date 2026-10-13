@@ -47,3 +47,71 @@
 .movis-attachment img { width: 64px; height: 64px; object-fit: contain; border-radius: 8px; background: #08131d; flex-shrink: 0; }
 .movis-attachment span { min-width: 0; overflow-wrap: anywhere; }
 .movis-attachment-error { padding: 10px 14px; color: #ffc18f; font-size: 13px; }
+
+/* 대화와 엔진 상태의 간격은 화면 폭에 맞춰 함께 확장한다. */
+.movis-v2 .movis-conversation {padding:28px clamp(18px,4vw,72px) 36px}
+.movis-v2 .movis-conversation-inner {max-width:1200px;display:flex;flex-direction:column;gap:30px}
+.movis-v2 .movis-conversation-inner>.movis-message-row,
+.movis-v2 .movis-conversation-inner>.movis-result-row {margin:0;padding:0}
+.movis-v2 .is-assistant .movis-message-card {width:fit-content;min-width:min(460px,100%);max-width:86%;padding:24px 28px;border-radius:20px}
+.movis-v2 .is-user .movis-message-card {max-width:72%;padding:15px 22px;border-radius:18px}
+.movis-v2 .movis-message-card>.text-sm {line-height:1.85}
+.movis-v2 .movis-message-card>div:first-child {margin-bottom:14px}
+.movis-v2 .is-user .movis-message-card>div:first-child {margin-bottom:0}
+.movis-v2 .movis-markdown p {margin:7px 0}
+.movis-v2 .movis-paragraph-gap {height:12px}
+.movis-v2 .movis-verification {margin-top:22px;padding-top:14px}
+.movis-v2 .movis-result-row {justify-content:flex-start;padding-left:28px!important}
+.movis-v2 .movis-result-row>div {max-width:86%;padding:16px 20px;font-size:13px;font-weight:500;line-height:1.75;border-width:1px!important;box-shadow:none!important}
+.movis-v2 .movis-live-answer {max-width:86%;margin:0;padding:24px 28px}
+.movis-v2 .has-conversation .movis-composer-wrap {max-width:1100px;padding-top:18px}
+.movis-v2 .movis-header {gap:20px;padding-inline:clamp(18px,2.3vw,44px);min-height:108px}
+.movis-v2 .movis-header-actions {gap:14px}
+.movis-v2 .movis-live-control {display:flex;gap:0;align-items:stretch;flex-wrap:wrap;padding:12px 4px;border:1px solid #8dbdce20;border-radius:14px;background:linear-gradient(135deg,#13222c80,#0b151f80)}
+.movis-v2 .movis-live-control>* {padding:0 16px;min-width:0}
+.movis-v2 .movis-live-control>*+* {border-left:1px solid #9abacd18}
+.movis-v2 .movis-model-select {justify-content:center;gap:7px}
+.movis-v2 .movis-model-select select {width:210px;max-width:100%;min-height:40px;font-size:12px}
+.movis-plan-card {display:flex;flex-direction:column;justify-content:center;gap:11px}
+.movis-plan-card>span {font-size:10px;color:#829fae}
+.movis-plan-card>strong {font-size:12px;font-weight:500;color:#c8e2ec;white-space:nowrap;line-height:24px}
+.movis-v2 .movis-live-control>.movis-live-gauges {align-items:center;gap:16px}
+.movis-v2 .movis-live-control .movis-live-gauge {width:146px}
+.movis-v2 .movis-live-actions {max-width:210px;align-content:center;gap:5px}
+.movis-v2 .movis-live-actions>small {font-size:8px;white-space:nowrap;margin-top:3px}
+.movis-v2 .movis-header button:focus-visible,.movis-v2 .movis-model-select select:focus-visible {outline:2px solid #9ce5f2;outline-offset:3px}
+@media(max-width:1400px){
+ .movis-v2 .movis-header-brand {flex-basis:100%}
+ .movis-v2 .movis-header-actions {width:100%;justify-content:space-between}
+ .movis-v2 .movis-live-control {flex:1}
+ .movis-v2 .movis-live-control>.movis-live-gauges {flex:1}
+ .movis-v2 .movis-live-control .movis-live-gauge {flex:1;min-width:125px;max-width:190px}
+}
+@media(max-width:800px){
+ .movis-v2 .movis-live-control {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 0}
+ .movis-v2 .movis-live-control>* {padding-inline:12px}
+ .movis-v2 .movis-live-control>.movis-live-gauges {grid-column:1;grid-row:2;border-left:0;flex-wrap:wrap;gap:12px}
+ .movis-v2 .movis-live-actions {grid-column:2;grid-row:2;justify-self:stretch;max-width:none}
+ .movis-v2 .movis-model-select select {width:100%;min-height:44px}
+ .movis-v2 .movis-conversation-inner {gap:26px}
+ .movis-v2 .is-assistant .movis-message-card {max-width:94%;min-width:0;padding:20px}
+ .movis-v2 .movis-result-row {padding-left:12px!important}
+ .movis-v2 .movis-result-row>div {max-width:94%}
+}
+@media(max-width:540px){
+ .movis-v2 .movis-header {gap:12px;min-height:0}
+ .movis-v2 .movis-header-actions {position:relative;padding-right:0}
+ .movis-v2 .movis-header-actions>button {position:absolute;right:0;top:-56px}
+ .movis-v2 .movis-live-control {width:100%;padding-block:10px;border-radius:12px}
+ .movis-v2 .movis-live-actions {gap:3px}
+ .movis-v2 .movis-live-actions>small {white-space:normal;line-height:1.6}
+ .movis-v2 .movis-live-control .movis-live-gauge {min-width:0;width:100%}
+ .movis-v2 .movis-conversation {padding:22px 14px 30px}
+ .movis-v2 .movis-conversation-inner {gap:24px}
+ .movis-v2 .is-assistant .movis-message-card {max-width:100%;padding:18px 16px;border-radius:16px}
+ .movis-v2 .is-user .movis-message-card {max-width:88%;padding:13px 16px}
+ .movis-v2 .movis-result-row {padding-left:0!important}
+ .movis-v2 .movis-result-row>div {max-width:100%;padding:14px;font-size:12px}
+ .movis-v2 .movis-live-answer {max-width:100%;padding:18px 16px}
+ .movis-v2 .has-conversation .movis-composer-wrap {padding-top:12px}
+}
