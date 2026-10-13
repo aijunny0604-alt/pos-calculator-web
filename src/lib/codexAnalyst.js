@@ -5,8 +5,9 @@ import { capturePreconditions } from './movisActionGuard';
 import { checkToolData } from './movisToolData';
 import { listMovisImages } from './movisLibraries';
 import { fetchMovis } from './movisTransport';
+import { selectMovisModel } from './movisModels';
 export function getMovisModel() {
-  return localStorage.getItem('movis_model_v2') || 'gpt-6-astra';
+  return localStorage.getItem('movis_model_v2') || 'auto';
 }
 export function setMovisModel(model) {
   localStorage.setItem('movis_model_v2', model);
@@ -58,8 +59,13 @@ export async function askCodex(question, context, options = {}) {
     completed = false,
     result;
   try {
+    const preference = getMovisModel();
+    const state = await movisRequest('status', undefined, options.signal);
+    if (!state.connected) throw new Error('ChatGPT 계정 연결이 필요합니다. 연결 설정을 확인해주세요.');
+    const selected = selectMovisModel(state.models, preference);
+    if (!selected) throw new Error('선택한 모델을 현재 계정에서 찾지 못했습니다. 모델을 자동 선택으로 바꾸거나 목록에서 다시 선택해주세요.');
     const res = await fetchMovis('turn', {
-      requestKey, question, tools, threadId, model:getMovisModel(), history:options.history||[],
+      requestKey, question, tools, threadId, model:selected.model, history:options.history||[],
       actions:(options.history||[]).filter(m=>m.role==='system').slice(-20), dataState:context.dataState||{}, image:options.image
     },options.signal);
     if (!res.ok) {
