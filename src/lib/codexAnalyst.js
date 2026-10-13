@@ -22,7 +22,7 @@ export async function movisRequest(route, body, signal) {
     if (!res.ok) throw new Error(data.error || 'MOVIS 연결 오류');
     return data;
   } catch (error) {
-    if (error.name === 'TypeError') throw new Error('매장 PC 연결 프로그램이 꺼져 있습니다. MOVIS 실행 바로가기를 열어주세요.');
+    if (error.name === 'TypeError' || error.name === 'TimeoutError') throw new Error('매장 PC 연결 프로그램에 접속하지 못했습니다. MOVE POS (자동 연결) 바로가기로 열어주세요. 웹 주소에서는 브라우저의 로컬 네트워크 접근 허용도 확인해주세요.');
     throw error;
   }
 }

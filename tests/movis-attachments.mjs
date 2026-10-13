@@ -1,0 +1,36 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+const b=await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader']});
+const p=await b.newPage({viewport:{width:1366,height:900}}),errors=[];
+p.on('pageerror',e=>errors.push(e.message));
+await p.goto('http://127.0.0.1:5174/pos-calculator-web/tests/movis-attachments.html');
+const box=p.getByLabel('무비스에게 요청');
+const inject=async(type,count=1,mime='image/png',size=0)=>p.evaluate(({type,count,mime,size})=>{
+ const dt=new DataTransfer();
+ const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZ0AAAAASUVORK5CYII='),c=>c.charCodeAt(0));
+ for(let i=0;i<count;i++)dt.items.add(new File([size?new Uint8Array(size):bytes],`sample-${i}.png`,{type:mime}));
+ const target=document.querySelector(type==='paste'?'textarea':'.movis-workspace');
+ target.dispatchEvent(type==='paste'?new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}):new DragEvent('drop',{dataTransfer:dt,bubbles:true,cancelable:true}));
+},{type,count,mime,size});
+await box.fill('사진 확인');await inject('paste');
+await p.getByAltText('첨부 이미지 미리보기').waitFor();assert.equal(await box.inputValue(),'사진 확인');
+await p.getByLabel('전송',{exact:true}).click();await p.waitForFunction(()=>window.testSends.length===1);
+assert.match(await p.evaluate(()=>window.testSends[0].image),/^data:image\/png;base64,/);assert.equal(await p.evaluate(()=>window.testSends[0].text),'사진 확인');
+await inject('drop');await p.getByAltText('첨부 이미지 미리보기').waitFor();await p.getByLabel('첨부 취소').click();assert.equal(await p.getByAltText('첨부 이미지 미리보기').count(),0);
+await inject('paste',2);assert.match(await p.getByRole('alert').innerText(),/1장/);
+await inject('drop',1,'application/pdf');assert.match(await p.getByRole('alert').innerText(),/JPG/);
+await inject('drop',1,'image/png',5*1024*1024+1);assert.match(await p.getByRole('alert').innerText(),/5MB/);
+await box.fill('텍스트');await box.press('Shift+Enter');await box.press('a');assert.equal(await box.inputValue(),'텍스트\na');
+await inject('drop');await p.getByAltText('첨부 이미지 미리보기').waitFor();
+await p.screenshot({path:'tests/.artifacts/movis-attachment-preview.png'});
+await p.setViewportSize({width:390,height:844});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+// 텍스트 클립보드는 사용자 이벤트 기본 동작을 차단하지 않는다.
+assert.equal(await p.evaluate(()=>{const dt=new DataTransfer();dt.setData('text/plain','붙여넣기');return document.querySelector('textarea').dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}))}),true);
+await p.route('**/api/movis/session',r=>r.fulfill({json:{token:'fixture'}}));
+await p.route('**/api/movis/status',r=>r.fulfill({json:{connected:false,needsLogin:true}}));
+await p.route('**/api/movis/login',r=>r.fulfill({json:{authUrl:'https://auth.openai.com/fixture-login'}}));
+await p.context().route('https://auth.openai.com/**',r=>r.fulfill({body:'테스트 인증 화면'}));
+await p.goto('http://127.0.0.1:5174/pos-calculator-web/tests/movis-attachments.html?connection');
+await p.getByLabel('Codex 연결 설정').click();await p.getByText(/PC 연결은 정상입니다/).waitFor();
+const popupPromise=p.waitForEvent('popup');await p.getByRole('button',{name:'ChatGPT 로그인',exact:true}).click();const popup=await popupPromise;await popup.waitForURL('https://auth.openai.com/fixture-login');
+assert.deepEqual(errors,[]);await b.close();console.log('PASS: 이미지 붙여넣기·드롭·미리보기·제거·전송·형식/용량/개수 검증·일반 텍스트·모바일 폭·로그인 안내/팝업 (가상 인증, 외부 전송 없음)');
