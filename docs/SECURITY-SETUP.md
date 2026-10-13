@@ -1,180 +1,43 @@
-# 보안 설정 가이드 (Security Setup)
+# 보안 설정 및 전환 가이드
 
-> API 키 HTTP referrer 제한 설정 및 로컬 개발 포트 관리
-> 작성일: 2026-04-13
+최종 점검: 2026-10-13. [최신 점검 보고서](AUDIT-2026-10-13.md)와 함께 읽는다.
 
----
+## 현재 전제
 
-## 1. Gemini API 키 HTTP Referrer 제한
+이 POS는 브라우저에서 Supabase에 직접 접근한다. 링크를 사내에서만 공유하는 운영 관행은 인증이나 네트워크 격리가 아니다. 관리자 화면 PIN 역시 DB 권한을 제한하지 않는다. 로그인 없이 허용된 API는 화면을 통하지 않고도 호출할 수 있다.
 
-### 목적
-GitHub 공개 레포에 노출된 Gemini API 키를 **다른 도메인에서 쓰지 못하도록** 차단.
-- 키 자체는 계속 노출되지만 무력화됨
-- 본인 일일 할당량을 남이 쓰는 문제 방지
+RLS를 켜는 것만으로 충분하지 않다. `USING (true)`/`WITH CHECK (true)` 정책, 대상 역할, 테이블 grants를 함께 검토한다. 반대로 grants가 있어도 RLS의 거부 정책이 실제 접근을 막을 수 있으므로 grants만 보고 모든 테이블이 쓰기 가능하다고 단정하지 않는다. 세부 운영 권한 목록은 공개 저장소에 게시하지 않는다.
 
-### 허용 도메인 목록 (4개)
+## 업무 중단 없이 접근 통제 전환
 
-각 Gemini API 키의 "애플리케이션 제한사항 > 웹사이트"에 아래 4개 URL을 등록:
+1. 현행 스키마·정책·권한을 별도로 보존하고 복원 가능한 백업을 확보한다. 실제 복원은 별도 환경에서 연습한다.
+2. 직원 인증과 승인된 직원 목록/역할을 정의한다. 공개 회원가입으로 누구나 직원이 되는 구조를 피한다. 관리자 PIN을 인증 대체로 사용하지 않는다.
+3. 로그인 UI와 유효한 사용자 JWT 전달을 먼저 준비한다. 현재 직접 REST 래퍼의 고정 공개 Authorization 헤더도 사용자 세션을 반영하도록 바꿔야 한다.
+4. 스테이징에서 허용된 직원의 업무를 통과시키고 익명/미승인/다른 역할의 읽기·쓰기를 거부하는 정책을 테스트한다. 파일 저장소와 함수 실행 권한도 포함한다.
+5. 직원 로그인 동작을 확인한 뒤 제한 정책과 grants를 전환한다. 단순히 모든 테이블의 RLS부터 켜면 현재 POS 사용자가 업무를 못 할 수 있다. 모든 역할에 true 정책을 추가해 경고만 지우지도 않는다.
+6. 외부 연동 토큰과 유료 API 비밀 키는 서버의 비밀 저장소로 옮긴다. 브라우저에는 필요한 결과만 반환한다.
 
-```
-https://aijunny0604-alt.github.io/*
-https://aijunny0604-alt.github.io/pos-calculator-web/*
-http://localhost:5173/*
-http://localhost:4173/*
-```
+이번 점검은 이 전환을 운영 DB에 적용하지 않았다. 운영 접근 제한이 완료되었다고 안내하지 않는다.
 
-| URL | 용도 |
-|-----|------|
-| `github.io/*` | GitHub Pages 배포 사이트 (루트) |
-| `github.io/pos-calculator-web/*` | POS 앱 배포 경로 |
-| `localhost:5173` | Vite 개발 서버 (`npm run dev`) |
-| `localhost:4173` | Vite 프리뷰 서버 (`npx vite preview`) |
+## 키 취급
 
-### 주의사항
-- `*` 와일드카드 **반드시 포함** (없으면 하위 경로 차단)
-- `localhost:*/*` 같은 포트 와일드카드는 **Google이 거부**. 포트를 명시해야 함
-- 설정 반영까지 **최대 5분** 소요
+Supabase publishable/anon 키는 브라우저에 공개되는 식별용 키다. 이 키의 난독화·교체만으로 공개 데이터 접근 문제를 해결할 수 없다. 실제 경계는 인증, RLS, grants, 서버 검증이다. service_role/secret 키는 브라우저에 넣지 않는다.
 
-### 🚨 등록 안 된 포트 = Gemini 403 (2026-07-15 확인)
-허용 목록에 **5173/4173만** 있다. `npx vite --port 5241` 처럼 **다른 포트로 띄우면 모든 키가 403**이 난다(키 4개 × 모델 2개 전부 시도 후 실패).
+Gemini 키의 Base64는 암호화가 아니다. Vite의 `VITE_*` 환경 변수도 빌드하면 사용자에게 전달된다. 외부 유료 API 비밀 키는 인증된 서버 프록시에서 사용하고 사용량/허용 작업을 제한한다. 노출된 키는 서버 이관과 의존 기능 점검을 마친 후 폐기·교체한다. 문서와 로그에 실제 키를 기록하지 않는다.
 
-- **증상**: 콘솔에 `generativelanguage.googleapis.com … 403` 이 키 개수만큼 반복. 앱은 안 죽고 "판독 실패" 토스트만 뜸(폴백 로테이션은 정상 동작)
-- **영향 기능**: MOVIS 이미지 인식, 사업자등록증 vision([certVision.js](../src/lib/certVision.js)), **발주서 사진 판독**([quoteVision.js](../src/lib/quoteVision.js))
-- **대응**: vision 기능 검증은 **배포본(github.io)에서** 할 것. 로컬 테스트가 꼭 필요하면 5173/4173으로 띄우거나 해당 포트를 referrer 목록에 추가
-- node에서 직접 호출해도 403 (referrer 헤더 없음) → **브라우저 전용**
+기존 직접 브라우저 API의 referrer/API 제한은 보조 수단이다. 제한 여부만으로 키가 비밀이 되거나 모든 악용이 차단되었다고 보장하지 않는다. 403이 나면 응답 본문, 대상 API, 실제 Origin, 허용 목록을 확인한다. 장애 대응으로 제한을 모두 없애라는 과거 안내는 폐기한다. 허용 목록 변경은 현재 사용하는 정확한 사이트/개발 포트에 한정한다.
 
----
+## MOVIS 경계
 
-## 2. Vite 포트 정보
+로컬 브리지는 loopback, 허용 Origin, 세션 토큰을 검사한다. 이를 외부 인터페이스에 바인딩하거나 인터넷에 포트 포워딩하지 않는다. PC 종료 시 그 PC의 MOVIS는 사용할 수 없다. 공용 POS DB는 별도의 서비스다.
 
-### 기본 포트
+모델에 전달하기 전 설정 필드 필터링이 있어도 브라우저가 원본 설정을 읽을 수 있는 구조 자체를 해결하는 것은 아니다. 비밀정보는 애초에 브라우저 조회 대상과 분리한다. AI 도구의 변경 확인 UI는 DB 사용자 인증이나 트랜잭션을 대체하지 않는다.
 
-| 명령어 | 기본 포트 | 용도 |
-|--------|----------|------|
-| `npm run dev` | **5173** | 개발 서버 (핫 리로드) |
-| `npx vite preview` | **4173** | 빌드 후 로컬 프리뷰 |
+## 검증과 후속 작업
 
-### 포트가 다르면?
+- 허용/거부 역할별 SELECT, INSERT, UPDATE, DELETE 및 RPC를 별도 환경에서 검사한다.
+- 인쇄/HTML 문자열에 사용자 자료를 넣을 때 이스케이프한다. 2026-10-13 확인한 불량 반품/주문 경로를 보강했지만 모든 출력 경로의 감사 완료는 아니다.
+- 의존성 점검은 `npm audit`와 `npm audit --omit=dev`를 구분한다. 2026-10-13 기준 runtime moderate 2개, 전체 moderate 4개/high 5개가 남는다. `--force`로 업무 호환성을 깨는 변경을 자동 적용하지 않는다.
+- 백업 존재와 복원 성공을 따로 검증한다. 프런트엔드 소스 백업은 업무 DB 백업이 아니다.
 
-터미널에서 `npm run dev` 실행 시 나오는 메시지 확인:
-```
-  VITE v6.0.5  ready in 234 ms
-
-  ➜  Local:   http://localhost:XXXX/pos-calculator-web/
-  ➜  Network: use --host to expose
-```
-
-이 `XXXX` 포트를 Google Cloud Console에 추가 등록.
-
-### 포트 고정하기 (선택)
-
-포트가 자주 바뀌는 게 싫으면 `vite.config.js`에 명시:
-```javascript
-export default defineConfig({
-  base: '/pos-calculator-web/',
-  server: { port: 5173 },      // 개발 서버 포트 고정
-  preview: { port: 4173 },     // 프리뷰 서버 포트 고정
-  plugins: [react()],
-  resolve: { alias: { '@': '/src' } }
-})
-```
-
----
-
-## 3. 등록 대상 API 키 목록
-
-### 프로젝트별 Gemini API 키 (4개)
-
-| 프로젝트 | 키 끝자리 | Cloud Console 링크 |
-|---------|----------|-------------------|
-| 프로젝트A (MOVE POS) | `...H8Pc` | [gen-lang-client-0630331595](https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0630331595) |
-| 프로젝트B (move ai pos) | `...DNPw` | [gen-lang-client-0598778313](https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0598778313) |
-| 프로젝트C (move wep2) | `...J8D4` | [gen-lang-client-0563685833](https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0563685833) |
-| 프로젝트D (move wep3) | `...40gs` | [gen-lang-client-0721681295](https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0721681295) |
-
-각 키마다 위 4개 URL을 동일하게 등록.
-
-### 코드에서의 위치
-
-`src/pages/TextAnalyze.jsx` (54-57줄) 및 `src/pages/AdminPage.jsx` (2174-2177줄):
-```javascript
-atob('...') // 프로젝트D → ...40gs
-atob('...') // 프로젝트C → ...J8D4
-atob('...') // 프로젝트B → ...DNPw
-atob('...') // 프로젝트A → ...H8Pc
-```
-
----
-
-## 4. 설정 후 테스트
-
-### 정상 작동 확인 (5분 대기 후)
-
-1. **배포 사이트 테스트**:
-   - https://aijunny0604-alt.github.io/pos-calculator-web/ 접속
-   - "AI 주문인식" 메뉴 → 간단한 텍스트 입력 → 분석 실행
-   - ✅ 정상 응답 → 성공
-   - ❌ 에러 → 허용 목록 확인
-
-2. **로컬 테스트**:
-   ```bash
-   npm run dev
-   ```
-   - http://localhost:5173/pos-calculator-web/ 접속
-   - 동일하게 AI 인식 테스트
-
-### 에러 발생 시 확인 사항
-
-브라우저 개발자 도구(F12) → Network 탭 → `generativelanguage.googleapis.com` 요청 확인:
-- 응답 코드 `403 PERMISSION_DENIED` → HTTP referrer 제한 차단
-- 응답 메시지 `API key not valid` → 키 자체 문제
-
-### 롤백 (임시 해제)
-
-AI 기능이 전혀 안 되는 긴급 상황:
-1. Cloud Console → 해당 키 편집
-2. "애플리케이션 제한사항" → **"없음"** 선택
-3. 저장 → 5분 대기 → 정상 작동
-
----
-
-## 5. 새 키 추가/교체 시
-
-기존 키 노출이 심각해서 **rotate (재발급)** 할 때:
-
-1. Google AI Studio (https://aistudio.google.com/app/apikey) → 새 키 만들기
-2. 새 키를 코드 `atob('...')` 부분에 Base64 인코딩해서 삽입 (또는 `.env`로 관리)
-3. 새 키에도 위 4개 URL 제한 동일 적용
-4. 기존 키는 **삭제** (더 이상 필요 없음)
-5. 빌드/배포
-
-### Base64 인코딩 방법
-브라우저 개발자 도구 콘솔에서:
-```javascript
-btoa('AIzaSyXXXXXXXXXXXXXXXXXXXXXXXX')
-// 결과 문자열을 atob() 안에 삽입
-```
-
----
-
-## 6. 보안 수준 요약
-
-| 항목 | 현재 상태 |
-|------|----------|
-| Gemini API 키 (GitHub 노출) | 🟡 노출됨, 하지만 referrer 제한으로 무력화 |
-| Supabase anon key | 🟢 공개용 키라 노출 OK (RLS 없으면 위험) |
-| 관리자 비밀번호 (`4321`) | 🟡 하드코딩, 개인용이라 문제없음 |
-| HTTPS | 🟢 GitHub Pages 자동 적용 |
-| Sentry DSN | 🟢 공개용 DSN이라 OK |
-
-### 추가 고려사항 (선택)
-- Supabase Dashboard에서 RLS 정책 활성화 (공격 표면 최소화)
-- Gemini 키를 `.env`로 이전 (GitHub 노출 완전 제거)
-- Supabase Auth 도입 (다중 사용자 대비)
-
----
-
-## 참고 자료
-- [Google Cloud: API 키 제한](https://cloud.google.com/docs/authentication/api-keys#restrictions)
-- [Vite: 서버 옵션](https://vite.dev/config/server-options.html)
-- 이 프로젝트 보안 감사 보고서: [security-spec.md](02-design/security-spec.md)
+공식 참고: [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [API keys](https://supabase.com/docs/guides/api/api-keys).

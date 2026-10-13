@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase';
+import { runMovisReads } from './movisReadQueue';
 export const TABLES = {
   products: 'products',
   customers: 'customers',
@@ -26,7 +27,7 @@ export const TABLES = {
 export async function loadMovisLibraries(signal) {
   const data = {},
     dataState = {};
-  await Promise.all(Object.entries(TABLES).map(async ([key, table]) => {
+  await runMovisReads(Object.entries(TABLES), async ([key, table], _index, readSignal) => {
     try {
       const rows = [];
       let offset = 0,
@@ -39,7 +40,7 @@ export async function loadMovisLibraries(signal) {
         const {
           data: page,
           error
-        } = await query.abortSignal(signal);
+        } = await query.abortSignal(readSignal);
         if (error) throw new Error(error.message);
         rows.push(...(page || []));
         if (!page?.length || page.length < 500) {
@@ -56,7 +57,7 @@ export async function loadMovisLibraries(signal) {
         fetchedAt: new Date().toISOString()
       };
     } catch (error) {
-      if (signal?.aborted) throw new DOMException('중지됨', 'AbortError');
+      if (readSignal.aborted) throw readSignal.reason || new Error('POS 자료 조회가 중지되었습니다.');
       data[key] = [];
       dataState[key] = {
         status: 'error',
@@ -64,7 +65,7 @@ export async function loadMovisLibraries(signal) {
         error: error.message
       };
     }
-  }));
+  }, signal);
   dataState.storageFiles = {
     status: 'on-demand',
     coverage: 'on-demand'

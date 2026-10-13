@@ -668,7 +668,7 @@ export default function OrderDetail({
     printWindow.document.write(`
       <html>
         <head>
-          <title>주문서 - ${order.orderNumber}</title>
+          <title>주문서 - ${escapeHtml(order.orderNumber)}</title>
           <style>
             body { font-family: 'Malgun Gothic', sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
             h1 { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
@@ -689,7 +689,7 @@ export default function OrderDetail({
         <body>
           <h1>주 문 서</h1>
           <div class="info">
-            <p><strong>주문번호:</strong> ${order.orderNumber}</p>
+            <p><strong>주문번호:</strong> ${escapeHtml(order.orderNumber)}</p>
             <p><strong>주문일자:</strong> ${formatDate(order.createdAt)}</p>
             ${order.customerName ? `<p><strong>고객명:</strong> ${escapeHtml(order.customerName)}</p>` : ''}
             ${order.customerPhone ? `<p><strong>연락처:</strong> ${escapeHtml(order.customerPhone)}</p>` : ''}
@@ -699,7 +699,7 @@ export default function OrderDetail({
             <thead><tr><th>No</th><th>상품명</th><th>단가</th><th>수량</th><th>금액</th></tr></thead>
             <tbody>
               ${order.items.map((item, index) => `
-                <tr><td>${index + 1}</td><td>${escapeHtml(item.name)}</td><td>${formatPrice(getItemPrice(item))}원</td><td>${item.quantity}</td><td>${formatPrice(getItemPrice(item) * item.quantity)}원</td></tr>
+                <tr><td>${index + 1}</td><td>${escapeHtml(item.name)}</td><td>${formatPrice(getItemPrice(item))}원</td><td>${escapeHtml(item.quantity)}</td><td>${formatPrice(getItemPrice(item) * item.quantity)}원</td></tr>
               `).join('')}
             </tbody>
           </table>

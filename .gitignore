@@ -20,3 +20,4 @@ test-pos-app.mjs
 /*.yml
 .movis-runtime/
 tests/.artifacts/
+audit-artifacts/
