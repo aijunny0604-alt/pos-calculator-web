@@ -10,9 +10,9 @@ const OrderDetailPopup = ({ order, onClose }) => {
   const supply = Math.round(total / 1.1);
   const vat = total - supply;
   return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-3 sm:p-6" onClick={onClose}>
+    <div className="move-dialog-backdrop fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-3 sm:p-6" onClick={onClose}>
       <div
-        className="bg-[var(--card)] text-[var(--foreground)] rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="move-dialog bg-[var(--card)] text-[var(--foreground)] rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
@@ -255,7 +255,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4 customer-detail-modal animate-modal-backdrop"
+      className="move-dialog-backdrop fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4 customer-detail-modal animate-modal-backdrop"
       style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)' }}
       onClick={onClose}
     >
@@ -294,7 +294,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
         }
       `}</style>
       <div
-        className="relative w-full sm:max-w-3xl lg:max-w-6xl max-h-[94vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
+        className="move-dialog relative w-full sm:max-w-3xl lg:max-w-6xl max-h-[94vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 고급 상단 그라데이션 바 */}
@@ -705,7 +705,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
       {/* 사업자등록증 원본 열람 */}
       {certViewer && (
         <div
-          className="fixed inset-0 z-[80] flex flex-col items-center justify-center p-4"
+          className="move-dialog-backdrop fixed inset-0 z-[80] flex flex-col items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.85)' }}
           onClick={() => setCertViewer(null)}
         >

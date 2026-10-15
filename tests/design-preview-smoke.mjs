@@ -1,0 +1,12 @@
+import {chromium} from 'playwright';
+import {writeFileSync} from 'node:fs';
+const browser=await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader']});
+const page=await browser.newPage({viewport:{width:1536,height:960}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto('http://127.0.0.1:5186/pos-calculator-web/design-preview.html?tools=1');
+await page.waitForTimeout(6000);
+console.log('ERRORS',JSON.stringify(errors));console.log((await page.locator('body').innerText()).slice(0,1300));
+await page.screenshot({path:'tests/.artifacts/design-dashboard-desktop.png'});
+await page.getByRole('button',{name:'확인창',exact:true}).click();
+await page.screenshot({path:'tests/.artifacts/design-modal-desktop.png'});
+await browser.close();

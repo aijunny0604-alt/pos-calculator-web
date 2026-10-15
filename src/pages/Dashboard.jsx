@@ -82,7 +82,7 @@ export default function Dashboard({
   const StatCard = ({ icon: Icon, label, value, sub, color, onClick }) => (
     <button
       onClick={onClick}
-      className="flex items-start gap-4 p-5 rounded-xl border transition-all hover:shadow-md hover:-translate-y-0.5 text-left w-full"
+      className="move-stat-card flex items-start gap-4 p-5 rounded-xl border transition-all hover:shadow-md hover:-translate-y-0.5 text-left w-full"
       style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
     >
       <div className="p-3 rounded-xl" style={{ background: `color-mix(in srgb, ${color} 12%, transparent)` }}>
@@ -109,10 +109,11 @@ export default function Dashboard({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="move-dashboard space-y-6">
       {/* Header — 큰 페이지 제목 (헤더 통일) + 우측 상단 ONLINE/OFFLINE 뱃지 (2026-05-12 v5) */}
-      <div className="flex items-start justify-between gap-3 flex-shrink-0">
+      <div className="move-dashboard-heading flex items-start justify-between gap-3 flex-shrink-0">
         <div>
+          <span className="move-eyebrow">MOVE / WORKSPACE</span>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight" style={{ color: 'var(--foreground)' }}>대시보드</h1>
           <p className="text-sm mt-1.5" style={{ color: 'var(--muted-foreground)' }}>
             {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
@@ -123,7 +124,7 @@ export default function Dashboard({
 
       {/* ===== 핵심 지표 — 한 그리드 4열 2행으로 정렬 (돈 4개 / 운영 4개). 이전엔 4+3 분리라 카드가 어긋나 보였음 ===== */}
       {/* 1행: 돈 흐름 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="move-stat-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={TrendingUp}
           label="오늘 매출"

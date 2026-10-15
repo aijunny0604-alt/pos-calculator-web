@@ -51,13 +51,13 @@ export default function NotificationSettings({ isOpen, onClose, settings, onSave
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
+      className="move-dialog-backdrop fixed inset-0 z-[70] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '1rem' }}
     >
       <div className="absolute inset-0" onClick={onClose} />
 
       <div
-        className="relative w-full overflow-hidden border shadow-2xl animate-modal-up modal-fs-transition flex flex-col"
+        className="move-dialog relative w-full overflow-hidden border shadow-2xl animate-modal-up modal-fs-transition flex flex-col"
         style={{
           backgroundColor: 'var(--card)', borderColor: 'var(--border)',
           maxWidth: isFullscreen ? '100vw' : '42rem',

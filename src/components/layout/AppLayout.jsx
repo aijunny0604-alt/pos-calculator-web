@@ -46,9 +46,9 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
   }, []);
 
   return (
-    <div className={`flex h-[100dvh] overflow-hidden bg-[var(--background)] ${currentPage === 'ai-analytics' ? 'movis-shell' : ''}`}>
+    <div className={`move-app flex h-[100dvh] overflow-hidden bg-[var(--background)] ${currentPage === 'ai-analytics' ? 'movis-shell' : ''}`}>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex md:w-64 md:flex-col border-r border-[var(--border)] bg-[var(--card)]">
+      <aside className="move-sidebar hidden md:flex md:w-64 md:flex-col border-r border-[var(--border)] bg-[var(--card)]">
         <Sidebar currentPage={currentPage} onNavigate={onNavigate} isOnline={isOnline} orderCount={orderCount} savedCartCount={savedCartCount} shippingCount={shippingCount} smartstoreCount={smartstoreCount} />
       </aside>
 
@@ -56,7 +56,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
       {sidebarOpen && (
         <div className="fixed inset-0 z-[45] md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative w-64 h-full bg-[var(--card)] shadow-xl">
+          <aside className="move-sidebar relative w-64 h-full bg-[var(--card)] shadow-xl">
             <Sidebar
               currentPage={currentPage}
               onNavigate={(page) => { onNavigate(page); setSidebarOpen(false); }}
@@ -79,7 +79,7 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
             <Header onMenuClick={() => setSidebarOpen(prev => !prev)} currentPage={currentPage} isOnline={isOnline} />
           </div>
         )}
-        <main className={`flex-1 min-h-0 h-full overflow-y-auto scroll-smooth ${
+        <main className={`move-main flex-1 min-h-0 h-full overflow-y-auto scroll-smooth ${
           isFullScreen
             ? 'pb-16 md:pb-0'
             : 'p-2 sm:p-4 md:p-6 pb-20 md:pb-6'

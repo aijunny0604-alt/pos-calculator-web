@@ -81,12 +81,12 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="move-dialog-backdrop fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-md max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--primary)] bg-[var(--card)] shadow-2xl"
+        className="move-dialog w-full sm:max-w-md max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--primary)] bg-[var(--card)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-[var(--border)]">
@@ -204,7 +204,7 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
           )}
         </div>
 
-        <div className="p-4 border-t border-[var(--border)] flex gap-2">
+        <div className="move-dialog-footer p-4 border-t border-[var(--border)] flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-lg text-sm font-semibold border border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)]">
             취소
           </button>

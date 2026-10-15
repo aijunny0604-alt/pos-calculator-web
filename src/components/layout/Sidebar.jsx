@@ -21,7 +21,7 @@ const navItems = [
   { id: 'smartstore', label: '스마트스토어 주문', icon: Store },
   { id: 'admin', label: '관리자', icon: Settings },
   // 🌟 MOVIS — 항상 맨 아래 (사용자 시선 끝점에 배치)
-  { id: 'ai-analytics', label: 'MOVIS', icon: Sparkles, premium: true, sublabel: 'Quantum AI' },
+  { id: 'ai-analytics', label: 'MOVIS', icon: Sparkles, premium: true, sublabel: 'INTELLIGENCE' },
 ];
 
 function CountBadge({ count, isActive }) {
@@ -49,9 +49,9 @@ export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount 
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="move-sidebar-content flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center justify-center h-14 px-4 border-b border-[var(--border)]">
+      <div className="move-brand flex items-center justify-center h-14 px-4 border-b border-[var(--border)]">
         <img
           src={`${import.meta.env.BASE_URL}move-logo.png`}
           alt="MOVE Motors"
@@ -70,6 +70,7 @@ export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount 
             return (
               <button
                 key={id}
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => onNavigate(id)}
                 className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-bold transition-all overflow-hidden movis-menu motion-reduce:!animate-none ${
                   isActive ? 'shadow-lg shadow-cyan-500/40' : 'hover:shadow-md hover:shadow-cyan-500/30'
@@ -159,6 +160,7 @@ export default function Sidebar({ currentPage, onNavigate, isOnline, orderCount 
           return (
             <button
               key={id}
+              aria-current={isActive ? 'page' : undefined}
               onClick={() => onNavigate(id)}
               className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive

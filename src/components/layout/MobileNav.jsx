@@ -32,7 +32,7 @@ export default function MobileNav({ currentPage, onNavigate, orderCount = 0, sav
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 md:hidden bg-[var(--card)] border-t border-[var(--border)] no-print">
+    <nav className="move-mobile-nav fixed bottom-0 left-0 right-0 z-30 md:hidden bg-[var(--card)] border-t border-[var(--border)] no-print">
       <div className="flex">
         {mobileNavItems.map(({ id, label, icon: Icon }) => {
           const isActive = currentPage === id;
@@ -40,6 +40,7 @@ export default function MobileNav({ currentPage, onNavigate, orderCount = 0, sav
           return (
             <button
               key={id}
+              aria-current={isActive ? 'page' : undefined}
               onClick={() => onNavigate(id)}
               className={`flex-1 flex flex-col items-center justify-center min-h-[52px] py-2.5 text-xs transition-colors ${
                 isActive ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)]'
@@ -49,7 +50,7 @@ export default function MobileNav({ currentPage, onNavigate, orderCount = 0, sav
                 <Icon className="w-5 h-5 mb-0.5" />
                 <MobileBadge count={badgeCount} />
               </div>
-              {label}
+              <span className="move-mobile-label">{label}</span>
             </button>
           );
         })}

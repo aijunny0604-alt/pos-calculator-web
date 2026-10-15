@@ -109,12 +109,12 @@ function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-5xl' }) {
   if (!isOpen) return null;
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
+      className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '0.75rem' }}
     >
       <div className="absolute inset-0" onClick={onClose} />
       <div
-        className="relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition"
+        className="move-dialog relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition"
         style={{
           maxWidth: isFullscreen ? '100vw' : ({ 'max-w-md': '28rem', 'max-w-lg': '32rem', 'max-w-xl': '36rem', 'max-w-2xl': '42rem', 'max-w-3xl': '48rem', 'max-w-4xl': '56rem', 'max-w-5xl': '64rem' }[maxWidth] || '64rem'),
           maxHeight: isFullscreen ? '100dvh' : 'calc(100dvh - 1.5rem)',

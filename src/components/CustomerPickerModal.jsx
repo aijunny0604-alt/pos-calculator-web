@@ -28,13 +28,13 @@ export default function CustomerPickerModal({ open, customers = [], current = ''
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
-      <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border flex flex-col"
+    <div className="move-dialog-backdrop fixed inset-0 z-[95] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="업체 교체" className="move-dialog w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border flex flex-col"
         style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '85vh' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
           <Building2 className="w-5 h-5" style={{ color: 'var(--primary)' }} />
           <h4 className="text-lg font-black flex-1">업체 교체</h4>
-          <button onClick={onClose}><X className="w-5 h-5 opacity-60" /></button>
+          <button className="move-close" aria-label="닫기" onClick={onClose}><X className="w-5 h-5 opacity-60" /></button>
         </div>
 
         <div className="px-4 py-2.5 flex-shrink-0">
