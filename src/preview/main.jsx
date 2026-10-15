@@ -10,6 +10,10 @@ import PaymentRegisterModal from '../components/PaymentRegisterModal';
 import BulkPaymentModal from '../components/BulkPaymentModal';
 import PaymentEditModal from '../components/PaymentEditModal';
 import {sample} from './network';
+import { StatementResult } from '../components/StatementReconcile';
+import { reconcile } from '../lib/statementReconcile';
+const reconOrders=[{id:'DEMO-1',customerName:'샘플 모터스',createdAt:'2026-10-15T01:00:00Z',totalAmount:11000,items:[{name:'스텐 밴딩 54-30',quantity:1,price:11000}]}];
+function ReconPreview(){const [stmt,setStmt]=useState({customer:'샘플 모터스',issue_date:'2026-10-15',stated_total:11000,items:[{name:'스텐 밴딩 64-30',qty:1,supply:10000,tax:1000,uncertain:false}]});return <div style={{maxWidth:1000,margin:'24px auto',padding:12}}><StatementResult r={{stmt,rec:reconcile(stmt,reconOrders)}} onEdit={setStmt} onRemove={()=>{}} onSave={()=>{}}/></div>;}
 function Controls(){
  const [modal,setModal]=useState('');const close=()=>setModal('');
  return <><div className="design-preview-bar"><span><b>DESIGN PREVIEW</b><small>샘플 자료 · 저장 및 외부 연결 차단</small></span><div><button onClick={()=>setModal('confirm')}>확인창</button><button onClick={()=>setModal('long')}>긴 내용</button><button onClick={()=>setModal('customer')}>거래처 선택</button><button onClick={()=>setModal('payment')}>입금 등록</button>{new URLSearchParams(location.search).has('paymentChecks') && <><button onClick={()=>setModal('bulk')}>일괄 입금 검증</button><button onClick={()=>setModal('edit')}>입금 수정 검증</button></>}</div></div>
@@ -24,4 +28,5 @@ if (new URLSearchParams(location.search).get('tools') === '1') {
  document.documentElement.classList.add('preview-with-tools');
  createRoot(document.getElementById('preview-controls')).render(<Controls/>);
 }
-if(import.meta.env.DEV){const {default:App}=await import('../App');createRoot(document.getElementById('root')).render(<App/>)}
+if(import.meta.env.DEV && new URLSearchParams(location.search).has('statementCheck')){createRoot(document.getElementById('root')).render(<ReconPreview/>)}
+else if(import.meta.env.DEV){const {default:App}=await import('../App');createRoot(document.getElementById('root')).render(<App/>)}

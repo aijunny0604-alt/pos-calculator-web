@@ -30,7 +30,7 @@ const STATEMENT_PROMPT = `너는 자동차 부품점 "무브 오토 모티브"�
 - items: 표의 품목 행만 (위→아래 순서, 빈 행 제외)
     - name: "품목" 칸 전체 문자열 그대로.
     - spec: "규격" 칸 (대개 비어있음 → null).
-    - qty: "수량" (정수).
+    - qty: "수량" (소수점이 인쇄되어 있으면 유지).
     - unit_price: "단가" (숫자만).
     - supply: "공급가액" 칸에 인쇄된 숫자.
     - tax: "세액" 칸에 인쇄된 숫자.
@@ -44,7 +44,7 @@ const STATEMENT_PROMPT = `너는 자동차 부품점 "무브 오토 모티브"�
 → 파이/좌우/90도/45-4 같은 표기, 공백, 대소문자, 하이픈을 **인쇄된 그대로**. 추측해서 정규화하지 마라.
 
 ═══ 숫자·계산 규칙 ═══
-1. 숫자는 쉼표 빼고 정수로. 빈 칸은 0.
+1. 숫자는 쉼표 빼고 정수로. 빈 칸이나 판독할 수 없는 값은 null. 인쇄된 0만 0으로 반환.
 2. supply·tax는 **계산하지 말고 인쇄된 값을 읽어라**. (세액은 대략 공급가액의 10%지만, 절사/반올림이 있으니 인쇄값 우선)
 3. 단가가 0인데 공급가액이 있으면 그대로 둬라. (실제 예: "NPK100D T" 수량2 단가0 공급171818 세17182 — 묶음/보정 라인)
 4. 글자가 흐려 확신이 안 서면 그 행 uncertain=true. 절대 지어내지 마라.
@@ -62,30 +62,12 @@ const STATEMENT_PROMPT = `너는 자동차 부품점 "무브 오토 모티브"�
  {"name":"스텐 76파이 45-1 90-2","spec":null,"qty":3,"unit_price":20400,"supply":61200,"tax":6120,"note":null,"uncertain":false},
  {"name":"플랜지 61","spec":null,"qty":20,"unit_price":4800,"supply":96000,"tax":9600,"note":null,"uncertain":false}]}
 
+예시의 품목·거래처를 현재 이미지에 복사하지 마라. 품목명이 다음 줄로 이어지면 같은 행의 이름으로 합치되, 숫자 0/O·1/I·54/64·60.5/65·H/Y·좌/우를 추측으로 바꾸지 마라. 판독 불확실 행은 uncertain=true로 남겨라.
 이제 주어진 이미지를 위 규칙대로 판독해 **JSON만** 출력하라 (설명·코드펜스 금지):
 {"customer":"...","issue_date":"YYYY-MM-DD","stated_total":0,"items":[{"name":"...","spec":null,"qty":0,"unit_price":0,"supply":0,"tax":0,"note":null,"uncertain":false}]}`;
 
-const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-const stripFence = (t) => String(t || '').replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-
-function normalize(p) {
-  const items = (Array.isArray(p.items) ? p.items : []).map((it) => ({
-    name: String(it.name || '').trim(),
-    spec: it.spec ? String(it.spec).trim() : null,
-    qty: num(it.qty),
-    unit_price: num(it.unit_price),
-    supply: num(it.supply),
-    tax: num(it.tax),
-    note: it.note ? String(it.note).trim() : null,
-    uncertain: !!it.uncertain,
-  })).filter((it) => it.name || it.supply || it.qty);
-  return {
-    customer: String(p.customer || '').trim(),
-    issue_date: String(p.issue_date || '').trim() || null,
-    stated_total: num(p.stated_total),
-    items,
-  };
-}
+import { normalizeStatement as normalize } from './statementReconcile.js';
+const stripFence = t => String(t || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
 
 /**
  * 거래명세서 사진 판독(저장 안 함).

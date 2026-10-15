@@ -1,120 +1,13 @@
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Camera, Loader2, Check, AlertTriangle, FileSearch, Trash2, ClipboardPaste, Save, History } from 'lucide-react';
 import { fileToScaledBase64 } from '@/lib/certVision';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { extractStatement } from '@/lib/statementVision';
 import { formatPrice, toDateKST } from '@/lib/utils';
 
-// 거래명세서(부장님이 단톡방에 올린 이미지) ↔ 오늘 주문내역 대조.
-// 판독(Gemini) → 거래처+발행일로 POS 주문 매칭 → 합계·라인 대조 → 누락/불일치 표시.
-// ⚠️ 규격 문자열 자동매칭 금지(오탐 사고). 라인 매칭은 (수량+금액 근사)로, 이름은 사람이 눈으로 확인.
-
-const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-const itemPrice = (it) => num(it?.price ?? it?.wholesale ?? 0);
-
-// 거래처명 토큰 매칭 — 어순 무관("스핀휠 진주"↔"진주 스핀휠"), 괄호/공백 무시.
-function custMatch(a, b) {
-  const tok = (s) => String(s || '').toLowerCase().replace(/[()[\]]/g, ' ').split(/\s+/).filter(Boolean);
-  const na = tok(a), nb = tok(b);
-  if (!na.length || !nb.length) return false;
-  const shorter = na.length <= nb.length ? na : nb;
-  const longer = na.length <= nb.length ? nb : na;
-  const longerJoined = longer.join('');
-  return shorter.every((t) => longer.includes(t) || longerJoined.includes(t));
-}
-
-// 명세서 라인 VAT포함 총액 = 공급가액+세액. POS 라인 = 단가(VAT포함)×수량.
-const stmtLineTotal = (it) => num(it.supply) + num(it.tax);
-// 금액 허용오차 — 돈이라 헐거우면 '다른 물건'을 일치로 오판한다. 부가세 절사 차이(수 원)만 흡수.
-const near = (a, b) => Math.abs(a - b) <= Math.max(50, Math.abs(a) * 0.003);
-
-const MATCH_WINDOW_DAYS = 7; // 발행일 정확매칭 없을 때 이 일수 내(±) 그 거래처 주문으로 확장 대조
-const dayDiff = (a, b) => Math.abs((new Date(`${a}T00:00:00`).getTime() - new Date(`${b}T00:00:00`).getTime()) / 86400000);
-
-// 조합(묶음) 매칭 — 명세서 1줄이 POS 여러 줄의 합일 때(예: "AL70 45-2 90-5" 7개 = 70-90 5개 + 70-45 2개).
-// 남은 POS 라인들 중 합이 goal에 근사한 작은 부분집합을 찾는다(크기 2~4).
-function findSubset(items, goal) {
-  const n = items.length;
-  if (!(goal > 0)) return null;
-  const tol = Math.max(50, goal * 0.003);
-  const rec = (start, size, acc, sum) => {
-    if (size === 0) return Math.abs(sum - goal) <= tol ? acc.slice() : null;
-    for (let i = start; i <= n - size; i++) {
-      const r = rec(i + 1, size - 1, [...acc, items[i]], sum + items[i].total);
-      if (r) return r;
-    }
-    return null;
-  };
-  for (let size = 2; size <= Math.min(4, n); size++) { const r = rec(0, size, [], 0); if (r) return r; }
-  return null;
-}
-
-function reconcile(stmt, orders, windowDays = MATCH_WINDOW_DAYS) {
-  const target = stmt.issue_date; // 명세서 발행일(YYYY-MM-DD)
-  const stmtTotal = num(stmt.stated_total);
-  const inWindow = (o) => { const ds = toDateKST(o.createdAt); return ds && (!target || dayDiff(ds, target) <= windowDays); };
-
-  // 1) 거래처(어순무관 토큰매칭) → 정확 날짜 → ±window
-  const byCust = (orders || []).filter((o) => custMatch(stmt.customer, o.customerName));
-  let matchedOrders = target ? byCust.filter((o) => toDateKST(o.createdAt) === target) : [];
-  let dateFuzzy = false, matchBy = 'customer';
-  if (!matchedOrders.length && byCust.length) {
-    const within = byCust.filter(inWindow);
-    if (within.length) { matchedOrders = within; dateFuzzy = true; }
-    else if (!target) { matchedOrders = byCust; dateFuzzy = true; }
-  }
-  // 2) 거래처 매칭 실패(상호명 OCR 오독 등) → 금액+날짜 폴백: ±window 내 합계가 명세서 합계와 근사한 주문
-  if (!matchedOrders.length && stmtTotal > 0) {
-    const single = (orders || []).filter((o) => inWindow(o) && near(stmtTotal, num(o.totalAmount)));
-    if (single.length) { matchedOrders = single; dateFuzzy = true; matchBy = 'amount'; }
-  }
-
-  const matchedDates = [...new Set(matchedOrders.map((o) => toDateKST(o.createdAt)))].filter(Boolean).sort();
-  const matchedCustomers = [...new Set(matchedOrders.map((o) => o.customerName).filter(Boolean))];
-
-  // POS 라인 펼치기
-  const posLines = [];
-  for (const o of matchedOrders) for (const it of (o.items || [])) {
-    posLines.push({ name: it.name || '', qty: num(it.quantity), total: itemPrice(it) * num(it.quantity), used: false });
-  }
-  const posTotal = matchedOrders.reduce((s, o) => s + num(o.totalAmount), 0);
-  const totalDiff = stmtTotal - posTotal;
-  const totalOk = Math.abs(totalDiff) <= Math.max(200, stmtTotal * 0.01);
-
-  // 라인 대조: 1:1(수량+금액→금액) → 조합(명세서 1줄 = POS 여러 줄)
-  const stmtRows = stmt.items.map((it) => {
-    const want = stmtLineTotal(it);
-    // 0원(무상/서비스) 라인은 매칭 대상에서 제외 — 엉뚱한 POS 라인을 먹어버리는 오탐 방지
-    if (!(want > 0)) return { name: it.name, spec: it.spec, qty: num(it.qty), lineTotal: want, matched: true, zero: true, combo: false, refs: [] };
-    let hit = posLines.find((p) => !p.used && p.qty === num(it.qty) && near(want, p.total));
-    if (!hit) hit = posLines.find((p) => !p.used && near(want, p.total));
-    if (hit) hit.used = true;
-    return { name: it.name, spec: it.spec, qty: num(it.qty), lineTotal: want, matched: !!hit, combo: false, refs: hit ? [{ name: hit.name, qty: hit.qty }] : [] };
-  });
-  // 2차 정조합: 명세서 1줄 = POS 여러 줄 (명세서가 묶어 적은 경우)
-  for (const row of stmtRows) {
-    if (row.matched) continue;
-    const combo = findSubset(posLines.filter((p) => !p.used), row.lineTotal);
-    if (combo) { combo.forEach((p) => { p.used = true; }); row.matched = true; row.combo = true; row.refs = combo.map((p) => ({ name: p.name, qty: p.qty })); }
-  }
-  // 3차 역조합: POS 1줄 = 명세서 여러 줄 (POS가 묶어 적은 경우)
-  for (const p of posLines) {
-    if (p.used) continue;
-    const open = stmtRows.filter((r) => !r.matched && r.lineTotal > 0).map((r) => ({ total: r.lineTotal, row: r }));
-    const combo = findSubset(open, p.total);
-    if (combo) {
-      p.used = true;
-      combo.forEach((c) => { c.row.matched = true; c.row.combo = true; c.row.refs = [{ name: p.name, qty: p.qty }]; });
-    }
-  }
-  const posOnly = posLines.filter((p) => !p.used);
-  return {
-    matchedOrders, matchedDates, matchedCustomers, dateFuzzy, matchBy, custFound: byCust.length,
-    posTotal, totalDiff, totalOk, stmtRows, posOnly,
-    missingCount: stmtRows.filter((r) => !r.matched).length,
-  };
-}
+import { reconcile, statusOf, MATCH_WINDOW_DAYS } from '@/lib/statementReconcile';
+const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
 
 // DataTransfer/Clipboard에서 이미지 파일 뽑기 — 카톡 드래그(파일) + Ctrl+V(이미지 blob) 모두 대응.
 // 드래그/클립보드에서 이미지를 뽑는다. DataTransfer는 이벤트 중에만 유효 → 동기로 files/urls 수집.
@@ -143,14 +36,7 @@ async function urlsToFiles(urls) {
 }
 
 // 대조 상태 한 단어 — 저장 기록과 화면 뱃지가 같은 기준을 쓰도록 단일 소스
-function statusOf(rec) {
-  if (!rec || rec.matchedOrders.length === 0) return '주문내역없음';
-  const linesClean = rec.missingCount === 0 && rec.posOnly.length === 0;
-  if (rec.totalOk && linesClean) return '일치';
-  if (rec.totalOk) return '합계일치';
-  return '확인필요';
-}
-const STATUS_COLOR = { 일치: 'var(--success)', 합계일치: 'var(--success)', 확인필요: '#e6961b', 주문내역없음: '#ff4d6d' };
+const STATUS_COLOR = { 일치: 'var(--success)', 합계일치: '#e6961b', 확인필요: '#e6961b', 주문내역없음: '#ff4d6d' };
 
 // 명세서 원본을 증거로 Storage에 보관 (실패해도 기록 저장은 진행)
 async function uploadStatementImage(file) {
@@ -167,6 +53,7 @@ async function uploadStatementImage(file) {
 
 export default function StatementReconcile({ orders, showToast, onClose }) {
   const [busy, setBusy] = useState(false);
+  const running = useRef(false), saving = useRef(new Set());
   const [pending, setPending] = useState([]); // 올려둔(아직 조회 안 한) 이미지 [{id,file,url}]
   const [results, setResults] = useState([]); // 조회 결과 [{ id, stmt, rec, imgUrl, error }]
   const [dragOver, setDragOver] = useState(false);
@@ -191,7 +78,8 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 
   // [✅ 확인 완료] — 이 대조 결과를 기록으로 저장(원본 사진 포함)
   const saveLog = useCallback(async (r) => {
-    if (!r?.rec || savedIds.has(r.id)) return;
+    if (!r?.rec || savedIds.has(r.id) || saving.current.has(r.id)) return;
+    saving.current.add(r.id);
     setSavingId(r.id);
     try {
       let image_url = null, image_path = null;
@@ -207,7 +95,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
         match_by: rec.matchBy || null,
         matched_dates: (rec.matchedDates || []).join(', ') || null,
         order_count: rec.matchedOrders.length,
-        lines: rec.stmtRows.map((x) => ({ name: x.name, qty: x.qty, lineTotal: x.lineTotal, matched: x.matched, combo: x.combo, refs: x.refs })),
+        lines: rec.stmtRows.map((x) => ({ name: x.name, qty: x.qty, lineTotal: x.lineTotal, matched: x.matched, combo: x.combo, refs: x.refs, spec: x.spec, uncertain: x.uncertain, reason: x.reason })),
         pos_only: rec.posOnly.map((x) => ({ name: x.name, qty: x.qty, total: x.total })),
         image_url, image_path,
       };
@@ -216,7 +104,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
       setSavedIds((sv) => new Set([...sv, r.id]));
       showToast?.('대조 기록을 저장했습니다 ✅', 'success');
       if (showLogs) loadLogs();
-    } finally { setSavingId(null); }
+    } catch { showToast?.('대조 기록 저장에 실패했습니다. 저장 여부를 확인해주세요.', 'error'); } finally { saving.current.delete(r.id); setSavingId(null); }
   }, [savedIds, showToast, showLogs, loadLogs]);
 
   const deleteLog = async (id) => {
@@ -231,19 +119,23 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 
   // [일괄 조회] — 대기열 전부를 판독+대조
   const runReconcile = useCallback(async () => {
+    if (running.current) return;
     if (!pending.length) { showToast?.('먼저 명세서 사진을 올려주세요', 'error'); return; }
+    running.current = true;
     setBusy(true);
+    const batchIds = new Set(pending.map(p => p.id));
     const out = [];
     for (const p of pending) {
       try {
-        const { base64, mimeType } = await fileToScaledBase64(p.file, 1600);
+        const { base64, mimeType } = await fileToScaledBase64(p.file, 2400);
         const res = await extractStatement(base64, mimeType);
         if (!res.ok) out.push({ id: p.id, imgUrl: p.url, file: p.file, error: res.error });
         else out.push({ id: p.id, imgUrl: p.url, file: p.file, stmt: res.data, rec: reconcile(res.data, orders) });
       } catch (e) { out.push({ id: p.id, imgUrl: p.url, file: p.file, error: e.message || '판독 실패' }); }
     }
     setResults((r) => [...out, ...r]); // 최신 조회가 위로
-    setPending([]);
+    setPending(current => current.filter(p => !batchIds.has(p.id)));
+    running.current = false;
     setBusy(false);
     showToast?.(`${out.length}장 대조 완료`, 'success');
   }, [pending, orders, showToast]);
@@ -302,7 +194,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 
         <div className="overflow-y-auto px-5 py-4 space-y-3.5">
           <div className="text-sm rounded-lg p-3 border" style={{ background: 'rgba(0,212,255,0.06)', borderColor: 'var(--primary)', color: 'var(--foreground)' }}>
-            거래명세서 사진을 <b>여러 장 올려두고</b>, 아래 <b>[일괄 조회]</b>를 누르면 <b>같은 거래처·비슷한 날짜(±7일)의 주문내역</b>과 한꺼번에 대조해 <b>빠진 품목</b>을 찾아줍니다.
+            거래명세서 사진을 <b>여러 장 올려두고</b>, 아래 <b>[일괄 조회]</b>를 누르면 <b>같은 거래처·발행일의 주문내역</b>과 대조해 <b>제품명·규격·수량·금액의 차이</b>를 표시합니다. 날짜가 다르거나 후보가 여러 건이면 확인이 필요합니다.
             <br />📎 올리기: <b>클릭 업로드</b> · <b>Ctrl+V 붙여넣기</b>(카톡에서 이미지 복사 후) · 드래그드롭. <span style={{ color: '#e6961b' }}>카톡 드래그가 안 되면 <b>복사→붙여넣기(Ctrl+V)</b>가 가장 확실해요.</span>
           </div>
 
@@ -392,7 +284,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
                   <button onClick={() => removeResult(r.id)}><Trash2 className="w-4 h-4 opacity-60" /></button>
                 </div>
               ) : (
-                <StatementResult r={r} onRemove={() => removeResult(r.id)} onSave={() => saveLog(r)} saved={savedIds.has(r.id)} saving={savingId === r.id} />
+                <StatementResult r={r} onEdit={stmt => setResults(current => current.map(x => x.id === r.id ? {...x, stmt, rec: reconcile(stmt, orders)} : x))} onRemove={() => removeResult(r.id)} onSave={() => saveLog(r)} saved={savedIds.has(r.id)} saving={savingId === r.id} />
               )}
             </div>
           ))}
@@ -410,30 +302,31 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 function buildResultText(r) {
   const { stmt, rec } = r;
   const L = [`[명세서 대조] ${stmt.customer || '?'} · ${stmt.issue_date || '?'} · ${statusOf(rec)}`];
-  L.push(`명세서 ₩${formatPrice(stmt.stated_total)} / 주문 ₩${formatPrice(rec.posTotal)} · 차액 ${num(rec.totalDiff) === 0 ? '없음' : `₩${formatPrice(Math.abs(num(rec.totalDiff)))}`}`);
+  L.push(`명세서 ₩${formatPrice(stmt.stated_total)} / 주문 ₩${formatPrice(rec.posTotal)} · 차액 ${!Number.isFinite(rec.totalDiff) ? '확인 필요' : rec.totalDiff === 0 ? '없음' : `₩${formatPrice(Math.abs(num(rec.totalDiff)))}`}`);
   const miss = rec.stmtRows.filter((x) => !x.matched);
-  if (miss.length) { L.push('', '■ 명세서엔 있는데 주문내역에 없음'); miss.forEach((x) => L.push(`· ${x.name} ${x.qty}개 — ₩${formatPrice(x.lineTotal)}`)); }
+  if (miss.length) { L.push('', '■ 명세서 품목 중 미확인 항목'); miss.forEach((x) => L.push(`· ${x.name} ${x.qty}개 — ₩${formatPrice(x.lineTotal)}`)); }
   if (rec.posOnly.length) { L.push('', '■ 주문내역엔 있는데 명세서에 없음'); rec.posOnly.forEach((x) => L.push(`· ${x.name} ${x.qty}개 — ₩${formatPrice(x.total)}`)); }
-  if (!miss.length && !rec.posOnly.length) L.push('', '모든 품목 일치 ✅');
+  if (statusOf(rec) === '일치') L.push('', '제품명·규격·수량·금액 일치 ✅');
+  if(rec.issues?.length) L.push('', ...rec.issues.map(x=>'⚠ '+x));
   return L.join('\n');
 }
 
-function StatementResult({ r, onRemove, onSave, saved, saving }) {
+export function StatementResult({ r, onRemove, onSave, onEdit, saved, saving }) {
   const { stmt, rec } = r;
   const noOrder = rec.matchedOrders.length === 0;
   const totalOk = rec.totalOk;
   const linesClean = rec.missingCount === 0 && rec.posOnly.length === 0;
-  const allGood = !noOrder && totalOk && linesClean;
-  const totalMatchOnly = !noOrder && totalOk && !linesClean; // 합계는 맞고 품목 묶음만 다름
+  const allGood = statusOf(rec) === '일치';
+  const totalMatchOnly = !noOrder && totalOk && !linesClean;
   const badge = allGood ? { t: '✅ 일치', c: 'var(--success)' }
-    : totalMatchOnly ? { t: '✅ 합계 일치', c: 'var(--success)' }
+    : totalMatchOnly ? { t: '⚠️ 합계만 일치', c: '#e6961b' }
     : noOrder ? { t: '❌ 주문내역 없음', c: '#ff4d6d' }
     : { t: '⚠️ 확인 필요', c: '#e6961b' };
 
   return (
     <div>
       {/* 헤더 요약 */}
-      <div className="p-3.5" style={{ background: (allGood || totalMatchOnly) ? 'rgba(16,185,129,0.08)' : noOrder ? 'rgba(255,77,109,0.08)' : 'rgba(255,170,0,0.08)' }}>
+      <div className="p-3.5" style={{ background: allGood ? 'rgba(16,185,129,0.08)' : noOrder ? 'rgba(255,77,109,0.08)' : 'rgba(255,170,0,0.08)' }}>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-black text-lg">{stmt.customer || '(거래처 미판독)'}</span>
           <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{stmt.issue_date || '날짜?'}</span>
@@ -448,7 +341,7 @@ function StatementResult({ r, onRemove, onSave, saved, saving }) {
               ? { background: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'var(--success)' }
               : { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }}
             title="이 대조 결과를 기록으로 저장합니다">
-            {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 저장 중</> : saved ? <><Check className="w-3.5 h-3.5" /> 저장됨</> : <><Save className="w-3.5 h-3.5" /> 확인 완료</>}
+            {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 저장 중</> : saved ? <><Check className="w-3.5 h-3.5" /> 저장됨</> : <><Save className="w-3.5 h-3.5" /> 기록 저장</>}
           </button>
           <button onClick={onRemove}><Trash2 className="w-4 h-4 opacity-50" /></button>
         </div>
@@ -460,14 +353,14 @@ function StatementResult({ r, onRemove, onSave, saved, saving }) {
           </div>
         ) : (
           <div className="text-sm mt-1.5 flex flex-wrap gap-x-3 gap-y-1" style={{ color: 'var(--foreground)' }}>
-            <span>명세서 합계 <b>₩{formatPrice(stmt.stated_total)}</b></span>
+            <span>명세서 합계 <b>{stmt.stated_total == null || stmt.stated_total === '' ? '미판독' : `₩${formatPrice(stmt.stated_total)}`}</b></span>
             <span>주문내역 합계 <b>₩{formatPrice(rec.posTotal)}</b></span>
             <span style={{ color: totalOk ? 'var(--success)' : '#ff4d6d', fontWeight: 800 }}>
-              차액 {rec.totalDiff === 0 ? '없음 ✓' : `₩${formatPrice(Math.abs(rec.totalDiff))} ${rec.totalDiff > 0 ? '(명세서가 많음)' : '(주문내역이 많음)'}`}
+              차액 {!Number.isFinite(rec.totalDiff) ? '확인 필요' : rec.totalDiff === 0 ? '없음 ✓' : `₩${formatPrice(Math.abs(rec.totalDiff))} ${rec.totalDiff > 0 ? '(명세서가 많음)' : '(주문내역이 많음)'}`}
             </span>
             <span style={{ color: 'var(--muted-foreground)' }}>· 매칭 주문 {rec.matchedOrders.length}건 ({rec.matchedDates.join(', ')})</span>
             {totalMatchOnly && (
-              <span className="w-full text-[13px] font-semibold" style={{ color: 'var(--success)' }}>합계가 정확히 맞습니다 — 아래 표시는 <b>품목 묶음/표기 차이</b>일 뿐, 빠진 물건이 아닙니다.</span>
+              <span className="w-full text-[13px] font-semibold" style={{ color: '#e6961b' }}>합계는 허용오차 안에 있지만 <b>제품명·규격·수량은 확인이 필요합니다.</b> 다른 물건이나 누락이 있을 수 있습니다.</span>
             )}
             {rec.matchBy === 'amount' && (
               <span className="w-full px-1.5 py-0.5 rounded-lg font-bold" style={{ background: 'rgba(255,170,0,0.18)', color: '#e6961b' }}>
@@ -483,10 +376,27 @@ function StatementResult({ r, onRemove, onSave, saved, saving }) {
         )}
       </div>
 
+      {rec.issues?.length > 0 && <div className="p-3 text-sm space-y-1" style={{color:'#986116',background:'#fff8e8'}}>{rec.issues.map((issue,i)=><p key={i}>⚠ {issue}</p>)}</div>}
+      {!rec.matchedOrders.length && rec.candidateOrders?.length > 0 && <div className="p-3 text-sm"><b>확인이 필요한 주문 후보</b>{rec.candidateOrders.slice(0,10).map((o,i)=><p key={o.id||i}>{o.orderNumber||o.order_number||o.id} · {o.customerName} · {toDateKST(o.createdAt)} · ₩{formatPrice(o.totalAmount)}</p>)}</div>}
+      <details className="m-3 border rounded-xl p-3">
+        <summary className="cursor-pointer font-semibold text-sm">원본 · 판독 결과 확인/수정 후 재대조</summary>
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <div>{r.imgUrl && <a href={r.imgUrl} target="_blank" rel="noreferrer"><img src={r.imgUrl} alt="업로드한 거래명세서 원본" className="w-full rounded-lg border" /></a>}</div>
+          <fieldset disabled={saved || saving} className="min-w-0 space-y-3">
+            <p className="text-xs text-[var(--muted-foreground)]">원본을 확인하고 수정하면 즉시 다시 대조합니다. 실제 주문은 변경하지 않습니다.</p>
+            {[['customer','거래처'],['issue_date','발행일'],['stated_total','명세서 합계']].map(([key,label])=><label key={key} className="block text-sm">{label}<input className="block w-full border rounded-lg p-2 bg-[var(--card)]" aria-label={`판독 ${label}`} value={stmt[key] ?? ''} onChange={e=>onEdit({...stmt,[key]:e.target.value})}/></label>)}
+            {stmt.items.map((item,i)=><div key={i} className="border rounded-lg p-3 space-y-2">
+              <b className="text-sm">품목 {i+1}</b>
+              {[['name','제품명'],['spec','규격'],['qty','수량'],['supply','공급가액'],['tax','세액']].map(([key,label])=><label key={key} className="block text-sm">{label}<input className="block w-full border rounded-lg p-2 bg-[var(--card)]" aria-label={`품목 ${i+1} ${label}`} value={item[key] ?? ''} onChange={e=>onEdit({...stmt,items:stmt.items.map((x,j)=>j===i?{...x,[key]:e.target.value}:x)})}/></label>)}
+              <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={!!item.uncertain} onChange={e=>onEdit({...stmt,items:stmt.items.map((x,j)=>j===i?{...x,uncertain:e.target.checked}:x)})}/>판독 불확실 · 원본 확인 후 해제</label>
+            </div>)}
+          </fieldset>
+        </div>
+      </details>
       {/* 라인 대조 */}
       {!noOrder && (
-        <div className="border-t" style={{ borderColor: 'var(--border)' }}>
-          <table className="w-full text-sm">
+        <div className="border-t overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr style={{ background: 'var(--muted)' }}>
                 {['', '명세서 품목', '수량', '금액', '상태'].map((h, i) => (
@@ -499,18 +409,18 @@ function StatementResult({ r, onRemove, onSave, saved, saving }) {
                 // 합계가 맞으면 미매칭도 '묶음 확인'(주황), 합계가 틀리면 '누락?'(빨강)
                 const okColor = row.matched ? 'var(--success)' : totalOk ? '#e6961b' : '#ff4d6d';
                 const rowBg = row.matched ? undefined : totalOk ? 'rgba(255,170,0,0.07)' : 'rgba(255,77,109,0.07)';
-                const label = row.matched ? (row.combo ? '일치(묶음)' : '일치') : totalOk ? '묶음 확인' : '누락?';
+                const label = row.matched ? (row.combo ? '일치(묶음)' : '일치') : row.reason || '확인 필요';
                 const refStr = row.refs.map((f) => `${f.name}${f.qty != null ? `(${f.qty})` : ''}`).join(' + ');
-                const showRef = row.matched && refStr && (row.combo || refStr.replace(/\s/g, '') !== String(row.name).replace(/\s/g, ''));
+                const showRef = refStr && (row.combo || refStr.replace(/\s/g, '') !== String(row.name).replace(/\s/g, ''));
                 return (
                   <tr key={i} className="border-t" style={{ borderColor: 'var(--border)', background: rowBg }}>
                     <td className="px-2.5 py-2 align-top">{row.matched ? <Check className="w-4 h-4" style={{ color: 'var(--success)' }} /> : <AlertTriangle className="w-4 h-4" style={{ color: okColor }} />}</td>
                     <td className="px-2.5 py-2 font-semibold" style={{ color: 'var(--foreground)' }}>
                       {row.name}{row.spec ? ` (${row.spec})` : ''}
-                      {showRef && <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>↔ 주문: {refStr}{row.combo ? ' [묶음]' : ''}</div>}
+                      {showRef && <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{row.matched ? '↔ 주문: ' : '확인 후보: '}{refStr}{row.combo ? ' [묶음]' : ''}</div>}
                     </td>
                     <td className="px-2.5 py-2 tabular-nums">{num(row.qty)}</td>
-                    <td className="px-2.5 py-2 tabular-nums">₩{formatPrice(row.lineTotal)}</td>
+                    <td className="px-2.5 py-2 tabular-nums">{Number.isFinite(row.lineTotal) ? `₩${formatPrice(row.lineTotal)}` : '미판독'}</td>
                     <td className="px-2.5 py-2 font-bold" style={{ color: okColor }}>{label}</td>
                   </tr>
                 );
@@ -519,7 +429,7 @@ function StatementResult({ r, onRemove, onSave, saved, saving }) {
               {rec.posOnly.map((p, i) => (
                 <tr key={`p${i}`} className="border-t" style={{ borderColor: 'var(--border)', background: 'rgba(255,170,0,0.07)' }}>
                   <td className="px-2.5 py-2">⚠️</td>
-                  <td className="px-2.5 py-2" style={{ color: '#e6961b' }}>{p.name} <span className="text-xs">({totalOk ? '묶음/표기 차이' : '주문내역엔 있는데 명세서에 없음'})</span></td>
+                  <td className="px-2.5 py-2" style={{ color: '#e6961b' }}>{p.name} <span className="text-xs">(명세서와 매칭되지 않음)</span></td>
                   <td className="px-2.5 py-2 tabular-nums">{p.qty}</td>
                   <td className="px-2.5 py-2 tabular-nums">₩{formatPrice(p.total)}</td>
                   <td className="px-2.5 py-2 font-bold" style={{ color: '#e6961b' }}>명세서 X</td>
@@ -528,7 +438,7 @@ function StatementResult({ r, onRemove, onSave, saved, saving }) {
             </tbody>
           </table>
           <div className="px-2.5 py-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-            ※ 금액·수량 기준 자동 대조(묶음 표기 차이 자동 인식). 품목명이 달라도 금액이 맞으면 일치로 봅니다. 최종은 눈으로 한 번 더 확인하세요.
+            ※ 제품명·규격·수량·금액을 함께 확인합니다. 다른 이름·규격이나 복합 묶음 표기는 자동 일치시키지 않습니다. 판독이 흐리면 원본을 확인하세요.
           </div>
         </div>
       )}
