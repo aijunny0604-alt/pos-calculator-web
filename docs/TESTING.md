@@ -1,5 +1,13 @@
 # 테스트 & 검증 (Testing)
 
+## 최신 디자인 검증 — 2026-10-15
+
+최신 master 통합 후 `node --test tests/*.test.mjs`는 82개 통과, 실패 0개, HTTP 브리지 접근 검사 1개 건너뜀(MOVIS_TEST_URL 미지정). 실제 GPT 응답이나 운영 DB 저장을 이번 UI 배포의 완료 조건으로 실행하지 않았다.
+
+17개 메뉴의 PC 1366px/모바일 360px 점검, 6가지 화면·DPR의 모달 스크롤/버튼/포커스 검사, 모션 설정 두 조건 및 로고 중앙 정렬을 자동화했다. `tests/design-audit.mjs`, `design-modals.mjs`, `design-motion.mjs`, `design-clean-preview.mjs`를 로컬 개발 서버 5186에서 실행한다. 상세 범위와 실기기 미검증 사항은 [디자인 검증 기록](DESIGN-PREVIEW-2026-10-15.md)을 참조한다.
+
+빌드에는 preview HTML·샘플 데이터·네트워크 대체 코드가 없어야 한다. 과거 검증 결과와 현재 UI 검증 결과를 구분한다.
+
 ## 최신 검증 — 2026-10-13
 
 ### 배포 후 MOVIS 실사용 점검 (21:44~21:48 KST)

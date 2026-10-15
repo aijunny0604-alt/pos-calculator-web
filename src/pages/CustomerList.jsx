@@ -1097,7 +1097,7 @@ export default function CustomerList({
       {/* Order detail modal */}
       {/* 사업자등록증 이미지 확대 보기 */}
       {certViewer && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setCertViewer(null)}>
+        <div className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setCertViewer(null)}>
           <button onClick={() => setCertViewer(null)} className="absolute top-4 right-4 p-2 rounded-full bg-white/15 hover:bg-white/25 transition-colors" title="닫기">
             <X className="w-6 h-6 text-white" />
           </button>
@@ -1107,12 +1107,12 @@ export default function CustomerList({
 
       {detailOrder && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition"
+          className="move-dialog-backdrop fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition"
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isDetailFullscreen ? '0' : '1rem' }}
           onClick={() => { if (!isReturning) { setDetailOrder(null); setIsReturning(false); setReturnItems([]); } }}
         >
           <div
-            className="bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col animate-modal-up modal-fs-transition"
+            className="move-dialog bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col animate-modal-up modal-fs-transition"
             style={{ maxWidth: isDetailFullscreen ? '100vw' : '52rem', maxHeight: isDetailFullscreen ? '100vh' : '92vh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1440,8 +1440,8 @@ export default function CustomerList({
 
       {/* 거래처 등록 모달 */}
       {showAddModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+        <div className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="move-dialog w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>거래처 등록</h2>
               <button onClick={() => { setShowAddModal(false); setNewCustomer({ name: '', phone: '', address: '', memo: '' }); }} className="p-1.5 rounded-lg hover:bg-[var(--accent)] transition-colors">

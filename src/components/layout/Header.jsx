@@ -20,6 +20,7 @@ export default function Header({ onMenuClick, currentPage, isOnline }) {
     <header className="flex items-center h-14 px-4 border-b border-[var(--border)] bg-[var(--card)] no-print">
       <button
         onClick={onMenuClick}
+        aria-label="메뉴 열기"
         className="md:hidden p-2 -ml-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
       >
         <Menu className="w-5 h-5" />

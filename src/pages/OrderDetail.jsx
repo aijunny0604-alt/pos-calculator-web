@@ -724,7 +724,7 @@ export default function OrderDetail({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
+      className="move-dialog-backdrop fixed inset-0 z-50 flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', touchAction: 'none', padding: isFullscreen ? '0' : '1rem' }}
     >
       {/* Backdrop */}
@@ -732,7 +732,7 @@ export default function OrderDetail({
 
       {/* Modal */}
       <div
-        className="relative w-full overflow-hidden border shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
+        className="move-dialog relative w-full overflow-hidden border shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
         style={{
           background: 'var(--card)', borderColor: 'var(--border)',
           maxWidth: isFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))',
@@ -1239,12 +1239,12 @@ export default function OrderDetail({
             {/* Product replace search modal */}
             {replacingItemIndex !== null && (
               <div
-                className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4"
+                className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4"
                 style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
                 onClick={() => { setReplacingItemIndex(null); setReplaceSearchTerm(''); }}
               >
                 <div
-                  className="w-full max-w-3xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col"
+                  className="move-dialog w-full max-w-3xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col"
                   style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100vh - 2rem)' }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -2609,7 +2609,7 @@ export default function OrderDetail({
       {/* 📄 사업자등록증 확대 뷰어 — 🚨 OrderDetail은 드래그/리사이즈 transform 모달이라
           fixed 자식이 모달 박스에 갇힌다(뒤 헤더가 비쳐 보임). createPortal로 body에 빼내 진짜 전체화면 */}
       {certViewer && custCert && createPortal((
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setCertViewer(false)}>
+        <div className="move-dialog-backdrop fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setCertViewer(false)}>
           <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-white font-bold flex items-center gap-1.5"><FileText className="w-5 h-5" /> 사업자등록증 · {order.customerName}</span>
@@ -2663,8 +2663,8 @@ export default function OrderDetail({
 
       {/* 주문 수정 변경점 확인 — OK(적용) 눌러야 실제 저장 (실수 방지) */}
       {pendingSave && (
-        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center sm:p-4 animate-modal-backdrop" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={() => setPendingSave(null)}>
-          <div className="relative bg-[var(--card)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border border-[var(--border)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden flex flex-col" style={{ maxHeight: '92vh' }} onClick={(e) => e.stopPropagation()}>
+        <div className="move-dialog-backdrop fixed inset-0 z-[80] flex items-end sm:items-center justify-center sm:p-4 animate-modal-backdrop" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={() => setPendingSave(null)}>
+          <div className="move-dialog relative bg-[var(--card)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border border-[var(--border)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden flex flex-col" style={{ maxHeight: '92vh' }} onClick={(e) => e.stopPropagation()}>
             {/* 상단 액센트 — 수정은 앰버 계열 */}
             <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
               style={{ background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 55%, #f59e0b 100%)' }} />

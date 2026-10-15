@@ -4,7 +4,30 @@
 
 ---
 
-### CSS 변수 (index.css :root)
+
+## 2026-10-15 공통 디자인 기준
+
+실제 공통 테마는 `src/styles/move-design.css`이며 `main.jsx`에서 `index.css` 다음에 불러온다. 기존 기능별 색상과 MOVIS 다크 테마를 유지하면서 일반 업무 화면의 톤을 통일한다.
+
+| 항목 | 기준 |
+|---|---|
+| 바탕 / 본문 | `#f3f6f8` / `#1d3044` |
+| 주요 액션 | 청록 `#087f86` |
+| 사이드바 | 네이비 `#12263a` → `#101c2c`, 로고 중앙 정렬 |
+| 카드 / 경계 | 흰색 / `#dde6eb` |
+| 성공 / 주의 / 오류 | `#158567` / `#bc7714` / `#d44757` |
+| 모바일 입력·주요 버튼 | 최소 높이 44px, 아이콘 버튼 터치 폭 보완 |
+| 모달 | `.move-dialog-backdrop`, `.move-dialog`, `.move-dialog-footer` |
+| 공통 확인창 | 제목·본문·하단 액션 분리, 본문 스크롤, Escape/Tab 및 포커스 복귀 |
+| 화면 전환 / 모달 / 배경 | 420ms / 360ms / 240ms |
+
+사용자 요청으로 MOVE의 짧은 UI 모션은 OS reduced-motion 설정과 무관하게 동작한다. 무분별한 `*` 애니메이션 재설정 대신 명시적 MOVE 클래스만 적용한다. 페이지 래퍼는 fixed 모달 위치를 깨지 않도록 opacity만 애니메이션한다. 인쇄에서는 모달 모션과 장식을 제거한다.
+
+모바일 하단 메뉴는 줄바꿈하지 않고 안전영역을 확보한다. 지표 카드는 640px 미만에서 2열이다. 본문 한국어는 `keep-all`과 `overflow-wrap:anywhere`로 표시하며 큰 표는 전용 가로 스크롤 안에 둔다.
+
+미리보기 전용 코드(`src/preview`, `design-preview.html`)는 운영 진입점에서 가져오지 않는다. `?tools=1`의 테스트 버튼은 배포본에 포함하지 않는다.
+
+### 기존 CSS 변수 (index.css :root; 최종값은 공통 테마 참조)
 ```css
 --background, --foreground, --primary, --card, --border
 --success (#16a34a), --destructive (#dc2626), --warning (#f59e0b)

@@ -87,12 +87,12 @@ export default function ProductImageModal({ product, onClose, onSaved, showToast
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-modal-backdrop"
+      className="move-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4 animate-modal-backdrop"
       style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}
       onClick={() => !uploading && !saving && onClose?.()}
     >
       <div
-        className="relative w-full sm:max-w-3xl max-h-[92vh] flex flex-col rounded-2xl border bg-[var(--card)] shadow-2xl animate-modal-up overflow-hidden"
+        className="move-dialog relative w-full sm:max-w-3xl max-h-[92vh] flex flex-col rounded-2xl border bg-[var(--card)] shadow-2xl animate-modal-up overflow-hidden"
         style={{ borderColor: 'var(--border)' }}
         onClick={(e) => e.stopPropagation()}
       >

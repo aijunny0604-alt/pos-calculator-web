@@ -116,7 +116,7 @@ export default function SaveCartModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
+      className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '1rem' }}
       onTouchMove={(e) => e.stopPropagation()}
     >
@@ -124,7 +124,7 @@ export default function SaveCartModal({
       <div className="absolute inset-0" onClick={onBack} />
 
       <div
-        className="relative w-full overflow-hidden flex flex-col shadow-2xl border animate-modal-up modal-fs-transition"
+        className="move-dialog relative w-full overflow-hidden flex flex-col shadow-2xl border animate-modal-up modal-fs-transition"
         style={{
           backgroundColor: 'var(--card)', borderColor: 'var(--border)',
           maxWidth: isFullscreen ? '100vw' : 'min(42rem, calc(100vw - 2rem))',

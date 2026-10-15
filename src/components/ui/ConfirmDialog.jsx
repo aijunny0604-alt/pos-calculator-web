@@ -1,63 +1,42 @@
-import { AlertTriangle, Info } from 'lucide-react';
+import { useEffect, useId, useRef } from 'react';
+import { AlertTriangle, Info, X } from 'lucide-react';
 
 export default function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, confirmText = '확인', cancelText = '취소', destructive = false }) {
+  const panel = useRef(null), cancel = useRef(onCancel);
+  const titleId = useId(), messageId = useId();
+  cancel.current = onCancel;
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement;
+    const first = panel.current?.querySelector('[data-cancel]');
+    first?.focus({ preventScroll: true });
+    const key = e => {
+      if (!panel.current?.contains(document.activeElement)) return;
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel.current?.(); }
+      if (e.key === 'Tab') {
+        const controls = [...panel.current.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')];
+        const first = controls[0], last = controls.at(-1);
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
+    };
+    document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('keydown', key); if (previous?.isConnected) previous.focus({ preventScroll: true }); };
+  }, [isOpen]);
   if (!isOpen) return null;
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-modal-backdrop"
-      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
-    >
-      <div className="absolute inset-0" onClick={onCancel} />
-      <div
-        className="relative rounded-2xl shadow-2xl max-w-md w-full p-6 border animate-modal-up modal-card-safe"
-        style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
-      >
-        <div className="flex items-start gap-4 mb-4">
-          <div
-            className="p-3 rounded-xl flex-shrink-0"
-            style={{
-              background: destructive
-                ? 'color-mix(in srgb, var(--destructive) 12%, transparent)'
-                : 'color-mix(in srgb, var(--primary) 12%, transparent)',
-            }}
-          >
-            {destructive
-              ? <AlertTriangle className="w-6 h-6" style={{ color: 'var(--destructive)' }} />
-              : <Info className="w-6 h-6" style={{ color: 'var(--primary)' }} />
-            }
-          </div>
-          <div>
-            {title && (
-              <h3 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>
-                {title}
-              </h3>
-            )}
-            {message && (
-              <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>
-                {message}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2.5 text-sm rounded-xl font-medium border transition-colors hover:bg-[var(--accent)]"
-            style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
-          >
-            {cancelText}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2.5 text-sm rounded-xl font-medium text-white transition-colors hover:opacity-90"
-            style={{
-              background: destructive ? 'var(--destructive)' : 'var(--primary)',
-            }}
-          >
-            {confirmText}
-          </button>
-        </div>
+  return <div className="move-dialog-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="absolute inset-0" onClick={onCancel} />
+    <section ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={message ? messageId : undefined} className="move-dialog move-confirm relative border">
+      <div className="move-confirm-heading">
+        <span className={`move-confirm-icon ${destructive ? 'is-danger' : ''}`} aria-hidden="true">{destructive ? <AlertTriangle size={21}/> : <Info size={21}/>}</span>
+        <h3 id={titleId}>{title || '확인해주세요'}</h3>
+        <button type="button" className="move-close" onClick={onCancel} aria-label="닫기"><X size={18}/></button>
       </div>
-    </div>
-  );
+      {message && <div id={messageId} className="move-confirm-body">{message}</div>}
+      <div className="move-confirm-footer">
+        <button type="button" data-cancel onClick={onCancel}>{cancelText}</button>
+        <button type="button" className={destructive ? 'move-danger' : 'move-primary'} onClick={onConfirm}>{confirmText}</button>
+      </div>
+    </section>
+  </div>;
 }

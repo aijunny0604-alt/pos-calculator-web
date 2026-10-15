@@ -87,7 +87,7 @@ export default function InvoiceModal({ open, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print"
+      className="move-dialog-backdrop fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
@@ -101,13 +101,13 @@ export default function InvoiceModal({ open, onClose }) {
       `}</style>
 
       <div
-        className="w-full sm:max-w-2xl max-h-[95vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--primary)] bg-[var(--card)] shadow-2xl"
+        className="move-dialog w-full sm:max-w-2xl max-h-[95vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--primary)] bg-[var(--card)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 (필터 + 액션) */}
         <div className="p-3 border-b border-[var(--border)] flex items-center justify-between gap-2 flex-wrap no-print">
           <h3 className="text-base font-bold flex items-center gap-2 flex-shrink-0">📄 명세서</h3>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--secondary)] flex-shrink-0">✕</button>
+          <button aria-label="닫기" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--secondary)] flex-shrink-0">✕</button>
         </div>
         <div className="p-3 border-b border-[var(--border)] grid grid-cols-2 gap-2 no-print">
           <div>
@@ -184,7 +184,7 @@ export default function InvoiceModal({ open, onClose }) {
         </div>
 
         {/* 액션 버튼 */}
-        <div className="p-3 border-t border-[var(--border)] flex gap-2 no-print">
+        <div className="move-dialog-footer p-3 border-t border-[var(--border)] flex gap-2 no-print">
           <button onClick={handlePrint} className="flex-1 py-2.5 rounded-lg text-xs font-semibold border border-[var(--border)] bg-[var(--secondary)]">
             🖨️ 인쇄
           </button>

@@ -71,12 +71,12 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
   return (
     <>
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="move-dialog-backdrop fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-md max-h-[90vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border shadow-2xl bg-[var(--card)] border-[var(--primary)] modal-scroll-area"
+        className="move-dialog w-full sm:max-w-md max-h-[90vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border shadow-2xl bg-[var(--card)] border-[var(--primary)] modal-scroll-area"
         style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
         onClick={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
@@ -138,7 +138,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
           )}
         </div>
 
-        <div className="p-4 pt-0 flex gap-2 sticky bottom-0 bg-[var(--card)]">
+        <div className="move-dialog-footer p-4 pt-0 flex gap-2 sticky bottom-0 bg-[var(--card)]">
           <button
             onClick={handleDelete}
             disabled={submitting}

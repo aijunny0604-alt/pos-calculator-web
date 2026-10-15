@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { Wallet, ArrowDownLeft, ArrowUpRight, Save, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { calcVat, DEFAULT_CATEGORIES, getCategoryInfo } from '@/lib/vatHelper';
 
@@ -200,12 +201,12 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="move-dialog-backdrop fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border-2 shadow-2xl bg-[var(--card)] modal-scroll-area"
+        className="move-dialog w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border-2 shadow-2xl bg-[var(--card)] modal-scroll-area"
         style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', borderColor: isIncome ? '#16a34a' : '#dc2626' }}
         onClick={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
@@ -213,8 +214,8 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
         {/* ─── Header: 제목 + 입/출금 대형 탭 ───────── */}
         <div className="p-5 border-b border-[var(--border)] sticky top-0 bg-[var(--card)] z-10">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-2xl font-black flex items-center gap-2.5">
-              <span className="text-3xl">{isIncome ? '💵' : '💸'}</span>
+            <h3 className="text-xl font-semibold flex items-center gap-2.5">
+              <Wallet className="w-6 h-6" aria-hidden="true"/>
               <span>{isIncome ? '입금 등록' : '출금 등록'}</span>
             </h3>
             <button
@@ -222,7 +223,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
               className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[var(--secondary)] text-xl"
               aria-label="닫기"
             >
-              ✕
+              <X size={19}/>
             </button>
           </div>
           {/* 대형 입/출금 토글 */}
@@ -234,7 +235,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
                 isIncome ? 'bg-green-600 text-white shadow-lg scale-[1.02]' : 'text-[var(--muted-foreground)] hover:bg-[var(--background)]'
               }`}
             >
-              💵 받은 돈 (입금)
+              <ArrowDownLeft size={18} aria-hidden="true"/><span>받은 돈 <small className="block text-xs font-normal opacity-80">입금</small></span>
             </button>
             <button
               type="button"
@@ -243,7 +244,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
                 !isIncome ? 'bg-red-600 text-white shadow-lg scale-[1.02]' : 'text-[var(--muted-foreground)] hover:bg-[var(--background)]'
               }`}
             >
-              💸 나간 돈 (환불/비용)
+              <ArrowUpRight size={18} aria-hidden="true"/><span>나간 돈 <small className="block text-xs font-normal opacity-80">환불 · 비용</small></span>
             </button>
           </div>
         </div>
@@ -257,7 +258,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
               className="w-full px-4 py-3.5 rounded-xl border-2 border-[var(--border)] bg-[var(--background)] font-semibold"
               style={{ fontSize: '16px' }}
             >
-              <option value="">👇 업체를 선택해주세요</option>
+              <option value="">업체를 선택해주세요</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>{c.name || `#${c.id}`}</option>
               ))}
@@ -563,7 +564,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
                           className="w-9 h-9 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-500/10"
                           title="삭제"
                         >
-                          ✕
+                          <X size={19}/>
                         </button>
                       </div>
                     ))}
@@ -652,7 +653,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
         </div>
 
         {/* ─── Footer: 취소 / 저장 ───────── */}
-        <div className="p-5 pt-3 flex gap-3 sticky bottom-0 bg-[var(--card)] border-t border-[var(--border)]">
+        <div className="move-dialog-footer p-5 pt-3 flex gap-3 sticky bottom-0 bg-[var(--card)] border-t border-[var(--border)]">
           <button
             onClick={onClose}
             className="flex-1 py-4 rounded-xl text-base font-bold border-2 border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)] hover:bg-[var(--background)]"
@@ -667,7 +668,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
             {submitting ? (
               <>⏳ 저장 중...</>
             ) : (
-              <>💾 {totals.grand > 0 ? `${fmt(totals.grand)}원 저장하기` : '저장하기'}</>
+              <><Save size={18} aria-hidden="true"/> {totals.grand > 0 ? `${fmt(totals.grand)}원 저장하기` : '저장하기'}</>
             )}
           </button>
         </div>

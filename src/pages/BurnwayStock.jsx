@@ -379,12 +379,12 @@ function DetailModal({ model, products, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
+      className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '0.75rem' }}
     >
       <div className="absolute inset-0" onClick={onClose} />
       <div
-        className="relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition"
+        className="move-dialog relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition"
         style={{
           maxWidth: isFullscreen ? '100vw' : '56rem',
           maxHeight: isFullscreen ? '100vh' : '90vh',
