@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toPng, toBlob } from 'html-to-image';
@@ -86,7 +87,7 @@ export default function InvoiceModal({ open, onClose }) {
   if (!open) return null;
 
   return (
-    <div
+    <MotionBackdrop
       className="move-dialog-backdrop fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
@@ -202,7 +203,7 @@ export default function InvoiceModal({ open, onClose }) {
           </div>
         )}
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }
 

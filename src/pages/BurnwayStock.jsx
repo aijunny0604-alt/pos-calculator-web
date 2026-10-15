@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, Menu, Package, Car, AlertTriangle, X, Link, CheckCircle, Maximize2, Minimize2 } from 'lucide-react';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
@@ -378,7 +379,7 @@ function DetailModal({ model, products, onClose }) {
   };
 
   return (
-    <div
+    <MotionBackdrop
       className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '0.75rem' }}
     >
@@ -624,7 +625,7 @@ function DetailModal({ model, products, onClose }) {
           ))}
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }
 

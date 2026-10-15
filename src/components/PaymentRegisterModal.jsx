@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { Wallet, ArrowDownLeft, ArrowUpRight, Save, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -219,7 +220,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
   const presets = [100000, 500000, 1000000];
 
   return (
-    <div
+    <MotionBackdrop
       className="move-dialog-backdrop fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={() => { if (!busy.current) onClose?.(); }}
@@ -692,7 +693,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
           </button>
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }
 

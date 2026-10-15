@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search, Plus, Trash2, Edit, Upload, Users, Package, Tag, Percent,
@@ -108,7 +109,7 @@ function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-5xl' }) {
   const { isFullscreen, toggleFullscreen } = useModalFullscreen();
   if (!isOpen) return null;
   return (
-    <div
+    <MotionBackdrop
       className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '0.75rem' }}
     >
@@ -137,7 +138,7 @@ function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-5xl' }) {
             pb-24 md:pb-5: 모바일 하단 MobileNav(약 64px)에 마지막 저장/추가 버튼이 가려지지 않도록 여백. */}
         <div className="overflow-y-auto p-4 sm:p-5 pb-24 md:pb-5 flex-1 min-h-0">{children}</div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }
 

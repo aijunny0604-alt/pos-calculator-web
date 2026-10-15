@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Trash2 } from 'lucide-react';
@@ -79,7 +80,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
 
   return (
     <>
-    <div
+    <MotionBackdrop
       className="move-dialog-backdrop fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={() => { if (!busy.current) onClose?.(); }}
@@ -168,7 +169,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
           </button>
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
     {/* ConfirmDialog rendered outside parent backdrop to avoid click bubbling closing this modal,
         and at z-[110] to render above this modal's z-[100]. */}
     {confirmDelete && (

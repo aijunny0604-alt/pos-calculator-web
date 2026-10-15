@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect } from 'react';
 import { Save, X, Maximize2, Minimize2 } from 'lucide-react';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
@@ -115,7 +116,7 @@ export default function SaveCartModal({
   };
 
   return (
-    <div
+    <MotionBackdrop
       className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '1rem' }}
       onTouchMove={(e) => e.stopPropagation()}
@@ -421,6 +422,6 @@ export default function SaveCartModal({
           </button>
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }

@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useRef, useEffect } from 'react';
 import { X, Upload, Trash2, ArrowLeft, ArrowRight, ImageIcon, Loader2 } from 'lucide-react';
 import { uploadMany, deleteImages, formatBytes } from '@/lib/imageUpload';
@@ -86,7 +87,7 @@ export default function ProductImageModal({ product, onClose, onSaved, showToast
   };
 
   return (
-    <div
+    <MotionBackdrop
       className="move-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4 animate-modal-backdrop"
       style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}
       onClick={() => !uploading && !saving && onClose?.()}
@@ -257,6 +258,6 @@ export default function ProductImageModal({ product, onClose, onSaved, showToast
           </div>
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }

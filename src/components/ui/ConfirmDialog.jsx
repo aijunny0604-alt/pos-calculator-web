@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useEffect, useId, useRef } from 'react';
 import { AlertTriangle, Info, X } from 'lucide-react';
 
@@ -24,7 +25,7 @@ export default function ConfirmDialog({ isOpen, title, message, onConfirm, onCan
     return () => { document.removeEventListener('keydown', key); if (previous?.isConnected) previous.focus({ preventScroll: true }); };
   }, [isOpen]);
   if (!isOpen) return null;
-  return <div className="move-dialog-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+  return <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
     <div className="absolute inset-0" onClick={onCancel} />
     <section ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={message ? messageId : undefined} className="move-dialog move-confirm relative border">
       <div className="move-confirm-heading">
@@ -38,5 +39,5 @@ export default function ConfirmDialog({ isOpen, title, message, onConfirm, onCan
         <button type="button" className={destructive ? 'move-danger' : 'move-primary'} onClick={onConfirm}>{confirmText}</button>
       </div>
     </section>
-  </div>;
+  </MotionBackdrop>;
 }

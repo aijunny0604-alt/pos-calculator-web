@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Menu, Building, Search, Phone, MapPin, ChevronDown, ChevronRight,
@@ -1097,16 +1098,16 @@ export default function CustomerList({
       {/* Order detail modal */}
       {/* 사업자등록증 이미지 확대 보기 */}
       {certViewer && (
-        <div className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setCertViewer(null)}>
+        <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setCertViewer(null)}>
           <button onClick={() => setCertViewer(null)} className="absolute top-4 right-4 p-2 rounded-full bg-white/15 hover:bg-white/25 transition-colors" title="닫기">
             <X className="w-6 h-6 text-white" />
           </button>
           <img src={certViewer} alt="사업자등록증" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
-        </div>
+        </MotionBackdrop>
       )}
 
       {detailOrder && (
-        <div
+        <MotionBackdrop
           className="move-dialog-backdrop fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition"
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isDetailFullscreen ? '0' : '1rem' }}
           onClick={() => { if (!isReturning) { setDetailOrder(null); setIsReturning(false); setReturnItems([]); } }}
@@ -1435,12 +1436,12 @@ export default function CustomerList({
               )}
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 거래처 등록 모달 */}
       {showAddModal && (
-        <div className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+        <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
           <div className="move-dialog w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>거래처 등록</h2>
@@ -1513,7 +1514,7 @@ export default function CustomerList({
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
       </>
       )}

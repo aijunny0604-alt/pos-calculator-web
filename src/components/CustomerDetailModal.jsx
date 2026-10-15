@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { FileSpreadsheet, Printer, ChevronDown, ChevronUp, FileText, Maximize2 } from 'lucide-react';
@@ -10,7 +11,7 @@ const OrderDetailPopup = ({ order, onClose }) => {
   const supply = Math.round(total / 1.1);
   const vat = total - supply;
   return (
-    <div className="move-dialog-backdrop fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-3 sm:p-6" onClick={onClose}>
+    <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-3 sm:p-6" onClick={onClose}>
       <div
         className="move-dialog bg-[var(--card)] text-[var(--foreground)] rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -129,7 +130,7 @@ const OrderDetailPopup = ({ order, onClose }) => {
           <button onClick={onClose} className="w-full px-4 py-2.5 bg-[var(--primary)] text-white rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity">닫기</button>
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 };
 import useManualPaid from '@/hooks/useManualPaid';
@@ -254,7 +255,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
   if (!open || !customer) return null;
 
   return (
-    <div
+    <MotionBackdrop
       className="move-dialog-backdrop fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4 customer-detail-modal animate-modal-backdrop"
       style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)' }}
       onClick={onClose}
@@ -704,7 +705,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
 
       {/* 사업자등록증 원본 열람 */}
       {certViewer && (
-        <div
+        <MotionBackdrop
           className="move-dialog-backdrop fixed inset-0 z-[80] flex flex-col items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.85)' }}
           onClick={() => setCertViewer(null)}
@@ -721,9 +722,9 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
             className="max-w-full max-h-[85vh] object-contain rounded-lg bg-white"
             onClick={(e) => e.stopPropagation()}
           />
-        </div>
+        </MotionBackdrop>
       )}
-    </div>
+    </MotionBackdrop>
   );
 }
 

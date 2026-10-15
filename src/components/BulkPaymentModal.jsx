@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -82,7 +83,7 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
   if (!open || !customer) return null;
 
   return (
-    <div
+    <MotionBackdrop
       className="move-dialog-backdrop fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={() => { if (!busy.current) onClose?.(); }}
@@ -219,6 +220,6 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
           </button>
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }

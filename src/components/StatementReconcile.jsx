@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useCallback } from 'react';
 import { X, Camera, Loader2, Check, AlertTriangle, FileSearch, Trash2, ClipboardPaste, Save, History } from 'lucide-react';
 import { fileToScaledBase64 } from '@/lib/certVision';
@@ -277,7 +278,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
   }, [addFiles, dragOver, showToast]);
 
   return (
-    <div className="move-dialog-backdrop fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+    <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
       <div className="move-dialog relative w-full sm:max-w-5xl rounded-t-2xl sm:rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '94vh' }}
         onClick={(e) => e.stopPropagation()}>
         {dragOver && (
@@ -401,7 +402,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
           <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>닫기</button>
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }
 
