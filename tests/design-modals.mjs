@@ -25,3 +25,4 @@ for(const [width,height,dpr] of [[360,640,3],[390,844,3],[412,915,2.625],[768,10
  results.push({width,height,dpr,clipped,errors});console.log(JSON.stringify(results.at(-1)));await page.close();
 }
 writeFileSync('tests/.artifacts/design-modal-audit.json',JSON.stringify(results,null,2));await browser.close();
+assert.ok(results.every(r=>!r.clipped.length&&!r.errors.length),JSON.stringify(results));

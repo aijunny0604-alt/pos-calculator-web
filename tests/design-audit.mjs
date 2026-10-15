@@ -33,3 +33,4 @@ for(const width of [1366,360]){
  console.log('PAGE_ERRORS',width,JSON.stringify(errors));results.push({width,errors});await page.close();
 }
 writeFileSync('tests/.artifacts/design-audit.json',JSON.stringify(results,null,2));await browser.close();
+if(results.some(r=>r.error||r.pageOverflow||r.clipped?.length||r.errors?.length))process.exitCode=1;

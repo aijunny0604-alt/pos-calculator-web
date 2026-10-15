@@ -2,7 +2,7 @@
 
 ## 상태
 
-배포하지 않은 로컬 변경이다. GitHub push, PR, Pages, Windows 배포 패키지 갱신을 수행하지 않았다.
+최초 로컬 검토 후 2026-10-15 사용자가 최종 점검·배포·문서 최신화를 승인했다. 배포 결과는 [운영 배포 기록](DEPLOYMENT-2026-10-15.md)에 별도로 기록한다. 이 문서는 미리보기 재현 및 검증 범위를 보존한다.
 
 미리보기: http://127.0.0.1:5186/pos-calculator-web/design-preview.html
 재시작: `npm run dev -- --host 127.0.0.1 --port 5186 --strictPort`
