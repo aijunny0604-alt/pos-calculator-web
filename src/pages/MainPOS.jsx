@@ -4,38 +4,19 @@ import {
   Package, Calculator, Maximize2, Minimize2, RotateCcw, Zap, ArrowLeft, Mic, MicOff,
   Printer, Copy
 } from 'lucide-react';
-import { matchesSearchQuery, handleSearchFocus, formatPrice, calcExVat, calcOrderVat, calculateDiscount, isTaxFreeItem, escapeHtml } from '@/lib/utils';
+import { handleSearchFocus, formatPrice, calcExVat, calcOrderVat, calculateDiscount, isTaxFreeItem, escapeHtml } from '@/lib/utils';
 import { searchProductsRanked } from '@/lib/productMatch';
 import { isImageDemoMode, getSampleImage } from '@/lib/sampleProductImages';
 import ProductGalleryModal from '@/components/ProductGalleryModal';
 import OrderPage from './OrderPage';
+import ProductCatalogList from '@/components/ProductCatalogList';
+import { catalogMatch, repeatOrderItems } from '@/lib/catalogSearch';
 import TextAnalyze from './TextAnalyze';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import useVoiceOrder from '@/hooks/useVoiceOrder';
 
 // 제품 주의사항 강조 색상 (AdminPage FLAG_COLORS와 동기화)
 const FLAG_MAP = { red: '#ef4444', amber: '#f59e0b', blue: '#3b82f6', green: '#22c55e', purple: '#a78bfa' };
-
-// Static fallback price data (478 products)
-const priceData = [
-  { id: 1, category: '모듈', name: '져스트 G1', wholesale: 700000, retail: 1100000 },
-  { id: 2, category: '모듈', name: '져스트 G2', wholesale: 865000, retail: 1500000 },
-  { id: 3, category: '모듈', name: '져스트 G1C1', wholesale: 821000, retail: 1361000 },
-  { id: 4, category: '모듈', name: '져스트 G2C1', wholesale: 986000, retail: 1761000 },
-  { id: 5, category: '모듈', name: '져스트 모듈', wholesale: 440000, retail: 700000 },
-  { id: 6, category: '모듈', name: '블로썸', wholesale: 350000, retail: 490000 },
-  { id: 7, category: '모듈', name: 'RW 모듈 낱개', wholesale: 460000, retail: 560000 },
-  { id: 8, category: '모듈', name: 'RW 모듈 5-10개', wholesale: 330000, retail: 560000 },
-  { id: 9, category: '모듈', name: 'RW 모듈 11-20개', wholesale: 270000, retail: 560000 },
-  { id: 10, category: '모듈', name: '보펜', wholesale: 242000, retail: 350000 },
-  { id: 11, category: '져스트 스피커', name: '메인 스피커', wholesale: 250000, retail: 500000 },
-  { id: 12, category: '져스트 스피커', name: '고음 스피커', wholesale: 176000, retail: 361000 },
-  { id: 13, category: '배선/부품', name: '모듈 메인 배선', wholesale: 33000, retail: 77000 },
-  { id: 14, category: '배선/부품', name: 'OBD 배선', wholesale: 16500, retail: 33000 },
-  { id: 15, category: '배선/부품', name: '모듈 케이블 휴즈 등', wholesale: 16500, retail: 33000 },
-  { id: 16, category: '배선/부품', name: '스피커 배선', wholesale: 22000, retail: 33000 },
-  { id: 17, category: '배선/부품', name: '스피커 콘지 교체용', wholesale: 38500, retail: 110000 },
-];
 
 export default function MainPOS({
   products: externalProducts = [],
@@ -58,6 +39,13 @@ export default function MainPOS({
   orders = [],
   autoOpenOrderConfirmNonce = 0,
 }) {
+  const [catalogView,setCatalogView] = useState(()=>{try{return localStorage.getItem('pos_catalog_view')==='cards'?'cards':'list';}catch{return 'list';}});
+  const [favorites,setFavorites] = useState(()=>{try{const v=JSON.parse(localStorage.getItem('pos_favorites')||'[]');return Array.isArray(v)?v.map(String):[];}catch{return [];}});
+  const [favoritesOnly,setFavoritesOnly] = useState(false);
+  const [chosenCustomer,setChosenCustomer] = useState(null);
+  const effectiveCustomer=chosenCustomer || loadedCustomer;
+  const changeView=value=>{setCatalogView(value);try{localStorage.setItem('pos_catalog_view',value);}catch{}};
+  const toggleFavorite=id=>setFavorites(prev=>{const key=String(id);const next=prev.includes(key)?prev.filter(x=>x!==key):[...prev,key];try{localStorage.setItem('pos_favorites',JSON.stringify(next));}catch{}return next;});
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
   // ⚡ AI 검색 토글 — ON이면 오타/초성/동의어/치수흔들림 보정 + 관련도순 정렬 (로컬·즉시). 기본 ON
@@ -83,7 +71,7 @@ export default function MainPOS({
   const { isFullscreen: isAiFullscreen, toggleFullscreen: toggleAiFullscreen } = useModalFullscreen();
 
   // products를 hook 호출 전에 정의 (TDZ 방지 — Critical fix)
-  const products = externalProducts.length > 0 ? externalProducts : priceData;
+  const products = externalProducts; // 실제 목록이 비었을 때 과거 가격표를 판매 상품으로 표시하지 않는다.
 
   // 음성 주문 — addToCart를 직접 넘기지 않고 ref 경유 (hook 순서 안전)
   const addToCartRef = useRef(null);
@@ -127,19 +115,20 @@ export default function MainPOS({
 
   const filteredProducts = useMemo(() => {
     const q = searchTerm.trim();
+    const available=products.filter(p=>(!favoritesOnly || favorites.includes(String(p.id))) && (selectedCategory==='전체' || p.category===selectedCategory));
     // ⚡ AI 검색 ON + 검색어 있음 → 관련도순(오타/초성/동의어/치수보정) 랭킹 후 카테고리 필터
     if (aiSearch && q) {
-      let ranked = searchProductsRanked(q, products);
+      let ranked = searchProductsRanked(q, available);
       if (selectedCategory !== '전체') ranked = ranked.filter(p => p.category === selectedCategory);
-      return ranked.slice(0, 18); // 관련도순 상위 18개까지만 (너무 많으면 어지러움 — 노이즈는 엔진서 이미 컷)
+      return ranked; // 관련도순 상위 18개까지만 (너무 많으면 어지러움 — 노이즈는 엔진서 이미 컷)
     }
     // 기존 정확검색(부분일치/자모순서) — AI OFF 또는 검색어 없음
-    return products.filter(product => {
-      const matchesSearch = matchesSearchQuery(product.name, searchTerm);
+    return available.filter(product => {
+      const matchesSearch = !searchTerm.trim() || catalogMatch(searchTerm, product.name);
       const matchesCategory = selectedCategory === '전체' || product.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [searchTerm, selectedCategory, products, aiSearch]);
+  }, [searchTerm, selectedCategory, products, aiSearch, favoritesOnly, favorites]);
 
   // 🎯 AI 검색 최상위 일치 제품 (관련도 1순위) — 가장 눈에 띄게 강조 + 정확일치 여부
   const topMatch = useMemo(() => {
@@ -275,10 +264,10 @@ export default function MainPOS({
 
   // 거래처 자주 구매 제품 추천 (loadedCustomer 선택 시)
   const customerSuggestedProducts = useMemo(() => {
-    if (!loadedCustomer?.name || orders.length === 0) return [];
-    const custName = loadedCustomer.name.toLowerCase().replace(/\s/g, '');
+    if (!effectiveCustomer?.name || orders.length === 0) return [];
+    const custName = effectiveCustomer.name.toLowerCase().replace(/\s/g, '');
     const custOrders = orders.filter(o =>
-      (o.customerName || '').toLowerCase().replace(/\s/g, '') === custName
+      (o.customerName || o.customer_name || '').toLowerCase().replace(/\s/g, '') === custName
     );
     if (custOrders.length === 0) return [];
     const freqMap = {};
@@ -294,7 +283,7 @@ export default function MainPOS({
         return p ? { ...p, _freq: qty } : null;
       })
       .filter(Boolean);
-  }, [loadedCustomer, orders, products]);
+  }, [effectiveCustomer, orders, products]);
 
   // 번들 추천 — 카트에 담긴 제품과 함께 자주 주문된 제품
   const bundleSuggestions = useMemo(() => {
@@ -455,7 +444,7 @@ export default function MainPOS({
   };
 
   return (
-    <div className="flex h-full" style={{ background: 'var(--background)' }}>
+    <div className="pos-workspace flex h-full" style={{ background: 'var(--background)' }}>
       {/* LEFT: Product Catalog */}
       <div className="flex-1 flex flex-col min-w-0 pr-0 lg:pr-[420px]">
         {/* Mobile Header with Back Button - always sticky */}
@@ -623,6 +612,11 @@ export default function MainPOS({
             </button>
           </div>
 
+          <div className="pos-catalog-toolbar">
+            <div role="group" aria-label="상품 보기 방식"><button aria-pressed={catalogView==='list'} onClick={()=>changeView('list')}>목록 보기</button><button aria-pressed={catalogView==='cards'} onClick={()=>changeView('cards')}>카드 보기</button></div>
+            <button aria-pressed={favoritesOnly} onClick={()=>setFavoritesOnly(v=>!v)}>★ 즐겨찾기</button>
+            <label className="pos-customer-picker"><span>거래처</span><select aria-label="주문 거래처" value={effectiveCustomer?.id || ''} onChange={e=>{setChosenCustomer(customers.find(c=>String(c.id)===e.target.value)||null);if(!e.target.value)onClearLoadedCustomer?.();}}><option value="">일반 고객 · 선택 안 함</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          </div>
           <div className="mt-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
             {filteredProducts.length}개 제품
             {aiSearch && searchTerm.trim() && (
@@ -642,7 +636,7 @@ export default function MainPOS({
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm">🧠</span>
                 <span className="text-xs font-bold" style={{ color: 'var(--primary)' }}>
-                  {loadedCustomer?.name} 자주 구매
+                  {effectiveCustomer?.name} 자주 구매
                 </span>
               </div>
               <div className="flex gap-1.5 flex-wrap">
@@ -664,11 +658,19 @@ export default function MainPOS({
               </div>
             </div>
           )}
+          {!searchTerm && orders.length>0 && <details className="pos-repeat"><summary>최근 주문 다시 담기 <small>현재 상품 단가 적용</small></summary><div>{[...orders].sort((a,b)=>String(b.created_at||b.createdAt||'').localeCompare(String(a.created_at||a.createdAt||''))).slice(0,5).map(order=><button key={order.id} onClick={()=>{
+            const result=repeatOrderItems(order,products);
+            if(result.missing.length){showToast?.('현재 상품을 찾을 수 없는 항목이 있어 추가하지 않았습니다. 주문 내역에서 확인해주세요.','warning');return;}
+            setCart(prev=>{const next=prev.map(i=>({...i}));for(const item of result.items){const found=next.find(i=>i.id===item.id);if(found)found.quantity+=item.quantity;else next.push(item);}return next;});
+            showToast?.('현재 단가로 주문 목록에 추가했습니다. 수량과 재고를 확인해주세요.','success');
+          }}><strong>{order.customerName||order.customer_name||'일반 고객'}</strong><small>{String(order.created_at||order.createdAt||'').slice(0,10)} · {(order.items||[]).length}개 품목 추가</small></button>)}</div></details>}
           {Object.keys(groupedProducts).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Package className="w-12 h-12 mb-3" style={{ color: 'var(--muted-foreground)' }} />
               <p style={{ color: 'var(--muted-foreground)' }}>검색 결과가 없습니다</p>
             </div>
+          ) : catalogView==='list' ? (
+            <ProductCatalogList products={filteredProducts} cartMap={cartMap} priceType={priceType} onAdd={addToCart} onStep={stepQuantity} onQuantity={updateQuantity} favorites={favorites} onFavorite={toggleFavorite}/>
           ) : (
             <div className={`grid gap-4 ${(aiSearch && searchTerm.trim()) ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
               {Object.entries(groupedProducts)
@@ -722,7 +724,7 @@ export default function MainPOS({
                       const gridColsCls = aiSingle
                         ? 'grid-cols-1'
                         : (categoryHasImage ? 'grid-cols-2 md:grid-cols-1' : 'grid-cols-2');
-                      const heightCls = aiSingle ? '' : 'max-h-72 overflow-y-auto';
+                      const heightCls = ''; // 카테고리 내부 중첩 스크롤 제거
                       return (
                       <div className={`p-2.5 grid gap-2.5 ${heightCls} ${gridColsCls}`}>
                         {categoryProducts.map(product => {
@@ -1008,6 +1010,7 @@ export default function MainPOS({
           </button>
         </div>
 
+        <div className="pos-cart-context"><span>{effectiveCustomer?.name || '일반 고객'}</span><strong>{priceType==='wholesale'?'도매가':'소매가'} · VAT 포함</strong></div>
         {/* Cart Items */}
         <div className="flex-1 min-h-0 overflow-y-auto">
           {cart.length === 0 ? (
@@ -1238,7 +1241,7 @@ export default function MainPOS({
               order_number: orderData.orderNumber,
               existing_customer_id: orderData.existingCustomerId,
             });
-            if (result) onClearLoadedCustomer?.();
+            if (result) {setChosenCustomer(null);onClearLoadedCustomer?.();}
             return result;
           }}
           isSaving={isSaving}
@@ -1249,7 +1252,7 @@ export default function MainPOS({
           onReplaceItem={replaceItem}
           onUpdateItem={updateItem}
           products={products}
-          initialCustomer={loadedCustomer}
+          initialCustomer={effectiveCustomer}
           customers={customers}
           onBack={() => {
             setShowOrderConfirm(false);

@@ -1119,7 +1119,7 @@ export const supabase = {
       if (!cust) return { success: false, reason: 'no_customer', customerName: name, customerPhone: phone };
 
       // 3. payment_records 있는지 확인
-      const existing = await this.getPaymentRecords({ orderId });
+      const existing = await this.getPaymentRecords({ orderId, strict: true });
       let record = (existing && existing[0]) || null;
 
       const supply = Math.round(total / 1.1);
@@ -1154,12 +1154,10 @@ export const supabase = {
           memo: `[자동] 완불체크 (${methodLabel})`,
         });
         if (!isPersistedResult(historySaved)) return { success: false, reason: 'history_save_failed' };
-        // payment_records 갱신 — balance/payment_status는 generated columns이라 paid_amount만 갱신
-        const newPaid = Number(record.paid_amount || 0) + remaining;
-        const paidSaved = await this.updatePaymentRecord(record.id, {
-          paid_amount: newPaid,
-        });
-        if (!isPersistedResult(paidSaved)) return { success: false, reason: 'partial_payment' };
+        // DB 트리거가 집계한 값을 재조회한다. 오래된 브라우저 합계로 덮어쓰지 않는다.
+        const refreshed = await this.getPaymentRecord(record.id);
+        if (!refreshed) return { success: false, reason: 'partial_payment' };
+        record = refreshed;
       }
       return { success: true, record };
     } catch (e) {
@@ -1172,10 +1170,10 @@ export const supabase = {
   async revokeAutoPaidHistory(orderId) {
     if (!orderId) return false;
     try {
-      const records = await this.getPaymentRecords({ orderId });
+      const records = await this.getPaymentRecords({ orderId, strict: true });
       const record = (records && records[0]) || null;
       if (!record) return false;
-      const histories = await this.getPaymentHistory({ recordId: record.id });
+      const histories = await this.getPaymentHistory({ recordId: record.id, strict: true });
       const autoEntries = (histories || []).filter((h) => (h.memo || '').startsWith('[자동] 완불체크'));
       let revokedAmount = 0;
       for (const h of autoEntries) {
@@ -1183,17 +1181,9 @@ export const supabase = {
         revokedAmount += Number(h.amount || 0);
       }
       if (revokedAmount > 0) {
-        const newPaid = Math.max(0, Number(record.paid_amount || 0) - revokedAmount);
-        await this.updatePaymentRecord(record.id, {
-          paid_amount: newPaid,
-        });
-        // M-NEW: 자동 history 회수 후, payment_record가 빈 껍데기(다른 입금 0건 + paid 0)이면 record 자체 삭제
-        if (newPaid === 0) {
-          const remaining = await this.getPaymentHistory({ recordId: record.id });
-          if ((remaining || []).length === 0) {
-            await this.deletePaymentRecord(record.id);
-          }
-        }
+        // 잔액 집계는 트리거에 맡긴다. 동시 입금이 생길 수 있으므로 부모 명세서를 삭제하지 않는다.
+        const refreshed = await this.getPaymentRecord(record.id);
+        if (!refreshed) return false;
       }
       return true;
     } catch (e) {

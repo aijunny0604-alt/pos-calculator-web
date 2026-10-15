@@ -1,3 +1,4 @@
+import { catalogMatch, catalogDimensionsMatch } from './catalogSearch.js';
 // 제품 매칭 유틸 — TextAnalyze.jsx의 matchWithTolerance 추출 + ai_learning 우선 매칭
 // 사용: saveOrder / updateProductStock / updateProductPrice 등 쓰기 도구에서 공유
 
@@ -507,16 +508,23 @@ function scoreProducts(query, products, opts = {}) {
 export function searchProductsRanked(query, products, { limit = 0 } = {}) {
   const q = String(query || '').trim();
   if (!q || !Array.isArray(products) || products.length === 0) return [];
-  const scored = scoreProducts(q, products, { synonymTokens: true });
-  if (scored.length === 0) return [];
-  // 관련도 낮은 꼬리 컷 — 결과가 너무 많이 떠서 어지러운 것 방지.
-  // 1순위 점수의 일정 비율 미만(또는 절대 하한)은 노이즈로 간주해 제거. 정확/SKU(1000급)일수록 더 좁게.
-  const top = scored[0].score;
-  const floor = Math.max(top * 0.32, 16);
-  let ranked = scored.filter((s) => s.score >= floor).map((s) => s.product).filter(Boolean);
-  // 안전망: 과도하게 잘리면 최소 상위 6개는 보장
-  if (ranked.length < 6) ranked = scored.slice(0, 6).map((s) => s.product).filter(Boolean);
-  return limit > 0 ? ranked.slice(0, limit) : ranked;
+  const expand = text => {
+    let result = String(text || '').toLowerCase();
+    for (const [from,to] of Object.entries(SYNONYMS).sort((a,b)=>b[0].length-a[0].length)) result=result.replaceAll(from,to.toLowerCase());
+    return result;
+  };
+  const expanded = expand(q);
+  const exact = products.filter(p=>catalogMatch(expanded,expand(p.name)));
+  if (exact.length) {
+    const compact=s=>s.replace(/[^가-힣a-z0-9.]/g,'');
+    exact.sort((a,b)=>Number(compact(expand(b.name))===compact(expanded))-Number(compact(expand(a.name))===compact(expanded)));
+    return limit>0?exact.slice(0,limit):exact;
+  }
+  const scored=scoreProducts(q,products,{synonymTokens:true}).filter(s=>catalogDimensionsMatch(q,s.product.name));
+  if(!scored.length)return [];
+  const floor=Math.max(scored[0].score*.55,35);
+  const ranked=scored.filter(s=>s.score>=floor).map(s=>s.product);
+  return limit>0?ranked.slice(0,limit):ranked;
 }
 
 // 비슷한 제품 후보 TOP N (매칭 실패 시 사용자에게 제안)
