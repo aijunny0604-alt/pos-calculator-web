@@ -1,4 +1,4 @@
--- 로컬에서 검증한 수정안. 운영 DB에는 적용하지 않았다.
+-- 로컬 동시성 검증 후 2026-10-15 운영 적용. 권한 및 기존 거래 데이터 변경 없음.
 CREATE OR REPLACE FUNCTION public.recalc_payment_record()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE old_id bigint; new_id bigint; target_id bigint;

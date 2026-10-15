@@ -2,7 +2,7 @@
 
 ## 상태
 
-로컬 검토본. 운영 웹 배포와 운영 DB 함수 변경은 하지 않았다. 로컬 미리보기는 `http://127.0.0.1:5186/pos-calculator-web/design-preview.html`의 제품 주문 메뉴다. 샘플 데이터만 사용하며 저장/외부 AI 호출은 차단한다.
+2026-10-15 사용자 승인으로 운영 웹과 DB 함수 배포를 진행했다. 소스 `4712f5da`, Pages `39e7624e8b00a87dc65f6dd089e2b5f07cb37a83`. DB 함수 적용 확인 결과 true, 적용 후 입금 합계·잔액 불일치 각각 0건. 로컬 미리보기는 `http://127.0.0.1:5186/pos-calculator-web/design-preview.html`의 제품 주문 메뉴다. 샘플 데이터만 사용하며 저장/외부 AI 호출은 차단한다.
 
 ## 제품 주문 개선
 
@@ -44,7 +44,7 @@ npm `embedded-postgres@17.10.0-beta.17`의 PostgreSQL 17.10을 별도 작업 폴
 | 일괄 요청 중 잘못된 FK | 전체 롤백 통과 | 전체 롤백 통과 |
 | 서로 다른 세션에서 100+200 동시 입금 | **200으로 누락 재현** | **300 통과** |
 
-수정안: `supabase/migrations/20261015_payment_recalc_lock.sql`. 부모 명세서를 정렬된 순서로 `FOR NO KEY UPDATE` 잠근 다음 별도 SQL로 집계하고, 내역 이동 시 이전/새 명세서를 모두 재계산한다. 운영에는 적용하지 않았다.
+수정안: `supabase/migrations/20261015_payment_recalc_lock.sql`. 부모 명세서를 정렬된 순서로 `FOR NO KEY UPDATE` 잠근 다음 별도 SQL로 집계하고, 내역 이동 시 이전/새 명세서를 모두 재계산한다. 2026-10-15 운영에 적용하고 함수 정의와 합계 일치를 재확인했다.
 
 웹 코드에서도 자동 완불 처리 후 오래된 paid_amount를 다시 덮어쓰지 않고 DB 결과를 재조회한다. 자동 입금 취소 후 부모 명세서를 삭제하던 동작도 제거해 동시 입금 이력이 CASCADE 삭제되는 경로를 없앴다.
 
@@ -63,3 +63,7 @@ npm `embedded-postgres@17.10.0-beta.17`의 PostgreSQL 17.10을 별도 작업 폴
 - 실기기 Safari, 모든 기종, 모든 입력 조합을 검증했다는 뜻은 아니다.
 
 테스트 도구 참고: [embedded-postgres 공식 저장소](https://github.com/leinelissen/embedded-postgres). 설치 패키지의 PostgreSQL 자체는 17.10이며 운영의 정확한 17.6 패치 버전과는 다르다.
+
+## 배포 확인
+
+GitHub Pages 상태 built 및 운영 HTML의 자산 목록이 로컬 빌드와 일치함을 확인했다. 운영 주 번들은 assets/index-B4Fxaa3J.js. 실제 운영 제품 주문 화면의 목록/카드 전환·거래처 선택 UI와 클라우드 연결 및 674개 상품 표시를 확인했다. 운영 주문/입출금 테스트 행은 생성하지 않았다. 기존 Windows 설치 파일과 localhost 정적 빌드는 이번 웹 배포로 자동 갱신되지 않는다.
