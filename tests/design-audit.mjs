@@ -17,7 +17,11 @@ for(const width of [1366,360]){
     const r=el.getBoundingClientRect();if(!r.width||!r.height||r.bottom<0||r.top>innerHeight)continue;
     if(r.right>innerWidth+2||r.left< -2){let parent=el.parentElement,scroll=false;while(parent&&parent.tagName!=='MAIN'){if(['auto','scroll'].includes(getComputedStyle(parent).overflowX)){scroll=true;break}parent=parent.parentElement}if(!scroll)out.push({text:(el.textContent||el.getAttribute('placeholder')||el.tagName).slice(0,45),x:Math.round(r.x),right:Math.round(r.right)});}
    }
-   return {pageOverflow:document.documentElement.scrollWidth>innerWidth,clipped:out};
+   const shortButtons = [...document.querySelectorAll('main button')].filter(el => {
+    if(el.closest('.movis-v2')) return false;
+    const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>0&&r.top<innerHeight&&r.height<(innerWidth<768?43:39);
+   }).map(el=>({text:el.textContent.slice(0,30),height:el.getBoundingClientRect().height}));
+   return {pageOverflow:document.documentElement.scrollWidth>innerWidth,clipped:out,shortButtons};
   });results.push({width,label,...state});console.log(JSON.stringify(results.at(-1)));
   if(['대시보드','제품 주문','주문 내역','거래처 관리','스마트스토어 주문'].includes(label))await page.screenshot({path:`tests/.artifacts/design-${width}-${labels.indexOf(label)}.png`});
   }catch(e){results.push({width,label,error:e.message.slice(0,200)});console.log('FAIL',width,label,e.message.slice(0,100));}
@@ -33,4 +37,4 @@ for(const width of [1366,360]){
  console.log('PAGE_ERRORS',width,JSON.stringify(errors));results.push({width,errors});await page.close();
 }
 writeFileSync('tests/.artifacts/design-audit.json',JSON.stringify(results,null,2));await browser.close();
-if(results.some(r=>r.error||r.pageOverflow||r.clipped?.length||r.errors?.length))process.exitCode=1;
+if(results.some(r=>r.error||r.pageOverflow||r.clipped?.length||r.shortButtons?.length||r.errors?.length))process.exitCode=1;

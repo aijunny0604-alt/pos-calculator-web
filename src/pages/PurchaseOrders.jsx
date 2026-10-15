@@ -685,7 +685,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
       )}
       {/* 헤더 */}
       <div className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex flex-wrap items-center gap-3 mb-3">
           <button onClick={() => setCurrentPage?.('dashboard')} className="p-2 -ml-2 rounded-lg hover:bg-[var(--accent)] md:hidden" style={{ color: 'var(--muted-foreground)' }}>
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -693,12 +693,12 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
           <h1 className="text-xl sm:text-2xl font-black" style={{ color: 'var(--foreground)' }}>매입 발주</h1>
           {/* 발주서 사진만 올리면 자동 판독 → 확인 → 등록. 손으로 안 쳐도 됨.
               클릭 업로드 외에 드래그드롭 / Ctrl+V(캡처 붙여넣기)도 됨 — 세 방법을 버튼에 명시 */}
-          <label className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white cursor-pointer border-2 border-dashed border-white/45"
+          <label className="ml-auto min-h-11 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white cursor-pointer border-2 border-dashed border-white/45"
             title="클릭 업로드 · 이미지 드래그드롭 · Ctrl+V 붙여넣기 모두 됩니다"
             style={{ background: scanning ? 'var(--muted-foreground)' : 'var(--success)', display: (tab === 'defect' || tab === 'docs') ? 'none' : undefined }}>
             {scanning
               ? <><Loader2 className="w-4 h-4 animate-spin" /> 판독 중...</>
-              : <><Camera className="w-4 h-4" /> 발주서 등록 <span className="text-[10px] font-semibold opacity-90 whitespace-nowrap">클릭·드래그·Ctrl+V</span></>}
+              : <><Camera className="w-4 h-4" /> 발주서 등록 <span className="hidden lg:inline text-[10px] font-semibold opacity-90 whitespace-nowrap">클릭·드래그·Ctrl+V</span></>}
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickQuote} disabled={scanning} />
           </label>
           <button onClick={openNew} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white ${tab === 'defect' ? 'ml-auto' : ''}`} style={{ background: 'var(--primary)', display: (tab === 'defect' || tab === 'docs') ? 'none' : undefined }}>

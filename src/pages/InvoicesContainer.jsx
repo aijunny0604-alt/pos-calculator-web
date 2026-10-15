@@ -27,7 +27,9 @@ export default function InvoicesContainer({ customers = [], initialCustomerId = 
     const cust = customers.find((c) => String(c.id) === String(customerId));
     if (!cust) return;
     const { supabase } = await import('@/lib/supabase');
-    const records = await supabase.getPaymentRecords({ customerId: cust.id });
+    let records;
+    try { records = await supabase.getPaymentRecords({ customerId: cust.id, strict: true }); }
+    catch { alert('명세서를 불러오지 못했습니다. 다시 시도해주세요.'); return; }
     const outstanding = (records || []).filter((r) => Number(r.balance) > 0);
     if (outstanding.length === 0) {
       alert('해당 업체에 미수 건이 없습니다');

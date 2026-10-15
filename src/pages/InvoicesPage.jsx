@@ -57,6 +57,7 @@ export default function InvoicesPage({
   const isAllCustomers = selectedCustomerIds.size === 0;
   const [records, setRecords] = useState([]);
   const [carryover, setCarryover] = useState([]);
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState(null);
@@ -107,12 +108,16 @@ export default function InvoicesPage({
   const invMmdd = (d) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : '');
 
   useEffect(() => {
+    let active = true;
+    setLoadError('');
     setLoading(true);
     Promise.all([
-      supabase.getPaymentRecords(),
+      supabase.getPaymentRecords({ strict: true }),
       supabase.getOrders(),
-      supabase.getPaymentHistory({}),
+      supabase.getPaymentHistory({ strict: true }),
     ]).then(([allRecords, allOrders, allHistory]) => {
+      if (!active) return;
+      if (![allRecords, allOrders, allHistory].every(Array.isArray)) throw new Error('명세서 자료 조회 실패');
       const recordedOrderIds = new Set(
         (allRecords || []).map((r) => r.order_id).filter(Boolean).map(String)
       );
@@ -195,10 +200,13 @@ export default function InvoicesPage({
       setRecords(current);
       setCarryover(prev);
     }).catch((e) => {
+      if (!active) return;
+      setLoadError('명세서 자료를 불러오지 못했습니다. 표시된 금액을 정산에 사용하지 말고 새로고침해주세요.');
       console.error('[Invoices] load failed:', e);
       setRecords([]);
       setCarryover([]);
-    }).finally(() => setLoading(false));
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [dateRange.from, dateRange.to, customers]);
 
   const customerName = (id) => customers.find((c) => c.id === id)?.name || `#${id}`;
@@ -720,7 +728,7 @@ export default function InvoicesPage({
           className="invoice-print bg-white text-black p-5"
           style={{ fontFamily: '"맑은 고딕", "Malgun Gothic", system-ui, sans-serif' }}
         >
-          {loading ? (
+          {loadError ? <div role="alert" className="p-5 rounded-xl border border-red-300 bg-red-50 text-red-700">{loadError}</div> : loading ? (
             <p className="text-base text-center py-12">로딩 중...</p>
           ) : !hasData ? (
             <div className="text-center py-12 text-gray-600 space-y-1.5">

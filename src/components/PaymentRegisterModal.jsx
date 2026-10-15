@@ -1,12 +1,16 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Wallet, ArrowDownLeft, ArrowUpRight, Save, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { calcVat, DEFAULT_CATEGORIES, getCategoryInfo } from '@/lib/vatHelper';
 
+import { positiveMoney, paymentRows, localDate } from '@/lib/paymentSafety';
+
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = localDate;
 
 export default function PaymentRegisterModal({ open, onClose, onSaved, initialCustomerId, initialRecordId }) {
+  const busy = useRef(false);
+  const [needsReview, setNeedsReview] = useState(false);
   const [mode, setMode] = useState('existing'); // 'existing' | 'new'
   const [customers, setCustomers] = useState([]);
   const [customerId, setCustomerId] = useState('');
@@ -62,6 +66,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
   }, [amount, extraFees]);
 
   const resetForm = () => {
+    setNeedsReview(false);
     setMode('existing');
     setCustomerId(initialCustomerId ? String(initialCustomerId) : '');
     setRecords([]);
@@ -94,18 +99,22 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
   }, [newCategory, categories]);
 
   useEffect(() => {
-    if (!customerId || mode !== 'existing') { setRecords([]); return; }
+    let active = true;
+    setRecords([]);
+    setRecordsLoading(false);
+    if (!customerId || mode !== 'existing') return;
     setRecordsLoading(true);
-    supabase.getPaymentRecords({ customerId, hasBalance: true })
-      .then((r) => {
-        setRecords(r);
-        // initialRecordId 있으면 유지, 없으면 첫 번째 선택
-        setRecordId((prev) => {
-          if (prev && r.some((x) => String(x.id) === String(prev))) return prev;
-          return r[0]?.id || '';
-        });
+    // 환불할 수 있도록 완납 건도 조회한다.
+    supabase.getPaymentRecords({ customerId, strict: true })
+      .then((rows) => {
+        if (!active) return;
+        if (!Array.isArray(rows)) throw new Error('명세서 조회 실패');
+        setRecords(rows);
+        setRecordId(prev => rows.some(row => String(row.id) === String(prev)) ? prev : (rows.find(row => Number(row.balance) > 0)?.id || rows[0]?.id || ''));
       })
-      .finally(() => setRecordsLoading(false));
+      .catch(() => { if (active) { setRecordId(''); setError('명세서를 불러오지 못했습니다. 다시 선택해주세요.'); } })
+      .finally(() => { if (active) setRecordsLoading(false); });
+    return () => { active = false; };
   }, [customerId, mode]);
 
   const selectedRecord = useMemo(
@@ -119,14 +128,22 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
   );
 
   const handleSubmit = async () => {
+    if (busy.current || needsReview) return;
     setError('');
-    const baseNum = Number(amount);
-    if (!baseNum || baseNum <= 0) { setError('입금액을 입력하세요'); return; }
+    let baseNum;
+    try { baseNum = positiveMoney(amount); } catch (e) { setError(e.message); return; }
+    if (mode === 'existing' && (recordsLoading || !selectedRecord || String(selectedRecord.customer_id) !== String(customerId))) { setError('선택한 업체의 명세서를 확인해주세요.'); return; }
     if (!customerId) { setError('업체를 선택하세요'); return; }
     // 부가 항목 중 label만 있고 금액 비어있는 행은 저장 제외
     const validFees = extraFees.filter((f) => Number(f.amount) > 0 && (f.label || '').trim());
     const feesSum = validFees.reduce((s, f) => s + Number(f.amount), 0);
     const amountNum = baseNum + feesSum;
+    try { positiveMoney(amountNum); } catch (e) { setError(e.message); return; }
+    if (extraFees.some(f => f.amount && (!Number.isSafeInteger(Number(f.amount)) || Number(f.amount) < 0 || !f.label.trim()))) { setError('부가 항목의 이름과 금액을 확인해주세요.'); return; }
+    if (mode === 'new') {
+      try { positiveMoney(newSupply); positiveMoney(calc.total); } catch (e) { setError(e.message); return; }
+    }
+    busy.current = true;
 
     setSubmitting(true);
     try {
@@ -151,7 +168,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
           invoice_number: invoiceNum,
           due_date: newDueDate || null,
         });
-        if (!newRec || !newRec[0]) { setError('결제 레코드 생성 실패'); setSubmitting(false); return; }
+        paymentRows(newRec);
         targetRecordId = newRec[0].id;
       }
 
@@ -173,13 +190,15 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
         memo: finalMemo || null,
         type,
       });
-      if (!saved) { setError('입금 저장 실패'); setSubmitting(false); return; }
+      paymentRows(saved);
 
       onSaved?.();
       onClose?.();
     } catch (e) {
-      setError(e.message || '알 수 없는 오류');
+      setNeedsReview(true);
+      setError((e.message || '저장 실패') + ' 중복 등록 방지를 위해 창을 닫고 내역을 새로고침하여 확인해주세요.');
     } finally {
+      busy.current = false;
       setSubmitting(false);
     }
   };
@@ -203,7 +222,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
     <div
       className="move-dialog-backdrop fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}
+      onClick={() => { if (!busy.current) onClose?.(); }}
     >
       <div
         className="move-dialog w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border-2 shadow-2xl bg-[var(--card)] modal-scroll-area"
@@ -219,7 +238,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
               <span>{isIncome ? '입금 등록' : '출금 등록'}</span>
             </h3>
             <button
-              onClick={onClose}
+              onClick={() => { if (!busy.current) onClose?.(); }}
               className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[var(--secondary)] text-xl"
               aria-label="닫기"
             >
@@ -470,7 +489,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
                     <button
                       key={v}
                       type="button"
-                      onClick={() => setAmount(String(v))}
+                      onClick={() => setAmount(prev => String((Number(prev) || 0) + v))}
                       className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-[var(--secondary)] border border-[var(--border)] hover:bg-[var(--background)]"
                     >
                       +{fmt(v)}
@@ -547,7 +566,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
                           className="w-24 px-2.5 py-2 rounded-lg border-2 border-[var(--border)] bg-[var(--background)] text-sm font-semibold"
                           placeholder="이름"
                         />
-                        <div className="relative flex-1">
+                        <div className="relative flex-1 min-w-0">
                           <input
                             inputMode="numeric"
                             value={fee.amount ? Number(fee.amount).toLocaleString('ko-KR') : ''}
@@ -561,7 +580,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
                         <button
                           type="button"
                           onClick={() => removeExtraFee(fee.id)}
-                          className="w-9 h-9 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-500/10"
+                          className="w-11 h-11 shrink-0 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-500/10"
                           title="삭제"
                         >
                           <X size={19}/>
@@ -655,14 +674,14 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
         {/* ─── Footer: 취소 / 저장 ───────── */}
         <div className="move-dialog-footer p-5 pt-3 flex gap-3 sticky bottom-0 bg-[var(--card)] border-t border-[var(--border)]">
           <button
-            onClick={onClose}
+            onClick={() => { if (!busy.current) onClose?.(); }}
             className="flex-1 py-4 rounded-xl text-base font-bold border-2 border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)] hover:bg-[var(--background)]"
           >
             취소
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !amount || !customerId}
+            disabled={submitting || needsReview || !amount || !customerId || (mode === 'existing' && (recordsLoading || !selectedRecord))}
             className={`flex-[2] py-4 rounded-xl text-base font-black text-white shadow-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${accentBg} ${accentHover}`}
           >
             {submitting ? (

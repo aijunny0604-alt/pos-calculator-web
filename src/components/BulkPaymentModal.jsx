@@ -1,9 +1,13 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+
+import { validateAllocation, paymentRows, localDate } from '@/lib/paymentSafety';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 
 export default function BulkPaymentModal({ open, customer, records, onClose, onSaved }) {
+  const busy = useRef(false);
+  const [needsReview, setNeedsReview] = useState(false);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('계좌이체');
   const [memo, setMemo] = useState('');
@@ -48,31 +52,29 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
   const overflow = Number(amount) - totalAllocated;
 
   useEffect(() => {
-    if (open) { setAmount(''); setMethod('계좌이체'); setMemo(''); setError(''); }
+    if (open) { setNeedsReview(false); setAmount(''); setMethod('계좌이체'); setMemo(''); setError(''); }
   }, [open]);
 
   const handleSubmit = async () => {
+    if (busy.current || needsReview) return;
     setError('');
-    const amt = Number(amount);
-    if (!amt || amt <= 0) { setError('입금액을 입력하세요'); return; }
-    if (allocation.length === 0) { setError('배분할 미수가 없습니다'); return; }
-
+    try { validateAllocation(allocation, amount, customer.id); } catch (e) { setError(e.message); return; }
+    busy.current = true;
     setSubmitting(true);
     try {
-      // 배분된 각 레코드에 payment_history 추가
-      for (const a of allocation) {
-        await supabase.addPaymentHistory({
-          payment_record_id: a.record.id,
-          amount: a.apply,
-          method,
-          memo: memo ? `[일괄 ${new Date().toISOString().slice(0, 10)}] ${memo}` : `[일괄 배분] ${a.record.invoice_number || ''}`,
-        });
-      }
+      // 한 요청으로 저장해 일부 명세서만 입금되는 부분 성공을 막는다.
+      const rows = allocation.map(a => ({
+        payment_record_id: a.record.id, amount: a.apply, method, type: 'income',
+        memo: memo ? `[일괄 ${localDate()}] ${memo}` : `[일괄 배분] ${a.record.invoice_number || ''}`,
+      }));
+      paymentRows(await supabase.addPaymentHistoryBatch(rows), rows.length);
       onSaved?.();
       onClose?.();
     } catch (e) {
-      setError(e.message || '저장 실패');
+      setNeedsReview(true);
+      setError((e.message || '저장 실패') + ' 창을 닫고 내역을 새로고침하여 저장 여부를 확인해주세요.');
     } finally {
+      busy.current = false;
       setSubmitting(false);
     }
   };
@@ -83,7 +85,7 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
     <div
       className="move-dialog-backdrop fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}
+      onClick={() => { if (!busy.current) onClose?.(); }}
     >
       <div
         className="move-dialog w-full sm:max-w-md max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--primary)] bg-[var(--card)] shadow-2xl"
@@ -205,12 +207,12 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
         </div>
 
         <div className="move-dialog-footer p-4 border-t border-[var(--border)] flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-lg text-sm font-semibold border border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)]">
+          <button onClick={() => { if (!busy.current) onClose?.(); }} className="flex-1 py-2.5 rounded-lg text-sm font-semibold border border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)]">
             취소
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || allocation.length === 0}
+            disabled={submitting || needsReview || overflow > 0 || allocation.length === 0}
             className="flex-1 py-2.5 rounded-lg text-sm font-bold text-white bg-[var(--primary)] disabled:opacity-50"
           >
             {submitting ? '저장 중...' : `${allocation.length}건에 일괄 저장`}

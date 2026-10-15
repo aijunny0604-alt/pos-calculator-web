@@ -128,3 +128,15 @@
  .move-dialog-footer button:disabled {box-shadow:none;opacity:.45}
  @media(max-width:767px){.move-dialog :is(button[aria-label="닫기"],button[title="닫기"]){min-width:44px;min-height:44px}}
 }
+
+/* 업무 버튼: 기본 40px, 모바일/터치 44px. 큰 상품 카드의 높이는 유지한다. */
+@media screen {
+ .move-main button:not(.movis-v2 *),.move-dialog button {min-height:40px;line-height:1.45}
+ .move-main button:has(>svg:only-child):not(.movis-v2 *),.move-dialog button:has(>svg:only-child) {min-width:40px;flex-shrink:0}
+ .move-dialog-footer button {min-height:46px;min-width:0;overflow-wrap:anywhere}
+ .move-main button:not(.movis-v2 *):not(:has(div)),.move-dialog button:not(:has(div)) {word-break:keep-all}
+ @media(max-width:767px),(pointer:coarse) {
+  .move-main button:not(.movis-v2 *),.move-dialog button {min-height:44px}
+  .move-main button:has(>svg:only-child):not(.movis-v2 *),.move-dialog button:has(>svg:only-child),.move-dialog button[aria-label="닫기"] {min-width:44px}
+ }
+}

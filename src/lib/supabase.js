@@ -1,3 +1,4 @@
+import { positiveMoney, paymentRows } from './paymentSafety';
 import { isPersistedResult } from './movisReliability';
 import { fetchPosJSON as fetchJSON } from './posConnection';
 import { createClient } from '@supabase/supabase-js';
@@ -815,7 +816,7 @@ export const supabase = {
       if (filters.invoiceDateTo) params.append('invoice_date', `lte.${filters.invoiceDateTo}`);
       if (filters.limit) params.append('limit', String(filters.limit));
       return await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records?${params.toString()}`, { headers });
-    } catch (e) { console.error('getPaymentRecords:', e); return []; }
+    } catch (e) { console.error('getPaymentRecords:', e); if (filters.strict) throw e; return []; }
   },
   async getPaymentRecord(id) {
     try {
@@ -840,8 +841,8 @@ export const supabase = {
   },
   async deletePaymentRecord(id) {
     try {
-      await fetch(`${SUPABASE_URL}/rest/v1/payment_records?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
-      return true;
+      const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: headersWithReturn });
+      return Array.isArray(rows) && rows.some(row => String(row.id) === String(id));
     } catch (e) { console.error('deletePaymentRecord:', e); return false; }
   },
 
@@ -854,17 +855,27 @@ export const supabase = {
       if (filters.paidTo) params.append('paid_at', `lte.${filters.paidTo}`);
       if (filters.limit) params.append('limit', String(filters.limit));
       return await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_history?${params.toString()}`, { headers });
-    } catch (e) { console.error('getPaymentHistory:', e); return []; }
+    } catch (e) { console.error('getPaymentHistory:', e); if (filters.strict) throw e; return []; }
   },
   async addPaymentHistory(entry) {
     try {
+      positiveMoney(entry.amount);
       return await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_history`, {
         method: 'POST', headers: headersWithReturn, body: JSON.stringify(entry),
       });
     } catch (e) { console.error('addPaymentHistory:', e); return null; }
   },
+  async addPaymentHistoryBatch(entries) {
+    if (!Array.isArray(entries) || !entries.length) throw new Error('저장할 입금 내역이 없습니다.');
+    for (const entry of entries) positiveMoney(entry.amount);
+    const result = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_history`, {
+      method: 'POST', headers: headersWithReturn, body: JSON.stringify(entries),
+    });
+    return paymentRows(result, entries.length);
+  },
   async updatePaymentHistory(id, patch) {
     try {
+      if ('amount' in patch) positiveMoney(patch.amount);
       const r = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_history?id=eq.${id}`, {
         method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(patch),
       });
@@ -873,8 +884,8 @@ export const supabase = {
   },
   async deletePaymentHistory(id) {
     try {
-      await fetch(`${SUPABASE_URL}/rest/v1/payment_history?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
-      return true;
+      const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_history?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: headersWithReturn });
+      return Array.isArray(rows) && rows.some(row => String(row.id) === String(id));
     } catch (e) { console.error('deletePaymentHistory:', e); return false; }
   },
 
@@ -1168,7 +1179,7 @@ export const supabase = {
       const autoEntries = (histories || []).filter((h) => (h.memo || '').startsWith('[자동] 완불체크'));
       let revokedAmount = 0;
       for (const h of autoEntries) {
-        await this.deletePaymentHistory(h.id);
+        if (!await this.deletePaymentHistory(h.id)) return false;
         revokedAmount += Number(h.amount || 0);
       }
       if (revokedAmount > 0) {

@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Trash2 } from 'lucide-react';
 import ConfirmDialog from './ui/ConfirmDialog';
 
+import { positiveMoney, toLocalDateTime } from '@/lib/paymentSafety';
+
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 
 export default function PaymentEditModal({ open, history, onClose, onSaved }) {
+  const busy = useRef(false);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('계좌이체');
   const [memo, setMemo] = useState('');
@@ -19,14 +22,17 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
     setAmount(String(history.amount || ''));
     setMethod(history.method || '계좌이체');
     setMemo(history.memo || '');
-    setPaidAt((history.paid_at || '').slice(0, 16));
+    setPaidAt(toLocalDateTime(history.paid_at));
+    setConfirmDelete(false);
     setError('');
   }, [open, history]);
 
   const handleSubmit = async () => {
+    if (busy.current) return;
     setError('');
-    const amt = Number(amount);
-    if (!amt || amt <= 0) { setError('입금액을 입력하세요'); return; }
+    let amt;
+    try { amt = positiveMoney(amount); } catch (e) { setError(e.message); return; }
+    busy.current = true;
 
     setSubmitting(true);
     try {
@@ -34,7 +40,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
         amount: amt,
         method,
         memo: memo || null,
-        paid_at: paidAt ? new Date(paidAt).toISOString() : history.paid_at,
+        paid_at: paidAt === toLocalDateTime(history.paid_at) ? history.paid_at : (paidAt ? new Date(paidAt).toISOString() : history.paid_at),
       });
       if (!r) { setError('수정 실패'); setSubmitting(false); return; }
       onSaved?.();
@@ -42,6 +48,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
     } catch (e) {
       setError(e.message || '수정 실패');
     } finally {
+      busy.current = false;
       setSubmitting(false);
     }
   };
@@ -52,16 +59,18 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
 
   const performDelete = async () => {
     const id = history?.id;
-    if (!id) return;
+    if (!id || busy.current) return;
+    busy.current = true;
     setConfirmDelete(false);
     setSubmitting(true);
     try {
-      await supabase.deletePaymentHistory(id);
+      if (!await supabase.deletePaymentHistory(id)) throw new Error('삭제하지 못했습니다. 내역을 확인한 뒤 다시 시도해주세요.');
       onSaved?.();
       onClose?.();
     } catch (e) {
       setError(e.message || '삭제 실패');
     } finally {
+      busy.current = false;
       setSubmitting(false);
     }
   };
@@ -73,7 +82,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
     <div
       className="move-dialog-backdrop fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}
+      onClick={() => { if (!busy.current) onClose?.(); }}
     >
       <div
         className="move-dialog w-full sm:max-w-md max-h-[90vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border shadow-2xl bg-[var(--card)] border-[var(--primary)] modal-scroll-area"
@@ -86,11 +95,11 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
             <span>✏️</span>
             <span>입금 수정</span>
           </h3>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--secondary)]" aria-label="닫기">✕</button>
+          <button onClick={() => { if (!busy.current) onClose?.(); }} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--secondary)]" aria-label="닫기">✕</button>
         </div>
 
         <div className="p-4 space-y-3">
-          <div className="p-2.5 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-[11px] text-yellow-200/80">
+          <div className="p-2.5 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-[11px] text-amber-800">
             ⚠️ 수정/삭제 시 해당 결제 레코드의 잔금이 <strong>자동 재계산</strong>됩니다.
           </div>
 
@@ -147,7 +156,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
             <Trash2 className="w-3.5 h-3.5" />
             삭제
           </button>
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-lg text-sm font-semibold border border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)]">
+          <button onClick={() => { if (!busy.current) onClose?.(); }} className="flex-1 py-2.5 rounded-lg text-sm font-semibold border border-[var(--border)] bg-[var(--secondary)] text-[var(--muted-foreground)]">
             취소
           </button>
           <button
