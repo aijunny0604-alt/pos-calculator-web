@@ -1,5 +1,17 @@
 # 프로젝트 구조 (Architecture)
 
+## 2026-10-13 현재 데이터 흐름
+
+브라우저 React POS → Supabase REST/Realtime가 공용 업무 경로다. 정적 파일은 GitHub Pages가 제공하므로 매장 PC 종료 자체가 공용 POS 서버 종료를 뜻하지 않는다. MOVIS만 같은 PC의 loopback 브리지에 의존한다.
+
+`App.jsx` 초기 로드는 주문·상품·거래처·저장 장바구니 배열을 `posConnection.validateCoreData`로 검사한다. 기본 REST GET은 15초 제한, 초기 실패는 30/60/120/240/300초 간격으로 재시도한다. 동일 초기 로드의 중복 실행을 막는다. 성공 이후 전체 API 상태를 계속 보증하는 health monitor는 아니다. 쓰기는 자동 재시도하지 않는다.
+
+`posRealtime.js`는 SDK의 `postgres_changes`를 5개 핵심 테이블에 등록하고 ID 기준으로 삽입 중복을 제거한다. SDK가 연결 재시도를 관리하며 기존 5분 폴링/화면 복귀 시 재조회는 보완 경로다. 서버 publication·권한이 맞아야 이벤트가 전달된다.
+
+MOVIS는 `useAIAnalystChat`에서 브리지 연결을 확인한 다음 `movisLibraries`를 읽는다. `movisReadQueue`가 최대 2개 테이블을 동시에 읽고 전체 60초 제한과 사용자 취소를 전달한다. 테이블별 500행 페이지/최대 50,000행 및 불완전 자료 표시를 유지한다. 질문마다 전체 보관함을 읽는 비용은 남아 있다.
+
+주문·재고 처리는 아직 클라이언트의 개별 REST 요청이다. ACID 트랜잭션, 서버 사용자 인증, 영속 오프라인 큐가 구현된 것으로 간주하지 않는다. [설계 위험과 개선 순서](AUDIT-2026-10-13.md)를 참고한다.
+
 ## 현재 MOVIS 구조 — 2026-10-08
 
 `AIAnalytics` → `useAIAnalystChat` → `codexAnalyst` → localhost:43127 → Codex App Server → ChatGPT 구독 모델. 서버는 loopback에만 바인딩하며 허용 Origin과 세션 토큰을 검사합니다. 업무 도구는 브라우저에서 실행하고 변경은 기존 확인 UI를 거칩니다.

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, X, Trash2, Copy, Check, Printer, Database, PackageCheck, RotateCcw, ClipboardPaste, Minus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { getTodayKST } from '@/lib/utils';
+import { getTodayKST, escapeHtml } from '@/lib/utils';
 
 // 불량품 반품(우리 → 매입처) 기록 + 교환(대체품) 회수 추적.
 // items 원소: { category, spec, qty, unit('개'|'세트'), received_qty, note }
@@ -193,9 +193,9 @@ export default function DefectReturns({ showToast, onCount }) {
     const byCat = {};
     for (const it of row.items) { (byCat[it.category || '기타'] = byCat[it.category || '기타'] || []).push(it); }
     const body = Object.entries(byCat).map(([cat, arr]) => `
-      <h3>${cat}</h3>
+      <h3>${escapeHtml(cat)}</h3>
       <table><thead><tr><th>규격</th><th>수량</th></tr></thead><tbody>
-        ${arr.map((it) => `<tr><td>${it.spec}</td><td>${num(it.qty)}${it.unit}</td></tr>`).join('')}
+        ${arr.map((it) => `<tr><td>${escapeHtml(it.spec)}</td><td>${num(it.qty)}${escapeHtml(it.unit)}</td></tr>`).join('')}
       </tbody></table>`).join('');
     const w = window.open('', '_blank', 'width=720,height=900');
     if (!w) { showToast?.('팝업이 차단됐습니다', 'error'); return; }
@@ -207,10 +207,10 @@ export default function DefectReturns({ showToast, onCount }) {
       .total{margin-top:20px;font-size:15px;font-weight:bold} .memo{margin-top:12px;color:#444;font-size:13px;white-space:pre-wrap}
     </style></head><body>
       <h1>불량품 반품 명세서</h1>
-      <div class="sub">발송일 ${row.return_date} · 매입처 ${row.supplier}</div>
+      <div class="sub">발송일 ${escapeHtml(row.return_date)} · 매입처 ${escapeHtml(row.supplier)}</div>
       ${body}
-      <div class="total">총합 : ${summaryLabel(s)}</div>
-      ${row.memo ? `<div class="memo">${row.memo}</div>` : ''}
+      <div class="total">총합 : ${escapeHtml(summaryLabel(s))}</div>
+      ${row.memo ? `<div class="memo">${escapeHtml(row.memo)}</div>` : ''}
     </body></html>`);
     w.document.close(); w.focus(); w.print();
   };

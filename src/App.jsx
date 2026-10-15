@@ -31,7 +31,9 @@ const PurchaseOrders = lazy(() => import('@/pages/PurchaseOrders'));
 const SupplierPrices = lazy(() => import('@/pages/SupplierPrices'));
 const SupplierLedger = lazy(() => import('@/pages/SupplierLedger'));
 
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseClient } from '@/lib/supabase';
+import { validateCoreData } from '@/lib/posConnection';
+import { subscribePosChanges, mergePosChange } from '@/lib/posRealtime';
 import { priceData } from '@/lib/priceData';
 import { formatPrice, getTodayKST, toDateKST } from '@/lib/utils';
 import { isOrderPending } from '@/lib/orderStatus';
@@ -217,9 +219,13 @@ export default function App() {
     items: o.items || [],
   }), []);
 
-  // ─── Initial data load ────────────────────────────────────────
+  // ─── Initial data load and bounded recovery after an outage ───
   useEffect(() => {
+    let disposed = false, pending = false, loaded = false, retryTimer;
+    let retryDelay = 30000, nextAttemptAt = 0;
     async function loadData() {
+      if (disposed || pending || loaded || Date.now() < nextAttemptAt) return;
+      pending = true;
       try {
         const [fetchedOrders, fetchedProducts, fetchedCustomers, fetchedCarts, fetchedLearning] =
           await Promise.all([
@@ -230,6 +236,9 @@ export default function App() {
             supabase.getAiLearning(),
           ]);
 
+        validateCoreData(fetchedOrders, fetchedProducts, fetchedCustomers, fetchedCarts);
+        if (disposed) return;
+        loaded = true;
         setSupabaseConnected(true);
 
         if (fetchedOrders) setOrders(fetchedOrders.map(formatOrder));
@@ -242,14 +251,29 @@ export default function App() {
         if (fetchedCarts) setSavedCarts(fetchedCarts);
         if (fetchedLearning) setAiLearningData(fetchedLearning);
       } catch (err) {
-        console.error('Data load failed, using local fallback:', err);
+        if (disposed) return;
+        console.error('POS 자료 연결 실패. 잠시 후 다시 확인합니다:', err);
         setSupabaseConnected(false);
-        setProducts(priceData);
+        setProducts(prev => prev.length ? prev : priceData);
+        nextAttemptAt = Date.now() + retryDelay;
+        retryTimer = setTimeout(loadData, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 300000);
+      } finally {
+        pending = false;
       }
     }
 
     loadData();
-  }, []);
+    const retryWhenVisible = () => { if (!document.hidden) loadData(); };
+    window.addEventListener('online', retryWhenVisible);
+    document.addEventListener('visibilitychange', retryWhenVisible);
+    return () => {
+      disposed = true;
+      clearTimeout(retryTimer);
+      window.removeEventListener('online', retryWhenVisible);
+      document.removeEventListener('visibilitychange', retryWhenVisible);
+    };
+  }, [formatOrder]);
 
   // ─── 스마트스토어 메뉴 배지 ────────────────────────────────────
   // 처리 대기(배송 전 미처리) 주문 건수, 날짜 무관.
@@ -279,101 +303,14 @@ export default function App() {
   useEffect(() => {
     if (!supabaseConnected) return;
 
-    // Derive WSS URL from Supabase REST URL
-    const supabaseUrl = 'https://jubzppndcclhnvgbvrxr.supabase.co';
-    const supabaseKey = 'sb_publishable_td4p48nPHKjXByMngvyjZQ_AJttp5KU';
-    const wsUrl =
-      supabaseUrl.replace('https://', 'wss://') +
-      '/realtime/v1/websocket?apikey=' +
-      supabaseKey +
-      '&vsn=1.0.0';
-
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      ['orders', 'products', 'customers', 'saved_carts', 'ai_learning'].forEach((table) => {
-        ws.send(
-          JSON.stringify({
-            topic: `realtime:public:${table}`,
-            event: 'phx_join',
-            payload: { config: { broadcast: { self: false } } },
-            ref: table,
-          })
-        );
-      });
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        const evt = msg.event;
-        if (!['INSERT', 'UPDATE', 'DELETE'].includes(evt)) return;
-        const table = msg.topic?.split(':')[2];
-        const record = msg.payload?.record;
-        const oldRecord = msg.payload?.old_record;
-
-        if (table === 'orders') {
-          if (evt === 'INSERT' && record) {
-            setOrders((prev) => [formatOrder(record), ...prev]);
-          } else if (evt === 'UPDATE' && record) {
-            setOrders((prev) => prev.map((o) => o.id === record.id ? formatOrder(record) : o));
-          } else if (evt === 'DELETE' && oldRecord) {
-            setOrders((prev) => prev.filter((o) => o.id !== oldRecord.id));
-          }
-        } else if (table === 'products') {
-          if (evt === 'INSERT' && record) {
-            setProducts((prev) => [...prev, record]);
-          } else if (evt === 'UPDATE' && record) {
-            setProducts((prev) => prev.map((p) => p.id === record.id ? record : p));
-          } else if (evt === 'DELETE' && oldRecord) {
-            setProducts((prev) => prev.filter((p) => p.id !== oldRecord.id));
-          }
-        } else if (table === 'customers') {
-          if (evt === 'INSERT' && record) {
-            setCustomers((prev) => [...prev, record]);
-          } else if (evt === 'UPDATE' && record) {
-            setCustomers((prev) => prev.map((c) => c.id === record.id ? record : c));
-          } else if (evt === 'DELETE' && oldRecord) {
-            setCustomers((prev) => prev.filter((c) => c.id !== oldRecord.id));
-          }
-        } else if (table === 'saved_carts') {
-          if (evt === 'INSERT' && record) {
-            setSavedCarts((prev) => [record, ...prev]);
-          } else if (evt === 'UPDATE' && record) {
-            setSavedCarts((prev) => prev.map((c) => c.id === record.id ? record : c));
-          } else if (evt === 'DELETE' && oldRecord) {
-            setSavedCarts((prev) => prev.filter((c) => c.id !== oldRecord.id));
-          }
-        } else if (table === 'ai_learning') {
-          if (evt === 'INSERT' && record) {
-            setAiLearningData((prev) => [...prev, record]);
-          } else if (evt === 'UPDATE' && record) {
-            setAiLearningData((prev) => prev.map((l) => l.id === record.id ? record : l));
-          } else if (evt === 'DELETE' && oldRecord) {
-            setAiLearningData((prev) => prev.filter((l) => l.id !== oldRecord.id));
-          }
-        }
-      } catch (err) {
-        console.warn('WebSocket message parse error:', err);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.warn('Supabase WebSocket error:', err);
-    };
-
-    const heartbeat = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            topic: 'phoenix',
-            event: 'heartbeat',
-            payload: {},
-            ref: 'hb',
-          })
-        );
-      }
-    }, 30000);
+    // The SDK registers postgres_changes and handles heartbeat/reconnection.
+    const stopRealtime = subscribePosChanges(supabaseClient, (table, payload) => {
+      if (table === 'orders') setOrders(rows => mergePosChange(rows, payload, formatOrder, true));
+      else if (table === 'products') setProducts(rows => mergePosChange(rows, payload));
+      else if (table === 'customers') setCustomers(rows => mergePosChange(rows, payload));
+      else if (table === 'saved_carts') setSavedCarts(rows => mergePosChange(rows, payload, undefined, true));
+      else if (table === 'ai_learning') setAiLearningData(rows => mergePosChange(rows, payload));
+    });
 
     // 폴링 백업 (WebSocket 연결 실패 대비, 5분마다)
     const pollInterval = setInterval(() => {
@@ -398,12 +335,11 @@ export default function App() {
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      clearInterval(heartbeat);
       clearInterval(pollInterval);
       document.removeEventListener('visibilitychange', handleVisibility);
-      ws.close();
+      stopRealtime();
     };
-  }, [supabaseConnected, refreshSmartstoreCount]);
+  }, [supabaseConnected, refreshSmartstoreCount, formatOrder]);
 
   // ─── Derived: badge counts ──────────────────────────────────
   const todayOrderCount = useMemo(() => {

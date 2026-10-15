@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { turnNavigation } from '../lib/movisReliability';
-import { askCodex, clearMovisThread } from '../lib/codexAnalyst';
+import { askCodex, clearMovisThread, movisRequest } from '../lib/codexAnalyst';
 import { loadMovisLibraries } from '../lib/movisLibraries';
 const HISTORY = 'movis_history_v2',
   USAGE = 'pos_ai_quick_prompts_usage_v1';
@@ -92,7 +92,7 @@ export default function useAIAnalystChat(context = {}) {
         status: 'active'
       }]);
     };
-    step('최신 POS 자료 확인');
+    step('무비스 연결 확인');
     if (promptId) {
       const usage = stored(USAGE, {});
       usage[promptId] = (usage[promptId] || 0) + 1;
@@ -101,6 +101,10 @@ export default function useAIAnalystChat(context = {}) {
       } catch {}
     }
     try {
+      // Do not scan the POS database if the local AI connection is unavailable.
+      const connection = await movisRequest('status', undefined, controller.signal);
+      if (!connection.connected) throw new Error('ChatGPT 계정 연결이 필요합니다. 연결 설정을 확인해주세요.');
+      step('최신 POS 자료 확인');
       const fresh = await (current.loadLibraries || loadMovisLibraries)(controller.signal);
       if (controller.signal.aborted) throw new DOMException('중지됨', 'AbortError');
       setDataState(fresh.dataState || {});

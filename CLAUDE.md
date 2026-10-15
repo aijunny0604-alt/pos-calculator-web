@@ -1,9 +1,20 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-10-12 (모델 선택 · 사용률 게이지 · 강제 애니메이션 · 모바일 제외·PC 전용)
+> 마지막 업데이트: 2026-10-13 (장애 복구 점검 · 초기 연결 재시도 · 조회 부하 완화 · 보안 평가 갱신)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 2026-10-13 현재 운영 판단
+
+[최신 점검 보고서](docs/AUDIT-2026-10-13.md), [보안 전환 가이드](docs/SECURITY-SETUP.md), [검증 범위](docs/TESTING.md)를 우선 참고한다. 아래 과거 이력은 현재 상태의 보증이 아니다.
+
+- 공용 POS는 GitHub Pages + Supabase, MOVIS 브리지는 각 PC의 localhost:43127이다. 브리지 종료와 공용 DB 장애를 구분한다.
+- 초기 핵심 자료 실패는 OFFLINE으로 처리하고 재시도한다. 오프라인 쓰기의 영속 저장/자동 전송 기능은 없다.
+- MOVIS는 연결 선확인 후 테이블 동시 조회 2개/전체 60초 제한을 적용한다. 조회량 감소의 최종 해법은 필요한 자료만 읽는 구조다.
+- 실시간 변경은 `posRealtime.js`의 Supabase SDK 채널로 처리한다. 운영 publication과 정책도 충족해야 한다.
+- 내부 사용/관리자 PIN/공개 키의 존재는 DB 접근 통제가 아니다. 인증·RLS 전환, 재고 원자성, 비밀 키 이관은 남은 작업이다.
+- 2026-10-13 21:36 KST 공용 웹 배포 및 라이브 파일 일치 확인 완료. [배포 기록](docs/DEPLOYMENT-2026-10-13.md). 기존 Windows ZIP은 이번 웹 배포와 별도다.
 
 ## v2026-10-08 — MOVIS Intelligence v2
 
@@ -1574,7 +1585,7 @@ powershell -ExecutionPolicy Bypass -File install-scheduler.ps1  # 작업 스케�
 - **스토어 주문 표시 정리는 표시만, DB memo 원문 불변** (v2026-07-27): 주문상세 스토어 카드(`parseStoreMemo`)·발송 받는사람(`getReceiverName`)은 **화면 표기만** 정리. `order.memo` 원문은 절대 안 건드림(송장 발송인=엠파츠·착불선불 자동처리가 마커 의존). 자동필드 뒤 **사장님 자유메모는 `rest`로 뽑아 표시**(누락 방지). 발송은 **받는사람(수령인) 기준** — buyer_name(입금자) 아님
 - 🚨 **transform 모달 안의 전체화면 오버레이는 `createPortal(document.body)`** (v2026-07-27): OrderDetail/기타 `useDraggableResizable`(inline transform) 모달 안에서 `fixed inset-0` 오버레이(이미지 뷰어 등)를 쓰면 **transform 조상에 갇혀 뷰포트 전체를 못 덮고 뒤가 비친다**(containing-block 함정, v2026-05-25 규칙과 동일). 반드시 `createPortal`로 body에 빼낼 것. transform 부모 없는 화면(OrderHistory 등)은 불필요
 - **사업자등록증 = 거래처 이름 매칭으로 조회** (v2026-07-27): `customers`에서 `name` 공백무시 매칭 → `business_cert_url`. 주문내역 카드 배지·주문상세 카드·거래처 상세 **3곳**에서 열람(뷰어). 거래처관리에서 등록증만 올려두면(클릭/드래그/Ctrl+V) 자동 연동
-- **실시간 = Supabase Realtime(WebSocket)**: App.jsx가 `wss://…supabase.co/realtime/v1/websocket`로 **orders·products·customers·saved_carts·ai_learning** 5개 테이블 구독(`broadcast.self:false`). DB INSERT/UPDATE/DELETE 시 변경분 푸시 → 즉시 state 갱신(폴링 아님). 다른 기기/매장PC/sync.js 변경도 새로고침 없이 반영. external_orders는 StoreOrderAlerts가 별도 실시간 구독.
+- **실시간 = Supabase Realtime SDK**: `App.jsx` → `posRealtime.js`가 **orders·products·customers·saved_carts·ai_learning** 5개 테이블의 `postgres_changes`를 구독한다. SDK가 heartbeat/재연결을 관리하고 ID 기준 중복 삽입을 방지한다. 운영 publication·권한이 필요하며 5분 폴링/화면 복귀 재조회가 보완한다. external_orders는 StoreOrderAlerts가 별도 실시간 구독한다.
 - **⚠️ 비용 한도는 Vercel이 아니라 Supabase**: Free 플랜 대략 Realtime 동시연결 ~200·메시지 200만/월(매장 규모론 한참 여유) / **Egress 월 5GB가 진짜 병목**. **과거 옛 Supabase(`icqxomltplewrhopafpq`)가 egress 초과로 차단된 이력** 있어 새 프로젝트(`jubzppndcclhnvgbvrxr`)로 이전함. egress 주범은 Realtime 메시지(작음)가 아니라 **큰 목록 fetch·제품 이미지 반복 로딩** → 대용량 조회/이미지 최적화로 관리. Realtime 자체는 egress 영향 미미.
 - 🚨 **부가세는 `calcOrderVat`로 품목 단위 계산** (2026-07-16): 택배비/퀵비/수수료/커스텀은 `taxFree: true` = **받은 금액 전액이 공급가액, 부가세 0**. `calcExVat(total)`(=total/1.1)로 전체를 나누면 **비과세분에도 부가세가 붙는다**. 새 화면/텍스트에서 공급가액·부가세 표시할 땐 반드시 [utils.js](src/lib/utils.js) `calcOrderVat(items, {priceOf})` 사용
 - 🚨 **items 저장 시 `taxFree` 반드시 함께 넘길 것** (2026-07-16): 저장 경로들이 `{id, name, price, quantity}`처럼 **필드를 명시 나열**해서 그냥 두면 **저장 순간 비과세가 날아가 과세로 되돌아간다**(화면과 명세서 금액이 어긋남). 현재 보존 지점: [MainPOS](src/pages/MainPOS.jsx) saveOrder · [OrderPage](src/pages/OrderPage.jsx) baseItem · [App.jsx](src/App.jsx) 저장카트. **새 저장 경로 만들면 여기 추가**

@@ -32,7 +32,7 @@ export default function ConnectionBanner({ isOnline }) {
 
   const tooltip = isOnline
     ? `Supabase 클라우드 실시간 연결 · 마지막 동기화: ${syncAgo()}`
-    : '오프라인 — 자동 재연결 시도 중. 작업은 로컬에 임시 저장됩니다';
+    : '데이터 연결 확인 중 — 초기 연결 실패 시 자동 재시도합니다. 서버 저장 여부를 확인해주세요.';
 
   return (
     <div
