@@ -1136,7 +1136,18 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                               );
                             })()}
                           </div>
-                          <p className="shipping-recipient-address text-[var(--muted-foreground)] text-xs break-words leading-snug">{shipAddress(order, customer) || '주소 미등록'}</p>
+                          <div className="shipping-contact-grid"><div className="shipping-address-field"><span className="shipping-field-label">배송주소</span><p className="break-words">{shipAddress(order, customer) || '주소 미등록'}</p></div>                        <div className="shipping-contact-field">
+                          <span className="shipping-field-label">전화번호</span><p className="shipping-phone-value">{customer?.phone || order.customerPhone || '번호 없음'}</p>
+                          {customer && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); startEditCustomer(order.customerName); }}
+                              className="mt-1 px-2 py-0.5 border text-xs rounded-lg transition-colors"
+                              style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--border))', color: 'var(--primary)' }}
+                            >
+                              정보 수정
+                            </button>
+                          )}
+                        </div></div>
                           {/* 받는분(수령인)·배송메모 — 발송은 받는사람 기준 */}
                           {(() => {
                             const recv = parseReceiver(order);
@@ -1180,18 +1191,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                           )}
                           <p className="text-[var(--muted-foreground)] text-xs mt-1">{order.items?.length || 0}종 · {formatPrice(order.totalAmount)}</p>
                         </div>
-                        <div className="shipping-recipient-contact text-right flex-shrink-0">
-                          <p className="text-[var(--muted-foreground)] text-xs">{customer?.phone || order.customerPhone || '번호 없음'}</p>
-                          {customer && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); startEditCustomer(order.customerName); }}
-                              className="mt-1 px-2 py-0.5 border text-xs rounded-lg transition-colors"
-                              style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--primary) 30%, var(--border))', color: 'var(--primary)' }}
-                            >
-                              정보 수정
-                            </button>
-                          )}
-                        </div>
+
                       </div>
                     </div>
 
