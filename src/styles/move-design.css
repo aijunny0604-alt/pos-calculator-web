@@ -259,3 +259,14 @@
  .shipping-contact-field button{margin-top:8px}
  @media(max-width:639px){.shipping-contact-grid{grid-template-columns:minmax(0,1fr);gap:8px}.shipping-address-field,.shipping-contact-field{padding:12px}}
 }
+@media screen {
+ .shipping-recipient-card{container-type:inline-size}
+ .shipping-card-body{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
+ .shipping-delivery-block{min-width:0}
+ .shipping-card-body .shipping-contact-grid{max-width:none;margin:0 0 8px;grid-template-columns:minmax(0,1fr) minmax(190px,.65fr)}
+ .shipping-items-block{min-width:0;padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:12px}
+ .shipping-order-total{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-top:1px solid var(--border);margin-top:12px;padding-top:10px;font-size:12px;color:var(--muted-foreground)}
+ .shipping-order-total strong{font-size:17px;color:var(--foreground);font-variant-numeric:tabular-nums}
+ @container(min-width:1000px){.shipping-card-body{grid-template-columns:minmax(0,1.8fr) minmax(260px,1fr);align-items:start}.shipping-contact-field{position:relative;padding-right:110px;min-height:88px}.shipping-contact-field button{position:absolute;right:12px;top:22px;margin:0}.shipping-card-body .shipping-contact-grid{grid-template-columns:minmax(0,1.35fr) minmax(285px,1fr)}}
+ @media(max-width:639px){.shipping-card-body .shipping-contact-grid{grid-template-columns:minmax(0,1fr)}}
+}

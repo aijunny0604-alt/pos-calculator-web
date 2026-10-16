@@ -1136,7 +1136,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                               );
                             })()}
                           </div>
-                          <div className="shipping-contact-grid"><div className="shipping-address-field"><span className="shipping-field-label">배송주소</span><p className="break-words">{shipAddress(order, customer) || '주소 미등록'}</p></div>                        <div className="shipping-contact-field">
+                          <div className="shipping-card-body"><div className="shipping-delivery-block"><div className="shipping-contact-grid"><div className="shipping-address-field"><span className="shipping-field-label">배송주소</span><p className="break-words">{shipAddress(order, customer) || '주소 미등록'}</p></div>                        <div className="shipping-contact-field">
                           <span className="shipping-field-label">전화번호</span><p className="shipping-phone-value">{customer?.phone || order.customerPhone || '번호 없음'}</p>
                           {customer && (
                             <button
@@ -1174,6 +1174,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                               </div>
                             );
                           })()}
+                          </div><div className="shipping-items-block"><span className="shipping-field-label">주문 상품</span>
                           {/* 주문 물품 — 제품명 칩으로 한눈에 (사장님 요청) */}
                           {order.items?.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5">
@@ -1189,7 +1190,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                               )}
                             </div>
                           )}
-                          <p className="text-[var(--muted-foreground)] text-xs mt-1">{order.items?.length || 0}종 · {formatPrice(order.totalAmount)}</p>
+                          <p className="shipping-order-total"><span>{order.items?.length || 0}종</span><strong>{formatPrice(order.totalAmount)}원</strong></p></div></div>
                         </div>
 
                       </div>
