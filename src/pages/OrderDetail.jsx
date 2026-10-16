@@ -763,11 +763,11 @@ export default function OrderDetail({
               <p className="text-xs sm:text-sm opacity-80 truncate">{order.orderNumber}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          <div className="move-window-actions flex items-center gap-2 flex-shrink-0">
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-3 sm:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 whitespace-nowrap transition-all hover:brightness-105 active:scale-95 shadow-md ring-1 ring-white/50"
+                className="move-header-action px-3 sm:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 whitespace-nowrap"
                 style={{ background: 'linear-gradient(135deg, #ffffff, #eef2ff)', color: 'var(--primary)' }}
                 title="주문 내용(제품·단가·수량 등) 수정"
               >
@@ -779,7 +779,7 @@ export default function OrderDetail({
             {isEditing && (
               <button
                 onClick={handleSave}
-                className="px-3 sm:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 whitespace-nowrap transition-all hover:brightness-105 active:scale-95 shadow-md ring-1 ring-white/50 bg-white"
+                className="move-header-action px-3 sm:px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 whitespace-nowrap bg-white"
                 style={{ background: 'linear-gradient(135deg, #ffffff, #eef2ff)', color: 'var(--primary)' }}
               >
                 <Check className="w-4 h-4" />
@@ -789,26 +789,26 @@ export default function OrderDetail({
             {isDraggable && (
               <button
                 onClick={resetModalPos}
-                className="px-2 py-1.5 rounded-lg text-xs transition-colors hidden md:flex items-center"
+                className="move-window-control hidden md:flex"
                 style={{ background: 'rgba(255,255,255,0.15)' }}
-                title="모달 위치/크기 초기화"
+                title="위치·크기 초기화" aria-label="위치·크기 초기화"
               >
-                초기화
+                <RotateCcw className="w-4 h-4" />
               </button>
             )}
             {/* 확대/축소 + X 버튼을 한 그룹으로 묶어서 X 바로 옆에 붙임 */}
-            <div className="flex items-center gap-0.5 ml-2 rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.12)' }}>
+            <div className="move-window-controls flex items-center gap-2">
               <button
                 onClick={toggleFullscreen}
-                className="p-2 transition-colors hover:bg-white/10 hidden sm:flex items-center"
-                title={isFullscreen ? '원래 크기' : '전체화면'}
+                className="move-window-control hidden sm:flex"
+                title={isFullscreen ? '원래 크기' : '전체화면'} aria-label={isFullscreen ? '원래 크기' : '전체화면'}
               >
                 {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
               </button>
               <button
                 onClick={onClose}
-                className="p-2 transition-colors hover:bg-white/10"
-                title="닫기"
+                className="move-window-control move-window-close"
+                title="닫기" aria-label="닫기"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2272,9 +2272,9 @@ export default function OrderDetail({
                       onClick={() => setManualPaid(order.id || order.orderNumber, m.key)}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors"
                       style={{
-                        background: selected ? m.color : 'var(--card)',
-                        color: selected ? 'white' : m.color,
-                        borderColor: selected ? m.color : `color-mix(in srgb, ${m.color} 30%, var(--border))`,
+                        background: selected ? 'var(--primary)' : 'var(--card)',
+                        color: selected ? 'white' : 'var(--foreground)',
+                        borderColor: selected ? 'var(--primary)' : 'var(--border)',
                       }}
                       title={`${m.label} 결제로 완불 처리`}
                     >
@@ -2487,9 +2487,9 @@ export default function OrderDetail({
                           onClick={() => setManualPaid(order.id || order.orderNumber, m.key)}
                           className="flex flex-col items-center gap-0.5 px-1 py-2 rounded-md text-[11px] font-medium border"
                           style={{
-                            background: selected ? m.color : 'var(--card)',
-                            color: selected ? 'white' : m.color,
-                            borderColor: selected ? m.color : `color-mix(in srgb, ${m.color} 30%, var(--border))`,
+                            background: selected ? 'var(--primary)' : 'var(--card)',
+                            color: selected ? 'white' : 'var(--foreground)',
+                            borderColor: selected ? 'var(--primary)' : 'var(--border)',
                           }}
                         >
                           <span className="text-base leading-none">{m.emoji}</span>

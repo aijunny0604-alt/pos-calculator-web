@@ -270,3 +270,23 @@
  @container(min-width:1000px){.shipping-card-body{grid-template-columns:minmax(0,1.8fr) minmax(260px,1fr);align-items:start}.shipping-contact-field{position:relative;padding-right:110px;min-height:88px}.shipping-contact-field button{position:absolute;right:12px;top:22px;margin:0}.shipping-card-body .shipping-contact-grid{grid-template-columns:minmax(0,1.35fr) minmax(285px,1fr)}}
  @media(max-width:639px){.shipping-card-body .shipping-contact-grid{grid-template-columns:minmax(0,1fr)}}
 }
+/* 공통 모달 버튼 체계: 동일한 모서리·입력 높이·포커스, 의미별 색상은 보존. */
+@media screen {
+ .move-dialog{--move-control-radius:11px}
+ .move-dialog button:not(.rounded-full){border-radius:var(--move-control-radius);font-weight:600}
+ .move-dialog button:disabled{cursor:not-allowed;opacity:.45;box-shadow:none}
+ .move-dialog :is(button[title="닫기"],button[aria-label="닫기"]){width:44px;height:44px;min-width:44px;padding:0;border:1px solid var(--border);background:var(--card);color:var(--muted-foreground);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+ .move-dialog :is(button[title="닫기"],button[aria-label="닫기"]) svg{width:18px;height:18px}
+ .move-window-actions{gap:8px}
+ .move-window-control{width:44px;height:44px;min-width:44px;padding:0!important;border-radius:11px!important;border:1px solid var(--border)!important;background:var(--card)!important;color:var(--muted-foreground);align-items:center;justify-content:center;flex-shrink:0}
+ .move-window-close{display:inline-flex}
+ .move-window-controls{padding-left:8px;border-left:1px solid var(--border)}
+ .order-detail-refined .detail-refined-header .move-header-action{height:44px;background:var(--accent)!important;color:var(--primary)!important;border-color:color-mix(in srgb,var(--primary) 20%,var(--border))!important;box-shadow:none!important}
+ .move-dialog-footer,.detail-refined-footer{gap:10px}
+ .detail-refined-footer button{border-radius:11px;min-height:44px}
+ @media(hover:hover){
+  .move-window-control:hover{background:var(--secondary)!important;color:var(--foreground);border-color:#b9cdd5!important}
+  .move-dialog :is(button[title="닫기"],button[aria-label="닫기"]):hover{background:#fff0f1!important;color:var(--destructive);border-color:#efc3c8!important}
+ }
+ @media(max-width:639px){.move-window-actions,.move-window-controls{gap:6px}.move-window-controls{padding-left:6px}.order-detail-refined .detail-refined-header .move-header-action{padding-inline:12px}}
+}
