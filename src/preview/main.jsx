@@ -12,6 +12,8 @@ import PaymentEditModal from '../components/PaymentEditModal';
 import {sample} from './network';
 import { StatementResult } from '../components/StatementReconcile';
 import { reconcile } from '../lib/statementReconcile';
+import StoreShippingDetails from '../components/StoreShippingDetails';
+function ShippingPreview(){return <main style={{maxWidth:760,margin:'24px auto',padding:16}}><h2 className="text-lg font-bold mb-4">스토어 · 발송 상세 미리보기 (샘플)</h2><StoreShippingDetails order={{order_status:'PAYED'}} items={[{provider_product_name:'스텐 밴딩 54-30 · 입고 대기 상품',raw_payload:{productOrder:{productOrderStatus:'PAYED',placeOrderStatus:'OK',placeOrderDate:'2026-10-14T10:00:00+09:00',dispatchDueDate:'2026-10-15T23:59:00+09:00',delayedDispatchReason:'PRODUCT_PREPARE',delayedDispatchDetailedReason:'공급사 입고 지연으로 준비 중입니다. 입고 후 순차 출고 예정입니다.'}}},{provider_product_name:'브레이크 호스 · 일반 발송 상품',raw_payload:{productOrder:{productOrderStatus:'PAYED',placeOrderStatus:'NOT_YET',dispatchDueDate:'2026-10-20T23:59:00+09:00'}}}]}/></main>}
 const reconOrders=[{id:'DEMO-1',customerName:'샘플 모터스',createdAt:'2026-10-15T01:00:00Z',totalAmount:11000,items:[{name:'스텐 밴딩 54-30',quantity:1,price:11000}]}];
 function ReconPreview(){const [stmt,setStmt]=useState({customer:'샘플 모터스',issue_date:'2026-10-15',stated_total:11000,items:[{name:'스텐 밴딩 64-30',qty:1,supply:10000,tax:1000,uncertain:false}]});return <div style={{maxWidth:1000,margin:'24px auto',padding:12}}><StatementResult r={{stmt,rec:reconcile(stmt,reconOrders)}} onEdit={setStmt} onRemove={()=>{}} onSave={()=>{}}/></div>;}
 function Controls(){
@@ -28,5 +30,6 @@ if (new URLSearchParams(location.search).get('tools') === '1') {
  document.documentElement.classList.add('preview-with-tools');
  createRoot(document.getElementById('preview-controls')).render(<Controls/>);
 }
-if(import.meta.env.DEV && new URLSearchParams(location.search).has('statementCheck')){createRoot(document.getElementById('root')).render(<ReconPreview/>)}
+if(import.meta.env.DEV && new URLSearchParams(location.search).has('shippingCheck')){createRoot(document.getElementById('root')).render(<ShippingPreview/>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('statementCheck')){createRoot(document.getElementById('root')).render(<ReconPreview/>)}
 else if(import.meta.env.DEV){const {default:App}=await import('../App');createRoot(document.getElementById('root')).render(<App/>)}

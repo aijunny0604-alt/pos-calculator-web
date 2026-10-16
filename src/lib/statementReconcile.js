@@ -18,6 +18,8 @@ export function sameProduct(a,b) {
   // 숫자의 순서와 개수는 규격의 일부다. 54-30과 30-54를 임의로 동일시하지 않는다.
   const numbers = ts => ts.filter(t=>/^\d/.test(t)).join('|');
   if(numbers(left)!==numbers(right)) return false;
+  const codes = ts => ts.join(' ').match(/[a-z]+\s+\d+(?:\.\d+)?(?:\s+[a-z]+)?/g)?.map(c=>c.replace(/\s/g,'')).sort().join('|') || '';
+  if(codes(left)!==codes(right)) return false;
   const words = ts => ts.filter(t=>!/^\d/.test(t));
   const l=words(left),r=words(right);
   return l.join('')===r.join('') || l.slice().sort().join('|')===r.slice().sort().join('|');
@@ -42,7 +44,8 @@ export function normalizeStatement(p) {
   if(!items.length) issues.push('품목이 판독되지 않았습니다');
   const total=statementNumber(p.stated_total);
   if(total===null) issues.push('명세서 합계 미판독');
-  for(const it of items) if(!it.name||it.qty===null||it.qty<=0||it.supply===null||it.tax===null||it.uncertain) issues.push(`${it.name||'미판독 품목'}: 원본 확인 필요`);
+  if(total!==null&&total<0) issues.push('음수 명세서는 반품/정산 원본 확인이 필요합니다');
+  for(const it of items) if(!it.name||it.qty===null||it.qty<=0||it.supply===null||it.tax===null||it.supply<0||it.tax<0||it.uncertain) issues.push(`${it.name||'미판독 품목'}: 원본 확인 필요`);
   const linesTotal=items.reduce((s,it)=>s+(it.supply??0)+(it.tax??0),0);
   if(total!==null&&!near(linesTotal,total)) issues.push('판독한 품목 합계와 명세서 합계가 다릅니다');
   return {customer:String(p.customer||'').trim(),issue_date:validDate(date)?date:null,stated_total:total,items,issues:[...new Set(issues)]};
@@ -79,19 +82,34 @@ export function reconcile(input,orders=[],windowDays=MATCH_WINDOW_DAYS) {
   const posLines=matchedOrders.flatMap(o=>(o.items||[]).map(it=>({name:it.name||'',qty:statementNumber(it.quantity),total:(statementNumber(it.price??it.discountedPrice??it.wholesale)??NaN)*(statementNumber(it.quantity)??NaN),orderId:o.id,used:false})));
   if(posLines.some(p=>!Number.isFinite(p.total)||!(p.qty>0))) issues.push('주문 품목의 금액 또는 수량을 확인하세요');
   if(matchedOrders.some(o=>(o.totalReturned||0)>0||(o.returns||[]).length)) issues.push('반품 내역이 있는 주문입니다. 원본 명세서와 반품 기준을 확인하세요');
+  if(matchedOrders.some(o=>statementNumber(o.totalAmount)===null)) issues.push('주문 총액 미등록');
   const posTotal=matchedOrders.reduce((s,o)=>s+(statementNumber(o.totalAmount)??0),0);
   if(matchedOrders.length&&!near(posLines.reduce((s,p)=>s+p.total,0),posTotal)) issues.push('주문 품목 합계와 주문 총액이 다릅니다. 전체 할인·부대비용을 확인하세요');
   const stmtRows=stmt.items.map(it=>{
     const name=[it.name,it.spec].filter(Boolean).join(' '),total=it.supply===null||it.tax===null?NaN:it.supply+it.tax;
     return {name:it.name,spec:it.spec,qty:it.qty,lineTotal:total,identity:name,matched:false,combo:false,refs:[],uncertain:it.uncertain,reason:''};
   });
+  const eligibleRow = row => !row.uncertain && row.qty>0 && Number.isFinite(row.lineTotal);
+  const candidates = stmtRows.map(row => eligibleRow(row) ? posLines
+    .map((p,index)=>({p,index})).filter(({p})=>sameProduct(row.identity,p.name)&&p.qty===row.qty&&near(row.lineTotal,p.total))
+    .sort((a,b)=>Math.abs(a.p.total-row.lineTotal)-Math.abs(b.p.total-row.lineTotal)).map(x=>x.index) : []);
+  const owners = new Map();
+  function assign(rowIndex, seen) {
+    for(const posIndex of candidates[rowIndex]) {
+      if(seen.has(posIndex)) continue;
+      seen.add(posIndex);
+      if(!owners.has(posIndex)||assign(owners.get(posIndex),seen)) {owners.set(posIndex,rowIndex);return true;}
+    }
+    return false;
+  }
+  stmtRows.forEach((_,index)=>assign(index,new Set()));
+  for(const [posIndex,rowIndex] of owners) {
+    const p=posLines[posIndex],row=stmtRows[rowIndex];p.used=true;row.matched=true;row.refs=[{name:p.name,qty:p.qty}];
+  }
   for(const row of stmtRows){
+    if(row.matched) continue;
     const same=posLines.filter(p=>!p.used&&sameProduct(row.identity,p.name));
-    const eligible=!row.uncertain&&row.qty>0&&Number.isFinite(row.lineTotal);
-    const hits=eligible?same.filter(p=>p.qty===row.qty&&near(row.lineTotal,p.total)):[];
-    // 동일한 제품·수량·금액이 반복된 경우에만 한 줄씩 소비한다.
-    const hit=hits[0];
-    if(hit){hit.used=true;row.matched=true;row.refs=[{name:hit.name,qty:hit.qty}];continue;}
+    const eligible=eligibleRow(row);
     const combo=eligible?uniqueSubset(same,row.qty,row.lineTotal):null;
     if(combo){combo.forEach(p=>p.used=true);row.matched=true;row.combo=true;row.refs=combo.map(p=>({name:p.name,qty:p.qty}));continue;}
     row.reason=row.uncertain?'판독 불확실':!eligible?'수량·금액 판독 확인':same.length?'제품명 일치 · 수량/금액 확인':'제품명·규격 확인';
@@ -106,4 +124,17 @@ export function statusOf(rec) {
   if(rec.issues?.length) return '확인필요';
   if(rec.totalOk&&rec.missingCount===0&&rec.posOnly.length===0) return '일치';
   return rec.totalOk?'합계일치':'확인필요';
+}
+
+// 저장 전에 화면의 원문을 다시 정규화하고 최신 주문으로 재대조한다.
+export function buildStatementRecord(input, orders) {
+  const stmt=normalizeStatement(input);
+  if(!stmt.issue_date || !stmt.customer || stmt.stated_total===null || stmt.items.some(it=>it.qty===null||it.supply===null||it.tax===null))
+    throw new Error('거래처·발행일·수량·금액의 미판독 항목을 확인한 뒤 기록을 저장해주세요.');
+  const rec=reconcile(stmt,orders);
+  if(!Number.isFinite(rec.posTotal)||!Number.isFinite(rec.totalDiff)) throw new Error('대조 금액을 확인해주세요.');
+  return {customer:stmt.customer,issue_date:stmt.issue_date,stated_total:stmt.stated_total,pos_total:rec.posTotal,total_diff:rec.totalDiff,
+    status:statusOf(rec),match_by:rec.matchBy,matched_dates:rec.matchedDates.join(', ')||null,order_count:rec.matchedOrders.length,
+    lines:rec.stmtRows.map(x=>({name:x.name,spec:x.spec,qty:x.qty,lineTotal:x.lineTotal,matched:x.matched,combo:x.combo,refs:x.refs,uncertain:x.uncertain,reason:x.reason})),
+    pos_only:rec.posOnly.map(x=>({name:x.name,qty:x.qty,total:x.total}))};
 }

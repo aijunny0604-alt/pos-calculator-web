@@ -14,6 +14,7 @@ import { isOrderDone, isOrderTerminal, isOrderPending, PAYMENT_PENDING_STATUSES 
 import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/storeOrderSafety';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
+import StoreShippingDetails from '@/components/StoreShippingDetails';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
 const fmtDate = (s) => {
@@ -2262,6 +2263,7 @@ export default function SmartStoreOrders({
                       </div>
                     )}
                     {/* 네이버 주문 추가정보 (실수령액/주문자·받는분/유입경로 등) */}
+                    <StoreShippingDetails order={order} items={itemsForOrder} />
                     <NaverOrderMeta order={order} items={itemsForOrder} />
                     {/* 상품 리스트 */}
                     <div className="space-y-1.5">
@@ -2529,6 +2531,8 @@ export default function SmartStoreOrders({
 
               {/* 진행 단계 스텝퍼 — 결제완료→발주확인→발송→배송중→배송완료 */}
               <OrderStepper order={order} />
+
+              <StoreShippingDetails order={order} items={items} />
 
               {/* 네이버 발송 실패 사유 — 발송 시도했으나 네이버가 거부한 경우만 (성공 시각 없을 때) */}
               {order.naver_dispatch_error && !order.naver_dispatch_succeeded_at && (

@@ -38,3 +38,31 @@ test('같은 제품 묶음은 수량과 금액 모두 일치할 때만 허용',(
 });
 test('취소 주문 제외, 반품 주문은 재확인',()=>{assert.equal(reconcile(stmt(),[order(undefined,{status:'cancelled'})]).matchedOrders.length,0);assert.notEqual(statusOf(reconcile(stmt(),[order(undefined,{totalReturned:100})])),'일치');});
 test('빈 명세서/읽지 못한 금액을 일치로 처리하지 않는다',()=>{assert.notEqual(statusOf(reconcile(stmt([],{stated_total:0}),[order(undefined,{totalAmount:0,items:[]})])),'일치');});
+
+test('쉼표 수정 금액을 그대로 저장하고 최신 주문으로 재대조',async()=>{
+ const {buildStatementRecord}=await import('../src/lib/statementReconcile.js');
+ const s=stmt([{...item(),supply:'10,000',tax:'1,000'}],{stated_total:'11,000'});
+ const p=buildStatementRecord(s,[order()]); assert.equal(p.stated_total,11000);assert.equal(p.status,'일치');
+ assert.notEqual(buildStatementRecord(s,[order('다른 상품')]).status,'일치');
+ assert.throws(()=>buildStatementRecord(stmt(undefined,{stated_total:''}),[order()]),/미판독/);
+ assert.throws(()=>buildStatementRecord(stmt(undefined,{issue_date:'2026-02-30'}),[order()]),/미판독/);
+});
+test('가까운 금액보다 정확한 금액을 먼저 매칭',()=>{
+ const s=stmt([item(undefined,1,100,0),item(undefined,1,105,0)],{stated_total:205});
+ const o=order(undefined,{totalAmount:205,items:[{name:'스텐 밴딩 54-30',quantity:1,price:105},{name:'스텐 밴딩 54-30',quantity:1,price:100}]});
+ const r=reconcile(s,[o]);assert.equal(statusOf(r),'일치');
+ // 경계값을 넣어 잘못 소비했을 때 다음 행이 허용오차 밖으로 나가게 한다.
+ const s2=stmt([item(undefined,1,100,0),item(undefined,1,110,0)],{stated_total:210});
+ const o2=order(undefined,{totalAmount:205,items:[{name:'스텐 밴딩 54-30',quantity:1,price:105},{name:'스텐 밴딩 54-30',quantity:1,price:100}]});
+ assert.equal(reconcile(s2,[o2]).missingCount,0);
+});
+test('숫자/문자 위치가 다른 모델 코드와 미등록 주문 합계 경고',()=>{
+ assert.equal(sameProduct('H54 Y64','Y54 H64'),false);
+ const r=reconcile(stmt([item('서비스',1,0,0)],{stated_total:0}),[order('서비스',{totalAmount:null,items:[{name:'서비스',quantity:1,price:0}]})]);
+ assert.notEqual(statusOf(r),'일치');assert.ok(r.issues.includes('주문 총액 미등록'));
+});
+test('앞 행 근사 매칭을 재배치해 뒤 행의 정상 후보를 남긴다',()=>{
+ const s=stmt([item(undefined,1,100,0),item(undefined,1,96,0)],{stated_total:196});
+ const o=order(undefined,{totalAmount:201,items:[{name:'스텐 밴딩 54-30',quantity:1,price:98},{name:'스텐 밴딩 54-30',quantity:1,price:103}]});
+ const r=reconcile(s,[o]);assert.equal(r.missingCount,0);assert.equal(r.posOnly.length,0);
+});

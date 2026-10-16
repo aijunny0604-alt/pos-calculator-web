@@ -6,8 +6,9 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { extractStatement } from '@/lib/statementVision';
 import { formatPrice, toDateKST } from '@/lib/utils';
 
-import { reconcile, statusOf, MATCH_WINDOW_DAYS } from '@/lib/statementReconcile';
-const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
+import { reconcile, statusOf, MATCH_WINDOW_DAYS, buildStatementRecord, statementNumber } from '@/lib/statementReconcile';
+const num = v => statementNumber(v) ?? 0;
+const displayAmount = v => statementNumber(v) === null ? '미판독' : `₩${formatPrice(statementNumber(v))}`;
 
 // DataTransfer/Clipboard에서 이미지 파일 뽑기 — 카톡 드래그(파일) + Ctrl+V(이미지 blob) 모두 대응.
 // 드래그/클립보드에서 이미지를 뽑는다. DataTransfer는 이벤트 중에만 유효 → 동기로 files/urls 수집.
@@ -60,6 +61,9 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
   const [savedIds, setSavedIds] = useState(() => new Set()); // 확인 완료 저장된 결과 id
   const [savingId, setSavingId] = useState(null);
   const [showLogs, setShowLogs] = useState(false);
+  useEffect(() => {
+    setResults(current => current.map(r => r.stmt && !savedIds.has(r.id) ? {...r, rec: reconcile(r.stmt, orders)} : r));
+  }, [orders, savedIds]);
   const [logs, setLogs] = useState(null); // null=미로드, []=없음
 
   // 이미지 파일을 대기열에 추가만 (조회는 [일괄 조회] 버튼에서)
@@ -78,34 +82,22 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 
   // [✅ 확인 완료] — 이 대조 결과를 기록으로 저장(원본 사진 포함)
   const saveLog = useCallback(async (r) => {
-    if (!r?.rec || savedIds.has(r.id) || saving.current.has(r.id)) return;
+    if (!r?.rec || savedIds.has(r.id) || saving.current.size > 0) return;
     saving.current.add(r.id);
     setSavingId(r.id);
     try {
+      const payload = buildStatementRecord(r.stmt, orders);
       let image_url = null, image_path = null;
-      if (r.file) { try { const up = await uploadStatementImage(r.file); image_url = up.url; image_path = up.path; } catch { /* 사진 실패해도 기록은 남긴다 */ } }
-      const { rec, stmt } = r;
-      const payload = {
-        customer: stmt.customer || null,
-        issue_date: stmt.issue_date || null,
-        stated_total: num(stmt.stated_total),
-        pos_total: num(rec.posTotal),
-        total_diff: num(rec.totalDiff),
-        status: statusOf(rec),
-        match_by: rec.matchBy || null,
-        matched_dates: (rec.matchedDates || []).join(', ') || null,
-        order_count: rec.matchedOrders.length,
-        lines: rec.stmtRows.map((x) => ({ name: x.name, qty: x.qty, lineTotal: x.lineTotal, matched: x.matched, combo: x.combo, refs: x.refs, spec: x.spec, uncertain: x.uncertain, reason: x.reason })),
-        pos_only: rec.posOnly.map((x) => ({ name: x.name, qty: x.qty, total: x.total })),
-        image_url, image_path,
-      };
+      let imageFailed = false;
+      if (r.file) { try { const up = await uploadStatementImage(r.file); image_url = up.url; image_path = up.path; } catch { imageFailed = true; } }
+      Object.assign(payload, {image_url, image_path});
       const res = await supabase.addStatementReconLog(payload);
-      if (!res) { showToast?.('저장 실패 — 마이그레이션 016 적용 여부를 확인해주세요', 'error'); return; }
+      if (!Array.isArray(res) || !res[0]?.id) { showToast?.('저장 실패 — 마이그레이션 016 적용 여부를 확인해주세요', 'error'); return; }
       setSavedIds((sv) => new Set([...sv, r.id]));
-      showToast?.('대조 기록을 저장했습니다 ✅', 'success');
+      showToast?.(imageFailed ? '대조 기록은 저장했지만 원본 사진 보관에 실패했습니다.' : '대조 기록을 저장했습니다 ✅', imageFailed ? 'warning' : 'success');
       if (showLogs) loadLogs();
-    } catch { showToast?.('대조 기록 저장에 실패했습니다. 저장 여부를 확인해주세요.', 'error'); } finally { saving.current.delete(r.id); setSavingId(null); }
-  }, [savedIds, showToast, showLogs, loadLogs]);
+    } catch (error) { showToast?.(error.message || '대조 기록 저장에 실패했습니다. 저장 여부를 확인해주세요.', 'error'); } finally { saving.current.delete(r.id); setSavingId(null); }
+  }, [savedIds, showToast, showLogs, loadLogs, orders]);
 
   const deleteLog = async (id) => {
     const ok = await supabase.deleteStatementReconLog(id);
@@ -284,7 +276,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
                   <button onClick={() => removeResult(r.id)}><Trash2 className="w-4 h-4 opacity-60" /></button>
                 </div>
               ) : (
-                <StatementResult r={r} onEdit={stmt => setResults(current => current.map(x => x.id === r.id ? {...x, stmt, rec: reconcile(stmt, orders)} : x))} onRemove={() => removeResult(r.id)} onSave={() => saveLog(r)} saved={savedIds.has(r.id)} saving={savingId === r.id} />
+                <StatementResult r={r} onEdit={stmt => setResults(current => current.map(x => x.id === r.id ? {...x, stmt, rec: reconcile(stmt, orders)} : x))} onRemove={() => removeResult(r.id)} onSave={() => saveLog(r)} saved={savedIds.has(r.id)} saving={savingId === r.id} saveDisabled={savingId !== null} />
               )}
             </div>
           ))}
@@ -302,7 +294,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 function buildResultText(r) {
   const { stmt, rec } = r;
   const L = [`[명세서 대조] ${stmt.customer || '?'} · ${stmt.issue_date || '?'} · ${statusOf(rec)}`];
-  L.push(`명세서 ₩${formatPrice(stmt.stated_total)} / 주문 ₩${formatPrice(rec.posTotal)} · 차액 ${!Number.isFinite(rec.totalDiff) ? '확인 필요' : rec.totalDiff === 0 ? '없음' : `₩${formatPrice(Math.abs(num(rec.totalDiff)))}`}`);
+  L.push(`명세서 ${displayAmount(stmt.stated_total)} / 주문 ₩${formatPrice(rec.posTotal)} · 차액 ${!Number.isFinite(rec.totalDiff) ? '확인 필요' : rec.totalDiff === 0 ? '없음' : `₩${formatPrice(Math.abs(num(rec.totalDiff)))}`}`);
   const miss = rec.stmtRows.filter((x) => !x.matched);
   if (miss.length) { L.push('', '■ 명세서 품목 중 미확인 항목'); miss.forEach((x) => L.push(`· ${x.name} ${x.qty}개 — ₩${formatPrice(x.lineTotal)}`)); }
   if (rec.posOnly.length) { L.push('', '■ 주문내역엔 있는데 명세서에 없음'); rec.posOnly.forEach((x) => L.push(`· ${x.name} ${x.qty}개 — ₩${formatPrice(x.total)}`)); }
@@ -311,16 +303,16 @@ function buildResultText(r) {
   return L.join('\n');
 }
 
-export function StatementResult({ r, onRemove, onSave, onEdit, saved, saving }) {
+export function StatementResult({ r, onRemove, onSave, onEdit, saved, saving, saveDisabled = false }) {
   const { stmt, rec } = r;
   const noOrder = rec.matchedOrders.length === 0;
   const totalOk = rec.totalOk;
-  const linesClean = rec.missingCount === 0 && rec.posOnly.length === 0;
-  const allGood = statusOf(rec) === '일치';
-  const totalMatchOnly = !noOrder && totalOk && !linesClean;
+  const status = statusOf(rec);
+  const allGood = status === '일치';
+  const totalMatchOnly = status === '합계일치';
   const badge = allGood ? { t: '✅ 일치', c: 'var(--success)' }
     : totalMatchOnly ? { t: '⚠️ 합계만 일치', c: '#e6961b' }
-    : noOrder ? { t: '❌ 주문내역 없음', c: '#ff4d6d' }
+    : status === '주문내역없음' ? { t: '❌ 주문내역 없음', c: '#ff4d6d' }
     : { t: '⚠️ 확인 필요', c: '#e6961b' };
 
   return (
@@ -335,7 +327,7 @@ export function StatementResult({ r, onRemove, onSave, onEdit, saved, saving }) 
             className="text-sm px-2 py-1 rounded-lg font-bold border" style={{ background: 'var(--card)', color: 'var(--foreground)', borderColor: 'var(--border)' }}
             title="대조 결과를 카톡에 붙여넣게 복사">📋</button>
           {/* 확인 완료 → 대조 기록 저장(원본 사진 포함) */}
-          <button onClick={onSave} disabled={saved || saving}
+          <button onClick={onSave} disabled={saved || saving || saveDisabled}
             className="text-sm px-2.5 py-1 rounded-lg font-bold border flex items-center gap-1 disabled:opacity-60"
             style={saved
               ? { background: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'var(--success)' }
@@ -353,7 +345,7 @@ export function StatementResult({ r, onRemove, onSave, onEdit, saved, saving }) 
           </div>
         ) : (
           <div className="text-sm mt-1.5 flex flex-wrap gap-x-3 gap-y-1" style={{ color: 'var(--foreground)' }}>
-            <span>명세서 합계 <b>{stmt.stated_total == null || stmt.stated_total === '' ? '미판독' : `₩${formatPrice(stmt.stated_total)}`}</b></span>
+            <span>명세서 합계 <b>{displayAmount(stmt.stated_total)}</b></span>
             <span>주문내역 합계 <b>₩{formatPrice(rec.posTotal)}</b></span>
             <span style={{ color: totalOk ? 'var(--success)' : '#ff4d6d', fontWeight: 800 }}>
               차액 {!Number.isFinite(rec.totalDiff) ? '확인 필요' : rec.totalDiff === 0 ? '없음 ✓' : `₩${formatPrice(Math.abs(rec.totalDiff))} ${rec.totalDiff > 0 ? '(명세서가 많음)' : '(주문내역이 많음)'}`}
