@@ -152,7 +152,7 @@
 .pos-list-heading,.pos-product-row{display:grid;grid-template-columns:minmax(150px,1fr) 64px 110px 120px;gap:12px;align-items:center;padding:14px 16px}
 .pos-list-heading{background:#eaf1f4;color:var(--muted-foreground);font-size:12px}
 .pos-list-heading small{display:block;font-size:10px}
-.pos-product-row{min-height:88px;border-top:1px solid var(--border);transition:background .2s}
+.pos-product-row{min-height:70px;border-top:1px solid var(--border);transition:background .2s}
 .pos-product-row:hover{background:#f3f9fa}.pos-product-row.is-selected{background:#edf8f7}
 .pos-product-identity{display:flex;align-items:center;gap:9px;min-width:0}.pos-product-identity>div{min-width:0}
 .pos-product-identity strong{font-size:14px;line-height:1.6;word-break:keep-all;overflow-wrap:anywhere}.pos-product-identity small{display:block;color:var(--muted-foreground);font-size:11px;margin-top:4px}
@@ -253,21 +253,21 @@
 /* 주소·전화번호를 같은 정보 행에 묶어 초광폭 카드의 빈 공간을 줄인다. */
 @media screen {
  .shipping-contact-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(190px,1fr);gap:12px;max-width:960px;margin:12px 0}
- .shipping-address-field,.shipping-contact-field{min-width:0;padding:12px 16px;border:1px solid var(--border);border-radius:12px;background:var(--secondary);font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+ .shipping-address-field,.shipping-contact-field{min-width:0;padding:4px 0;border:0;border-radius:0;background:transparent;font-size:14px;line-height:1.65;overflow-wrap:anywhere}.shipping-contact-field{padding-left:18px;border-left:1px solid var(--border)}
  .shipping-field-label{display:block;color:var(--muted-foreground);font-size:11px;font-weight:600;margin-bottom:5px}
  .shipping-phone-value{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--foreground)}
  .shipping-contact-field button{margin-top:8px}
- @media(max-width:639px){.shipping-contact-grid{grid-template-columns:minmax(0,1fr);gap:8px}.shipping-address-field,.shipping-contact-field{padding:12px}}
+ @media(max-width:639px){.shipping-contact-grid{grid-template-columns:minmax(0,1fr);gap:8px}.shipping-address-field,.shipping-contact-field{padding:8px 0;border-left:0}.shipping-contact-field{border-top:1px solid var(--border)}}
 }
 @media screen {
  .shipping-recipient-card{container-type:inline-size}
  .shipping-card-body{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
  .shipping-delivery-block{min-width:0}
  .shipping-card-body .shipping-contact-grid{max-width:none;margin:0 0 8px;grid-template-columns:minmax(0,1fr) minmax(190px,.65fr)}
- .shipping-items-block{min-width:0;padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:12px}
+ .shipping-items-block{min-width:0;padding:12px 0 0;background:transparent;border:0;border-top:1px solid var(--border);border-radius:0}
  .shipping-order-total{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-top:1px solid var(--border);margin-top:12px;padding-top:10px;font-size:12px;color:var(--muted-foreground)}
  .shipping-order-total strong{font-size:17px;color:var(--foreground);font-variant-numeric:tabular-nums}
- @container(min-width:1000px){.shipping-card-body{grid-template-columns:minmax(0,1.8fr) minmax(260px,1fr);align-items:start}.shipping-contact-field{position:relative;padding-right:110px;min-height:88px}.shipping-contact-field button{position:absolute;right:12px;top:22px;margin:0}.shipping-card-body .shipping-contact-grid{grid-template-columns:minmax(0,1.35fr) minmax(285px,1fr)}}
+ @container(min-width:1000px){.shipping-items-block{padding:4px 0 4px 20px;border-top:0;border-left:1px solid var(--border)}.shipping-card-body{grid-template-columns:minmax(0,1.8fr) minmax(260px,1fr);align-items:start}.shipping-contact-field{position:relative;padding-right:110px;min-height:70px}.shipping-contact-field button{position:absolute;right:0;top:12px;margin:0}.shipping-card-body .shipping-contact-grid{grid-template-columns:minmax(0,1.35fr) minmax(285px,1fr)}}
  @media(max-width:639px){.shipping-card-body .shipping-contact-grid{grid-template-columns:minmax(0,1fr)}}
 }
 /* 공통 모달 버튼 체계: 동일한 모서리·입력 높이·포커스, 의미별 색상은 보존. */
