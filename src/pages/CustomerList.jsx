@@ -1,3 +1,4 @@
+import { customerMatches, orderProductMatches } from '@/lib/customerSearch.mjs';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
@@ -33,6 +34,7 @@ export default function CustomerList({
 }) {
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'payments' | 'certs'
   const [searchTerm, setSearchTerm] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   // 카테고리 필터 (사용자 정책: 네이버=엠파츠 카테고리 분류)
   const [categoryFilter, setCategoryFilter] = useState('all'); // 'all' | 'none' | <category name>
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -147,11 +149,7 @@ export default function CustomerList({
     // 카테고리 필터
     if (categoryFilter === 'none' && c.category) return false;
     if (categoryFilter !== 'all' && categoryFilter !== 'none' && c.category !== categoryFilter) return false;
-    const search = searchTerm.toLowerCase().replace(/\s/g, '');
-    const name = c.name.toLowerCase().replace(/\s/g, '');
-    const address = (c.address || '').toLowerCase().replace(/\s/g, '');
-    const phone = (c.phone || '').replace(/\s/g, '');
-    return name.includes(search) || address.includes(search) || phone.includes(search);
+    return customerMatches(c, searchTerm);
   }).sort((a, b) => {
     if (sortBy === 'outstanding') {
       const ba = outstandingByCustomer[String(a.id)] || 0;
@@ -160,6 +158,8 @@ export default function CustomerList({
     }
     return (a.name || '').localeCompare(b.name || '', 'ko-KR');
   });
+
+  useEffect(() => { setProductSearch(''); }, [selectedCustomer?.id]);
 
   // -- Order helpers --
 
@@ -825,6 +825,11 @@ export default function CustomerList({
                 );
               })()}
 
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <input aria-label="업체 거래 이력 제품 검색" placeholder="거래한 제품명 검색 · 단어 순서 무관" value={productSearch} onChange={e=>setProductSearch(e.target.value)} className="flex-1 min-w-0 border rounded-xl px-4 py-3 bg-[var(--card)]"/>
+                {productSearch && <button onClick={()=>setProductSearch('')} className="border rounded-xl px-3 py-3">초기화</button>}
+                <p className="w-full text-xs text-[var(--muted-foreground)]">검색 {getCustomerOrders(selectedCustomer.name).filter(o=>orderProductMatches(o,productSearch)).length}건 / 전체 {getCustomerOrders(selectedCustomer.name).length}건 · 상단 합계와 전체 복사는 전체 거래 기준</p>
+              </div>
               {/* Order history header */}
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[var(--foreground)] text-base sm:text-lg font-bold">주문 이력</p>
@@ -849,14 +854,14 @@ export default function CustomerList({
               </div>
 
               {/* Order list */}
-              {getCustomerOrders(selectedCustomer.name).length === 0 ? (
+              {getCustomerOrders(selectedCustomer.name).filter(o=>orderProductMatches(o,productSearch)).length === 0 ? (
                 <EmptyState
                   icon={Receipt}
                   title="주문 이력이 없습니다"
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
-                  {getCustomerOrders(selectedCustomer.name).map(order => {
+                  {getCustomerOrders(selectedCustomer.name).filter(o=>orderProductMatches(o,productSearch)).map(order => {
                     const net = (order.totalAmount || 0) - (order.totalReturned || 0);
                     const items = order.items || [];
                     return (

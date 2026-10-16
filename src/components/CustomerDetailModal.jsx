@@ -1,3 +1,4 @@
+import { orderProductMatches } from '@/lib/customerSearch.mjs';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -7,7 +8,7 @@ const OrderDetailPopup = ({ order, onClose }) => {
   if (!order) return null;
   const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
   const items = Array.isArray(order.items) ? order.items : [];
-  const total = Number(order.total || 0);
+  const total = Number(order.total ?? order.totalAmount ?? order.total_amount ?? 0);
   const supply = Math.round(total / 1.1);
   const vat = total - supply;
   return (
@@ -147,6 +148,8 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
   const [records, setRecords] = useState([]);
   const [history, setHistory] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [productSearch, setProductSearch] = useState('');
+  const searchedOrders = useMemo(()=>orders.filter(o=>orderProductMatches(o,productSearch)),[orders,productSearch]);
   const [loading, setLoading] = useState(false);
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -179,6 +182,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
     if (!open || !customer) return;
     setLoading(true);
     setTab('outstanding');
+    setProductSearch('');
     (async () => {
       try {
         const [r, allHistory, allOrders] = await Promise.all([
@@ -595,9 +599,11 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
 
           {!loading && tab === 'orders' && (
             <div className="grid grid-cols-1 gap-3.5">
-              {orders.length === 0 ? (
+              <input aria-label="거래처 주문 제품 검색" placeholder="이 업체의 주문 제품명 검색" value={productSearch} onChange={e=>setProductSearch(e.target.value)} className="w-full border rounded-xl px-4 py-3 bg-[var(--card)]"/>
+              <p className="text-xs text-[var(--muted-foreground)]">검색 {searchedOrders.length}건 / 전체 {orders.length}건 · 합계·내보내기는 전체 거래 기준</p>
+              {searchedOrders.length === 0 ? (
                 <p className="col-span-full text-base text-center text-[var(--muted-foreground)] py-12">주문 내역 없음</p>
-              ) : orders.slice(0, 50).map((o, idx) => {
+              ) : searchedOrders.slice(0, 50).map((o, idx) => {
                 const items = Array.isArray(o.items) ? o.items : [];
                 const expanded = expandedOrder === o.id;
                 return (
@@ -625,7 +631,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <div className="font-black text-3xl sm:text-4xl tabular-nums leading-none" style={{ color: '#2563eb' }}>{fmt(o.total)}<span className="text-lg sm:text-xl font-bold ml-1">원</span></div>
+                          <div className="font-black text-3xl sm:text-4xl tabular-nums leading-none" style={{ color: '#2563eb' }}>{fmt(o.total ?? o.totalAmount ?? o.total_amount)}<span className="text-lg sm:text-xl font-bold ml-1">원</span></div>
                           {Number(o.total_returned) > 0 && (
                             <div className="text-base text-orange-400 mt-1.5 font-semibold">환불 {fmt(o.total_returned)}</div>
                           )}
@@ -666,7 +672,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                           <tfoot>
                             <tr className="border-t border-[var(--border)] font-bold text-base sm:text-lg">
                               <td colSpan="3" className="py-2.5 text-right">합계</td>
-                              <td className="text-right py-2.5 text-[var(--primary)] tabular-nums">{fmt(o.total)}</td>
+                              <td className="text-right py-2.5 text-[var(--primary)] tabular-nums">{fmt(o.total ?? o.totalAmount ?? o.total_amount)}</td>
                             </tr>
                           </tfoot>
                         </table>
@@ -680,9 +686,9 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                   </div>
                 );
               })}
-              {orders.length > 50 && (
+              {searchedOrders.length > 50 && (
                 <p className="text-sm text-center text-[var(--muted-foreground)] pt-3">
-                  최근 50건만 표시 (전체 {orders.length}건)
+                  검색 결과 중 50건 표시 (검색 {searchedOrders.length}건)
                 </p>
               )}
             </div>
