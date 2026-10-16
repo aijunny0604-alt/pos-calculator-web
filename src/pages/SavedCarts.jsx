@@ -836,7 +836,7 @@ export default function SavedCarts({
                       }}
                     >
                       {/* 헤더: 순번 + 제품명 input + [교체] + [삭제] */}
-                      <div className="flex items-center gap-2 px-3 pt-2.5 pb-2">
+                      <div className="saved-item-editor-heading flex items-center gap-2 px-3 pt-2.5 pb-2">
                         <span
                           className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold tabular-nums"
                           style={{ background: 'var(--secondary)', color: 'var(--muted-foreground)' }}
@@ -865,7 +865,7 @@ export default function SavedCarts({
                           }}
                           title="잘못 주문한 제품을 다른 제품으로 교체 (수량 유지)"
                         >
-                          <RefreshCw className="w-3.5 h-3.5" /> 교체
+                          <RefreshCw className="w-3.5 h-3.5" /> {isReplacing ? '닫기' : '제품 교체'}
                         </button>
                         <button
                           onClick={() => {
@@ -884,7 +884,8 @@ export default function SavedCarts({
 
                       {/* 제품 교체 검색 (펼침 시) */}
                       {isReplacing && (
-                        <div className="px-3 pb-2.5 relative">
+                        <div className="saved-replace-panel">
+                          <p className="saved-replace-help">바꿀 제품을 검색해 선택하세요. 수량 {item.quantity}개는 유지됩니다.</p>
                           <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--muted-foreground)' }} />
                             <input
@@ -893,13 +894,15 @@ export default function SavedCarts({
                               value={replaceSearchTerm}
                               onChange={(e) => setReplaceSearchTerm(e.target.value)}
                               onFocus={handleSearchFocus}
-                              placeholder="바꿀 제품명 검색…"
+                              aria-label="교체할 제품 검색"
+                              onKeyDown={(e) => { if (e.key === 'Escape') setReplaceLineIdx(null); }}
+                              placeholder="제품명으로 검색"
                               className="w-full pl-9 pr-3 py-2 text-sm bg-[var(--background)] border-2 rounded-lg focus:outline-none"
                               style={{ borderColor: 'var(--primary)' }}
                             />
                           </div>
                           {replaceSearchTerm && (
-                            <div className="absolute left-3 right-3 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-xl max-h-56 overflow-y-auto z-50">
+                            <div className="saved-replace-results">
                               {replaceFilteredProducts.length > 0 ? replaceFilteredProducts.map((product) => {
                                 const isWholesale = currentCart.priceType === 'wholesale' || currentCart.price_type === 'wholesale';
                                 const rPrice = isWholesale ? (product.wholesale || product.price) : (product.retail || product.wholesale || product.price);
@@ -913,7 +916,7 @@ export default function SavedCarts({
                                       <div className="text-sm font-medium break-words leading-snug">{product.name}</div>
                                       {product.category && <div className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>{product.category}</div>}
                                     </div>
-                                    <span className="font-bold text-sm flex-shrink-0" style={{ color: 'var(--success)' }}>{formatPrice(rPrice)}</span>
+                                    <span className="font-bold text-sm flex-shrink-0" style={{ color: 'var(--success)' }}>{formatPrice(rPrice)}원 <span className="saved-replace-select">선택</span></span>
                                   </button>
                                 );
                               }) : (
@@ -940,7 +943,7 @@ export default function SavedCarts({
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
-                            <span className="font-bold text-base min-w-[2.2rem] text-center tabular-nums">{item.quantity}</span>
+                            <span className="saved-edit-quantity">{item.quantity}</span>
                             <button
                               onClick={() => stepItemQty(1)}
                               className="w-8 h-8 bg-[var(--primary)] hover:opacity-90 text-white rounded-md flex items-center justify-center transition-opacity"
@@ -1089,7 +1092,7 @@ export default function SavedCarts({
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                        <p className="text-[var(--muted-foreground)] text-sm">×{item.quantity}개</p>
+                        <p className="saved-quantity-badge"><span>수량</span><strong>{item.quantity}</strong><span>개</span></p>
                         {itemPrice > 0 ? (
                           <div className="text-right">
                             <p className="font-bold text-base" style={{ color: 'var(--success)' }}>{formatPrice(itemTotal)}</p>

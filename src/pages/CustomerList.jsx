@@ -1159,7 +1159,7 @@ export default function CustomerList({
                     className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                     title="닫기"
                   >
-                    <X className="w-5 h-5 text-white" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>

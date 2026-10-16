@@ -862,7 +862,8 @@ export default function OrderHistory({
               </div>
 
               <button
-                onClick={() => setShowReturnsOnly(prev => !prev)}
+                aria-pressed={showReturnsOnly}
+                onClick={() => { setShowReturnsOnly(prev => !prev); setMemoFilter('off'); setSelectedOrders([]); }}
                 className="rounded-xl p-3 sm:p-4 border text-left transition-all hover:-translate-y-0.5"
                 style={{
                   background: showReturnsOnly
@@ -918,11 +919,11 @@ export default function OrderHistory({
               </button>
 
               <button
-                onClick={() => setMemoFilter(prev => {
+                onClick={() => { setShowReturnsOnly(false); setSelectedOrders([]); setMemoFilter(prev => {
                   const next = prev === 'off' ? 'unchecked' : prev === 'unchecked' ? 'all' : 'off';
                   if (next === 'unchecked') setDateFilter('all');
                   return next;
-                })}
+                }); }}
                 className="rounded-xl p-3 sm:p-4 border text-left transition-all hover:-translate-y-0.5"
                 style={{
                   background: memoFilter === 'unchecked'
@@ -1063,6 +1064,12 @@ export default function OrderHistory({
               )}
             </div>
 
+            {(showReturnsOnly || memoFilter !== 'off') && (
+              <div className="order-filter-reset" role="status">
+                <span>{showReturnsOnly ? '반품 주문만 보는 중' : memoFilter === 'unchecked' ? '미확인 메모 주문만 보는 중' : '메모가 있는 주문만 보는 중'}</span>
+                <button type="button" onClick={() => { setShowReturnsOnly(false); setMemoFilter('off'); setSelectedOrders([]); }}>필터 해제 · 기존 목록 보기</button>
+              </div>
+            )}
             {/* Select all row */}
             <div className="flex items-center justify-between text-sm">
               <label className="flex items-center gap-2 cursor-pointer">
