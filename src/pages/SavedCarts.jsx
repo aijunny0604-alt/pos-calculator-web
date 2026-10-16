@@ -1066,42 +1066,28 @@ export default function SavedCarts({
                   );
                 }
 
-                // 보기 모드 — 기존 1행 레이아웃 유지 (할인 적용 시 정가/할인 배지 노출)
+                // 보기 모드: 상품 · 단가 · 수량 · 금액을 같은 기준선에 정렬한다.
                 return (
-                  <div key={idx} className="rounded-lg p-3 sm:p-4 border border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--accent)] transition-all">
-                    <div className="flex items-start sm:items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold break-words leading-snug">{item.name}</p>
-                        {isDiscounted && (
-                          <span
-                            className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
-                            style={{ background: 'color-mix(in srgb, var(--warning) 15%, transparent)', color: 'var(--warning)' }}
-                          >
-                            <Tag className="w-3 h-3" />
-                            {item.discountType === 'percent' ? `${item.discountValue}%` : `${formatPrice(item.discountValue)}원`} 할인
-                          </span>
-                        )}
-                        {itemPrice > 0 && (
-                          <div className="mt-1">
-                            {isDiscounted && (
-                              <p className="text-xs line-through" style={{ color: 'var(--muted-foreground)' }}>{formatPrice(baseUnit)}</p>
-                            )}
-                            <p className="text-sm" style={{ color: 'var(--primary)' }}>{formatPrice(itemPrice)}</p>
-                            <p className="text-[var(--muted-foreground)] text-xs">{item.taxFree ? '(비과세)' : `(VAT제외 ${formatPrice(itemSupply)})`}</p>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                        <p className="saved-quantity-badge"><span>수량</span><strong>{item.quantity}</strong><span>개</span></p>
-                        {itemPrice > 0 ? (
-                          <div className="text-right">
-                            <p className="font-bold text-base" style={{ color: 'var(--success)' }}>{formatPrice(itemTotal)}</p>
-                            <p className="text-[var(--muted-foreground)] text-xs">{item.taxFree ? '(비과세)' : `(VAT제외 ${formatPrice(itemTotalSupply)})`}</p>
-                          </div>
-                        ) : (
-                          <p className="text-[var(--muted-foreground)] text-xs">가격 정보 없음</p>
-                        )}
-                      </div>
+                  <div key={idx} className="saved-product-row">
+                    <div className="saved-product-name">
+                      <span className="saved-product-label">상품</span>
+                      <p>{item.name}</p>
+                      {isDiscounted && <span className="saved-product-discount">{item.discountType === 'percent' ? `${item.discountValue}%` : `${formatPrice(item.discountValue)}원`} 할인</span>}
+                    </div>
+                    <div className="saved-product-unit">
+                      <span className="saved-product-label">단가</span>
+                      {isDiscounted && <del className="saved-product-note">{formatPrice(baseUnit)}원</del>}
+                      <strong>{itemPrice > 0 ? `${formatPrice(itemPrice)}원` : '가격 미등록'}</strong>
+                      {itemPrice > 0 && <span className="saved-product-note">{item.taxFree ? '비과세' : `공급가 ${formatPrice(itemSupply)}`}</span>}
+                    </div>
+                    <div className="saved-product-quantity">
+                      <span className="saved-product-label">수량</span>
+                      <strong>{item.quantity}<small>개</small></strong>
+                    </div>
+                    <div className="saved-product-total">
+                      <span className="saved-product-label">금액</span>
+                      <strong>{itemPrice > 0 ? `${formatPrice(itemTotal)}원` : '—'}</strong>
+                      {itemPrice > 0 && <span className="saved-product-note">{item.taxFree ? '비과세' : `공급가 ${formatPrice(itemTotalSupply)}`}</span>}
                     </div>
                   </div>
                 );
