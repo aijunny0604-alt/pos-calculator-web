@@ -388,3 +388,5 @@
   .saved-product-note{font-size:11px}
  }
 }
+
+@media screen and (min-width:1024px){.pos-search-toolbar{padding-top:20px;padding-bottom:16px}}

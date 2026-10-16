@@ -43,8 +43,7 @@ export default function MainPOS({
   const [catalogView,setCatalogView] = useState(()=>{try{return localStorage.getItem('pos_catalog_view')==='cards'?'cards':'list';}catch{return 'list';}});
   const [favorites,setFavorites] = useState(()=>{try{const v=JSON.parse(localStorage.getItem('pos_favorites')||'[]');return Array.isArray(v)?v.map(String):[];}catch{return [];}});
   const [favoritesOnly,setFavoritesOnly] = useState(false);
-  const [chosenCustomer,setChosenCustomer] = useState(null);
-  const effectiveCustomer=chosenCustomer || loadedCustomer;
+  const effectiveCustomer = loadedCustomer;
   const changeView=value=>{setCatalogView(value);try{localStorage.setItem('pos_catalog_view',value);}catch{}};
   const toggleFavorite=id=>setFavorites(prev=>{const key=String(id);const next=prev.includes(key)?prev.filter(x=>x!==key):[...prev,key];try{localStorage.setItem('pos_favorites',JSON.stringify(next));}catch{}return next;});
   const [searchTerm, setSearchTerm] = useState('');
@@ -491,9 +490,14 @@ export default function MainPOS({
 
         {/* Search & Filter Bar */}
         <div
-          className="sticky top-12 lg:top-0 z-30 px-4 py-3 border-b"
+          className="pos-search-toolbar sticky top-12 lg:top-0 z-30 px-4 py-3 border-b flex-shrink-0"
           style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
         >
+          <div className="hidden lg:flex items-center gap-2 mb-4">
+            <ShoppingCart className="w-5 h-5 text-[var(--primary)]" />
+            <h1 className="text-xl font-bold text-[var(--foreground)]">제품 주문</h1>
+            <span className="text-xs text-[var(--muted-foreground)] ml-1">상품 검색 · 주문 담기</span>
+          </div>
           {/* Search bar with AI button */}
           <div className="flex gap-2 items-center">
             <div
@@ -616,7 +620,6 @@ export default function MainPOS({
           <div className="pos-catalog-toolbar">
             <div role="group" aria-label="상품 보기 방식"><button aria-pressed={catalogView==='list'} onClick={()=>changeView('list')}>목록 보기</button><button aria-pressed={catalogView==='cards'} onClick={()=>changeView('cards')}>카드 보기</button></div>
             <button aria-pressed={favoritesOnly} onClick={()=>setFavoritesOnly(v=>!v)}>★ 즐겨찾기</button>
-            <label className="pos-customer-picker"><span>거래처</span><select aria-label="주문 거래처" value={effectiveCustomer?.id || ''} onChange={e=>{setChosenCustomer(customers.find(c=>String(c.id)===e.target.value)||null);if(!e.target.value)onClearLoadedCustomer?.();}}><option value="">일반 고객 · 선택 안 함</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
           </div>
           <div className="mt-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
             {filteredProducts.length}개 제품
@@ -1242,7 +1245,7 @@ export default function MainPOS({
               order_number: orderData.orderNumber,
               existing_customer_id: orderData.existingCustomerId,
             });
-            if (result) {setChosenCustomer(null);onClearLoadedCustomer?.();}
+            if (result) {onClearLoadedCustomer?.();}
             return result;
           }}
           isSaving={isSaving}
