@@ -1,3 +1,4 @@
+import SavedCarts from '../pages/SavedCarts';
 import './network';
 import React,{useState} from 'react';
 import {createRoot} from 'react-dom/client';
@@ -35,7 +36,8 @@ if (new URLSearchParams(location.search).get('tools') === '1') {
  document.documentElement.classList.add('preview-with-tools');
  createRoot(document.getElementById('preview-controls')).render(<Controls/>);
 }
-if(import.meta.env.DEV && new URLSearchParams(location.search).has('detailCheck')){createRoot(document.getElementById('root')).render(<DetailPreview/>)}
+if(import.meta.env.DEV && new URLSearchParams(location.search).has('cartCheck')){createRoot(document.getElementById('root')).render(<SavedCarts savedCarts={[{id:'demo-cart',name:'샘플 모터스',date:'2026-10-16',time:'12:00',status:'scheduled',priceType:'wholesale',total:198000,items:[{id:1,name:'스테인리스 브레이크 호스 세트',quantity:2,wholesale:99000,retail:120000}]}]} products={[]} customers={sample.customers} onUpdate={()=>{}} onBack={()=>{}}/>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('detailCheck')){createRoot(document.getElementById('root')).render(<DetailPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('shippingCheck')){createRoot(document.getElementById('root')).render(<ShippingPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('statementCheck')){createRoot(document.getElementById('root')).render(<ReconPreview/>)}
 else if(import.meta.env.DEV){const {default:App}=await import('../App');createRoot(document.getElementById('root')).render(<App/>)}

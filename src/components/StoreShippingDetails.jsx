@@ -10,7 +10,7 @@ export default function StoreShippingDetails({order,items=[]}) {
         {row.overdue&&<span className="px-2 py-1 rounded-md" style={{background:'rgba(239,68,68,.12)',color:'var(--destructive)'}}>발송 기한 초과</span>}
       </div>
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-        {[['발송 기한',shippingDate(row.due)],['발주 상태',row.placeStatus],['발주확인 일시',shippingDate(row.confirmed)],...(row.dispatched?[['발송 일시',shippingDate(row.dispatched)]]:[]),...(row.delayed?[['지연 사유',row.reason],['지연 처리 일시','미제공 (동기화 자료에 없음)']]:[]),...(row.claim?[['클레임 상태',row.claim]]:[])].map(([label,value])=><div key={label} className="min-w-0"><dt className="text-xs" style={{color:'var(--muted-foreground)'}}>{label}</dt><dd className="mt-0.5 break-words">{value}</dd></div>)}
+        {[['발송 기한',shippingDate(row.due)],['발주 상태',row.placeStatus],['발주확인 일시',shippingDate(row.confirmed)],...(row.dispatched?[['발송 일시',shippingDate(row.dispatched)]]:[]),...(row.delayed?[['지연 사유',row.reason]]:[]),...(row.claim?[['클레임 상태',row.claim]]:[])].filter(([,value])=>value && !String(value).startsWith('미제공')).map(([label,value])=><div key={label} className="min-w-0"><dt className="text-xs" style={{color:'var(--muted-foreground)'}}>{label}</dt><dd className="mt-0.5 break-words">{value}</dd></div>)}
       </dl>
       {row.detail&&<p className="text-sm whitespace-pre-wrap break-words rounded-lg p-2" style={{background:'var(--muted)'}}>{row.detail}</p>}
     </div>)}

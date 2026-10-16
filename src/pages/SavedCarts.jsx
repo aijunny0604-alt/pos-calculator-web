@@ -527,7 +527,7 @@ export default function SavedCarts({
         }}
       >
         <div
-          className={`relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition ${isDetailFullscreen ? '' : 'max-h-[calc(100dvh-6rem)] md:max-h-[calc(100vh-2rem)]'}`}
+          className={`move-dialog saved-cart-detail relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition ${isDetailFullscreen ? '' : 'max-h-[calc(100dvh-6rem)] md:max-h-[calc(100vh-2rem)]'}`}
           style={{
             maxWidth: isDetailFullscreen ? '100vw' : 'min(95rem, calc(100vw - 2rem))',
             height: isDetailFullscreen ? '100vh' : 'auto',
@@ -543,7 +543,7 @@ export default function SavedCarts({
           {/* Modal header */}
           <div
             {...detailDragHandle}
-            className="px-3 sm:px-6 py-3.5 sm:py-5 flex items-center justify-between gap-2 flex-shrink-0"
+            className="saved-cart-heading px-3 sm:px-6 py-3.5 sm:py-5 flex items-center justify-between gap-2 flex-shrink-0"
             style={{
               // 단색 대신 은은한 그라데이션 — 평평한 파란 띠보다 깊이감
               background: 'linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 78%, #6d28d9) 100%)',
@@ -664,7 +664,7 @@ export default function SavedCarts({
 
             {/* QuickItemBar — 택배비/퀵비/수수료 등 즉석 추가 (편집 모드 전용) */}
             {isEditingDetail && (
-              <div className="mb-4">
+              <details className="saved-quick-add mb-4"><summary>배송비·수수료 등 추가</summary>
                 <QuickItemBar
                   onAddLine={(line) => {
                     setEditedDetailCart({
@@ -673,7 +673,7 @@ export default function SavedCarts({
                     });
                   }}
                 />
-              </div>
+              </details>
             )}
 
             {/* Product search */}
@@ -926,7 +926,7 @@ export default function SavedCarts({
 
                       {/* 수량 · 단가 · 합계 — 한 줄에 연결 (구분선으로 묶음) */}
                       <div
-                        className="grid grid-cols-[auto_1fr_1fr]"
+                        className="saved-item-metrics grid grid-cols-[auto_1fr_1fr]"
                         style={{ borderTop: '1px solid var(--border)' }}
                       >
                         {/* 수량 */}
@@ -1115,8 +1115,8 @@ export default function SavedCarts({
 
           {/* Status edit section — inside scroll body so it scrolls with items on mobile */}
           {isEditingDetail && (
-            <div className="mt-4 -mx-3 sm:-mx-6 border-t border-[var(--border)] px-3 sm:px-6 py-3 sm:py-4 bg-[var(--secondary)]">
-              <div className="space-y-3 sm:space-y-4">
+            <div className="saved-cart-settings mt-4 border border-[var(--border)] p-4 rounded-xl bg-[var(--card)]">
+              <h3 className="font-bold text-sm mb-4">배송·진행 설정</h3><div className="space-y-3 sm:space-y-4">
                 <div>
                   <p className="text-[var(--muted-foreground)] text-xs font-medium mb-1.5">주문 상태</p>
                   <div className="grid grid-cols-5 gap-1.5">

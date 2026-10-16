@@ -91,6 +91,7 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
 
   const startDrag = useCallback((e) => {
     if (maximized) return;
+    setTransitioning(false);
     if (e.target?.closest?.('button, input, textarea, select, a, [data-no-drag]')) return;
     const p = getPoint(e);
     dragState.current = { startX: p.x, startY: p.y, origX: rect.x, origY: rect.y };
@@ -99,6 +100,7 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
 
   const startResize = useCallback((dir) => (e) => {
     if (maximized) return;
+    setTransitioning(false);
     const p = getPoint(e);
     resizeState.current = { startX: p.x, startY: p.y, orig: { ...rect }, dir };
     if (e.cancelable) e.preventDefault();
@@ -197,6 +199,7 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
           'box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
       }
     : {};
+  transitionStyle['--move-window-duration'] = transitioning ? '450ms' : '0ms';
 
   // 모바일은 기존 동작(중앙 정렬)을 유지 → containerStyle/handles/drag 비활성
   const containerStyle = !isDesktop
