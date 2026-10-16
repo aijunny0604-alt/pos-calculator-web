@@ -1071,7 +1071,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                 return (
                   <div
                     key={order.orderNumber}
-                    className={`rounded-xl border transition-colors ${
+                    className={`shipping-recipient-card rounded-xl border transition-colors ${
                       isSelected ? '' : !order.__fromSavedCart ? 'bg-[var(--card)] border-[var(--border)]' : ''
                     }`}
                     style={isSelected
@@ -1081,7 +1081,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                         : {}
                     }
                   >
-                    <div className="p-3 cursor-pointer" onClick={() => toggleOrder(order.orderNumber)}>
+                    <div className="shipping-recipient-main p-3 cursor-pointer" onClick={() => toggleOrder(order.orderNumber)}>
                       <div className="flex items-start gap-3">
                         <div
                           className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
@@ -1093,7 +1093,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className={`font-medium text-sm ${setting.paymentType === '선불' ? 'font-bold' : ''}`} style={setting.paymentType === '선불' ? { color: 'var(--warning)' } : {}}>
+                            <span className={`shipping-recipient-name font-medium text-sm ${setting.paymentType === '선불' ? 'font-bold' : ''}`} style={setting.paymentType === '선불' ? { color: 'var(--warning)' } : {}}>
                               {order.customerName || '고객명 없음'}
                             </span>
                             <span className="px-2 py-0.5 text-xs rounded-full font-medium" style={(setting.sender || senderList[0]) === '엠파츠'
@@ -1136,7 +1136,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                               );
                             })()}
                           </div>
-                          <p className="text-[var(--muted-foreground)] text-xs break-words leading-snug">{shipAddress(order, customer) || '주소 미등록'}</p>
+                          <p className="shipping-recipient-address text-[var(--muted-foreground)] text-xs break-words leading-snug">{shipAddress(order, customer) || '주소 미등록'}</p>
                           {/* 받는분(수령인)·배송메모 — 발송은 받는사람 기준 */}
                           {(() => {
                             const recv = parseReceiver(order);
@@ -1180,7 +1180,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                           )}
                           <p className="text-[var(--muted-foreground)] text-xs mt-1">{order.items?.length || 0}종 · {formatPrice(order.totalAmount)}</p>
                         </div>
-                        <div className="text-right flex-shrink-0">
+                        <div className="shipping-recipient-contact text-right flex-shrink-0">
                           <p className="text-[var(--muted-foreground)] text-xs">{customer?.phone || order.customerPhone || '번호 없음'}</p>
                           {customer && (
                             <button
@@ -1343,7 +1343,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                   return (
                     <div
                       key={entry.id}
-                      className={`rounded-xl border transition-colors ${
+                      className={`shipping-recipient-card rounded-xl border transition-colors ${
                         isSelected ? '' : 'bg-[var(--card)] border-[var(--border)]'
                       }`}
                       style={isSelected
@@ -1373,7 +1373,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                               )}
                               <span className="px-2 py-0.5 text-xs rounded-full" style={{ background: 'color-mix(in srgb, var(--success) 15%, transparent)', color: 'var(--success)' }}>직접 추가</span>
                             </div>
-                            <p className="text-[var(--muted-foreground)] text-xs break-words leading-snug">{entry.address || '주소 미입력'}</p>
+                            <p className="shipping-recipient-address text-[var(--muted-foreground)] text-xs break-words leading-snug">{entry.address || '주소 미입력'}</p>
                             <p className="text-[var(--muted-foreground)] text-xs mt-0.5">{entry.product || '상품'} · {entry.packaging} · {entry.shippingCost}원</p>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">

@@ -15,6 +15,7 @@ import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/li
 import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/storeOrderSafety';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 import StoreShippingDetails from '@/components/StoreShippingDetails';
+import StoreCarePanel from '@/components/StoreCarePanel';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
 const fmtDate = (s) => {
@@ -504,6 +505,7 @@ export default function SmartStoreOrders({
   const [sortBy, setSortBy] = useState('recent'); // recent | amount | status
   // 네이버 연동 로그 모니터 (발주확인/발송 API 성공·실패 내역)
   const [showLogModal, setShowLogModal] = useState(false);
+  const [showCare,setShowCare] = useState(false);
   // 로그 "확인함" 시각 — 이후 새 실패만 뱃지에 표시 (로그는 주문 필드 파생이라 삭제 대신 확인 처리)
   const [logAckAt, setLogAckAt] = useState(() => Number(localStorage.getItem('pos_store_log_ack_at')) || 0);
   const ackLog = () => { const now = Date.now(); setLogAckAt(now); try { localStorage.setItem('pos_store_log_ack_at', String(now)); } catch { /* noop */ } };
@@ -1593,6 +1595,8 @@ export default function SmartStoreOrders({
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--background)' }}>
       {/* 헤더 */}
+      {showCare&&<div className="fixed inset-0 z-[70] bg-black/50 p-3 sm:p-8 flex items-center justify-center" onClick={()=>setShowCare(false)}><div role="dialog" aria-modal="true" aria-label="고객 응대" className="w-full max-w-5xl max-h-[90dvh] overflow-y-auto rounded-2xl bg-[var(--card)] p-4" onClick={e=>e.stopPropagation()}><button onClick={()=>setShowCare(false)} className="block ml-auto rounded-lg border px-4 py-3 mb-3">닫기</button><StoreCarePanel/></div></div>}
+      <button onClick={()=>setShowCare(true)} className="mx-4 mt-3 self-start border rounded-xl px-4 py-3 text-sm font-bold">고객 Q&A · 리뷰 관리</button>
       <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
         {/* 모바일 햄버거 메뉴 — 다른 페이지와 동일 패턴 (toggle-sidebar 이벤트) */}
         <button

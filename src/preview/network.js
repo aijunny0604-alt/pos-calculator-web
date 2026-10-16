@@ -3,7 +3,7 @@ const now = new Date().toISOString();
 const names = ['스텐 밴딩 54-30','브레이크 호스 세트','퍼포먼스 배기 팁','실리콘 엘보 호스','알루미늄 플랜지','스테인리스 클램프','레이싱 흡기 필터','티타늄 볼트 세트'];
 const products = names.map((name,i)=>({id:i+1,name,category:['배기 부품','브레이크','소모품'][i%3],stock:i===0?3:12+i*4,min_stock:5,wholesale:12000+i*18000,retail:18000+i*24000,note:i===1?'길이 확인 후 출고':''}));
 const customers = ['샘플 모터스','테스트 퍼포먼스','무브 디자인 검토용 긴 이름의 자동차 정비업체'].map((name,i)=>({id:i+1,name,phone:'010-0000-0000',address:'서울시 샘플구 디자인로 123 (미리보기용 주소)',category:'도매',created_at:now}));
-const orders=Array.from({length:8},(_,i)=>({id:'DEMO-'+(100+i),order_number:'DEMO-'+(100+i),customer_name:customers[i%3].name,customer_id:i%3+1,customer_phone:'010-0000-0000',customer_address:customers[0].address,items:[{...products[i],quantity:2}],total_amount:products[i].wholesale*2,total_quantity:2,price_type:'wholesale',created_at:now,status:'completed',memo:i===0?'샘플 주문입니다. 실제 출고하지 않습니다.':''}));
+const orders=Array.from({length:8},(_,i)=>({id:'DEMO-'+(100+i),order_number:'DEMO-'+(100+i),customer_name:customers[i%3].name,customer_id:i%3+1,customer_phone:'010-0000-0000',customer_address:customers[0].address,items:[{...products[i],quantity:2}],total_amount:(i%2?products[i].retail:products[i].wholesale)*2,total_quantity:2,price_type:i%2?'retail':'wholesale',created_at:now,status:'completed',memo:i===0?'샘플 주문입니다. 실제 출고하지 않습니다.':''}));
 export const sample = {products,customers,orders};
 const tables={products,customers,orders,saved_carts:[],payment_records:[],payment_history:[],purchase_orders:[],supplier_prices:[],external_orders:[],external_products:[],app_settings:[]};
 const realFetch=window.fetch.bind(window);

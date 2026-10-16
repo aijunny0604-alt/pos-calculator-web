@@ -1,3 +1,4 @@
+import PriceTypeBadge from '@/components/PriceTypeBadge';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search, ShoppingCart, Plus, Minus, X, ChevronDown, ChevronUp,
@@ -567,7 +568,7 @@ export default function MainPOS({
                 className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
                   priceType === 'retail' ? 'text-white' : 'text-[var(--muted-foreground)]'
                 }`}
-                style={priceType === 'retail' ? { background: 'var(--primary)' } : { background: 'var(--muted)' }}
+                style={priceType === 'retail' ? { background: 'var(--destructive)' } : { background: 'var(--muted)' }}
               >
                 소매
               </button>
@@ -964,7 +965,7 @@ export default function MainPOS({
                 공급가 {formatPrice(vatBreakdown.supply)}원 + VAT
               </p>
               <div className="flex items-center gap-2">
-                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>
+                <p className="text-xl font-bold" style={{ color: priceType === 'retail' ? 'var(--destructive)' : 'var(--foreground)' }}>
                   {formatPrice(totalAmount)}원
                 </p>
                 {cart.length > 0 && (
@@ -1010,7 +1011,7 @@ export default function MainPOS({
           </button>
         </div>
 
-        <div className="pos-cart-context"><span>{effectiveCustomer?.name || '일반 고객'}</span><strong>{priceType==='wholesale'?'도매가':'소매가'} · VAT 포함</strong></div>
+        <div className="pos-cart-context"><span>{effectiveCustomer?.name || '일반 고객'}</span><strong><PriceTypeBadge priceType={priceType}/> · VAT 포함</strong></div>
         {/* Cart Items */}
         <div className="flex-1 min-h-0 overflow-y-auto">
           {cart.length === 0 ? (
@@ -1177,7 +1178,7 @@ export default function MainPOS({
                 title="계산기 열기"
               >
                 <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>총 금액</p>
-                <p className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
+                <p className="text-2xl font-bold" style={{ color: priceType === 'retail' ? 'var(--destructive)' : 'var(--foreground)' }}>
                   {formatPrice(totalAmount)}원
                 </p>
               </div>
@@ -1450,7 +1451,7 @@ export default function MainPOS({
                     title="계산기 열기"
                   >
                     <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>총 금액</p>
-                    <p className="text-3xl font-bold" style={{ color: 'var(--foreground)' }}>
+                    <p className="text-3xl font-bold" style={{ color: priceType === 'retail' ? 'var(--destructive)' : 'var(--foreground)' }}>
                       {formatPrice(totalAmount)}원
                     </p>
                   </div>

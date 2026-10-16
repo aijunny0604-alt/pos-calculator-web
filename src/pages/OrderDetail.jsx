@@ -1,3 +1,4 @@
+import PriceTypeBadge from '@/components/PriceTypeBadge';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -152,7 +153,7 @@ export default function OrderDetail({
   // 기본 접힘 — 모바일에서 주문 상품 리스트가 먼저 보이게 (총액 바 탭하면 금액상세/완불체크/버튼 펼침)
   const [isBottomExpanded, setIsBottomExpanded] = useState(false);
   // 데스크탑 푸터 합계(총수량·공급가액·부가세) 상세 접기/펼치기 — 총액은 항상 표시
-  const [totalsCollapsed, setTotalsCollapsed] = useState(false);
+  const [totalsCollapsed, setTotalsCollapsed] = useState(true);
   // 조회 모드: 행마다 공급가/부가세 2줄 표시 토글. 기본 ON + localStorage 영구 기억
   // (한번 설정하면 모든 주문에서 유지 — 매번 버튼 누를 필요 없음)
   const [showLineVat, setShowLineVat] = useState(() => {
@@ -733,7 +734,8 @@ export default function OrderDetail({
 
       {/* Modal */}
       <div
-        className="move-dialog relative w-full overflow-hidden border shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
+        className="move-dialog order-detail-refined relative w-full overflow-hidden border shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
+        role="dialog" aria-modal="true" aria-label="주문 상세"
         style={{
           background: 'var(--card)', borderColor: 'var(--border)',
           maxWidth: isFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))',
@@ -749,7 +751,7 @@ export default function OrderDetail({
         {/* Header - sticky for scroll visibility */}
         <div
           {...dragHandleProps}
-          className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 flex-shrink-0 sticky top-0 z-10"
+          className="detail-refined-header px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 flex-shrink-0 sticky top-0 z-10"
           style={{ background: 'var(--primary)', color: 'var(--primary-foreground)', ...(dragHandleProps.style || {}) }}
           onDoubleClick={isDraggable ? toggleFullscreen : undefined}
           title={isDraggable ? '드래그해서 이동 · 더블클릭 = 전체화면 · 가장자리 드래그 = 크기 변경' : undefined}
@@ -821,28 +823,18 @@ export default function OrderDetail({
           onTouchMove={(e) => e.stopPropagation()}
         >
           {/* Order info section */}
-          <div className="p-4 md:p-6 border-b" style={{ borderColor: 'var(--border)' }}>
+          <div className="detail-refined-info p-4 md:p-6 border-b" style={{ borderColor: 'var(--border)' }}>
             {/* Top row: date + price type badge */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--muted-foreground)' }}>
                 <Calendar className="w-3.5 h-3.5" />
                 <span>{formatDateTime(order.createdAt)}</span>
               </div>
-              <span
-                className="px-2.5 py-1 rounded-lg text-xs font-bold"
-                style={{
-                  background: order.priceType === 'wholesale'
-                    ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
-                    : 'color-mix(in srgb, var(--purple) 15%, transparent)',
-                  color: order.priceType === 'wholesale' ? 'var(--primary)' : 'var(--purple)',
-                }}
-              >
-                {order.priceType === 'wholesale' ? '도매가' : '소비자가'}
-              </span>
+              <PriceTypeBadge priceType={order.priceType} />
             </div>
 
             {/* Info cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="detail-contact-grid grid grid-cols-1 md:grid-cols-2 gap-2">
               {/* 업체명 */}
               <div
                 className="flex items-center gap-3 md:gap-4 rounded-xl p-3 md:p-4"
@@ -2192,7 +2184,7 @@ export default function OrderDetail({
 
         {/* Desktop footer (always full) */}
         <div
-          className="hidden lg:block border-t px-6 py-3 flex-shrink-0"
+          className="detail-refined-footer hidden lg:block border-t px-6 py-3 flex-shrink-0"
           style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
         >
           {/* Totals — 상세(총수량·공급가액·부가세)는 접기/펼치기, 총액은 항상 표시 */}
@@ -2215,12 +2207,12 @@ export default function OrderDetail({
                   <p className="text-sm line-through" style={{ color: 'var(--muted-foreground)' }}>
                     {formatPrice(order.totalAmount)}원
                   </p>
-                  <p className="text-3xl font-bold leading-tight" style={{ color: 'var(--foreground)' }}>
+                  <p className="text-3xl font-bold leading-tight" style={{ color: order.priceType === 'retail' ? 'var(--destructive)' : 'var(--foreground)' }}>
                     {formatPrice(order.totalAmount - totalReturned)}원
                   </p>
                 </div>
               ) : (
-                <p className="text-3xl font-bold leading-tight" style={{ color: 'var(--foreground)' }}>
+                <p className="text-3xl font-bold leading-tight" style={{ color: order.priceType === 'retail' ? 'var(--destructive)' : 'var(--foreground)' }}>
                   {formatPrice(isEditing ? currentTotal : order.totalAmount)}원
                 </p>
               )}
@@ -2404,7 +2396,7 @@ export default function OrderDetail({
           >
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>총액</span>
-              <span className="text-lg font-bold">
+              <span className="text-lg font-bold" style={{ color: order.priceType === 'retail' ? 'var(--destructive)' : 'var(--foreground)' }}>
                 {totalReturned > 0
                   ? formatPrice(order.totalAmount - totalReturned)
                   : formatPrice(isEditing ? currentTotal : order.totalAmount)

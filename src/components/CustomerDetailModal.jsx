@@ -295,13 +295,14 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
         }
       `}</style>
       <div
-        className="move-dialog relative w-full sm:max-w-3xl lg:max-w-6xl max-h-[94vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
+        className="move-dialog customer-detail-refined relative w-full sm:max-w-3xl lg:max-w-6xl max-h-[94vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
+        role="dialog" aria-modal="true" aria-label="고객 거래 정보"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 고급 상단 그라데이션 바 */}
         <div
           className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
-          style={{ background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%)' }}
+          style={{ background: 'linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 20%, var(--card)))' }}
         />
 
         {/* 헤더 */}
@@ -325,13 +326,13 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
               ) : (
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
-                  style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: 'white' }}
+                  style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
                 >
                   <span className="text-2xl">🏢</span>
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <h3 className="text-xl font-bold break-keep leading-tight flex items-center gap-2">
+                <h3 className="text-xl font-bold break-words leading-tight flex flex-wrap items-center gap-2">
                   {customer.name || `#${customer.id}`}
                   {certUrl && (
                     <button
@@ -344,7 +345,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                     </button>
                   )}
                 </h3>
-                <p className="text-xs text-[var(--muted-foreground)] break-keep mt-1 flex items-center gap-3 flex-wrap">
+                <p className="customer-contact-lines text-sm text-[var(--muted-foreground)] break-words mt-2 flex items-center gap-3 flex-wrap">
                   {customer.phone && <span className="flex items-center gap-1">📞 {customer.phone}</span>}
                   {customer.address && <span className="flex items-center gap-1">📍 {customer.address}</span>}
                   {!customer.phone && !customer.address && '-'}
@@ -353,7 +354,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
             </div>
             <button
               onClick={onClose}
-              className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-[var(--secondary)] transition-colors text-lg"
+              className="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-xl border border-[var(--border)] hover:bg-[var(--secondary)] transition-colors text-lg"
               title="닫기"
             >
               ✕
@@ -381,7 +382,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
 
         {/* 요약 */}
         <div className="px-5 sm:px-6 pt-4">
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
+          <div className="customer-summary-grid grid grid-cols-3 gap-2 sm:gap-3 text-center">
             <StatBox label="받을 돈 (미수)" value={outstandingTotal} unit="원" color="red" hint="아직 못 받은 총액" />
             <StatBox label="전체 주문" value={totalOrders} unit="건" color="blue" hint="이 업체 총 거래 건수" />
             <StatBox label="받은 횟수" value={history.length} unit="번" color="green" hint={history.length === 0 ? '아직 입금 없음' : '지금까지 입금한 횟수'} />
@@ -773,11 +774,11 @@ function StatBox({ label, value, unit, color, hint }) {
   const c = colorMap[color] || colorMap.blue;
   return (
     <div
-      className="p-3 rounded-xl border transition-all hover:-translate-y-0.5"
+      className="customer-summary-stat p-3 rounded-xl border transition-all hover:-translate-y-0.5"
       style={{ background: c.bg, borderColor: c.border, boxShadow: c.glow }}
     >
       {/* 상단: 라벨 + 힌트 (같은 줄, 작게) */}
-      <div className="flex items-baseline justify-between gap-2 mb-2">
+      <div className="flex flex-col items-start gap-1 mb-2 text-left">
         <span className="text-[12px] sm:text-[13px] text-[var(--muted-foreground)] font-bold break-keep">{label}</span>
         {hint && (
           <span className="text-[10px] text-[var(--muted-foreground)]/70 italic break-keep">{hint}</span>

@@ -1,3 +1,4 @@
+import PriceTypeBadge from '@/components/PriceTypeBadge';
 import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -1264,17 +1265,7 @@ export default function OrderHistory({
                               🎁 받는분 {storeParties.receiver.name}
                             </span>
                           )}
-                          <span
-                            className="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
-                            style={{
-                              background: order.priceType === 'wholesale'
-                                ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
-                                : 'color-mix(in srgb, var(--purple) 15%, transparent)',
-                              color: order.priceType === 'wholesale' ? 'var(--primary)' : 'var(--purple)',
-                            }}
-                          >
-                            {order.priceType === 'wholesale' ? '도매' : '소비자'}
-                          </span>
+                          <PriceTypeBadge priceType={order.priceType} />
                           {/* 📦 포장 상태 — 완료=초록 도장, 진행중=주황 N/M */}
                           {(() => {
                             const pk = packingMap[orderIdOf(order)];
@@ -1364,17 +1355,7 @@ export default function OrderHistory({
                           <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
                             고객 미지정
                           </span>
-                          <span
-                            className="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0"
-                            style={{
-                              background: order.priceType === 'wholesale'
-                                ? 'color-mix(in srgb, var(--primary) 15%, transparent)'
-                                : 'color-mix(in srgb, var(--purple) 15%, transparent)',
-                              color: order.priceType === 'wholesale' ? 'var(--primary)' : 'var(--purple)',
-                            }}
-                          >
-                            {order.priceType === 'wholesale' ? '도매' : '소비자'}
-                          </span>
+                          <PriceTypeBadge priceType={order.priceType} />
                         </div>
                       )}
 
@@ -1390,7 +1371,7 @@ export default function OrderHistory({
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="font-bold text-xl sm:text-2xl leading-tight whitespace-nowrap" style={{ color: 'var(--success)' }}>
+                      <p className="font-bold text-xl sm:text-2xl leading-tight whitespace-nowrap" style={{ color: order.priceType === 'retail' ? 'var(--destructive)' : 'var(--success)' }}>
                         {formatPrice((order.totalAmount || 0))}원
                       </p>
                       <SubPrice total={order.totalAmount || 0} layout="stacked" size="sm" className="mt-0.5" />
