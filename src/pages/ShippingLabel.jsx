@@ -1071,6 +1071,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                 return (
                   <div
                     key={order.orderNumber}
+                    data-selected={isSelected}
                     className={`shipping-recipient-card rounded-xl border transition-colors ${
                       isSelected ? '' : !order.__fromSavedCart ? 'bg-[var(--card)] border-[var(--border)]' : ''
                     }`}
@@ -1198,7 +1199,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
 
                     {/* Expanded settings when selected */}
                     {isSelected && (
-                      <div className="px-3 pb-3 pt-2 border-t border-[var(--border)] space-y-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="shipping-selection-settings px-3 pb-3 pt-2 border-t border-[var(--border)] space-y-2" onClick={(e) => e.stopPropagation()}>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           <div>
                             <label className="block text-[var(--muted-foreground)] text-xs mb-1 text-center">보내는 곳</label>
@@ -1261,7 +1262,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
 
                         {/* Save / delete customer setting */}
                         {order.customerName && (
-                          <div className="flex gap-2">
+                          <div className="shipping-setting-actions flex gap-2">
                             <button
                               onClick={() => saveCustomerSetting(order.customerName, setting)}
                               className="flex-1 px-2 py-1.5 border text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1"
@@ -1344,6 +1345,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                   return (
                     <div
                       key={entry.id}
+                      data-selected={isSelected}
                       className={`shipping-recipient-card rounded-xl border transition-colors ${
                         isSelected ? '' : 'bg-[var(--card)] border-[var(--border)]'
                       }`}
@@ -1391,7 +1393,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                       </div>
 
                       {isSelected && (
-                        <div className="px-3 pb-3 pt-2 border-t border-[var(--border)] space-y-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="shipping-selection-settings px-3 pb-3 pt-2 border-t border-[var(--border)] space-y-2" onClick={(e) => e.stopPropagation()}>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[var(--muted-foreground)] text-xs mb-1">받는분</label>

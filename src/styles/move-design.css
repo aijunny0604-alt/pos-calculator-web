@@ -390,3 +390,21 @@
 }
 
 @media screen and (min-width:1024px){.pos-search-toolbar{padding-top:20px;padding-bottom:16px}}
+
+/* 선택한 송장: 흰 정보 카드와 별도 설정 패널로 계층을 구분한다. */
+@media screen {
+ .shipping-recipient-card[data-selected=true]{background:var(--card)!important;border-color:var(--primary)!important;box-shadow:0 0 0 1px color-mix(in srgb,var(--primary) 22%,transparent),0 8px 24px #1235420b}
+ .shipping-recipient-card[data-selected=true] .shipping-recipient-main{padding:18px}
+ .shipping-recipient-card[data-selected=true] .shipping-contact-grid{gap:10px}
+ .shipping-recipient-card[data-selected=true] :is(.shipping-address-field,.shipping-contact-field,.shipping-items-block){background:#f5f8fa;border:1px solid #e1e9ee;border-radius:11px;padding:12px 14px}
+ .shipping-recipient-card[data-selected=true] .shipping-field-label{font-size:12px;margin-bottom:6px}
+ .shipping-selection-settings{padding:16px 18px!important;background:#f0f6f6;border-top:1px solid #dce9e9;border-radius:0 0 12px 12px}
+ .shipping-selection-settings>.grid{gap:12px}
+ .shipping-selection-settings>.grid label{text-align:left;font-size:12px;font-weight:600;margin-bottom:7px}
+ .shipping-selection-settings>.grid :is(input,select){min-height:44px;text-align:left;padding:10px 12px;background:var(--card)!important;border:1px solid #ccdce1!important;border-radius:10px;font-size:14px;color:var(--foreground)}
+ .shipping-selection-settings :is(input,select):focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+ .shipping-setting-actions{justify-content:flex-end;padding-top:4px}
+ .shipping-setting-actions>button{flex:0 1 auto;min-height:40px;padding:8px 16px}
+ @container(min-width:1000px){.shipping-recipient-card[data-selected=true] .shipping-contact-field{padding-right:112px}.shipping-recipient-card[data-selected=true] .shipping-contact-field button{right:12px;top:22px}}
+ @media(max-width:639px){.shipping-recipient-card[data-selected=true] .shipping-recipient-main{padding:12px}.shipping-selection-settings{padding:14px 12px!important}.shipping-setting-actions>button:first-child{flex:1}}
+}
