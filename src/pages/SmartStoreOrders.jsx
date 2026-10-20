@@ -2150,7 +2150,7 @@ export default function SmartStoreOrders({
                     onClick={() => setExpandedCompactId(null)}>
                     <div className={`w-full flex flex-col border shadow-2xl animate-modal-up text-base sm:text-[17px] overflow-hidden ${modalFullscreen
                         ? 'max-w-none h-full max-h-none rounded-none'
-                        : 'max-w-3xl h-full sm:h-auto max-h-[100dvh] sm:max-h-[94vh] rounded-none sm:rounded-2xl'}`}
+                        : 'max-w-3xl h-full sm:h-auto max-h-[100dvh] sm:max-h-[94dvh] rounded-none sm:rounded-2xl'}`}
                       style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
                       onClick={(e) => e.stopPropagation()}>
                       {/* 모달 헤더 — 상태 + 전체화면 + 닫기 (이름은 아래 고객정보 카드로 통합) */}
@@ -2915,8 +2915,8 @@ export default function SmartStoreOrders({
 
       {/* 네이버 연동 로그 모달 — 발주확인/발송 API 성공·실패·대기 내역 */}
       {showLogModal && (
-        <div className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center bg-black/60 sm:p-4 backdrop-blur-sm" onClick={() => setShowLogModal(false)}>
-          <div className="rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'min(85vh, 720px)' }} onClick={(e) => e.stopPropagation()}>
+        <ViewportModal className="store-dispatch-backdrop bg-black/60 backdrop-blur-sm" onClick={() => setShowLogModal(false)}>
+          <div role="dialog" aria-modal="true" aria-label="네이버 연동 로그" className="store-dispatch-dialog overflow-hidden rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             {/* 헤더 */}
             <div className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <span className="text-lg">📋</span>
@@ -2924,7 +2924,7 @@ export default function SmartStoreOrders({
               <button onClick={reload} className="p-1.5 rounded hover:bg-[var(--muted)]" title="새로고침">
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
-              <button onClick={() => setShowLogModal(false)}><X className="w-5 h-5 opacity-60" /></button>
+              <button aria-label="닫기" className="w-11 h-11 flex items-center justify-center" onClick={() => setShowLogModal(false)}><X className="w-5 h-5 opacity-60" /></button>
             </div>
             {/* 요약 카운트 */}
             <div className="flex items-center gap-2 px-4 py-2.5 border-b flex-shrink-0 text-xs" style={{ borderColor: 'var(--border)' }}>
@@ -2938,7 +2938,7 @@ export default function SmartStoreOrders({
               )}
             </div>
             {/* 로그 리스트 */}
-            <div className="overflow-y-auto px-2 py-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="min-h-0 overflow-y-auto px-2 py-2" style={{ WebkitOverflowScrolling: 'touch' }}>
               {integrationLog.length === 0 ? (
                 <div className="text-center py-12 text-sm opacity-60">아직 연동 내역이 없어요</div>
               ) : integrationLog.map((e, i) => {
@@ -2968,7 +2968,7 @@ export default function SmartStoreOrders({
               매장 PC가 송장 입력 후 <b>최대 60초</b>(발주확인 동시 시 2~3분) 내 네이버에 자동 연동합니다. 상단 위젯에서 sync 가동 상태(LIVE/STALE)를 확인하세요.
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* 발송처리 모달 — 송장 입력이 주 작업이라 입력칸을 화면의 주인공으로 두고,
@@ -2978,7 +2978,7 @@ export default function SmartStoreOrders({
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-modal-backdrop"
           onClick={() => setImageZoom(null)}>
           <img src={imageZoom} alt="상품 이미지" referrerPolicy="no-referrer"
-            className="max-w-[92vw] max-h-[88vh] rounded-xl shadow-2xl object-contain animate-modal-up"
+            className="max-w-[92vw] max-h-[88dvh] rounded-xl shadow-2xl object-contain animate-modal-up"
             style={{ background: 'var(--card)' }} onClick={(e) => e.stopPropagation()} />
           <button onClick={() => setImageZoom(null)}
             className="absolute top-5 right-5 w-10 h-10 rounded-full flex items-center justify-center bg-black/50 text-white hover:bg-black/70 transition-colors"
@@ -3159,17 +3159,18 @@ export default function SmartStoreOrders({
           ? `${vItems[0].product_name || vItems[0].name || '상품'}${vItems.length > 1 ? ` 외 ${vItems.length - 1}건` : ''}`
           : null;
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-modal-backdrop"
+          <ViewportModal className="store-dispatch-backdrop bg-black/60 backdrop-blur-sm animate-modal-backdrop"
             onClick={() => setVisitReceiptOrder(null)}>
             <div
-              className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden modal-card-safe"
+              role="dialog" aria-modal="true" aria-label="방문수령 처리"
+              className="store-dispatch-dialog relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
               style={{ borderColor: 'var(--border)' }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
                 style={{ background: 'linear-gradient(90deg, #d97706 0%, #f59e0b 55%, #d97706 100%)' }} />
 
-              <div className="px-5 pt-6 pb-4 border-b flex items-start gap-3.5"
+              <div className="shrink-0 px-5 pt-6 pb-4 border-b flex items-start gap-3.5"
                 style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, #f59e0b 10%, var(--card)) 0%, var(--card) 70%)' }}>
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
                   style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white' }}>
@@ -3180,7 +3181,7 @@ export default function SmartStoreOrders({
                   <p className="text-xs mt-0.5 font-semibold" style={{ color: '#b45309' }}>송장 없이 네이버 발송처리</p>
                 </div>
                 <button onClick={() => setVisitReceiptOrder(null)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
+                  className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
                   aria-label="닫기">
                   <X className="w-4 h-4 opacity-60" />
                 </button>
@@ -3229,7 +3230,7 @@ export default function SmartStoreOrders({
                 </button>
               </div>
             </div>
-          </div>
+          </ViewportModal>
         );
       })()}
 
@@ -3238,18 +3239,19 @@ export default function SmartStoreOrders({
         const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !isOrderDone(o));
         const readyCount = eligible.filter((o) => (bulkTrackingMap[o.id] || '').trim().length > 0).length;
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-modal-backdrop"
+          <ViewportModal className="store-dispatch-backdrop bg-black/60 backdrop-blur-sm animate-modal-backdrop"
             onClick={() => setBulkDispatchOpen(false)}>
             <div
-              className="relative w-full sm:max-w-2xl flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden modal-card-safe"
-              style={{ borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }}
+              role="dialog" aria-modal="true" aria-label="일괄 발송 처리"
+              className="store-dispatch-dialog relative w-full sm:max-w-2xl flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
+              style={{ borderColor: 'var(--border)' }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
                 style={{ background: 'linear-gradient(90deg, #03c75a 0%, #22c55e 55%, #03c75a 100%)' }} />
 
               {/* 헤더 — 몇 건 중 몇 건이 준비됐는지를 제목 옆에 상시 노출 */}
-              <div className="px-5 pt-6 pb-4 border-b flex items-start gap-3.5 flex-shrink-0"
+              <div className="shrink-0 px-5 pt-6 pb-4 border-b flex items-start gap-3.5 flex-shrink-0"
                 style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, #03c75a 9%, var(--card)) 0%, var(--card) 70%)' }}>
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
                   style={{ background: 'linear-gradient(135deg, #03c75a, #16a34a)', color: 'white' }}>
@@ -3262,7 +3264,7 @@ export default function SmartStoreOrders({
                   </p>
                 </div>
                 <button onClick={() => setBulkDispatchOpen(false)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
+                  className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
                   aria-label="닫기">
                   <X className="w-4 h-4 opacity-60" />
                 </button>
@@ -3385,16 +3387,17 @@ export default function SmartStoreOrders({
                 </div>
               </div>
             </div>
-          </div>
+          </ViewportModal>
         );
       })()}
 
       {/* 주문 취소 모달 (C1 fix: window.prompt → 모달 UI) */}
       {cancelModalOrder && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-modal-backdrop"
+        <ViewportModal className="store-dispatch-backdrop bg-black/60 backdrop-blur-sm animate-modal-backdrop"
           onClick={() => !cancelSubmitting && setCancelModalOrder(null)}>
           <div
-            className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden modal-card-safe"
+            role="dialog" aria-modal="true" aria-label="주문 취소 표시"
+            className="store-dispatch-dialog relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
             style={{ borderColor: 'var(--border)' }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -3412,7 +3415,7 @@ export default function SmartStoreOrders({
                 <p className="text-xs mt-0.5 font-semibold" style={{ color: '#e11d48' }}>내 화면에서만 · 네이버 미반영</p>
               </div>
               <button onClick={() => !cancelSubmitting && setCancelModalOrder(null)} disabled={cancelSubmitting}
-                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)] disabled:opacity-40"
+                className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)] disabled:opacity-40"
                 aria-label="닫기">
                 <X className="w-4 h-4 opacity-60" />
               </button>
@@ -3493,13 +3496,13 @@ export default function SmartStoreOrders({
               </button>
             </div>
           </div>
-        </div>
+        </ViewportModal>
       )}
 
       {/* 내부주문 전환 — 네이버 발주확인 동반 여부 선택 모달 (2026-06-15) */}
       {convertModalOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !convertSubmitting && setConvertModalOrder(null)}>
-          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-y-auto overscroll-contain animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
             {/* 헤더 — 아이콘 칩 + 제목/부제 */}
             <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--card)), var(--card))' }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }}>
@@ -3556,7 +3559,7 @@ export default function SmartStoreOrders({
         const targets = bulkConvertTargets();
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => setBulkConvertOpen(false)}>
-            <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-y-auto overscroll-contain animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--card)), var(--card))' }}>
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }}>
                   <ArrowRight className="w-5 h-5" />
@@ -3599,7 +3602,7 @@ export default function SmartStoreOrders({
       {/* 구매자 취소요청 승인 확인 모달 — 비가역(환불 확정) */}
       {approveCancelOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !approveCancelSubmitting && setApproveCancelOrder(null)}>
-          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-y-auto overscroll-contain animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'rgba(255,77,109,0.08)' }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,77,109,0.18)', color: '#ff4d6d' }}>
                 <Ban className="w-5 h-5" />

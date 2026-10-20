@@ -1119,7 +1119,7 @@ export default function CustomerList({
         >
           <div
             className="move-dialog bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col animate-modal-up modal-fs-transition"
-            style={{ maxWidth: isDetailFullscreen ? '100vw' : '52rem', maxHeight: isDetailFullscreen ? '100vh' : '92vh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+            style={{ maxWidth: isDetailFullscreen ? '100vw' : '52rem', maxHeight: isDetailFullscreen ? '100dvh' : '92dvh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal header */}

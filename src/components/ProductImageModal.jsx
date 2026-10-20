@@ -93,7 +93,7 @@ export default function ProductImageModal({ product, onClose, onSaved, showToast
       onClick={() => !uploading && !saving && onClose?.()}
     >
       <div
-        className="move-dialog relative w-full sm:max-w-3xl max-h-[92vh] flex flex-col rounded-2xl border bg-[var(--card)] shadow-2xl animate-modal-up overflow-hidden"
+        className="move-dialog relative w-full sm:max-w-3xl max-h-[92dvh] flex flex-col rounded-2xl border bg-[var(--card)] shadow-2xl animate-modal-up overflow-hidden"
         style={{ borderColor: 'var(--border)' }}
         onClick={(e) => e.stopPropagation()}
       >

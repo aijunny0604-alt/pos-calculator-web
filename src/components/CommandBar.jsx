@@ -280,7 +280,7 @@ export default function CommandBar({
           </button>
         </div>
 
-        <div className="max-h-[70vh] overflow-y-auto p-2 sm:max-h-[560px]">
+        <div className="max-h-[70dvh] overflow-y-auto p-2 sm:max-h-[560px]">
           {flatResults.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
               검색 결과가 없습니다.

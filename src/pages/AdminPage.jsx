@@ -2979,7 +2979,7 @@ function AILearningTab({ products, showToast, supabase, aiLearningData = [], set
             {aiLearningData.length === 0 ? 'AI 주문인식에서 제품을 수동 선택하면 자동으로 학습됩니다' : '검색 결과가 없습니다'}
           </div>
         ) : (
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scroll">
+          <div className="space-y-2 max-h-[60dvh] overflow-y-auto custom-scroll">
             {filtered.map(item => (
               <div key={item.id} className="flex items-center gap-3 p-3 bg-[var(--background)] rounded-lg border border-[var(--border)]">
                 <div className="flex-1 min-w-0">
@@ -3575,7 +3575,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
           </div>
 
           {/* 카테고리 칩 + 펼치기 */}
-          <div className="space-y-1 max-h-[50vh] overflow-y-auto custom-scroll">
+          <div className="space-y-1 max-h-[50dvh] overflow-y-auto custom-scroll">
             {filteredCats.map(cat => {
               const isSelected = selectedCats.has(cat);
               const psActive = productSearch.trim().length > 0;
@@ -3660,7 +3660,7 @@ function PriceAdjustTab({ products, setProducts, supabaseConnected, showToast, s
               />
             </div>
             {productSearchResults.length > 0 && (
-              <div className="mt-2 max-h-[60vh] min-h-[280px] overflow-y-auto custom-scroll rounded-lg border border-[var(--border)] bg-[var(--background)]">
+              <div className="mt-2 max-h-[60dvh] min-h-[280px] overflow-y-auto custom-scroll rounded-lg border border-[var(--border)] bg-[var(--background)]">
                 {productSearchResults.map(p => {
                   const isAdded = selectedIds.has(p.id);
                   return (

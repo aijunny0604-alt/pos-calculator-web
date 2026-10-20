@@ -739,8 +739,8 @@ export default function OrderDetail({
         style={{
           background: 'var(--card)', borderColor: 'var(--border)',
           maxWidth: isFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))',
-          height: isFullscreen ? '100vh' : 'auto',
-          maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 2rem)',
+          height: isFullscreen ? '100dvh' : 'auto',
+          maxHeight: isFullscreen ? '100dvh' : 'calc(100dvh - 2rem)',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
           ...(isDraggable ? dragContainerStyle : {}),
@@ -1238,7 +1238,7 @@ export default function OrderDetail({
               >
                 <div
                   className="move-dialog w-full max-w-3xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col"
-                  style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100vh - 2rem)' }}
+                  style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 2rem)' }}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* 헤더 */}
@@ -2614,7 +2614,7 @@ export default function OrderDetail({
             {certIsPdf ? (
               <a href={custCert.url} target="_blank" rel="noopener noreferrer" className="block bg-white rounded-lg p-8 text-center font-bold" style={{ color: 'var(--primary)' }}>📄 PDF 새 창에서 열기</a>
             ) : (
-              <img src={custCert.url} alt="사업자등록증" className="w-full max-h-[80vh] object-contain rounded-lg bg-white" />
+              <img src={custCert.url} alt="사업자등록증" className="w-full max-h-[80dvh] object-contain rounded-lg bg-white" />
             )}
           </div>
         </MotionBackdrop>
@@ -2657,7 +2657,7 @@ export default function OrderDetail({
       {/* 주문 수정 변경점 확인 — OK(적용) 눌러야 실제 저장 (실수 방지) */}
       {pendingSave && (
         <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-[80] flex items-end sm:items-center justify-center sm:p-4 animate-modal-backdrop" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={() => setPendingSave(null)}>
-          <div className="move-dialog relative bg-[var(--card)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border border-[var(--border)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden flex flex-col" style={{ maxHeight: '92vh' }} onClick={(e) => e.stopPropagation()}>
+          <div className="move-dialog relative bg-[var(--card)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border border-[var(--border)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden flex flex-col" style={{ maxHeight: '92dvh' }} onClick={(e) => e.stopPropagation()}>
             {/* 상단 액센트 — 수정은 앰버 계열 */}
             <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
               style={{ background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 55%, #f59e0b 100%)' }} />

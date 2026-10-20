@@ -42,7 +42,7 @@ export default function QuoteScanModal({ scan, pos, onClose, onConfirm, saving, 
 
   return (
     <div className="fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => !saving && onClose()}>
-      <div className="w-full max-w-[92rem] max-h-[94vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
+      <div className="w-full max-w-[92rem] max-h-[94dvh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
         style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
 
         {/* 헤더 */}
@@ -189,7 +189,7 @@ export default function QuoteScanModal({ scan, pos, onClose, onConfirm, saving, 
               {imgUrl && (
                 <div className="lg:sticky lg:top-0">
                   <button type="button" onClick={() => setZoom(true)} className="block w-full cursor-zoom-in" title="클릭하면 전체화면으로 크게 봅니다">
-                    <img src={imgUrl} alt="발주서 원본" className="w-full rounded-xl border bg-white" style={{ borderColor: 'var(--border)', maxHeight: '82vh', objectFit: 'contain' }} />
+                    <img src={imgUrl} alt="발주서 원본" className="w-full rounded-xl border bg-white" style={{ borderColor: 'var(--border)', maxHeight: '82dvh', objectFit: 'contain' }} />
                   </button>
                 </div>
               )}

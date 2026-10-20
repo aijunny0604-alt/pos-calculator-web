@@ -325,7 +325,7 @@ export default function DefectReturns({ showToast, onCount }) {
       {/* 기록/수정 모달 */}
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => !saving && setEditing(null)}>
-          <div className="w-full max-w-2xl rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92vh' }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-2xl rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92dvh' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <RotateCcw className="w-5 h-5" style={{ color: 'var(--primary)' }} />
               <h3 className="text-base font-bold flex-1">{editing.id ? '불량 반품 수정' : '새 불량 반품 기록'}</h3>
@@ -362,7 +362,7 @@ export default function DefectReturns({ showToast, onCount }) {
                   <span className="text-xs font-bold" style={{ color: 'var(--muted-foreground)' }}>품목 {editing.items.length}종</span>
                   <button onClick={addItem} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}><Plus className="w-3 h-3" /> 행 추가</button>
                 </div>
-                <div className="space-y-1 max-h-[38vh] overflow-y-auto">
+                <div className="space-y-1 max-h-[38dvh] overflow-y-auto">
                   {editing.items.length === 0 ? (
                     <div className="text-xs py-6 text-center" style={{ color: 'var(--muted-foreground)' }}>위에 리스트를 붙여넣거나 행을 추가하세요</div>
                   ) : editing.items.map((it, i) => (

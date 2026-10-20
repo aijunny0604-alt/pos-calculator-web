@@ -89,7 +89,7 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
       onClick={() => { if (!busy.current) onClose?.(); }}
     >
       <div
-        className="move-dialog w-full sm:max-w-md max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--primary)] bg-[var(--card)] shadow-2xl"
+        className="move-dialog w-full sm:max-w-md max-h-[92dvh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--primary)] bg-[var(--card)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-[var(--border)]">

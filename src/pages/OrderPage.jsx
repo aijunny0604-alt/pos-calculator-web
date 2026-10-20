@@ -437,7 +437,7 @@ export default function OrderPage({
     >
       <div
         className="w-full overflow-hidden flex flex-col shadow-2xl animate-modal-up modal-fs-transition"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)', maxWidth: isFullscreen ? '100vw' : '56rem', height: isFullscreen ? '100vh' : 'auto', maxHeight: isFullscreen ? '100vh' : '95vh', borderRadius: isFullscreen ? '0' : '1rem', boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+        style={{ background: 'var(--card)', border: '1px solid var(--border)', maxWidth: isFullscreen ? '100vw' : '56rem', height: isFullscreen ? '100dvh' : 'auto', maxHeight: isFullscreen ? '100dvh' : '95dvh', borderRadius: isFullscreen ? '0' : '1rem', boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
         onClick={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
       >

@@ -527,11 +527,11 @@ export default function SavedCarts({
         }}
       >
         <div
-          className={`move-dialog saved-cart-detail relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition ${isDetailFullscreen ? '' : 'max-h-[calc(100dvh-6rem)] md:max-h-[calc(100vh-2rem)]'}`}
+          className={`move-dialog saved-cart-detail relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition ${isDetailFullscreen ? '' : 'max-h-[calc(100dvh-6rem)] md:max-h-[calc(100dvh-2rem)]'}`}
           style={{
             maxWidth: isDetailFullscreen ? '100vw' : 'min(95rem, calc(100vw - 2rem))',
-            height: isDetailFullscreen ? '100vh' : 'auto',
-            ...(isDetailFullscreen ? { maxHeight: '100vh' } : {}),
+            height: isDetailFullscreen ? '100dvh' : 'auto',
+            ...(isDetailFullscreen ? { maxHeight: '100dvh' } : {}),
             borderRadius: isDetailFullscreen ? '0' : '1rem',
             boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 32px 64px -12px rgba(0,0,0,0.45)',
             ...(isDetailDraggable ? detailDragStyle : {}),

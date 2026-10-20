@@ -129,7 +129,7 @@ export default function OrderConfirmEditable({
         className="movis-glass-card w-full max-w-3xl p-5 sm:p-7 my-6 sm:my-10 min-w-0 flex flex-col"
         style={{
           background: 'rgba(10, 25, 41, 0.96)',
-          maxHeight: 'calc(100vh - 80px)', // 모바일/PC 모두 위아래 40px gap 보장
+          maxHeight: 'calc(100dvh - 80px)', // 모바일/PC 모두 위아래 40px gap 보장
         }}
       >
         {/* 헤더 */}

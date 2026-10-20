@@ -129,7 +129,7 @@ export default function SaveCartModal({
         style={{
           backgroundColor: 'var(--card)', borderColor: 'var(--border)',
           maxWidth: isFullscreen ? '100vw' : 'min(42rem, calc(100vw - 2rem))',
-          height: isFullscreen ? '100vh' : 'calc(100vh - 2rem)',
+          height: isFullscreen ? '100dvh' : 'calc(100dvh - 2rem)',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
           ...(isDraggable ? dragStyle : {}),

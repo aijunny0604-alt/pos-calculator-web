@@ -14,7 +14,7 @@ const OrderDetailPopup = ({ order, onClose }) => {
   return (
     <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-[55] flex items-center justify-center bg-black/60 p-3 sm:p-6" onClick={onClose}>
       <div
-        className="move-dialog bg-[var(--card)] text-[var(--foreground)] rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="move-dialog bg-[var(--card)] text-[var(--foreground)] rounded-xl shadow-2xl w-full max-w-3xl max-h-[90dvh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
@@ -299,7 +299,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
         }
       `}</style>
       <div
-        className="move-dialog customer-detail-refined relative w-full sm:max-w-3xl lg:max-w-6xl max-h-[94vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
+        className="move-dialog customer-detail-refined relative w-full sm:max-w-3xl lg:max-w-6xl max-h-[94dvh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
         role="dialog" aria-modal="true" aria-label="고객 거래 정보"
         onClick={(e) => e.stopPropagation()}
       >
@@ -726,7 +726,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
           <img
             src={certViewer}
             alt="사업자등록증"
-            className="max-w-full max-h-[85vh] object-contain rounded-lg bg-white"
+            className="max-w-full max-h-[85dvh] object-contain rounded-lg bg-white"
             onClick={(e) => e.stopPropagation()}
           />
         </MotionBackdrop>

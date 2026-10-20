@@ -1926,7 +1926,7 @@ export default function OrderHistory({
                 📄 PDF 새 창에서 열기
               </a>
             ) : (
-              <img src={certViewer.url} alt="사업자등록증" className="w-full max-h-[80vh] object-contain rounded-lg bg-white" />
+              <img src={certViewer.url} alt="사업자등록증" className="w-full max-h-[80dvh] object-contain rounded-lg bg-white" />
             )}
           </div>
         </div>

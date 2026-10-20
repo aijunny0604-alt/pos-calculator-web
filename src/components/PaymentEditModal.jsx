@@ -86,7 +86,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
       onClick={() => { if (!busy.current) onClose?.(); }}
     >
       <div
-        className="move-dialog w-full sm:max-w-md max-h-[90vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border shadow-2xl bg-[var(--card)] border-[var(--primary)] modal-scroll-area"
+        className="move-dialog w-full sm:max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border shadow-2xl bg-[var(--card)] border-[var(--primary)] modal-scroll-area"
         style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
         onClick={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}

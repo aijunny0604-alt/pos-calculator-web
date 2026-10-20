@@ -1419,7 +1419,7 @@ ${aiLearningData.slice(0, 50).map(l =>
       {/* AI Settings Modal */}
       {showApiSettings && (
         <div className="fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowApiSettings(false)}>
-          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden border shadow-2xl animate-modal-up flex flex-col" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100vh - 2rem)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden border shadow-2xl animate-modal-up flex flex-col" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 2rem)' }} onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)' }}>
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
                 <Settings className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
@@ -1429,7 +1429,7 @@ ${aiLearningData.slice(0, 50).map(l =>
                 <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
               </button>
             </div>
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 min-h-0 overflow-y-auto">
               {[
                 { value: true, icon: <Sparkles className="w-5 h-5 text-white" />, label: 'Gemini AI 분석', desc: '오타/줄임말 자동 인식, 자연어 이해', activeColor: 'var(--success)' },
                 { value: false, icon: <Zap className="w-5 h-5 text-white" />, label: '패턴 분석', desc: '기본 텍스트 매칭, 오프라인 사용 가능', activeColor: 'var(--primary)' },
@@ -1464,7 +1464,7 @@ ${aiLearningData.slice(0, 50).map(l =>
       {/* Backup Modal */}
       {showBackupModal && (
         <div className="fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowBackupModal(false)}>
-          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[75vh] flex flex-col border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[75dvh] flex flex-col border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
                 <FolderOpen className="w-5 h-5" style={{ color: 'var(--primary)' }} />
@@ -1533,7 +1533,7 @@ ${aiLearningData.slice(0, 50).map(l =>
             </div>
 
             {/* 본문 */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 min-h-0 overflow-y-auto">
               {/* 교정 내역 요약 */}
               <div className="p-3 rounded-xl text-xs space-y-1" style={{ backgroundColor: 'var(--secondary)' }}>
                 <div className="flex gap-2">

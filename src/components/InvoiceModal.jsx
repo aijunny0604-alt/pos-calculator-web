@@ -102,7 +102,7 @@ export default function InvoiceModal({ open, onClose }) {
       `}</style>
 
       <div
-        className="move-dialog w-full sm:max-w-2xl max-h-[95vh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--primary)] bg-[var(--card)] shadow-2xl"
+        className="move-dialog w-full sm:max-w-2xl max-h-[95dvh] flex flex-col rounded-t-3xl sm:rounded-2xl border border-[var(--primary)] bg-[var(--card)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 (필터 + 액션) */}

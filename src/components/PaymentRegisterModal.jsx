@@ -226,7 +226,7 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
       onClick={() => { if (!busy.current) onClose?.(); }}
     >
       <div
-        className="move-dialog w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border-2 shadow-2xl bg-[var(--card)] modal-scroll-area"
+        className="move-dialog w-full sm:max-w-2xl max-h-[95dvh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-2xl border-2 shadow-2xl bg-[var(--card)] modal-scroll-area"
         style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', borderColor: isIncome ? '#16a34a' : '#dc2626' }}
         onClick={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}

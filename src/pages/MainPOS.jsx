@@ -1278,7 +1278,7 @@ export default function MainPOS({
         >
           <div
             className="w-full overflow-hidden flex flex-col border shadow-2xl modal-fs-transition"
-            style={{ background: 'var(--card)', borderColor: 'var(--border)', maxWidth: isCartFullscreen ? '100vw' : 'min(56rem, calc(100vw - 2rem))', height: isCartFullscreen ? '100vh' : 'auto', maxHeight: isCartFullscreen ? '100vh' : 'calc(100vh - 2rem)', borderRadius: isCartFullscreen ? '0' : '1rem', boxShadow: isCartFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+            style={{ background: 'var(--card)', borderColor: 'var(--border)', maxWidth: isCartFullscreen ? '100vw' : 'min(56rem, calc(100vw - 2rem))', height: isCartFullscreen ? '100dvh' : 'auto', maxHeight: isCartFullscreen ? '100dvh' : 'calc(100dvh - 2rem)', borderRadius: isCartFullscreen ? '0' : '1rem', boxShadow: isCartFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1514,8 +1514,8 @@ export default function MainPOS({
             style={{
               backgroundColor: 'var(--background)',
               maxWidth: isAiFullscreen ? '100vw' : '64rem',
-              height: isAiFullscreen ? '100vh' : '95vh',
-              maxHeight: isAiFullscreen ? '100vh' : '90vh',
+              height: isAiFullscreen ? '100dvh' : '95dvh',
+              maxHeight: isAiFullscreen ? '100dvh' : '90dvh',
               borderRadius: isAiFullscreen ? '0' : '1rem',
             }}
             onClick={e => e.stopPropagation()}

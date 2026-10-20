@@ -345,7 +345,7 @@ export default function CertLibrary({ customers = [], showToast }) {
       {/* 확대 보기 모달 */}
       {viewer && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6" style={{ background: 'rgba(0,0,0,0.72)' }} onClick={() => setViewer(null)}>
-          <div className="w-full max-w-3xl max-h-[92vh] rounded-2xl overflow-hidden flex flex-col" style={{ background: 'var(--card)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-3xl max-h-[92dvh] rounded-2xl overflow-hidden flex flex-col" style={{ background: 'var(--card)' }} onClick={(e) => e.stopPropagation()}>
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
               <div className="min-w-0">
@@ -365,7 +365,7 @@ export default function CertLibrary({ customers = [], showToast }) {
                   <ExternalLink className="w-4 h-4" />PDF 새 창에서 열기
                 </a>
               ) : (
-                <img src={viewer.url} alt={viewer.name} className="max-w-full max-h-[62vh] object-contain rounded" />
+                <img src={viewer.url} alt={viewer.name} className="max-w-full max-h-[62dvh] object-contain rounded" />
               )}
             </div>
             {/* ✏️ 정보 수정 — 상호명 / 이메일 / 업체정보 */}

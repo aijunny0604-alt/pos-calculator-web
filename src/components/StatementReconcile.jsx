@@ -163,7 +163,7 @@ export default function StatementReconcile({ orders, showToast, onClose }) {
 
   return (
     <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
-      <div className="move-dialog relative w-full sm:max-w-5xl rounded-t-2xl sm:rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '94vh' }}
+      <div className="move-dialog relative w-full sm:max-w-5xl rounded-t-2xl sm:rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '94dvh' }}
         onClick={(e) => e.stopPropagation()}>
         {dragOver && (
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed pointer-events-none" style={{ background: 'rgba(0,212,255,0.12)', borderColor: 'var(--primary)' }}>

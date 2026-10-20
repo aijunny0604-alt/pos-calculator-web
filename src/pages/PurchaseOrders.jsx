@@ -1219,7 +1219,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => !saving && setEditing(null)}>
           <div
-            className="w-full max-w-[92rem] max-h-[94vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
+            className="w-full max-w-[92rem] max-h-[94dvh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1540,7 +1540,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
           <img
             src={viewQuote.urls[viewQuote.idx]}
             alt="발주서"
-            className="max-w-full max-h-[85vh] object-contain rounded-lg bg-white"
+            className="max-w-full max-h-[85dvh] object-contain rounded-lg bg-white"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
@@ -1574,7 +1574,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
           혹시 값이 잘못 저장돼도 과거 상태를 되짚어 확인/복구할 수 있게. (2026-07-24) */}
       {historyFor && (
         <div className="fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => setHistoryFor(null)}>
-          <div className="w-full max-w-2xl max-h-[88vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
+          <div className="w-full max-w-2xl max-h-[88dvh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
             style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex-shrink-0 px-5 py-4 border-b flex items-center gap-2.5" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>
               <History className="w-5 h-5" style={{ color: 'var(--primary)' }} />

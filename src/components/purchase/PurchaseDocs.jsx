@@ -174,7 +174,7 @@ export default function PurchaseDocs({ showToast, onCount }) {
       {/* 등록/수정 모달 */}
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => !saving && setEditing(null)}>
-          <div className="w-full max-w-lg rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92vh' }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-lg rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92dvh' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <FileImage className="w-5 h-5" style={{ color: 'var(--primary)' }} />
               <h3 className="text-base font-bold flex-1">{editing.id ? '증빙 수정' : '증빙 등록'}</h3>

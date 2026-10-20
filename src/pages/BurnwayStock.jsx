@@ -388,7 +388,7 @@ function DetailModal({ model, products, onClose }) {
         className="move-dialog relative bg-[var(--card)] shadow-2xl w-full flex flex-col border border-[var(--border)] animate-modal-up modal-fs-transition"
         style={{
           maxWidth: isFullscreen ? '100vw' : '56rem',
-          maxHeight: isFullscreen ? '100vh' : '90vh',
+          maxHeight: isFullscreen ? '100dvh' : '90dvh',
           borderRadius: isFullscreen ? '0' : '1rem',
           boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)',
         }}
