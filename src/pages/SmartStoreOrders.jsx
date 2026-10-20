@@ -16,6 +16,7 @@ import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/sto
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 import StoreShippingDetails from '@/components/StoreShippingDetails';
 import StoreCarePanel from '@/components/StoreCarePanel';
+import ViewportModal from '@/components/ui/ViewportModal';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
 const fmtDate = (s) => {
@@ -2997,10 +2998,11 @@ export default function SmartStoreOrders({
           ? `${dItems[0].product_name || dItems[0].name || '상품'}${dItems.length > 1 ? ` 외 ${dItems.length - 1}건` : ''}`
           : null;
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 backdrop-blur-sm animate-modal-backdrop"
+          <ViewportModal className="store-dispatch-backdrop bg-black/60 backdrop-blur-sm animate-modal-backdrop"
             onClick={() => setDispatchModalOrder(null)}>
             <div
-              className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden modal-card-safe"
+              role="dialog" aria-modal="true" aria-label="발송 처리"
+              className="store-dispatch-dialog relative w-full sm:max-w-lg flex flex-col rounded-t-3xl sm:rounded-2xl border bg-[var(--card)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden"
               style={{ borderColor: 'var(--border)' }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -3009,7 +3011,7 @@ export default function SmartStoreOrders({
                 style={{ background: 'linear-gradient(90deg, #03c75a 0%, #22c55e 55%, #03c75a 100%)' }} />
 
               {/* 헤더 */}
-              <div className="px-5 pt-6 pb-4 border-b flex items-start gap-3.5"
+              <div className="shrink-0 px-5 pt-6 pb-4 border-b flex items-start gap-3.5"
                 style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, #03c75a 9%, var(--card)) 0%, var(--card) 70%)' }}>
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md"
                   style={{ background: 'linear-gradient(135deg, #03c75a, #16a34a)', color: 'white' }}>
@@ -3020,7 +3022,7 @@ export default function SmartStoreOrders({
                   <p className="text-xs mt-0.5 font-semibold" style={{ color: '#03c75a' }}>네이버 스마트스토어 연동</p>
                 </div>
                 <button onClick={() => setDispatchModalOrder(null)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
+                  className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
                   aria-label="닫기">
                   <X className="w-4 h-4 opacity-60" />
                 </button>
@@ -3093,7 +3095,7 @@ export default function SmartStoreOrders({
                 {/* 송장번호 — 이 모달의 주 작업. 크게, 숫자 읽기 쉽게. */}
                 <div>
                   <label className="block text-[11px] font-bold tracking-wider mb-2" style={{ color: 'var(--muted-foreground)' }}>송장번호</label>
-                  <input type="text" inputMode="numeric" autoFocus
+                  <input type="text" inputMode="numeric"
                     value={dispatchTracking}
                     onChange={(e) => setDispatchTracking(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && dReady) submitDispatch(); }}
@@ -3146,7 +3148,7 @@ export default function SmartStoreOrders({
                 </button>
               </div>
             </div>
-          </div>
+          </ViewportModal>
         );
       })()}
 

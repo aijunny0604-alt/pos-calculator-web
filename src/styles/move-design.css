@@ -391,6 +391,14 @@
 
 @media screen and (min-width:1024px){.pos-search-toolbar{padding-top:20px;padding-bottom:16px}}
 
+.store-dispatch-backdrop {
+ position:fixed;left:0;right:0;top:0;height:100dvh;z-index:1000;
+ display:flex;align-items:center;justify-content:center;box-sizing:border-box;
+ padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));
+ overscroll-behavior:contain;
+}
+.store-dispatch-dialog {max-height:100%;min-height:0;border-radius:20px;}
+.store-dispatch-dialog > .overflow-y-auto {overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
 /* 선택한 송장: 흰 정보 카드와 별도 설정 패널로 계층을 구분한다. */
 @media screen {
  .shipping-recipient-card[data-selected=true]{background:var(--card)!important;border-color:var(--primary)!important;box-shadow:0 0 0 1px color-mix(in srgb,var(--primary) 22%,transparent),0 8px 24px #1235420b}
