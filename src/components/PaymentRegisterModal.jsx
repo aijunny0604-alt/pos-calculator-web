@@ -214,8 +214,9 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
   // 빠른 금액 버튼 (잔금 기준 + 프리셋)
   const quickAmounts = [];
   if (selectedRecord) {
-    quickAmounts.push({ label: '전액', value: selectedRecord.balance });
-    if (selectedRecord.balance >= 500000) quickAmounts.push({ label: '절반', value: Math.round(selectedRecord.balance / 2) });
+    const fullAmount = type === 'expense' ? Number(selectedRecord.paid_amount) : Number(selectedRecord.balance);
+    if (fullAmount > 0) quickAmounts.push({ label: type === 'expense' ? '받은 금액 전액' : '전액', value: fullAmount });
+    if (fullAmount >= 500000) quickAmounts.push({ label: '절반', value: Math.round(fullAmount / 2) });
   }
   const presets = [100000, 500000, 1000000];
 
@@ -506,8 +507,11 @@ export default function PaymentRegisterModal({ open, onClose, onSaved, initialCu
                     </button>
                   )}
                 </div>
-                {selectedRecord && amount && totals.grand > Number(selectedRecord.balance) && (
+                {type === 'income' && selectedRecord && amount && totals.grand > Number(selectedRecord.balance) && (
                   <p className="mt-2 text-sm text-orange-500 font-semibold">⚠️ 총 합계가 잔금보다 큼 (초과 입금)</p>
+                )}
+                {type === 'expense' && selectedRecord && amount && totals.grand > Number(selectedRecord.paid_amount) && (
+                  <p className="mt-2 text-sm text-orange-500 font-semibold">⚠️ 출금액이 현재 순입금액보다 큽니다. 출금 내역을 확인해주세요.</p>
                 )}
               </div>
 

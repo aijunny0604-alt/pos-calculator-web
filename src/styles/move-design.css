@@ -416,3 +416,23 @@
  @container(min-width:1000px){.shipping-recipient-card[data-selected=true] .shipping-contact-field{padding-right:112px}.shipping-recipient-card[data-selected=true] .shipping-contact-field button{right:12px;top:22px}}
  @media(max-width:639px){.shipping-recipient-card[data-selected=true] .shipping-recipient-main{padding:12px}.shipping-selection-settings{padding:14px 12px!important}.shipping-setting-actions>button:first-child{flex:1}}
 }
+
+
+/* 주문 금액: 기존 카드 톤에 맞춰 이전 금액과 차감액을 보조 정보로 표시한다. */
+.order-history-card{container-type:inline-size;container-name:order-card}
+.order-card-discount-badge{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;white-space:nowrap;padding:4px 8px;border:1px solid color-mix(in srgb,var(--primary) 22%,var(--border));border-radius:7px;background:color-mix(in srgb,var(--primary) 5%,var(--card));color:var(--primary);font-size:12px;font-weight:600;line-height:1.4;vertical-align:middle}
+.order-card-amount{flex-shrink:0;text-align:right;font-variant-numeric:tabular-nums;min-width:0}
+.order-card-final{font-size:24px;font-weight:750;line-height:1.2;letter-spacing:-.025em;white-space:nowrap}
+.order-card-adjustment{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:3px 8px;margin-bottom:5px;font-size:12px;line-height:1.5;color:var(--muted-foreground)}
+.order-card-adjustment s{white-space:nowrap;text-decoration-thickness:1px}
+.order-card-saving{white-space:nowrap;font-weight:600;color:var(--primary)}
+.order-card-adjusted{font-size:11px}
+@container order-card (max-width:480px){
+ .order-card-heading[data-discounted=true]{flex-wrap:wrap}
+ .order-card-heading[data-discounted=true]>.flex-1{flex-basis:calc(100% - 32px)}
+ .order-card-amount[data-discounted=true]{flex:1 1 100%;padding-top:10px;border-top:1px solid var(--border);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;align-items:center}
+ .order-card-amount[data-discounted=true] .order-card-adjustment{justify-content:flex-start;align-items:flex-start;flex-direction:column;margin:0;text-align:left;grid-row:1 / 3}
+ .order-card-amount[data-discounted=true]>.mt-0\.5{grid-column:2;margin-top:0}
+ .order-card-amount[data-discounted=true] .order-card-final{font-size:22px}
+}
+@media(max-width:639px){.order-card-final{font-size:22px}}

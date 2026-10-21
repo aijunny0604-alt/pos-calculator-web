@@ -28,7 +28,7 @@ export default function PaymentDashboardSection({ customers = [], setCurrentPage
     Promise.all([
       supabase.getOverdueRecords(20),
       supabase.getRecentPayments(10),
-      supabase.getPaymentRecords({ hasBalance: true }),
+      supabase.getPaymentRecords({ strict: true }),
     ]).then(([od, rp, allOutstanding]) => {
       if (cancelled) return;
       setOverdue(od || []);
@@ -46,6 +46,7 @@ export default function PaymentDashboardSection({ customers = [], setCurrentPage
           customer: customers.find((c) => String(c.id) === id) || { id, name: `#${id}` },
           ...v,
         }))
+        .filter(r => r.balance > 0)
         .sort((a, b) => b.balance - a.balance)
         .slice(0, 8);
       setRanking(top);

@@ -35,7 +35,7 @@ export default function InvoicesContainer({ customers = [], initialCustomerId = 
       alert('해당 업체에 미수 건이 없습니다');
       return;
     }
-    setBulkPay({ customer: cust, records: outstanding });
+    setBulkPay({ customer: cust, records });
   };
 
   const handleOpenCustomerDetail = (customerId) => {

@@ -2,7 +2,7 @@ import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
-import { validateAllocation, paymentRows, localDate } from '@/lib/paymentSafety';
+import { validateAllocation, validateFreshAllocation, paymentRows, localDate } from '@/lib/paymentSafety';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 
@@ -29,8 +29,8 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
   }, [records]);
 
   const totalOutstanding = useMemo(
-    () => sortedRecords.reduce((s, r) => s + Number(r.balance || 0), 0),
-    [sortedRecords]
+    () => Math.max(0, (records || []).reduce((s, r) => s + Number(r.balance || 0), 0)),
+    [records]
   );
 
   // 입금액을 오래된 순으로 자동 배분한 미리보기
@@ -59,10 +59,16 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
   const handleSubmit = async () => {
     if (busy.current || needsReview) return;
     setError('');
-    try { validateAllocation(allocation, amount, customer.id); } catch (e) { setError(e.message); return; }
+    try {
+      validateAllocation(allocation, amount, customer.id);
+      if (Number(amount) > totalOutstanding) throw new Error('선입금을 반영한 총 미수금보다 입금액이 큽니다.');
+    } catch (e) { setError(e.message); return; }
     busy.current = true;
     setSubmitting(true);
     try {
+      const latest = await supabase.getPaymentRecords({ customerId: customer.id, strict: true });
+      validateFreshAllocation(allocation, latest, customer.id);
+      if (Number(amount) > latest.reduce((s, r) => s + Number(r.balance || 0), 0)) throw new Error('최신 미수금보다 입금액이 큽니다. 창을 다시 열어 확인해주세요.');
       // 한 요청으로 저장해 일부 명세서만 입금되는 부분 성공을 막는다.
       const rows = allocation.map(a => ({
         payment_record_id: a.record.id, amount: a.apply, method, type: 'income',
@@ -98,7 +104,7 @@ export default function BulkPaymentModal({ open, customer, records, onClose, onS
             <span>일괄 입금</span>
           </h3>
           <p className="text-[11px] text-[var(--muted-foreground)] mt-1">
-            {customer.name} · 총 미수 <span className="text-red-400 font-bold">{fmt(totalOutstanding)}원</span>
+            {customer.name} · 선입금 반영 미수 <span className="text-red-400 font-bold">{fmt(totalOutstanding)}원</span>
           </p>
         </div>
 

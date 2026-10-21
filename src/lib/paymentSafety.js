@@ -38,3 +38,12 @@ export function validateAllocation(allocation, amount, customerId) {
   }
   if (allocated !== total) throw new Error('입금액이 총 미수금을 초과합니다. 배분할 금액으로 수정해주세요.');
 }
+
+export function validateFreshAllocation(allocation, records, customerId) {
+  for (const item of allocation) {
+    const current = records.find(r => String(r.id) === String(item.record.id));
+    if (!current || String(current.customer_id) !== String(customerId) || Number(current.balance) !== Number(item.record.balance)) {
+      throw new Error('다른 곳에서 잔액이 변경되었습니다. 창을 다시 열어 최신 금액으로 배분해주세요.');
+    }
+  }
+}

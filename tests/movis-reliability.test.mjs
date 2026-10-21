@@ -51,12 +51,13 @@ test('입금 잔액·금액·중복 정산 레코드를 재조회로 검증한�
 });
 test('실제 정산 함수가 입금 이력 저장 실패 후 금액을 올리지 않는다',async()=>{
  let updated=0;
- const api={...supabase,getPaymentRecord:async()=>null,getPaymentRecords:async()=>[{id:1,balance:100,paid_amount:0}],addPaymentHistory:async()=>null,updatePaymentRecord:async()=>{updated++;return{id:1};}};
+ const base={id:1,order_id:'ORDER-TEST',customer_id:1,total_amount:100};
+ const api={...supabase,getOrderById:async()=>orders[0],getCustomers:async()=>customers,getPaymentHistory:async()=>[],getPaymentRecord:async()=>null,getPaymentRecords:async()=>[{...base,balance:100,paid_amount:0}],addPaymentHistory:async()=>null,updatePaymentRecord:async()=>{updated++;return{id:1};}};
  const result=await api.syncOrderPaidRecord('ORDER-TEST','transfer',orders[0],customers);
  assert.equal(result.success,false);assert.equal(result.reason,'history_save_failed');assert.equal(updated,0);
  api.addPaymentHistory=async()=>[{id:5}];api.updatePaymentRecord=async()=>null;
  assert.equal((await api.syncOrderPaidRecord('ORDER-TEST','transfer',orders[0],customers)).reason,'partial_payment');
- api.getPaymentRecord=async()=>({id:1,paid_amount:150,balance:-50});
+ api.getPaymentRecord=async()=>({...base,paid_amount:150,balance:-50});
  const refreshed=await api.syncOrderPaidRecord('ORDER-TEST','transfer',orders[0],customers);
  assert.equal(refreshed.record.paid_amount,150);assert.equal(updated,0);
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Sentry from '@sentry/react';
 import { supabase, supabaseClient } from '@/lib/supabase';
+import { runManualPaidChange, manualPaidError } from '@/lib/manualPaidWorkflow';
 
 /**
  * useManualPaid — 수동 완불 체크 훅
@@ -112,7 +113,7 @@ async function migrateLocalToSupabaseOnce() {
       return { migrated: 0, skipped: false };
     }
     // 기존 서버 데이터 읽어서 중복 체크
-    const serverRows = await supabase.getManualPaidAll();
+    const serverRows = await supabase.getManualPaidAll({ strict: true });
     const serverIds = new Set((serverRows || []).map((r) => String(r.order_id)));
     let migrated = 0;
     for (const id of ids) {
@@ -144,7 +145,7 @@ export default function useManualPaid() {
 
       // 2) Supabase에서 ground truth fetch
       try {
-        const rows = await supabase.getManualPaidAll();
+        const rows = await supabase.getManualPaidAll({ strict: true });
         if (cancelled) return;
         const serverMap = rowsToMap(rows);
         saveLocalMap(serverMap);
@@ -164,7 +165,7 @@ export default function useManualPaid() {
             async () => {
               // 변경 감지 → 전체 refetch (단순/안전)
               try {
-                const rows2 = await supabase.getManualPaidAll();
+                const rows2 = await supabase.getManualPaidAll({ strict: true });
                 if (cancelled) return;
                 const m = rowsToMap(rows2);
                 saveLocalMap(m);
@@ -201,74 +202,30 @@ export default function useManualPaid() {
     };
   }, []);
 
-  // setPaid(orderId, method, orderHint?, customers?) — Promise 반환. 호출부에서 .then으로 결과 검사 가능
-  // 결과: { localOk: true, syncResult: { success, reason? } | null }
-  // customers: 호출부가 이미 보유 시 전달하면 syncOrderPaidRecord 내부 추가 fetch 회피 (M1)
-  const setPaid = useCallback(async (orderId, method, orderHint = null, customers = null) => {
-    if (!orderId || !method) return { localOk: false };
-    const current = loadLocalMap();
+  // 원장 저장/검증이 끝난 뒤에만 로컬과 서버 완불 표시를 갱신한다.
+  const setPaid = useCallback(async (orderId, method) => {
     const key = String(orderId);
-    const prev = current[key];
-    const prevMethod = prev?.method;
-    const paidAt = new Date().toISOString();
-
-    // 1) 로컬 즉시 반영 (UI 반응성)
-    const next = { ...current, [key]: { method, paidAt } };
-    saveLocalMap(next);
-    setMap(next);
-    broadcast();
-
-    // 2) Supabase manual_paid_orders upsert (시각 마커, fire-and-forget)
-    supabase.upsertManualPaid(orderId, method).catch((err) => {
-      Sentry.captureException(err, { tags: { feature: 'manual-paid', op: 'setPaid-upsert' }, extra: { orderId, method } });
-    });
-
-    // 3) Audit (로컬)
-    if (prevMethod && prevMethod !== method) {
-      appendAuditLog(buildAuditEntry('change', orderId, { method, prevMethod }));
-    } else if (!prevMethod) {
-      appendAuditLog(buildAuditEntry('set', orderId, { method }));
+    const previous = loadLocalMap()[key];
+    const result = await runManualPaidChange(supabase, orderId, method);
+    if (!result.success) {
+      alert(manualPaidError(result));
+      return { localOk: false, syncResult: result };
     }
-
-    // 4) payment_records + payment_history 자동 동기화 — await로 결과 받음 (C1/M3)
-    let syncResult = null;
-    if (prevMethod !== method) {
-      try {
-        syncResult = await supabase.syncOrderPaidRecord(orderId, method, orderHint, customers);
-      } catch (err) {
-        Sentry.captureException(err, { tags: { feature: 'manual-paid', op: 'setPaid-syncRecord' }, extra: { orderId, method } });
-        syncResult = { success: false, reason: 'exception', error: err?.message };
-      }
-    }
-    return { localOk: true, syncResult };
+    const next = { ...loadLocalMap(), [key]: { method, paidAt: result.marker.paid_at || new Date().toISOString() } };
+    saveLocalMap(next); setMap(next); broadcast();
+    appendAuditLog(buildAuditEntry(previous ? 'change' : 'set', orderId, { method, prevMethod: previous?.method }));
+    return { localOk: true, syncResult: result };
   }, []);
 
-  const clearPaid = useCallback((orderId) => {
-    if (!orderId) return;
-    const current = loadLocalMap();
+  const clearPaid = useCallback(async (orderId) => {
     const key = String(orderId);
-    if (!(key in current)) return;
-    const prevMethod = current[key]?.method;
-
-    // 1) 로컬 즉시 반영
-    const next = { ...current };
-    delete next[key];
-    saveLocalMap(next);
-    setMap(next);
-    broadcast();
-
-    // 2) Supabase manual_paid_orders delete
-    supabase.deleteManualPaid(orderId).catch((err) => {
-      Sentry.captureException(err, { tags: { feature: 'manual-paid', op: 'clearPaid-delete' }, extra: { orderId } });
-    });
-
-    // 3) 자동 생성된 payment_history 회수 (다른 입금은 보존)
-    supabase.revokeAutoPaidHistory(orderId).catch((err) => {
-      Sentry.captureException(err, { tags: { feature: 'manual-paid', op: 'clearPaid-revoke' }, extra: { orderId } });
-    });
-
-    // 4) Audit
-    appendAuditLog(buildAuditEntry('clear', orderId, { prevMethod }));
+    const previous = loadLocalMap()[key];
+    const result = await runManualPaidChange(supabase, orderId, null);
+    if (!result.success) { alert(manualPaidError(result)); return result; }
+    const next = { ...loadLocalMap() }; delete next[key];
+    saveLocalMap(next); setMap(next); broadcast();
+    appendAuditLog(buildAuditEntry('clear', orderId, { prevMethod: previous?.method }));
+    return result;
   }, []);
 
   const getInfo = useCallback((orderId) => map[String(orderId)] || null, [map]);

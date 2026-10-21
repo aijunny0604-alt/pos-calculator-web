@@ -87,7 +87,7 @@ export default function CustomerList({
   }, [selectedCustomer?.id]);
 
   const reloadOutstanding = () => {
-    supabase.getPaymentRecords({ hasBalance: true }).then((records) => {
+    supabase.getPaymentRecords({ strict: true }).then((records) => {
       const map = {};
       for (const r of records || []) {
         if (!r.customer_id) continue;
@@ -99,7 +99,7 @@ export default function CustomerList({
 
   useEffect(() => {
     let cancelled = false;
-    supabase.getPaymentRecords({ hasBalance: true }).then((records) => {
+    supabase.getPaymentRecords({ strict: true }).then((records) => {
       if (cancelled) return;
       const map = {};
       for (const r of records || []) {

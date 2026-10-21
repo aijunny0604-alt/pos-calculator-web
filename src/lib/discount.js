@@ -43,3 +43,25 @@ export function discountPlaceholder(type) {
 }
 
 export const DISCOUNT_TYPES = ['percent', 'amount', 'fixed'];
+
+// 주문에 저장된 할인 전/후 단가만 사용한다. 현재 상품 가격으로 과거 할인을 추정하지 않는다.
+export function getOrderDiscountSummary(order) {
+  const priceField = order.priceType === 'retail' ? 'retail' : 'wholesale';
+  let count = 0, saved = 0, complete = true;
+  for (const item of order.items || []) {
+    const value = Number(item?.discountValue);
+    if (!DISCOUNT_TYPES.includes(item?.discountType) || !Number.isFinite(value) || value <= 0) continue;
+    if (item.originalPriceField && item.originalPriceField !== priceField) continue;
+    const base = item.originalPrice == null ? NaN : Number(item.originalPrice);
+    const current = item.price == null ? NaN : Number(item.price);
+    const quantity = Number(item.quantity);
+    if (![base, current, quantity].every(Number.isSafeInteger) || base < 0 || current < 0 || quantity <= 0) {
+      count++; complete = false; continue;
+    }
+    if (base <= current) continue; // 최종 지정 단가가 더 높거나 같으면 할인으로 표시하지 않는다.
+    count++; saved += (base - current) * quantity;
+  }
+  const total = Number(order.totalAmount ?? order.total);
+  complete = complete && Number.isSafeInteger(saved) && Number.isSafeInteger(total) && total >= 0 && Number.isSafeInteger(total + saved);
+  return { hasDiscount: count > 0, count, saved: complete ? saved : null, originalTotal: complete && count > 0 ? total + saved : null };
+}

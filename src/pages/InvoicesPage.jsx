@@ -1,28 +1,24 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseClient } from '@/lib/supabase';
+import { kstDate, enrichInvoiceRecords, partitionInvoiceRecords, calculateInvoice } from '@/lib/invoiceLedger';
 import { toPng, toBlob } from 'html-to-image';
 import { Printer, Download, Copy, Search, X as XIcon } from 'lucide-react';
 
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 const fmtMMDD = (iso) => (iso || '').slice(5).replace('-', '.');
 // KST 기준 오늘 (UTC+9). new Date().toISOString()(UTC)는 KST 00~09시에 전날로 잡혀 명세서 날짜가 어긋남 [bug-hunt 6]
-const todayISO = () => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const todayISO = () => kstDate();
 const offsetDays = (iso, days) => {
   const d = new Date(iso + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 };
 const startOfWeekISO = () => {
-  const d = new Date();
-  const day = d.getDay();
-  const monOffset = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + monOffset);
-  return d.toISOString().slice(0, 10);
+  const today = todayISO();
+  const day = new Date(today + 'T00:00:00Z').getUTCDay();
+  return offsetDays(today, day === 0 ? -6 : 1 - day);
 };
-const startOfMonthISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-};
+const startOfMonthISO = () => todayISO().slice(0, 7) + '-01';
 
 const DATE_PRESETS = [
   { key: 'today', label: '오늘' },
@@ -59,6 +55,7 @@ export default function InvoicesPage({
   const [carryover, setCarryover] = useState([]);
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [revision, setRevision] = useState(0);
   const [toast, setToast] = useState('');
   const [settings, setSettings] = useState(null);
   const [selectedCarryoverDates, setSelectedCarryoverDates] = useState(() => new Set());
@@ -115,88 +112,20 @@ export default function InvoicesPage({
       supabase.getPaymentRecords({ strict: true }),
       supabase.getOrders(),
       supabase.getPaymentHistory({ strict: true }),
-    ]).then(([allRecords, allOrders, allHistory]) => {
+      supabase.getManualPaidAll({ strict: true }),
+    ]).then(([allRecords, allOrders, allHistory, manualPaid]) => {
       if (!active) return;
       if (![allRecords, allOrders, allHistory].every(Array.isArray)) throw new Error('명세서 자료 조회 실패');
-      const recordedOrderIds = new Set(
-        (allRecords || []).map((r) => r.order_id).filter(Boolean).map(String)
-      );
-
-      const orderMap = new Map();
-      for (const o of allOrders || []) orderMap.set(String(o.id), o);
-
       const historyByRecord = new Map();
-      for (const h of allHistory || []) {
+      for (const h of allHistory) {
         const key = String(h.payment_record_id);
         if (!historyByRecord.has(key)) historyByRecord.set(key, []);
         historyByRecord.get(key).push(h);
       }
-
-      const enrichedRecords = (allRecords || []).map((r) => {
-        const base = { ...r, history: historyByRecord.get(String(r.id)) || [] };
-        if (!r.order_id) return base;
-        const o = orderMap.get(String(r.order_id));
-        return o ? { ...base, items: o.items || [], order_memo: o.memo || '' } : base;
-      });
-
-      const byName = new Map();
-      const byPhone = new Map();
-      for (const c of customers || []) {
-        if (c.name) byName.set(c.name.trim(), c);
-        if (c.phone) byPhone.set(c.phone.trim(), c);
-      }
-
-      const virtualRecords = [];
-      for (const o of allOrders || []) {
-        if (recordedOrderIds.has(String(o.id))) continue;
-
-        const name = (o.customer_name || '').trim();
-        const phone = (o.customer_phone || '').trim();
-        let cust = null;
-        if (name) cust = byName.get(name);
-        if (!cust && phone) cust = byPhone.get(phone);
-
-        const total = Number(o.total || 0) - Number(o.total_returned || 0);
-        if (total <= 0) continue;
-
-        const orderDate = (o.created_at || '').slice(0, 10);
-        const supply = Math.round(total / 1.1);
-
-        virtualRecords.push({
-          id: `virt-${o.id}`,
-          order_id: o.id,
-          customer_id: cust?.id || null,
-          total_amount: total,
-          supply_amount: supply,
-          vat_amount: total - supply,
-          paid_amount: 0,
-          balance: total,
-          payment_status: 'no_record',
-          invoice_date: orderDate,
-          invoice_issued: false,
-          category: 'sales',
-          is_vat_exempt: false,
-          memo: o.memo || '',
-          items: o.items || [],
-          order_memo: o.memo || '',
-          history: [],
-          _virtual: true,
-        });
-      }
-
-      const mergedAll = [...enrichedRecords, ...virtualRecords];
-
-      const inRange = (r) => {
-        if (!dateRange.from) return true;
-        if (!r.invoice_date) return true;
-        return r.invoice_date >= dateRange.from && r.invoice_date <= dateRange.to;
-      };
-      const current = mergedAll.filter(inRange);
-
-      const prev = mergedAll.filter((r) =>
-        r.invoice_date && dateRange.from && r.invoice_date < dateRange.from && Number(r.balance) > 0
-      );
-
+      const enriched = enrichInvoiceRecords(allRecords, allOrders, customers, manualPaid).map(r => ({
+        ...r, history: historyByRecord.get(String(r.id)) || [],
+      }));
+      const { current, carryover: prev } = partitionInvoiceRecords(enriched, dateRange);
       setRecords(current);
       setCarryover(prev);
     }).catch((e) => {
@@ -207,7 +136,19 @@ export default function InvoicesPage({
       setCarryover([]);
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [dateRange.from, dateRange.to, customers]);
+  }, [dateRange.from, dateRange.to, customers, revision]);
+
+  useEffect(() => {
+    let timer;
+    const refresh = () => { clearTimeout(timer); timer = setTimeout(() => setRevision(v => v + 1), 200); };
+    const channel = supabaseClient.channel('invoices-ledger')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_records' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_history' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'manual_paid_orders' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, refresh).subscribe();
+    window.addEventListener('focus', refresh);
+    return () => { clearTimeout(timer); window.removeEventListener('focus', refresh); supabaseClient.removeChannel(channel); };
+  }, []);
 
   const customerName = (id) => customers.find((c) => c.id === id)?.name || `#${id}`;
 
@@ -257,10 +198,10 @@ export default function InvoicesPage({
       e.count += 1;
       if (r.invoice_date && r.invoice_date > e.lastDate) e.lastDate = r.invoice_date;
     };
-    for (const r of records) if (Number(r.balance) > 0) upsert(r);
-    for (const r of carryover) if (Number(r.balance) > 0) upsert(r);
+    for (const r of records) if (Number(r.balance) !== 0) upsert(r);
+    for (const r of carryover) if (Number(r.balance) !== 0) upsert(r);
     return [...byCust.values()]
-      .filter((c) => c.balance > 0)
+      .filter((c) => c.balance !== 0)
       .sort((a, b) => b.balance - a.balance);
   }, [records, carryover, customers]);
 
@@ -285,7 +226,7 @@ export default function InvoicesPage({
     const source = isAllCustomers ? carryover : filteredCarryover;
     const g = new Map();
     for (const r of source) {
-      if (!(Number(r.balance) > 0)) continue;
+      if (Number(r.balance) === 0) continue;
       const key = r.invoice_date || '(날짜 없음)';
       if (!g.has(key)) g.set(key, []);
       g.get(key).push(r);
@@ -304,7 +245,7 @@ export default function InvoicesPage({
   const carryoverByCustomer = useMemo(() => {
     const m = new Map();
     for (const r of carryover) {
-      if (!(Number(r.balance) > 0)) continue;
+      if (Number(r.balance) === 0) continue;
       const cid = String(r.customer_id ?? `unknown-${r.customer_name ?? ''}`);
       if (!m.has(cid)) m.set(cid, new Map());
       const dateMap = m.get(cid);
@@ -334,50 +275,6 @@ export default function InvoicesPage({
     setSelectedCarryoverDates(new Set(carryoverByDate.map((x) => x.date)));
   const clearCarryoverDates = () => setSelectedCarryoverDates(new Set());
 
-  // 품목 flat list 생성기 (한 레코드 → items × 1라인씩)
-  // 사용자가 명세서에서 수동 수정한 값(lineOverrides)을 최우선 적용
-  const recordToLines = (r) => {
-    const items = Array.isArray(r.items) ? r.items : [];
-    const date = r.invoice_date || '';
-    const out = [];
-    items.forEach((it, idx) => {
-      const key = `${r.id}:${idx}`;
-      const ov = lineOverrides[key] || {};
-      if (ov.deleted) return; // 삭제된 행은 제외
-      const qty = Number(ov.qty ?? it.quantity) || 1;
-      const unitWithVat = Number(ov.unitWithVat ?? it.price) || 0;
-      const lineWithVat = unitWithVat * qty;
-      // 비과세 항목(택배비/퀵비 등 실비 대납)은 받은 금액 전액이 공급가액, 부가세 0.
-      // 라인 단위로 처리하면 아래 totals(공급가액 합계/부가세 합계)까지 자동으로 맞는다. (2026-07-15)
-      // ⚠️ 기존 주문엔 taxFree 필드가 없어 과세로 계산됨 = 과거 명세서 금액 불변(의도된 동작)
-      const isTaxFree = it.taxFree === true;
-      const supply = isTaxFree ? lineWithVat : Math.round(lineWithVat / 1.1);
-      const vat = lineWithVat - supply;
-      const isDiscounted = !!it.discountType && Number(it.discountValue) > 0 && ov.unitWithVat == null;
-      const baseUnit = isDiscounted ? (Number(it.originalPrice) || unitWithVat) : unitWithVat;
-      out.push({
-        key,
-        date,
-        code: it.code || it.product_id || '',
-        name: ov.name ?? (it.name || it.product_name || '품목'),
-        spec: it.spec || it.option || '',
-        qty,
-        unitPrice: isTaxFree ? unitWithVat : Math.round(unitWithVat / 1.1),
-        unitWithVat,
-        supply,
-        vat,
-        isTaxFree,
-        memo: '',
-        edited: !!(ov.qty != null || ov.unitWithVat != null || ov.name != null),
-        isDiscounted,
-        baseUnitWithVat: baseUnit,
-        discountType: it.discountType,
-        discountValue: it.discountValue,
-      });
-    });
-    return out;
-  };
-
   // 편집 동작
   const openLineEditor = (line) => {
     setEditingLine({
@@ -390,6 +287,9 @@ export default function InvoicesPage({
   const saveLineEdit = () => {
     if (!editingLine) return;
     const { key, name, qty, unitWithVat } = editingLine;
+    if (!name.trim() || !Number.isSafeInteger(Number(qty)) || Number(qty) <= 0 || !Number.isSafeInteger(Number(unitWithVat)) || Number(unitWithVat) < 0 || !Number.isSafeInteger(Number(qty) * Number(unitWithVat))) {
+      showToast('품목명, 1개 이상의 수량, 0원 이상의 정수 단가를 입력해주세요.'); return;
+    }
     setLineOverrides((prev) => ({
       ...prev,
       [key]: { name, qty: Number(qty) || 0, unitWithVat: Number(unitWithVat) || 0 },
@@ -425,24 +325,11 @@ export default function InvoicesPage({
       const cRecords = filteredRecords.filter(match);
       const cCarryover = filteredCarryover.filter(match);
 
-      const lines = [];
-      for (const r of cRecords) lines.push(...recordToLines(r));
-      for (const r of cCarryover) {
-        if (selectedCarryoverDates.has(r.invoice_date)) lines.push(...recordToLines(r));
-      }
-      lines.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-
-      const unselectedCarryBalance = cCarryover.reduce(
-        (s, r) => selectedCarryoverDates.has(r.invoice_date) ? s : s + Number(r.balance || 0), 0
-      );
-      const cPaid = cRecords.reduce((s, r) => s + Number(r.paid_amount || 0), 0)
-        + cCarryover.reduce((s, r) => selectedCarryoverDates.has(r.invoice_date) ? s + Number(r.paid_amount || 0) : s, 0);
-      const supply = lines.reduce((s, l) => s + l.supply, 0);
-      const vat = lines.reduce((s, l) => s + l.vat, 0);
-      const sum = supply + vat;
-      const totalBeforePaid = unselectedCarryBalance + sum;
-      const grandBalance = totalBeforePaid - cPaid;
-
+      let calculation;
+      try { calculation = calculateInvoice(cRecords, cCarryover, selectedCarryoverDates, lineOverrides); }
+      catch (e) { invoices.push({ id: cid, name: customers.find(c => String(c.id) === cid)?.name || cid, error: e.message, lines: [], totals: {} }); continue; }
+      const { lines, totals } = calculation;
+      const unselectedCarryBalance = totals.prevBalance;
       // 빈 업체 제외 (단, 선택된 업체면 유지)
       if (lines.length === 0 && unselectedCarryBalance === 0 && !selectedCustomerIds.has(cid)) continue;
 
@@ -456,22 +343,20 @@ export default function InvoicesPage({
         id: cid,
         name: label,
         lines,
-        totals: {
-          supply, vat, sum,
-          prevBalance: unselectedCarryBalance,
-          totalBeforePaid, totalPaid: cPaid, grandBalance,
-          count: lines.length,
-        },
+        totals,
+        mismatchCount: [...cRecords, ...cCarryover].filter(r => r._orderMismatch).length,
+        paidMismatchCount: [...cRecords, ...cCarryover].filter(r => r._manualPaidMismatch).length,
+        virtualCount: [...cRecords, ...cCarryover].filter(r => r._virtual).length,
       });
     }
 
     // 총잔액 큰 순
     return invoices.sort((a, b) => b.totals.grandBalance - a.totals.grandBalance);
-  }, [filteredRecords, filteredCarryover, selectedCarryoverDates, selectedCustomerIds, isAllCustomers, customers]);
+  }, [filteredRecords, filteredCarryover, selectedCarryoverDates, selectedCustomerIds, isAllCustomers, customers, lineOverrides]);
 
   // 전체 합계 (여러 업체 선택 시 상단 요약)
   const grandTotals = useMemo(() => {
-    return customerInvoices.reduce((acc, inv) => ({
+    return customerInvoices.filter(inv => !inv.error).reduce((acc, inv) => ({
       supply: acc.supply + inv.totals.supply,
       vat: acc.vat + inv.totals.vat,
       sum: acc.sum + inv.totals.sum,
@@ -501,11 +386,19 @@ export default function InvoicesPage({
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
 
+  const outputBlocked = loading || !!loadError || customerInvoices.some(inv => inv.error || inv.mismatchCount > 0 || inv.paidMismatchCount > 0);
+  const ensureExportReady = () => {
+    if (!outputBlocked) return true;
+    showToast('자료를 불러오는 중이거나 주문·명세서 금액 확인이 필요합니다. 확인 후 출력해주세요.');
+    return false;
+  };
+
   // 캡처(PNG/카톡) 시 화면용 버튼(.no-print: 입금등록·일괄입금·업체상세·행별 수정/X·안내수정)을 제외
   // → 진짜 명세서처럼 깔끔하게 저장 (no-print는 @media print 전용이라 캡처엔 그대로 찍히던 문제)
   const exportFilter = (node) => !(node?.classList?.contains?.('no-print'));
 
   const handlePng = async () => {
+    if (!ensureExportReady()) return;
     if (!invoiceRef.current) { alert('명세서 요소를 찾을 수 없습니다'); return; }
     try {
       const dataUrl = await toPng(invoiceRef.current, { pixelRatio: 2, backgroundColor: '#ffffff', filter: exportFilter });
@@ -526,6 +419,7 @@ export default function InvoicesPage({
   };
 
   const handleCopy = async () => {
+    if (!ensureExportReady()) return;
     if (!invoiceRef.current) { alert('명세서 요소를 찾을 수 없습니다'); return; }
     if (!navigator.clipboard || !window.ClipboardItem) {
       showToast('❌ 이 브라우저는 클립보드 이미지 복사를 지원하지 않습니다');
@@ -543,6 +437,7 @@ export default function InvoicesPage({
   };
 
   const handlePrint = () => {
+    if (!ensureExportReady()) return;
     try { window.print(); } catch (e) { alert('인쇄 실패: ' + e.message); }
   };
 
@@ -675,13 +570,13 @@ export default function InvoicesPage({
 
           {/* 액션 버튼은 항상 노출 (스크롤 중에도 바로 사용) */}
           <div className="flex gap-2 flex-shrink-0">
-            <button onClick={handlePng} className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-bold bg-[var(--primary)] text-white hover:brightness-110 shadow-sm">
+            <button onClick={handlePng} disabled={outputBlocked} className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-bold bg-[var(--primary)] text-white hover:brightness-110 shadow-sm">
               <Download className="w-4 h-4" />PNG
             </button>
-            <button onClick={handlePrint} className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-bold border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--secondary)]">
+            <button onClick={handlePrint} disabled={outputBlocked} className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-bold border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--secondary)]">
               <Printer className="w-4 h-4" />인쇄
             </button>
-            <button onClick={handleCopy} className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-bold bg-green-600 text-white hover:bg-green-500 shadow-sm">
+            <button onClick={handleCopy} disabled={outputBlocked} className="disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-bold bg-green-600 text-white hover:bg-green-500 shadow-sm">
               <Copy className="w-4 h-4" />카톡
             </button>
           </div>
@@ -758,17 +653,26 @@ export default function InvoicesPage({
 
               {/* 업체별 명세서 섹션 반복 */}
               {customerInvoices.map((inv, idx) => {
-                const hasOpenBalance = Number(inv.totals.grandBalance) > 0;
+                if (inv.error) return <div key={inv.id} role="alert" className="p-4 text-red-700">{inv.name}: {inv.error} 수량·단가 편집값과 원본을 확인해주세요.
+                  <button className="no-print ml-2 underline" onClick={() => {
+                    const ids = new Set([...filteredRecords, ...filteredCarryover].filter(r => String(r.customer_id ?? `unknown-${r.customer_name ?? ''}`) === inv.id).map(r => String(r.id)));
+                    setLineOverrides(prev => Object.fromEntries(Object.entries(prev).filter(([key]) => !ids.has(key.split(':')[0]))));
+                  }}>이 업체 인쇄용 편집 초기화</button>
+                </div>;
+                const hasOpenBalance = Number(inv.totals.ledgerBalance) > 0;
                 const hasActions = onOpenPayment || onOpenBulkPay || onOpenCustomerDetail;
                 return (
                   <div key={inv.id} className={idx > 0 ? 'mt-8 pt-8' : ''} style={idx > 0 ? { borderTop: '2px dashed #e5e7eb' } : {}}>
+                    {inv.mismatchCount > 0 && <p role="alert" className="p-3 mb-3 bg-amber-50 text-amber-900 border border-amber-200 rounded-lg">주문과 명세서 금액이 다른 {inv.mismatchCount}건이 있습니다. 원장 기준 금액을 표시하며 확인 전 출력은 중단됩니다.</p>}
+                    {inv.paidMismatchCount > 0 && <p role="alert" className="p-3 mb-3 bg-red-50 text-red-900 border border-red-200 rounded-lg">완불 표시와 입금 원장이 일치하지 않는 주문 {inv.paidMismatchCount}건이 있습니다. 표시 잔액을 미수금으로 확정하지 마세요. 실제 입금 확인 전 출력은 중단됩니다.</p>}
+                    {inv.virtualCount > 0 && <p className="p-3 mb-3 text-amber-900 bg-amber-50 rounded-lg">입금 원장에 연결되지 않은 주문 {inv.virtualCount}건이 포함되어 있습니다. 해당 주문의 결제 여부를 확인해주세요.</p>}
                     {/* 업체별 액션 바 — 입금 등록/일괄 입금/업체 상세 (명세서 페이지 위에서 바로 처리) */}
                     {hasActions && inv.id && !String(inv.id).startsWith('unknown') && (
                       <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
                         <div className="text-[13px] text-gray-600">
                           <span className="font-semibold text-gray-800">{inv.name}</span>
                           {hasOpenBalance && (
-                            <span className="ml-2 text-red-600 font-bold tabular-nums">잔액 {fmt(inv.totals.grandBalance)}원</span>
+                            <span className="ml-2 text-red-600 font-bold tabular-nums">{inv.virtualCount ? '편집 전 잔액' : '원장 잔액'} {fmt(inv.totals.ledgerBalance)}원</span>
                           )}
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -845,7 +749,7 @@ export default function InvoicesPage({
             </div>
             <p className="text-[12px] text-[var(--muted-foreground)] mb-4 p-2 rounded bg-amber-50 border border-amber-200">
               💡 원본 주문 데이터는 그대로 두고, 이 명세서에만 적용되는 조정값을 저장합니다.
-              잘못 저장된 주문(환불 반영 등) 또는 일시적 수정에 사용하세요.
+              인쇄용 편집이며 실제 입금·미수 원장은 바뀌지 않습니다. 주문 정정·반품은 주문 내역에서 처리해주세요.
             </p>
             <div className="space-y-3">
               <div>
@@ -939,7 +843,7 @@ function OutstandingCustomerList({
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm overflow-hidden">
       <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--border)] bg-gradient-to-r from-red-50 to-orange-50">
         <div className="flex items-baseline gap-2">
-          <span className="text-[13px] font-bold uppercase tracking-wider text-red-700">🏢 미수 업체</span>
+          <span className="text-[13px] font-bold uppercase tracking-wider text-red-700">🏢 미수·선입금 업체</span>
           <span className="text-[11px] text-red-500">{allCount}개</span>
         </div>
         <span className="text-[14px] font-black tabular-nums text-red-600">{fmt(total)}원</span>
@@ -1022,7 +926,7 @@ function OutstandingCustomerList({
                       </div>
                     </div>
                     <span className="text-[14px] font-bold tabular-nums text-red-600 flex-shrink-0 whitespace-nowrap">
-                      {fmt(c.balance)}
+                      {c.balance < 0 ? '선입금 ' : ''}{fmt(Math.abs(c.balance))}
                     </span>
                   </div>
                 </label>
@@ -1032,7 +936,7 @@ function OutstandingCustomerList({
                   <div className="ml-7 mr-2 mb-2 mt-1 p-2 rounded-md bg-red-50/60 border border-red-100 space-y-0.5">
                     <div className="flex items-center justify-between px-1.5 py-1 border-b border-red-100">
                       <span className="text-[12px] font-bold text-red-700">
-                        📅 이월 미수 {custCarryDates.length}일
+                        📅 이월 잔액 {custCarryDates.length}일
                       </span>
                       <button
                         type="button"
@@ -1121,7 +1025,7 @@ function CarryoverDateDrawer({ byDate, selectedDates, onToggle, onSelectAll, onC
         </span>
         <span className="flex items-center gap-2">
           {selectedDates.size > 0 && (
-            <span className="text-[10px] font-bold text-red-600 tabular-nums">+{fmt(selectedBalance)}원</span>
+            <span className="text-[10px] font-bold text-red-600 tabular-nums">{fmt(selectedBalance)}원</span>
           )}
           <span className="text-[11px] text-red-700">{open ? '▲' : '▼'}</span>
         </span>
@@ -1352,7 +1256,7 @@ function TraditionalInvoice({ settings, customerLabel, customerKey, issueDate, l
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{fmt(l.supply)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-orange-700">{fmt(l.vat)}</td>
                   <td className="px-1 py-1 text-center no-print">
-                    {onEditLine && (
+                    {onEditLine && !l.locked && (
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => onEditLine(l)}
@@ -1380,25 +1284,27 @@ function TraditionalInvoice({ settings, customerLabel, customerKey, issueDate, l
         </table>
       </div>
 
+      <p className="text-xs text-gray-500 mb-3">입출금은 현재까지 누적으로 반영합니다. 선택 날짜는 거래일 조건이며 과거 마감 잔액이 아닙니다. 이월 날짜 선택은 상세 품목 표시만 바꿉니다.</p>
       {/* ─── 하단 집계 ─── */}
       <div className="flex justify-end mb-5">
         <div className="w-full sm:w-[55%] space-y-1.5">
-          {totals.prevBalance > 0 && (
+          {totals.prevBalance !== 0 && (
             <SumRow label="전잔금 (미선택 이월)" value={totals.prevBalance} muted />
           )}
+          {totals.displayAdjustment !== 0 && <div className="p-2 bg-amber-50 text-xs text-amber-900">인쇄용 편집 {fmt(totals.displayAdjustment)}원 반영 · 실제 원장 잔액 {fmt(totals.ledgerBalance)}원. 원장 금액은 변경되지 않습니다.</div>}
           <SumRow label="공급가액 합계" value={totals.supply} />
           <SumRow label="세액 합계" value={totals.vat} accent="text-orange-700" />
           <div style={{ borderTop: '1px solid #d1d5db' }} />
           <SumRow label="당기 합계" value={totals.sum} bold />
-          {totals.prevBalance > 0 && (
+          {totals.prevBalance !== 0 && (
             <SumRow label="총합계 (전잔금 포함)" value={totals.totalBeforePaid} bold />
           )}
-          <SumRow label="입금액" value={-totals.totalPaid} accent="text-green-700" showSign />
+          <SumRow label="누적 순입금 (입금 − 출금)" value={-totals.totalPaid} accent="text-green-700" showSign />
           <div
             className="rounded-md px-4 py-3 mt-2 flex items-center justify-between"
             style={{ background: '#fef2f2', border: '1.5px solid #fecaca' }}
           >
-            <span className="text-sm font-bold text-red-700">총 잔 액</span>
+            <span className="text-sm font-bold text-red-700">{totals.grandBalance < 0 ? '선입금 잔액' : '총 잔 액'}</span>
             <span className="text-2xl font-black tabular-nums text-red-700">
               ₩ {fmt(totals.grandBalance)}
             </span>

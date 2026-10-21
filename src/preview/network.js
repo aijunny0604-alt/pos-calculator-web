@@ -1,3 +1,5 @@
+import { invoiceFixture } from './invoiceFixture';
+import { storeWidgetFixture } from './storeWidgetFixture';
 // 개발 전용 미리보기: 외부 통신 없이 샘플 응답만 제공한다.
 const now = new Date().toISOString();
 const names = ['스텐 밴딩 54-30','브레이크 호스 세트','퍼포먼스 배기 팁','실리콘 엘보 호스','알루미늄 플랜지','스테인리스 클램프','레이싱 흡기 필터','티타늄 볼트 세트'];
@@ -6,6 +8,9 @@ const customers = ['샘플 모터스','테스트 퍼포먼스','무브 디자인
 const orders=Array.from({length:8},(_,i)=>({id:'DEMO-'+(100+i),order_number:'DEMO-'+(100+i),customer_name:customers[i%3].name,customer_id:i%3+1,customer_phone:'010-0000-0000',customer_address:customers[0].address,items:[{...products[i],quantity:2}],total_amount:(i%2?products[i].retail:products[i].wholesale)*2,total_quantity:2,price_type:i%2?'retail':'wholesale',created_at:now,status:'completed',memo:i===0?'샘플 주문입니다. 실제 출고하지 않습니다.':''}));
 export const sample = {products,customers,orders};
 const tables={products,customers,orders,saved_carts:[],payment_records:[],payment_history:[],purchase_orders:[],supplier_prices:[],external_orders:[{id:'DEMO-STORE-1',provider:'naver',provider_order_id:'DEMO-20261020',buyer_name:'발송 검증용 고객',order_status:'PAYED',raw_payload:{productOrder:{expectedDeliveryMethod:'VISIT_RECEIPT'}},total_amount:164000,created_at:now,ordered_at:now}],external_order_items:[{id:'DEMO-ITEM-1',external_order_id:'DEMO-STORE-1',product_name:'모바일 발송 모달 검증용 상품',quantity:1,unit_price:164000}],external_products:[],app_settings:[]};
+const invoiceCheck = new URLSearchParams(location.search).get('invoiceCheck');
+if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(invoiceCheck));
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
 const realFetch=window.fetch.bind(window);
 window.fetch=async(input,options={})=>{
  const url=new URL(typeof input==='string'?input:input.url,location.href);
@@ -14,7 +19,9 @@ window.fetch=async(input,options={})=>{
  if(method!=='GET'&&method!=='HEAD')return new Response(JSON.stringify({message:'디자인 미리보기에서는 저장·외부 실행을 하지 않습니다.'}),{status:403,headers:{'Content-Type':'application/json'}});
  let data=[];
  if(url.pathname.includes('/rest/v1/')){
-  const table=url.pathname.split('/').at(-1);data=structuredClone(tables[table]||[]);
+  const table=url.pathname.split('/').at(-1);
+  if(invoiceCheck === 'failure' && table === 'payment_records') return new Response('{}',{status:503});
+  data=structuredClone(tables[table]||[]);
   const id=url.searchParams.get('id');if(id?.startsWith('eq.'))data=data.filter(row=>String(row.id)===id.slice(3));
  }else if(url.pathname.endsWith('/status'))data={connected:false,needsLogin:false,models:[]};
  else if(url.pathname.endsWith('/session'))data={token:'design-preview'};

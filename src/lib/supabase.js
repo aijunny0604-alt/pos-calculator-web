@@ -1,6 +1,8 @@
 import { positiveMoney, paymentRows } from './paymentSafety';
 import { isPersistedResult } from './movisReliability';
-import { fetchPosJSON as fetchJSON } from './posConnection';
+import { fetchPosJSON as fetchJSON, fetchPosRows } from './posConnection';
+import { kstDate, signedPaymentAmount, customerBalanceSummary, orderPaymentPayload } from './invoiceLedger';
+import { resolvePaymentCustomer } from './paymentIdentity';
 import { createClient } from '@supabase/supabase-js';
 
 export const SUPABASE_URL = 'https://jubzppndcclhnvgbvrxr.supabase.co';
@@ -85,7 +87,7 @@ export const supabase = {
   // ===== 주문 =====
   async getOrders() {
     try {
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?order=created_at.desc`, { headers });
+      return await fetchPosRows(`${SUPABASE_URL}/rest/v1/orders?order=created_at.desc,id.desc`, { headers });
     } catch (e) { console.error('getOrders:', e); return null; }
   },
   // 단건 주문 조회 — CustomerDetailModal에서 payment_record.order_id가 캐시에 없을 때 호출.
@@ -368,10 +370,10 @@ export const supabase = {
   },
 
   // ===== 거래처 =====
-  async getCustomers() {
+  async getCustomers({ strict = false } = {}) {
     try {
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/customers?order=name`, { headers });
-    } catch (e) { console.error('getCustomers:', e); return null; }
+      return await fetchPosRows(`${SUPABASE_URL}/rest/v1/customers?order=name.asc,id.asc`, { headers });
+    } catch (e) { if (strict) throw e; console.error('getCustomers:', e); return null; }
   },
   async addCustomer(customer) {
     try {
@@ -804,7 +806,7 @@ export const supabase = {
   // ===== payment_records (pos-payments 통합) =====
   async getPaymentRecords(filters = {}) {
     try {
-      const params = new URLSearchParams({ order: 'created_at.desc' });
+      const params = new URLSearchParams({ order: 'created_at.desc,id.desc' });
       if (filters.customerId) params.append('customer_id', `eq.${filters.customerId}`);
       if (filters.orderId) params.append('order_id', `eq.${filters.orderId}`);
       if (filters.status) params.append('payment_status', `eq.${filters.status}`);
@@ -815,7 +817,7 @@ export const supabase = {
       if (filters.invoiceDateFrom) params.append('invoice_date', `gte.${filters.invoiceDateFrom}`);
       if (filters.invoiceDateTo) params.append('invoice_date', `lte.${filters.invoiceDateTo}`);
       if (filters.limit) params.append('limit', String(filters.limit));
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records?${params.toString()}`, { headers });
+      return await fetchPosRows(`${SUPABASE_URL}/rest/v1/payment_records?${params.toString()}`, { headers });
     } catch (e) { console.error('getPaymentRecords:', e); if (filters.strict) throw e; return []; }
   },
   async getPaymentRecord(id) {
@@ -849,12 +851,12 @@ export const supabase = {
   // ===== payment_history (pos-payments 통합) =====
   async getPaymentHistory(filters = {}) {
     try {
-      const params = new URLSearchParams({ order: 'paid_at.desc' });
+      const params = new URLSearchParams({ order: 'paid_at.desc,id.desc' });
       if (filters.recordId) params.append('payment_record_id', `eq.${filters.recordId}`);
       if (filters.paidFrom) params.append('paid_at', `gte.${filters.paidFrom}`);
       if (filters.paidTo) params.append('paid_at', `lte.${filters.paidTo}`);
       if (filters.limit) params.append('limit', String(filters.limit));
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_history?${params.toString()}`, { headers });
+      return await fetchPosRows(`${SUPABASE_URL}/rest/v1/payment_history?${params.toString()}`, { headers });
     } catch (e) { console.error('getPaymentHistory:', e); if (filters.strict) throw e; return []; }
   },
   async addPaymentHistory(entry) {
@@ -892,26 +894,23 @@ export const supabase = {
   // ===== 대시보드 집계 (pos-payments 통합) =====
   async getTodayPaidTotal() {
     try {
-      const today = new Date().toISOString().slice(0, 10);
-      const rows = await fetchJSON(
-        `${SUPABASE_URL}/rest/v1/payment_history?paid_at=gte.${today}T00:00:00&paid_at=lt.${today}T24:00:00&select=amount`,
+      const today = kstDate();
+      const rows = await fetchPosRows(
+        `${SUPABASE_URL}/rest/v1/payment_history?paid_at=gte.${today}T00:00:00%2B09:00&paid_at=lt.${today}T24:00:00%2B09:00&select=id,amount,type&order=id.asc`,
         { headers }
       );
-      return rows.reduce((s, r) => s + Number(r.amount || 0), 0);
+      return rows.reduce((s, r) => s + signedPaymentAmount(r), 0);
     } catch (e) { console.error('getTodayPaidTotal:', e); return 0; }
   },
   async getOutstandingTotal() {
     try {
-      const rows = await fetchJSON(
-        `${SUPABASE_URL}/rest/v1/payment_records?balance=gt.0&select=balance`,
-        { headers }
-      );
-      return rows.reduce((s, r) => s + Number(r.balance || 0), 0);
+      const rows = await this.getPaymentRecords({ strict: true });
+      return customerBalanceSummary(rows).receivable;
     } catch (e) { console.error('getOutstandingTotal:', e); return 0; }
   },
   async getOverdueRecords(limit = 10) {
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = kstDate();
       return await fetchJSON(
         `${SUPABASE_URL}/rest/v1/payment_records?due_date=lt.${today}&balance=gt.0&order=due_date.asc&limit=${limit}`,
         { headers }
@@ -959,59 +958,32 @@ export const supabase = {
 
   // ===== 주문 → 결제 레코드 동기화 =====
   async syncOrdersToPaymentRecords() {
-    try {
-      const [orders, customers, existingRecords] = await Promise.all([
-        this.getOrders(),
-        this.getCustomers(),
-        this.getPaymentRecords({}),
-      ]);
-
-      const existingOrderIds = new Set(existingRecords.map((r) => r.order_id).filter(Boolean));
-      const customerByName = new Map();
-      const customerByPhone = new Map();
-      for (const c of customers) {
-        if (c.name) customerByName.set(c.name.trim(), c);
-        if (c.phone) customerByPhone.set(c.phone.trim(), c);
-      }
-
-      const toInsert = [];
-      let skippedNoCustomer = 0;
-      let skippedAlreadySynced = 0;
-
-      for (const o of orders) {
-        if (existingOrderIds.has(o.id)) { skippedAlreadySynced++; continue; }
-
-        const name = (o.customer_name || '').trim();
-        const phone = (o.customer_phone || '').trim();
-        let cust = null;
-        if (name) cust = customerByName.get(name);
-        if (!cust && phone) cust = customerByPhone.get(phone);
-        if (!cust) { skippedNoCustomer++; continue; }
-
-        const total = Number(o.total || 0) - Number(o.total_returned || 0);
-        if (total <= 0) continue;
-
-        toInsert.push({
-          order_id: o.id,
-          customer_id: cust.id,
-          total_amount: total,
-          invoice_date: (o.created_at || '').slice(0, 10) || null,
-          memo: o.memo || null,
-        });
-      }
-
-      // 배치 INSERT (500건씩)
-      let inserted = 0;
-      for (let i = 0; i < toInsert.length; i += 500) {
-        const batch = toInsert.slice(i, i + 500);
-        const result = await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records`, {
-          method: 'POST', headers: headersWithReturn, body: JSON.stringify(batch),
-        });
-        inserted += (result?.length || 0);
-      }
-
-      return { total: orders.length, inserted, skippedAlreadySynced, skippedNoCustomer };
-    } catch (e) { console.error('syncOrdersToPaymentRecords:', e); throw e; }
+    const [orders, customers, existingRecords, markers] = await Promise.all([
+      this.getOrders(), this.getCustomers({ strict: true }),
+      this.getPaymentRecords({ strict: true }), this.getManualPaidAll({ strict: true }),
+    ]);
+    if (!Array.isArray(orders)) throw new Error('주문 조회 실패');
+    const linked = new Set(existingRecords.map(r => String(r.order_id)));
+    const paid = new Set(markers.map(m => String(m.order_id)));
+    const result = {total:orders.length,inserted:0,skippedNoCustomer:0,skippedAlreadySynced:0,skippedNeedsReview:0};
+    const toInsert = [];
+    for (const order of orders) {
+      if (linked.has(String(order.id))) { result.skippedAlreadySynced++; continue; }
+      // 과거 완불·반품은 단순 미수로 재생성하지 않는다.
+      if (paid.has(String(order.id)) || Number(order.total_returned || 0) > 0) { result.skippedNeedsReview++; continue; }
+      const customer = resolvePaymentCustomer(order, customers);
+      if (!customer) { result.skippedNoCustomer++; continue; }
+      if (Number(order.total) === 0) continue;
+      toInsert.push(orderPaymentPayload(order, customer.id));
+    }
+    for (let i=0; i<toInsert.length; i+=500) {
+      const batch = toInsert.slice(i,i+500);
+      paymentRows(await fetchJSON(`${SUPABASE_URL}/rest/v1/payment_records`, {
+        method:'POST',headers:headersWithReturn,body:JSON.stringify(batch),
+      }), batch.length);
+      result.inserted += batch.length;
+    }
+    return result;
   },
 
   // ===== 저장된 장바구니 → 결제 레코드 동기화 =====
@@ -1020,19 +992,12 @@ export const supabase = {
       const [carts, customers, existingRecords] = await Promise.all([
         this.getSavedCarts().then((r) => r || []),
         this.getCustomers(),
-        this.getPaymentRecords({}),
+        this.getPaymentRecords({ strict: true }),
       ]);
 
       const existingCartKeys = new Set(
         existingRecords.map((r) => r.order_id).filter((id) => id && String(id).startsWith('CART-'))
       );
-
-      const byName = new Map();
-      const byPhone = new Map();
-      for (const c of customers) {
-        if (c.name) byName.set(c.name.trim(), c);
-        if (c.phone) byPhone.set(c.phone.trim(), c);
-      }
 
       const toInsert = [];
       let skippedNoCustomer = 0;
@@ -1042,11 +1007,7 @@ export const supabase = {
         const cartKey = `CART-${cart.id}`;
         if (existingCartKeys.has(cartKey)) { skippedAlreadySynced++; continue; }
 
-        const name = (cart.name || '').trim();
-        const phone = (cart.phone || '').trim();
-        let cust = null;
-        if (name) cust = byName.get(name);
-        if (!cust && phone) cust = byPhone.get(phone);
+        const cust = resolvePaymentCustomer({customer_id:cart.customer_id,customer_name:cart.name,customer_phone:cart.phone}, customers);
         if (!cust) { skippedNoCustomer++; continue; }
 
         const total = Number(cart.total || 0);
@@ -1061,7 +1022,7 @@ export const supabase = {
           vat_amount: total - supply,
           is_vat_exempt: false,
           category: 'sales',
-          invoice_date: cart.date || (cart.created_at || '').slice(0, 10) || null,
+          invoice_date: cart.date || kstDate(cart.created_at) || null,
           due_date: cart.delivery_date || null,
           memo: cart.memo ? `[예약] ${cart.memo}` : '[예약 장바구니]',
         });
@@ -1082,7 +1043,8 @@ export const supabase = {
 
   async syncAllToPaymentRecords() {
     const orderResult = await this.syncOrdersToPaymentRecords();
-    const cartResult = await this.syncSavedCartsToPaymentRecords();
+    // 저장된 장바구니는 청구 확정 거래가 아니다. 주문 전환 후에만 원장에 반영한다.
+    const cartResult = { inserted: 0, excludedDrafts: true };
     return {
       orders: orderResult,
       carts: cartResult,
@@ -1093,58 +1055,45 @@ export const supabase = {
   // ===== 단일 주문 → payment_records + payment_history 동기화 =====
   // 완불 체크 (수동) 시 호출. 거래처 관리/명세서/미수 통계 일관성 확보.
   // 반환: { success, reason?, record? } — 호출부에서 결과 검사 가능
-  // customersHint: 호출부가 이미 customers 배열을 보유한 경우 전달하면 추가 fetch 회피 (M1)
+  // 기존 호출 시그니처를 유지하되, 금액 저장에는 최신 주문/전체 거래처를 재조회한다.
   async syncOrderPaidRecord(orderId, methodKey, orderHint = null, customersHint = null) {
     if (!orderId || !methodKey) return { success: false, reason: 'invalid_args' };
     try {
-      // 1. 해당 주문 정보 확보 (orderHint가 없으면 fetch)
-      let order = orderHint;
-      if (!order) {
-        const list = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(String(orderId))}`, { headers });
-        order = (list && list[0]) || null;
-      }
+      if (!['card','cash','transfer','other'].includes(methodKey)) return { success: false, reason: 'invalid_args' };
+      // 화면의 오래된 주문/일부 거래처 캐시로 금액을 저장하지 않는다.
+      const order = await this.getOrderById(orderId);
       if (!order) return { success: false, reason: 'no_order' };
-      const total = Number(order.total || 0) - Number(order.total_returned || 0);
+      const total = Number(order.total ?? order.totalAmount ?? 0) - Number(order.total_returned ?? order.totalReturned ?? 0);
       if (total <= 0) return { success: false, reason: 'zero_total' };
+      positiveMoney(total);
 
-      // 2. 거래처 매핑 (이름/전화번호) — 호출부 캐시 우선 사용
-      const customers = (Array.isArray(customersHint) && customersHint.length > 0)
-        ? customersHint
-        : await this.getCustomers();
+      // 2. 명시 ID 또는 이름/연락처로 유일하게 확인되는 거래처만 연결
+      const customers = await this.getCustomers({ strict: true });
       const name = (order.customer_name || order.customerName || '').trim();
       const phone = (order.customer_phone || order.customerPhone || '').trim();
-      const cust = (customers || []).find((c) =>
-        (name && c.name && c.name.trim() === name) || (phone && c.phone && c.phone.trim() === phone)
-      );
+      const cust = resolvePaymentCustomer(order, customers);
       if (!cust) return { success: false, reason: 'no_customer', customerName: name, customerPhone: phone };
 
       // 3. payment_records 있는지 확인
       const existing = await this.getPaymentRecords({ orderId, strict: true });
+      if (existing.length > 1) return { success: false, reason: 'duplicate_records' };
       let record = (existing && existing[0]) || null;
+      const consistent = r => r?.id && String(r.order_id) === String(orderId)
+        && String(r.customer_id) === String(cust.id) && Number(r.total_amount) === total
+        && Number.isSafeInteger(Number(r.paid_amount)) && Number.isSafeInteger(Number(r.balance))
+        && Number(r.balance) === total - Number(r.paid_amount);
+      if (record && !consistent(record)) return { success: false, reason: 'order_ledger_mismatch' };
 
-      const supply = Math.round(total / 1.1);
-      const recordPayload = {
-        order_id: orderId,
-        customer_id: cust.id,
-        total_amount: total,
-        supply_amount: supply,
-        vat_amount: total - supply,
-        is_vat_exempt: false,
-        category: 'sales',
-        invoice_date: (order.created_at || '').slice(0, 10) || null,
-        memo: order.memo || null,
-        // balance, payment_status는 generated columns (DB 자동 계산). 직접 INSERT/UPDATE 금지
-        paid_amount: 0,
-      };
       if (!record) {
-        const created = await this.addPaymentRecord(recordPayload);
+        if (Number(order.total_returned ?? order.totalReturned ?? 0) > 0) return {success:false,reason:'return_review_required'};
+        const created = await this.addPaymentRecord(orderPaymentPayload(order, cust.id));
         record = Array.isArray(created) ? created[0] : created;
-        if (!record) return { success: false, reason: 'create_failed' };
+        if (!consistent(record)) return { success: false, reason: 'create_failed' };
       }
 
       // 4. 자동 입금 history (memo로 식별)
       const methodLabel = ({ card: '카드', cash: '현금', transfer: '계좌이체', other: '기타' }[methodKey] || methodKey);
-      const remaining = Math.max(0, Number(record.balance ?? total) - 0);
+      const remaining = Math.max(0, Number(record.balance));
       if (remaining > 0) {
         const historySaved = await this.addPaymentHistory({
           payment_record_id: record.id,
@@ -1156,8 +1105,14 @@ export const supabase = {
         if (!isPersistedResult(historySaved)) return { success: false, reason: 'history_save_failed' };
         // DB 트리거가 집계한 값을 재조회한다. 오래된 브라우저 합계로 덮어쓰지 않는다.
         const refreshed = await this.getPaymentRecord(record.id);
-        if (!refreshed) return { success: false, reason: 'partial_payment' };
+        if (!consistent(refreshed) || Number(refreshed.balance) > 0) return { success: false, reason: 'partial_payment' };
         record = refreshed;
+      }
+      // 결제수단 변경은 자동 생성한 입금 이력에만 반영한다. 수기 입금은 보존한다.
+      const histories = await this.getPaymentHistory({ recordId: record.id, strict: true });
+      for (const h of histories.filter(h => String(h.memo || '').startsWith('[자동] 완불체크') && h.method !== methodKey)) {
+        const saved = await this.updatePaymentHistory(h.id, { method: methodKey, memo: `[자동] 완불체크 (${methodLabel})` });
+        if (String(saved?.id) !== String(h.id) || saved?.method !== methodKey) return { success: false, reason: 'history_save_failed' };
       }
       return { success: true, record };
     } catch (e) {
@@ -1171,8 +1126,9 @@ export const supabase = {
     if (!orderId) return false;
     try {
       const records = await this.getPaymentRecords({ orderId, strict: true });
+      if (records.length > 1) return false;
       const record = (records && records[0]) || null;
-      if (!record) return false;
+      if (!record) return true; // 과거 표시만 있고 자동 입금이 없는 건도 취소 가능
       const histories = await this.getPaymentHistory({ recordId: record.id, strict: true });
       const autoEntries = (histories || []).filter((h) => (h.memo || '').startsWith('[자동] 완불체크'));
       let revokedAmount = 0;
@@ -1193,10 +1149,10 @@ export const supabase = {
   },
 
   // ===== 수동 완불 체크 (멀티 기기 동기화) =====
-  async getManualPaidAll() {
+  async getManualPaidAll({ strict = false } = {}) {
     try {
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/manual_paid_orders`, { headers });
-    } catch (e) { console.error('getManualPaidAll:', e); return []; }
+      return await fetchPosRows(`${SUPABASE_URL}/rest/v1/manual_paid_orders?order=order_id.asc`, { headers });
+    } catch (e) { if (strict) throw e; console.error('getManualPaidAll:', e); return []; }
   },
   async upsertManualPaid(orderId, method) {
     if (!orderId || !method) return null;

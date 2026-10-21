@@ -7,7 +7,8 @@ import {
   ChevronDown, CheckCircle2, CircleDollarSign, Truck, X, Copy
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
-import SubPrice from '@/components/ui/SubPrice';
+import OrderCardAmount from '@/components/OrderCardAmount';
+import { getOrderDiscountSummary } from '@/lib/discount';
 import StatementReconcile from '@/components/StatementReconcile';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
 import useCountUp from '@/hooks/useCountUp';
@@ -1130,6 +1131,7 @@ export default function OrderHistory({
               const paidMethod = isPaid ? METHOD_MAP[paidInfo.method] : null;
               const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
               const isReturned = (order.totalReturned || 0) > 0;
+              const discount = getOrderDiscountSummary(order);
               // 네이버 스마트스토어 경유 주문 — channelClassifier로 통합 (M2: DRY 적용)
               const isNaverOrder = classifyOrderChannel(order) === 'naver';
               // memo 에서 실제 구매자 이름 추출 (옛 엠파츠 거래처 데이터 호환용)
@@ -1144,7 +1146,7 @@ export default function OrderHistory({
                 <div
                   key={order.orderNumber}
                   onClick={() => onViewOrder(order)}
-                  className="card-interactive rounded-xl p-4 border cursor-pointer select-none relative overflow-hidden"
+                  className="order-history-card card-interactive rounded-xl p-4 border cursor-pointer select-none relative overflow-hidden"
                   style={{
                     background: isSelected
                       ? 'color-mix(in srgb, var(--primary) 8%, var(--card))'
@@ -1224,7 +1226,7 @@ export default function OrderHistory({
                   )}
 
                   {/* Top row: checkbox + customer name (big) + order number + price type + amount */}
-                  <div className="flex items-start gap-3 mb-3">
+                  <div className="order-card-heading flex items-start gap-3 mb-3" data-discounted={discount.hasDiscount || undefined}>
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -1273,6 +1275,7 @@ export default function OrderHistory({
                             </span>
                           )}
                           <PriceTypeBadge priceType={order.priceType} />
+                          {discount.hasDiscount && <span className="order-card-discount-badge">할인</span>}
                           {/* 📦 포장 상태 — 완료=초록 도장, 진행중=주황 N/M */}
                           {(() => {
                             const pk = packingMap[orderIdOf(order)];
@@ -1363,6 +1366,7 @@ export default function OrderHistory({
                             고객 미지정
                           </span>
                           <PriceTypeBadge priceType={order.priceType} />
+                          {discount.hasDiscount && <span className="order-card-discount-badge">할인</span>}
                         </div>
                       )}
 
@@ -1377,12 +1381,7 @@ export default function OrderHistory({
                         </span>
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="font-bold text-xl sm:text-2xl leading-tight whitespace-nowrap" style={{ color: order.priceType === 'retail' ? 'var(--destructive)' : 'var(--success)' }}>
-                        {formatPrice((order.totalAmount || 0))}원
-                      </p>
-                      <SubPrice total={order.totalAmount || 0} layout="stacked" size="sm" className="mt-0.5" />
-                    </div>
+                    <OrderCardAmount order={order} discount={discount} />
                   </div>
 
                   {/* Product info */}
@@ -1426,23 +1425,7 @@ export default function OrderHistory({
                     </div>
                     <div className={`text-xs flex items-center gap-2 flex-wrap ${isPaid ? 'pr-[128px] sm:pr-[188px]' : ''}`} style={{ color: 'var(--muted-foreground)' }}>
                       <span>{order.items.length}종 / {order.items.reduce((sum, item) => sum + item.quantity, 0)}개</span>
-                      {(() => {
-                        const discounted = order.items.filter(it => it && it.discountType && Number(it.discountValue) > 0);
-                        if (discounted.length === 0) return null;
-                        const totalSaved = discounted.reduce((s, it) => {
-                          const base = Number(it.originalPrice) || Number(it.price) || 0;
-                          const cur = Number(it.price) || 0;
-                          return s + Math.max(0, (base - cur)) * (it.quantity || 1);
-                        }, 0);
-                        return (
-                          <span
-                            className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                            style={{ background: 'color-mix(in srgb, var(--warning) 18%, transparent)', color: 'var(--warning)' }}
-                          >
-                            🏷 할인 {discounted.length}건 (-{formatPrice(totalSaved)}원)
-                          </span>
-                        );
-                      })()}
+
                     </div>
                     {/* 블랙리스트 사유만 표시 (고객명은 상단으로 이동) */}
                     {isBlacklist && blacklistInfo?.reason && (
@@ -1667,20 +1650,7 @@ export default function OrderHistory({
                               key={m.key}
                               onClick={async () => {
                                 setMethodPickerId(null);
-                                const res = await setPaid(order.id || order.orderNumber, m.key, order, customers);
-                                // C1: 동기화 실패 시 사용자에게 알림 (거래처 미등록 등)
-                                if (res?.syncResult && res.syncResult.success === false) {
-                                  const r = res.syncResult.reason;
-                                  if (r === 'no_customer') {
-                                    alert('완불 표시는 적용됐지만 거래처 관리/명세서에는 반영되지 않았습니다.\n해당 주문의 거래처를 먼저 [거래처 관리]에 등록해주세요.\n\n주문 고객명: ' + (res.syncResult.customerName || '(없음)'));
-                                  } else if (r === 'zero_total') {
-                                    // 0원 주문은 무시 — 알림 생략
-                                  } else if (r === 'no_order') {
-                                    alert('주문 정보를 찾을 수 없어 거래처 관리에 반영되지 않았습니다.');
-                                  } else {
-                                    console.warn('[완불체크] 동기화 실패:', res.syncResult);
-                                  }
-                                }
+                                await setPaid(order.id || order.orderNumber, m.key, order, customers);
                               }}
                               className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors"
                               style={{

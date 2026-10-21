@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {positiveMoney,paymentRows,toLocalDateTime,validateAllocation} from '../src/lib/paymentSafety.js';
+import {positiveMoney,paymentRows,toLocalDateTime,validateAllocation,validateFreshAllocation} from '../src/lib/paymentSafety.js';
 test('금액은 유한한 양의 원화 정수만 허용한다',()=>{
  for(const value of [0,-1,'',null,NaN,Infinity,0.5,Number.MAX_SAFE_INTEGER+1]) assert.throws(()=>positiveMoney(value));
  assert.equal(positiveMoney('99000'),99000);
@@ -22,4 +22,12 @@ test('입금 시각은 현지 시간 입력값으로 변환한다',()=>{
  const value=toLocalDateTime(date);
  assert.equal(new Date(value).getTime(),date.getTime()-37000);
  assert.equal(toLocalDateTime('invalid'),'');
+});
+
+test('배분 저장 직전 잔액 변경·명세서 삭제·업체 변경을 거부한다',()=>{
+ const allocation=[{record:{id:1,customer_id:7,balance:100},apply:60}];
+ assert.doesNotThrow(()=>validateFreshAllocation(allocation,[{id:1,customer_id:7,balance:100}],7));
+ for(const latest of [[],[{id:1,customer_id:7,balance:50}],[{id:1,customer_id:8,balance:100}]]) {
+   assert.throws(()=>validateFreshAllocation(allocation,latest,7));
+ }
 });

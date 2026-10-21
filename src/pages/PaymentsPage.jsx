@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { exportFilteredExcel, exportPaymentsExcel } from '@/lib/exportExcel';
 import { DEFAULT_CATEGORIES, getCategoryInfo } from '@/lib/vatHelper';
@@ -16,6 +16,8 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
   const [records, setRecords] = useState([]);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const requestId = useRef(0);
 
   // 필터
   const [statusFilter, setStatusFilter] = useState('all');
@@ -28,11 +30,14 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
   useEffect(() => { supabase.getSettings().then((s) => { if (s?.expense_categories) setCategories(s.expense_categories); }); }, []);
 
   const reload = () => {
-    setLoading(true);
-    Promise.all([
-      supabase.getPaymentRecords({}),
-      supabase.getPaymentHistory({ limit: 200 }),
-    ]).then(([r, h]) => { setRecords(r); setHistory(h); }).finally(() => setLoading(false));
+    const id = ++requestId.current;
+    setLoading(true); setLoadError('');
+    return Promise.all([
+      supabase.getPaymentRecords({ strict: true }),
+      supabase.getPaymentHistory({ strict: true }),
+    ]).then(([r, h]) => { if (id === requestId.current) { setRecords(r); setHistory(h); } })
+      .catch(() => { if (id === requestId.current) { setRecords([]); setHistory([]); setLoadError('입출금 자료 조회에 실패했습니다. 새로고침 후 다시 확인해주세요.'); } })
+      .finally(() => { if (id === requestId.current) setLoading(false); });
   };
 
   useEffect(() => { reload(); }, []);
@@ -105,6 +110,7 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
 
   return (
     <div className="space-y-3 max-w-5xl mx-auto">
+      {loadError && <p role="alert" className="p-3 text-red-700 bg-red-50">{loadError}<button onClick={reload} className="ml-2 underline">새로고침</button></p>}
       {/* 헤더 */}
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-bold">{tab === 'records' ? '결제 레코드' : '입금 이력'}</h2>
@@ -113,6 +119,7 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
             onClick={async () => {
               console.log('[PaymentsExcel] start', tab);
               try {
+                if (loading || loadError) throw new Error('자료를 정상 조회한 뒤 출력해주세요.');
                 await exportFilteredExcel({
                   records: tab === 'records' ? filteredRecords : records,
                   history: tab === 'history' ? filteredHistory : history,
@@ -133,6 +140,7 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
           <button
             onClick={async () => {
               try {
+                if (loading || loadError) throw new Error('자료를 정상 조회한 뒤 출력해주세요.');
                 await exportPaymentsExcel({ records, history, customers });
               } catch (e) {
                 alert('전체 Excel 실패: ' + (e?.message || e));
@@ -145,10 +153,10 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
           </button>
           <button
             onClick={async () => {
-              if (!confirm('운영 주문 데이터를 결제 레코드로 동기화하시겠습니까?\n(이미 있는 주문은 건너뛰고, 매칭되는 업체가 없는 주문은 스킵됩니다)')) return;
+              if (!confirm('운영 주문 데이터를 결제 레코드로 동기화하시겠습니까?\n(저장 장바구니는 제외됩니다. 완불 표시·반품·업체 미확정 건은 건너뜁니다. 실제 입금 여부를 확인한 주문만 미수로 등록해주세요.)')) return;
               try {
                 const r = await supabase.syncAllToPaymentRecords();
-                alert(`동기화 완료\n- 주문: ${r.orders.inserted}건 추가 (업체 없음 ${r.orders.skippedNoCustomer} / 이미 있음 ${r.orders.skippedAlreadySynced})\n- 장바구니: ${r.carts.inserted}건 추가`);
+                alert(`동기화 완료\n- 주문: ${r.orders.inserted}건 추가 (업체 없음 ${r.orders.skippedNoCustomer} / 이미 있음 ${r.orders.skippedAlreadySynced})\n- 완불/반품 확인 필요: ${r.orders.skippedNeedsReview}건 (건너뜀)\n- 저장 장바구니 제외`);
                 reload();
               } catch (e) {
                 alert('동기화 실패: ' + (e?.message || e));

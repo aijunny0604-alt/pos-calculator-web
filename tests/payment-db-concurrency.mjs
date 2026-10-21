@@ -22,14 +22,14 @@ try {
  CREATE TRIGGER trg_recalc_payment AFTER INSERT OR UPDATE OR DELETE ON payment_history FOR EACH ROW EXECUTE FUNCTION recalc_payment_record();`);
  const reset=()=>admin.query('TRUNCATE payment_history,payment_records; INSERT INTO payment_records(id,total_amount) VALUES (1,1000),(2,1000)');
  const paid=async id=>Number((await admin.query('SELECT paid_amount FROM payment_records WHERE id=$1',[id])).rows[0].paid_amount);
- for(const version of ['production-copy','proposed']) {
-  if(version==='proposed')await admin.query(readFileSync(new URL('../supabase/migrations/20261015_payment_recalc_lock.sql',import.meta.url),'utf8').replace(/^\uFEFF/,''));
+ for(const version of ['before-20261015','current-production-function']) {
+  if(version==='current-production-function')await admin.query(readFileSync(new URL('../supabase/migrations/20261015_payment_recalc_lock.sql',import.meta.url),'utf8').replace(/^\uFEFF/,''));
   await reset();
   await admin.query("INSERT INTO payment_history VALUES (1,1,400,'income'),(2,1,50,'expense')");assert.equal(await paid(1),350);
   await admin.query('UPDATE payment_history SET amount=100 WHERE id=2');assert.equal(await paid(1),300);
   await admin.query('DELETE FROM payment_history WHERE id=2');assert.equal(await paid(1),400);
   await admin.query('UPDATE payment_history SET payment_record_id=2 WHERE id=1');
-  const movedOld=await paid(1);if(version==='proposed')assert.equal(movedOld,0);
+  const movedOld=await paid(1);if(version==='current-production-function')assert.equal(movedOld,0);
   await reset();
   await assert.rejects(admin.query("INSERT INTO payment_history VALUES (1,1,100,'income'),(2,999,200,'income')"));assert.equal(await paid(1),0);assert.equal(Number((await admin.query('SELECT count(*) FROM payment_history')).rows[0].count),0);
   await a.query('BEGIN');await a.query("INSERT INTO payment_history VALUES (1,1,100,'income')");
@@ -39,7 +39,7 @@ try {
   for(let i=0;i<100;i++){const r=await admin.query('SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1',[pid]);if(r.rows[0]?.wait_event_type==='Lock'){waiting=true;break;}await new Promise(r=>setTimeout(r,20));}
   assert.ok(waiting,'두 번째 세션의 잠금 대기를 확인해야 한다');
   await a.query('COMMIT');await pending;await b.query('COMMIT');
-  const concurrentPaid=await paid(1);if(version==='proposed')assert.equal(concurrentPaid,300);
+  const concurrentPaid=await paid(1);if(version==='current-production-function')assert.equal(concurrentPaid,300);
   report.push({engine,version,serialIncomeExpenseUpdateDelete:'pass',batchRollback:'pass',movedOldPaid:movedOld,concurrentPaid,expectedConcurrent:300});
  }
  await reset();

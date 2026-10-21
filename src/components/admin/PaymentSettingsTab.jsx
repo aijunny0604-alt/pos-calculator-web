@@ -49,12 +49,12 @@ export default function PaymentSettingsTab({ showToast }) {
   };
 
   const handleSync = async () => {
-    if (!confirm('운영 주문 데이터를 결제 레코드로 동기화하시겠습니까?\n(이미 있는 주문은 스킵, 매칭 업체 없는 주문도 스킵)')) return;
+    if (!confirm('운영 주문 데이터를 결제 레코드로 동기화하시겠습니까?\n(저장 장바구니는 제외됩니다. 완불 표시·반품·업체 미확정 건은 확인이 필요해 건너뜁니다. 신규 원장은 미수로 등록되므로 실제 입금 여부를 확인해주세요.)')) return;
     setSyncing(true);
     try {
       const r = await supabase.syncAllToPaymentRecords();
       showToast?.(
-        `동기화 완료: 주문 ${r.orders.inserted}건 + 장바구니 ${r.carts.inserted}건 추가`,
+        `동기화: 주문 ${r.orders.inserted}건 추가 · 완불/반품 확인 필요 ${r.orders.skippedNeedsReview}건 · 장바구니 제외`,
         'success'
       );
     } catch (e) {
@@ -152,7 +152,7 @@ export default function PaymentSettingsTab({ showToast }) {
           <div>
             <h2 className="text-base font-bold">🔄 주문 → 결제 레코드 동기화</h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-              운영 POS의 주문/저장 장바구니 중 아직 결제 레코드가 없는 건을 일괄 생성
+              확정 주문 중 아직 결제 원장이 없는 건을 등록합니다. 저장 장바구니는 제외합니다.
             </p>
           </div>
           <button
@@ -166,7 +166,7 @@ export default function PaymentSettingsTab({ showToast }) {
           </button>
         </div>
         <div className="p-3 rounded-lg text-xs border-l-4" style={{ background: 'color-mix(in srgb, var(--warning) 10%, transparent)', borderColor: 'var(--warning)', color: 'var(--foreground)' }}>
-          ℹ️ 업체 이름/전화 매칭되는 거래처가 있어야 동기화됩니다. 이미 있는 주문은 skip.
+          업체가 정확히 확인되는 주문만 등록합니다. 기존 원장·완불 표시·반품은 건너뛰며 저장 장바구니는 제외합니다.
         </div>
       </section>
     </div>

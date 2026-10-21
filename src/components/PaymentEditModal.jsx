@@ -94,7 +94,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
         <div className="p-4 border-b border-[var(--border)] flex items-center justify-between sticky top-0 bg-[var(--card)]">
           <h3 className="text-base font-bold flex items-center gap-2">
             <span>✏️</span>
-            <span>입금 수정</span>
+            <span>{history.type === 'expense' ? '출금 수정' : '입금 수정'}</span>
           </h3>
           <button onClick={() => { if (!busy.current) onClose?.(); }} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--secondary)]" aria-label="닫기">✕</button>
         </div>
@@ -104,7 +104,7 @@ export default function PaymentEditModal({ open, history, onClose, onSaved }) {
             ⚠️ 수정/삭제 시 해당 결제 레코드의 잔금이 <strong>자동 재계산</strong>됩니다.
           </div>
 
-          <Field label="입금액" required>
+          <Field label={history.type === 'expense' ? '출금액' : '입금액'} required>
             <NumberInput value={amount} onChange={setAmount} />
           </Field>
 

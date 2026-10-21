@@ -1,4 +1,8 @@
+import InvoicesContainer from '../pages/InvoicesContainer';
+import { invoiceFixture } from './invoiceFixture';
 import OrderHistory from '../pages/OrderHistory';
+import SmartStoreOrders from '../pages/SmartStoreOrders';
+import { discountOrders } from './discountFixture';
 import SavedCarts from '../pages/SavedCarts';
 import './network';
 import React,{useState} from 'react';
@@ -37,7 +41,10 @@ if (new URLSearchParams(location.search).get('tools') === '1') {
  document.documentElement.classList.add('preview-with-tools');
  createRoot(document.getElementById('preview-controls')).render(<Controls/>);
 }
-if(import.meta.env.DEV && new URLSearchParams(location.search).has('cartCheck')){createRoot(document.getElementById('root')).render(<SavedCarts savedCarts={[{id:'demo-cart',name:'샘플 모터스',date:'2026-10-16',time:'12:00',status:'scheduled',priceType:'wholesale',total:250800,items:[{id:1,name:'스테인리스 브레이크 호스 세트',quantity:2,wholesale:99000,retail:120000},{id:4,name:'플랜지 FL 63',quantity:10,wholesale:5280,retail:6600}]}]} products={[{id:2,name:'브레이크 호스 교체용 세트',wholesale:110000,retail:132000,category:'브레이크'},{id:3,name:'브레이크 호스 스테인리스 롱 타입',wholesale:125000,retail:150000,category:'브레이크'}]} customers={sample.customers} onUpdate={()=>{}} onBack={()=>{}}/>)}
+if(import.meta.env.DEV && new URLSearchParams(location.search).has('discountCheck')){createRoot(document.getElementById('root')).render(<><p className="px-4 py-2 text-xs" style={{color:'var(--muted-foreground)'}}>할인 카드 미리보기 · 샘플 자료 · 저장/외부 실행 차단</p><OrderHistory orders={discountOrders} customers={[]} onViewOrder={()=>{}} onReorder={()=>{}} onSaveToCart={()=>{}} onBack={()=>{}}/></>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')){createRoot(document.getElementById('root')).render(<><p className="px-4 py-2 text-xs" style={{color:'var(--muted-foreground)'}}>스토어 위젯 검증 · 샘플 자료 · 저장/외부 실행 차단</p><SmartStoreOrders/></>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('invoiceCheck')){createRoot(document.getElementById('root')).render(<InvoicesContainer customers={invoiceFixture().customers} initialCustomerId={1}/>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('cartCheck')){createRoot(document.getElementById('root')).render(<SavedCarts savedCarts={[{id:'demo-cart',name:'샘플 모터스',date:'2026-10-16',time:'12:00',status:'scheduled',priceType:'wholesale',total:250800,items:[{id:1,name:'스테인리스 브레이크 호스 세트',quantity:2,wholesale:99000,retail:120000},{id:4,name:'플랜지 FL 63',quantity:10,wholesale:5280,retail:6600}]}]} products={[{id:2,name:'브레이크 호스 교체용 세트',wholesale:110000,retail:132000,category:'브레이크'},{id:3,name:'브레이크 호스 스테인리스 롱 타입',wholesale:125000,retail:150000,category:'브레이크'}]} customers={sample.customers} onUpdate={()=>{}} onBack={()=>{}}/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('historyCheck')){createRoot(document.getElementById('root')).render(<HistoryPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('detailCheck')){createRoot(document.getElementById('root')).render(<DetailPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('shippingCheck')){createRoot(document.getElementById('root')).render(<ShippingPreview/>)}

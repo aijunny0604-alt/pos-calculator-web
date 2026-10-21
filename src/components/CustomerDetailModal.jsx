@@ -1,3 +1,4 @@
+import { customerOrders } from '@/lib/paymentIdentity';
 import { orderProductMatches } from '@/lib/customerSearch.mjs';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useEffect, useState, useMemo } from 'react';
@@ -151,6 +152,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
   const [productSearch, setProductSearch] = useState('');
   const searchedOrders = useMemo(()=>orders.filter(o=>orderProductMatches(o,productSearch)),[orders,productSearch]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [exporting, setExporting] = useState(false);
 
@@ -180,49 +182,48 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
 
   useEffect(() => {
     if (!open || !customer) return;
-    setLoading(true);
+    let active = true;
+    setLoading(true); setLoadError(''); setRecords([]); setHistory([]); setOrders([]);
     setTab('outstanding');
     setProductSearch('');
     (async () => {
       try {
-        const [r, allHistory, allOrders] = await Promise.all([
-          supabase.getPaymentRecords({ customerId: customer.id }),
-          supabase.getPaymentHistory({}),
+        const [allRecords, allHistory, allOrders, directory] = await Promise.all([
+          supabase.getPaymentRecords({ strict: true }),
+          supabase.getPaymentHistory({ strict: true }),
           supabase.getOrders(),
+          supabase.getCustomers({ strict: true }),
         ]);
-        const recordIds = new Set(r.map((x) => x.id));
-        const myHistory = allHistory.filter((h) => recordIds.has(h.payment_record_id));
-
-        // 주문 매칭: 1) record.order_id 우선  2) name/phone 백업
-        const orderIdSet = new Set(r.map((x) => x.order_id).filter(Boolean));
-        const targetName = (customer.name || '').trim();
-        const targetPhone = (customer.phone || '').trim();
-        const myOrders = allOrders.filter((o) => {
-          if (orderIdSet.has(o.id)) return true;
-          if (targetName && (o.customer_name || '').trim() === targetName) return true;
-          if (targetPhone && (o.customer_phone || '').trim() === targetPhone) return true;
-          return false;
-        });
+        if (!active) return;
+        if (!Array.isArray(allOrders)) throw new Error('주문 조회 실패');
+        const r = allRecords.filter(x => String(x.customer_id) === String(customer.id));
+        const recordIds = new Set(r.map(x => String(x.id)));
+        const myHistory = allHistory.filter(h => recordIds.has(String(h.payment_record_id)));
+        const myOrders = customerOrders(customer, allOrders, allRecords, directory);
 
         setRecords(r);
         setHistory(myHistory);
         setOrders(myOrders);
-      } finally { setLoading(false); }
+      } catch { if (active) setLoadError('거래 자료를 불러오지 못했습니다. 창을 닫고 다시 열어주세요.'); }
+      finally { if (active) setLoading(false); }
     })();
+    return () => { active = false; };
   }, [open, customer]);
 
   const outstandingRecords = useMemo(() => records.filter((r) => Number(r.balance) > 0), [records]);
-  const outstandingTotal = useMemo(() => outstandingRecords.reduce((s, r) => s + Number(r.balance || 0), 0), [outstandingRecords]);
+  const outstandingTotal = useMemo(() => records.reduce((s, r) => s + Number(r.balance || 0), 0), [records]);
   const totalOrders = useMemo(() => orders.length, [orders]);
 
   const handleExport = async () => {
+    if (loading || loadError) { alert('자료를 정상적으로 불러온 뒤 내보내주세요.'); return; }
     console.log('[Excel] export start for', customer?.name);
     setExporting(true);
     try {
-      const [allRecords, allHistory, settings] = await Promise.all([
-        supabase.getPaymentRecords({}),
-        supabase.getPaymentHistory({}),
+      const [allRecords, allHistory, settings, directory] = await Promise.all([
+        supabase.getPaymentRecords({ strict: true }),
+        supabase.getPaymentHistory({ strict: true }),
         supabase.getSettings(),
+        supabase.getCustomers({ strict: true }),
       ]);
       console.log('[Excel] data loaded', { records: allRecords?.length, history: allHistory?.length });
       const { exportCustomerReport } = await import('@/lib/exportExcel');
@@ -232,6 +233,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
         history: allHistory,
         settings,
         orders,
+        customers: directory,
       });
       console.log('[Excel] saved');
     } catch (e) {
@@ -241,6 +243,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
   };
 
   const handlePrint = () => {
+    if (loading || loadError) { alert('자료를 정상적으로 불러온 뒤 인쇄해주세요.'); return; }
     console.log('[Print] start');
     document.body.classList.add('print-customer-mode');
     // 레이아웃/폰트 로드 대기 시간 여유 확보 (300ms)
@@ -368,7 +371,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={handleExport}
-              disabled={exporting}
+              disabled={exporting || loading || !!loadError}
               className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-bold whitespace-nowrap disabled:opacity-50 no-print hover:bg-[var(--secondary)] hover:border-[var(--primary)]/40 hover:shadow-md transition-all"
             >
               <FileSpreadsheet className="w-4 h-4" />
@@ -376,6 +379,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
             </button>
             <button
               onClick={handlePrint}
+              disabled={loading || !!loadError}
               className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-bold whitespace-nowrap no-print hover:bg-[var(--secondary)] hover:border-[var(--primary)]/40 hover:shadow-md transition-all"
             >
               <Printer className="w-4 h-4" />
@@ -384,18 +388,20 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
           </div>
         </div>
 
+        {loadError && <p role="alert" className="p-4 text-red-700">{loadError}</p>}
         {/* 요약 */}
         <div className="px-5 sm:px-6 pt-4">
-          <div className="customer-summary-grid grid grid-cols-3 gap-2 sm:gap-3 text-center">
-            <StatBox label="받을 돈 (미수)" value={outstandingTotal} unit="원" color="red" hint="아직 못 받은 총액" />
+          {(loading || loadError) ? <p className="text-sm text-[var(--muted-foreground)]">{loading ? '잔액을 확인하고 있습니다…' : '잔액 확인 필요'}</p> : <div className="customer-summary-grid grid grid-cols-3 gap-2 sm:gap-3 text-center">
+            <StatBox label={outstandingTotal < 0 ? "선입금 잔액" : "받을 돈 (미수)"} value={Math.abs(outstandingTotal)} unit="원" color="red" hint="등록된 명세서 기준 · 선입금 반영" />
             <StatBox label="전체 주문" value={totalOrders} unit="건" color="blue" hint="이 업체 총 거래 건수" />
-            <StatBox label="받은 횟수" value={history.length} unit="번" color="green" hint={history.length === 0 ? '아직 입금 없음' : '지금까지 입금한 횟수'} />
-          </div>
+            <StatBox label="입출금 횟수" value={history.length} unit="번" color="green" hint={history.length === 0 ? '이력 없음' : '입금·출금 기록 수'} />
+          </div>}
           {/* 메인 CTA: 바로 입금 (큼직) + 명세서 보기 */}
           <div className="grid sm:grid-cols-2 gap-2 mt-3">
             {onAddPayment && (
               <button
-                onClick={() => onAddPayment(customer, null)}
+                onClick={() => onAddPayment(customer.id, null)}
+                disabled={loading || !!loadError}
                 className="py-3 rounded-xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-2 border-[var(--primary)]/50 text-[var(--primary)] text-sm font-black whitespace-nowrap hover:from-blue-500/30 hover:to-purple-500/30 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5"
               >
                 💵 {customer.name || '업체'}에서 입금 받기
@@ -419,7 +425,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                 <span>고급: 월말 정산용 일괄 입금</span>
               </summary>
               <button
-                onClick={() => onBulkPay(customer, outstandingRecords)}
+                onClick={() => onBulkPay(customer, records)}
                 className="mt-1.5 w-full py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] font-bold whitespace-nowrap hover:bg-red-500/15 transition-all"
                 title="오래된 미수부터 자동으로 배분해서 입금 처리 (한 업체가 잔금 전액 지불 시 유용)"
               >
@@ -467,7 +473,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
           {loading && <p className="text-sm text-center text-[var(--muted-foreground)] py-6">로딩...</p>}
           <div key={tab} className="animate-tab-in">
 
-          {!loading && tab === 'outstanding' && (
+          {!loading && !loadError && tab === 'outstanding' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {outstandingRecords.length === 0 ? (
                 <p className="col-span-full text-sm text-center text-[var(--muted-foreground)] py-12">미수 없음 👍</p>
@@ -548,7 +554,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                       </button>
                       {onAddPayment && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); onAddPayment(customer, r); }}
+                          onClick={(e) => { e.stopPropagation(); onAddPayment(customer.id, r.id); }}
                           className="py-1.5 rounded-md bg-[var(--secondary)] border border-[var(--border)] text-[var(--muted-foreground)] text-[10px] font-bold whitespace-nowrap"
                         >
                           ✏️ 직접 입력
@@ -562,7 +568,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
             </div>
           )}
 
-          {!loading && tab === 'payments' && (
+          {!loading && !loadError && tab === 'payments' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {history.length === 0 ? (
                 <p className="col-span-full text-sm text-center text-[var(--muted-foreground)] py-12">입금 내역 없음</p>
@@ -574,7 +580,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-green-400">{fmt(h.amount)}원</div>
+                      <div className={`font-bold ${h.type === "expense" ? "text-red-500" : "text-green-600"}`}>{h.type === "expense" ? "출금 −" : "입금 +"}{fmt(h.amount)}원</div>
                       <div className="text-[11px] text-[var(--muted-foreground)] mt-0.5 flex flex-wrap gap-1.5">
                         <span>{h.method || '-'}</span>
                         {h.memo && <span className="break-words">· {h.memo}</span>}
@@ -597,7 +603,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
             </div>
           )}
 
-          {!loading && tab === 'orders' && (
+          {!loading && !loadError && tab === 'orders' && (
             <div className="grid grid-cols-1 gap-3.5">
               <input aria-label="거래처 주문 제품 검색" placeholder="이 업체의 주문 제품명 검색" value={productSearch} onChange={e=>setProductSearch(e.target.value)} className="w-full border rounded-xl px-4 py-3 bg-[var(--card)]"/>
               <p className="text-xs text-[var(--muted-foreground)]">검색 {searchedOrders.length}건 / 전체 {orders.length}건 · 합계·내보내기는 전체 거래 기준</p>

@@ -1,11 +1,15 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-10-13 (장애 복구 점검 · 초기 연결 재시도 · 조회 부하 완화 · 보안 평가 갱신)
+> 마지막 업데이트: 2026-10-21 (스토어 상태 위젯 · 할인 배지 · 명세서/입출금 점검)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
 
-## 2026-10-13 현재 운영 판단
+## 2026-10-21 최신 변경
+
+[배포 기록](docs/DEPLOYMENT-2026-10-21.md), [스토어 위젯 점검](docs/STORE-WIDGET-AUDIT-2026-10-21.md), [할인 표시](docs/ORDER-DISCOUNT-CARD-2026-10-21.md), [명세서·입출금 점검](docs/INVOICE-LEDGER-AUDIT-2026-10-21.md)을 우선 참고한다. 전체 테스트 154 통과, 0 실패, 별도 환경 검사 1건 건너뜀. 과거 장부 불일치와 서버 트랜잭션 보완은 남아 있으며 프런트엔드 수정 배포와 구분한다.
+
+## 2026-10-13 운영 판단 (당시 기록)
 
 [최신 점검 보고서](docs/AUDIT-2026-10-13.md), [보안 전환 가이드](docs/SECURITY-SETUP.md), [검증 범위](docs/TESTING.md)를 우선 참고한다. 아래 과거 이력은 현재 상태의 보증이 아니다.
 

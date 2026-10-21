@@ -11,6 +11,7 @@ import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/compo
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
 import { isOrderDone, isOrderTerminal, isOrderPending, PAYMENT_PENDING_STATUSES } from '@/lib/orderStatus';
+import { ORDER_STEPS, orderStage, getStoreOrderView, matchesStoreWidget } from '@/lib/storeOrderView';
 import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/storeOrderSafety';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
@@ -233,42 +234,6 @@ const CLAIM_COLORS = { CANCEL: '#fb923c', RETURN: '#ec4899', EXCHANGE: '#d946ef'
 // 단건은 order.raw_payload.productOrder, 다건은 items[].raw_payload.productOrder에 있을 수 있어 둘 다 본다.
 // 발주확인 가능 상태 (네이버 원본 + 내부 status 모두 포함)
 const PENDING_CONFIRM_STATUSES = new Set(['received', 'PAYED', 'PAYMENT_WAITING', 'matched']);
-
-// 주문 진행 단계 — 사장님이 "지금 어디까지 됐는지" 한눈에 보도록 5단계로 정규화.
-// 결제완료(0) → 발주확인(1) → 발송(2) → 배송중(3) → 배송완료(4).
-// 취소/반품/교환은 별도 트랙(stage=-1, canceled=true).
-// 입금대기는 결제 전이라 진행이 시작도 안 한 상태 → 퍼널 밖(stage=-2, unpaid=true).
-//   (2026-07-22: 입금대기를 '결제완료' 칸에 넣어 같은 화면 상태 배지와 모순되던 것 분리)
-const ORDER_STEPS = ['결제완료', '발주확인', '발송', '배송중', '배송완료'];
-function orderStage(o) {
-  if (!o) return { stage: 0, canceled: false, unpaid: false };
-  const st = o.order_status;
-  // 입금 여부는 진행 단계와 독립된 축이다.
-  // 무통장 주문은 입금 전에도 발주확인이 되므로(PENDING_CONFIRM_STATUSES에 PAYMENT_WAITING 포함),
-  // "발주확인까지 했지만 돈은 아직 안 들어온" 상태가 실재한다. 단계에 흡수시키면 그 사실이 사라진다.
-  const unpaid = PAYMENT_PENDING_STATUSES.has(st);
-  // 취소/반품/교환 = 정상 흐름 이탈
-  if (['cancelled', 'CANCELED', 'CANCELED_BY_NOPAYMENT', 'CANCEL_REQUEST', 'RETURNED', 'EXCHANGED'].includes(st)) {
-    return { stage: -1, canceled: true, unpaid: false };
-  }
-  // 배송완료 / 구매확정
-  if (['DELIVERED', 'DELIVERED_COMPLETED', 'PURCHASE_DECIDED'].includes(st)) return { stage: 4, canceled: false, unpaid };
-  // 배송중
-  if (st === 'DELIVERING') return { stage: 3, canceled: false, unpaid };
-  // 발송 — 네이버 발송처리 시각이 찍혔거나 내부/네이버 발송 상태
-  if (o.naver_dispatch_succeeded_at || st === 'shipped' || st === 'DISPATCHED') return { stage: 2, canceled: false, unpaid };
-  // 발주확인 — 네이버 발주확인 완료 / 내부주문 전환 / 확인 상태.
-  // ⚠️ internal_order_id를 봐야 한다. 2026-06-15에 전환 시 order_status를 'converted'로
-  //    덮지 않게 바뀌어서, status만 보면 전환한 건이 시작점에 그대로 남는다 (isOrderPending과 동일 기준).
-  if (o.naver_confirm_succeeded_at || o.internal_order_id || st === 'confirmed' || st === 'converted') {
-    return { stage: 1, canceled: false, unpaid };
-  }
-  // 입금대기인데 아무 진행도 없음 = 퍼널에 아직 진입 못 한 상태.
-  // 이걸 '결제완료' 칸에 넣으면 같은 화면 상태 배지(입금대기)와 모순된다 (2026-07-22 지적).
-  if (unpaid) return { stage: -2, canceled: false, unpaid: true };
-  // 그 외(결제완료/매칭/수신) = 시작점
-  return { stage: 0, canceled: false, unpaid: false };
-}
 
 // 처리 대기 주문 = 매장이 아직 손대야 하는 주문 (발주확인 전 or 발송 전).
 // 이런 주문은 날짜 필터에서 빠지면 그대로 놓치므로, 기간과 무관하게 항상 노출한다 (2026-06-03).
@@ -768,103 +733,19 @@ export default function SmartStoreOrders({
     if (datePreset === '3m') return { from: new Date(todayStart.getTime() - 89 * 24 * 3600 * 1000), to: tomorrowStart };
     if (datePreset === 'custom' && dateFrom && dateTo) {
       const f = new Date(dateFrom + 'T00:00:00');
-      const t = new Date(dateTo + 'T23:59:59');
+      const t = new Date(dateTo + 'T00:00:00');
+      t.setDate(t.getDate() + 1); // 종료일 전체를 포함하는 반개구간
       return { from: f, to: t };
     }
     return null; // 전체
   }, [datePreset, dateFrom, dateTo]);
 
-  const filtered = useMemo(() => {
-    // widgetFilter용 시간 윈도우 (stats 와 동일 로직)
-    const now = Date.now();
-    const todayKstStart = new Date(); todayKstStart.setHours(0, 0, 0, 0);
-    const tomorrowKstStart = new Date(todayKstStart); tomorrowKstStart.setDate(todayKstStart.getDate() + 1);
-    const dayAfterTomorrowKstStart = new Date(todayKstStart); dayAfterTomorrowKstStart.setDate(todayKstStart.getDate() + 2);
+  const orderView = useMemo(() => getStoreOrderView(orders, {
+    itemsByOrder, providerFilter, searchQuery, dateRange, statusFilter, widgetFilter, showCompleted,
+  }), [orders, itemsByOrder, providerFilter, searchQuery, dateRange, statusFilter, widgetFilter, showCompleted]);
 
-    const q = searchQuery.trim().toLowerCase();
-    const qDigits = q.replace(/\D/g, '');
-    const matched = orders.filter((o) => {
-      if (providerFilter !== 'all' && o.provider !== providerFilter) return false;
-      // 주문 검색: 구매자 이름·전화·주문번호·주소·상품명. 전화는 숫자만으로도 매칭.
-      // 토큰 AND 매칭 — "머플러팁 89"처럼 여러 단어를 순서·띄어쓰기 무관하게 쳐도 hit ("머플러 팁" 표기차도 공백제거 비교로 흡수)
-      if (q) {
-        const items = itemsByOrder[o.id] || [];
-        const hay = [o.buyer_name, o.buyer_phone, o.provider_order_id, o.buyer_address,
-          ...items.map((it) => it.provider_product_name)].filter(Boolean).join(' ').toLowerCase();
-        const hayNoSpace = hay.replace(/\s+/g, '');
-        const phoneDigits = String(o.buyer_phone || '').replace(/\D/g, '');
-        const tokens = q.split(/\s+/).filter(Boolean);
-        const tokenHit = tokens.length > 0 && tokens.every((t) => hayNoSpace.includes(t.replace(/\s+/g, '')));
-        if (!(hay.includes(q) || tokenHit || (qDigits.length >= 3 && phoneDigits.includes(qDigits)))) return false;
-      }
-      // 상태 필터 = 스텝퍼 5단계(실제 배송상태)와 1:1. 단일 order_status 정확매칭이 아니라
-      // 단계(결제완료/발주확인/발송/배송중/배송완료)·취소 그룹으로 판정 (2026-06-03).
-      if (statusFilter !== 'all') {
-        const { stage: st, canceled: cx, unpaid: up } = orderStage(o);
-        if (statusFilter === 'cancel') { if (!cx && !getClaimInfo(o, itemsByOrder[o.id])) return false; }
-        else if (statusFilter === 'unpaid') { if (!up) return false; }
-        else {
-          const wantStage = { s0: 0, s1: 1, s2: 2, s3: 3, s4: 4 }[statusFilter];
-          if (cx || st !== wantStage) return false;
-        }
-      }
-      // 종결(배송완료/구매확정/취소/반품/교환) 만 토글 OFF 시 숨김.
-      // 내부주문 전환(converted)·발송완료(shipped)·배송중은 아직 추적할 게 있어 계속 표시 (2026-06-02).
-      // 단, widgetFilter 또는 상태필터 active 시에는 그쪽 의도가 우선이므로 우회 (배송완료/취소 직접 조회 가능).
-      // ⚠️ 구매자 클레임(취소/반품/교환 요청)이 걸린 주문은 order_status가 DELIVERED(종결)여도
-      //    사장님 응답이 필요하므로 절대 숨기지 않는다 (반품요청이 종결로 묻혀 안 보이던 문제).
-      const activeClaim = !!getClaimInfo(o, itemsByOrder[o.id]);
-      // 🔍 검색 중엔 종결 숨김·날짜필터 우회 — 옛 주문(대부분 배송완료=종결)도 상품명/이름으로 찾아져야 함
-      // (이전엔 검색 매칭돼도 종결 숨김+날짜필터에 걸려 0건 → "제품명 검색 안 된다" 현상의 원인)
-      const searching = !!q;
-      if (!searching && !showCompleted && widgetFilter === 'none' && statusFilter === 'all' && isOrderTerminal(o) && !activeClaim) return false;
-      // 날짜 필터 — 오늘 페이지에 뜨는 조건 (2026-06-22 사장님 요청 반영):
-      //  ① 그 기간에 결제(received_at)  ② 그 기간에 작업(발주확인/발송/취소 처리시각)
-      //  ③ 아직 확인 안 한 미처리 주문(needsAction = 발주확인·발송 전, 미전환·미종결) → 어제 거라도 오늘 보이게
-      //  ④ 구매자 클레임(취소/반품 요청) → 응답 필요라 항상
-      // ⚠️ "전환된 주문 전체(trackingConverted)" 끌어올림은 제거 — 그게 "오늘에 옛 이력 다 뜨던" 원인.
-      //    (전환 끝난 건은 종결되거나 전체 뷰에서 확인. 미처리만 오늘로 끌어올림)
-      if (!searching && dateRange && o.received_at) {
-        const rec = new Date(o.received_at);
-        const receivedInRange = rec >= dateRange.from && rec < dateRange.to;
-        const workedInRange = [o.naver_confirm_succeeded_at, o.naver_dispatch_succeeded_at, o.naver_cancel_succeeded_at, o.naver_dispatch_attempted_at]
-          .some((t) => { if (!t) return false; const ts = new Date(t); return ts >= dateRange.from && ts < dateRange.to; });
-        if (!receivedInRange && !workedInRange && !needsAction(o) && !activeClaim) return false;
-      }
-      // 위젯 필터 (stats 카운트 로직과 1:1 동일)
-      if (widgetFilter !== 'none') {
-        const dispatchDue = o.dispatch_due_date || o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
-        const isDone = isOrderDone(o);
-        if (widgetFilter === 'overdue') {
-          if (isDone || !dispatchDue) return false;
-          if (new Date(dispatchDue).getTime() >= now) return false;
-        } else if (widgetFilter === 'dueDday') {
-          if (isDone || !dispatchDue) return false;
-          const due = new Date(dispatchDue).getTime();
-          if (!(due >= todayKstStart.getTime() && due < tomorrowKstStart.getTime())) return false;
-        } else if (widgetFilter === 'dueD1') {
-          if (isDone || !dispatchDue) return false;
-          const due = new Date(dispatchDue).getTime();
-          if (!(due >= tomorrowKstStart.getTime() && due < dayAfterTomorrowKstStart.getTime())) return false;
-        } else if (widgetFilter === 'autoPending') {
-          // M4 fix: 이미 발송완료/처리완료된 큐 잔존 row 제외 (polling latency 동안 false positive 방지)
-          if (isOrderDone(o)) return false;
-          if (!(o.needs_naver_confirm || o.needs_naver_dispatch)) return false;
-        } else if (widgetFilter === 'newAfterConfirm') {
-          if (!(o.naver_confirm_succeeded_at && !o.naver_dispatch_succeeded_at && o.order_status !== 'shipped')) return false;
-        } else if (widgetFilter === 'needShip') {
-          // 발송 대기 = 아직 발송 안 한 미처리 전부(결제완료·발주확인). shipWatch 카운트와 1:1.
-          if (!needsAction(o) || getClaimInfo(o, itemsByOrder[o.id])) return false;
-        } else if (widgetFilter === 'cancel') {
-          const st = o.order_status;
-          const claim = getClaimInfo(o, itemsByOrder[o.id]);
-          const isCancel = st === 'CANCEL_REQUEST' || st === 'CANCELED' || st === 'cancelled'
-            || /cancel/i.test(o.raw_payload?.cancelRequest || '') || !!claim;
-          if (!isCancel) return false;
-        }
-      }
-      return true;
-    });
+  const filtered = useMemo(() => {
+    const matched = orderView.filtered;
     // 정렬 — 최신순(기본) / 금액순(높은순) / 상태순(진행단계). 동순위는 최신순.
     const stageRank = (o) => { const { stage, canceled } = orderStage(o); return canceled ? 99 : stage; };
     // 손상된 received_at(Invalid Date)도 NaN 없이 0으로 안전 처리 → 정렬 안정성 보장
@@ -876,7 +757,7 @@ export default function SmartStoreOrders({
       return recentDesc(a, b);
     });
     return sorted;
-  }, [orders, itemsByOrder, providerFilter, statusFilter, showCompleted, dateRange, widgetFilter, searchQuery, sortBy]);
+  }, [orderView, sortBy]);
 
   // 네이버 연동 로그 — orders(전 컬럼 로드됨)에서 발주확인/발송 API 결과를 이벤트로 추출.
   // 매장 PC sync.js가 external_orders에 기록한 succeeded_at/error/needs_* 필드 기반 (추가 쿼리 없음).
@@ -949,87 +830,36 @@ export default function SmartStoreOrders({
 
   // 날짜 필터 밖이지만 미처리라 끌어올려 표시 중인 주문 수 (놓침 방지 안내용)
   const pendingOutOfRangeCount = useMemo(
-    () => orders.filter((o) => isPendingOutOfRange(o, dateRange)).length,
-    [orders, dateRange]
+    () => filtered.filter((o) => isPendingOutOfRange(o, dateRange)).length,
+    [filtered, dateRange]
   );
 
-  // Codex Major A fix: 위젯 stats 는 dateRange 가 적용된 filtered 가 아닌, dateRange 기간 내 전체 (현재 화면 카드와 일관)
-  // dateRange 만 따르고 status/완료 토글은 무시 — 운영자가 위젯에서 "처리해야 할 항목" 카운트 보고 싶어함
-  const ordersInRange = useMemo(() => {
-    if (!dateRange) return orders;
-    return orders.filter((o) => {
-      if (!o.received_at) return false;
-      const rec = new Date(o.received_at);
-      return rec >= dateRange.from && rec < dateRange.to;
-    });
-  }, [orders, dateRange]);
-
+  // 진행 단계와 목록은 접수일 + 작업일 + 기간 밖 처리대기를 같은 기준으로 집계한다.
   const stats = useMemo(() => {
     const today = new Date().toDateString();
-    const todayOrders = ordersInRange.filter((o) => o.received_at && new Date(o.received_at).toDateString() === today);
-    // 네이버 관리자 페이지 위젯 카운트 (raw_payload + DB 컬럼 조합)
-    const now = Date.now();
-    const todayKstStart = new Date(); todayKstStart.setHours(0, 0, 0, 0);
-    const tomorrowKstStart = new Date(todayKstStart); tomorrowKstStart.setDate(todayKstStart.getDate() + 1);
-    const dayAfterTomorrowKstStart = new Date(todayKstStart); dayAfterTomorrowKstStart.setDate(todayKstStart.getDate() + 2);
-
-    let overdue = 0, autoConfirmPending = 0, newAfterConfirm = 0, dispatchDueDday = 0, dispatchDueD1 = 0, cancelRequest = 0;
-    for (const o of ordersInRange) {
-      // Codex Major C fix: dispatch_due_date 컬럼 우선, raw_payload 폴백
-      const dispatchDue = o.dispatch_due_date || o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
-      const isDone = isOrderDone(o);
-      if (!isDone && dispatchDue) {
-        const due = new Date(dispatchDue).getTime();
-        if (due < now) overdue++;
-        else if (due >= todayKstStart.getTime() && due < tomorrowKstStart.getTime()) dispatchDueDday++;
-        else if (due >= tomorrowKstStart.getTime() && due < dayAfterTomorrowKstStart.getTime()) dispatchDueD1++;
-      }
-      if (o.needs_naver_confirm || o.needs_naver_dispatch) autoConfirmPending++;
-      if (o.naver_confirm_succeeded_at && !o.naver_dispatch_succeeded_at && o.order_status !== 'shipped') newAfterConfirm++;
-      const status = o.order_status;
-      // ⚠️ order_status가 PAYED여도 claimStatus=CANCEL_REQUEST면 취소요청 — raw_payload 직접 확인
-      if (status === 'CANCEL_REQUEST' || status === 'CANCELED' || /cancel/i.test(o.raw_payload?.cancelRequest || '') || !!getClaimInfo(o, itemsByOrder[o.id])) cancelRequest++;
-    }
+    const todayOrders = orderView.matching.filter(o => o.received_at && new Date(o.received_at).toDateString() === today);
     return {
-      total: ordersInRange.length,
+      total: orderView.scoped.length,
       todayCount: todayOrders.length,
-      pending: ordersInRange.filter((o) => o.order_status === 'received' || o.order_status === 'PAYED').length,
-      todayRevenue: todayOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0),
-      overdue,
-      autoConfirmPending,
-      newAfterConfirm,
-      dispatchDueDday,
-      dispatchDueD1,
-      cancelRequest,
+      todayRevenue: todayOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
+      overdue: orderView.widgets.overdue,
+      autoConfirmPending: orderView.widgets.autoPending,
+      dispatchDueDday: orderView.widgets.dueDday,
+      dispatchDueD1: orderView.widgets.dueD1,
+      cancelRequest: orderView.widgets.cancel,
     };
-  }, [ordersInRange, itemsByOrder]);
-
-  // 진행 단계 실시간 현황 — orderStage(5단계)로 집계. 상태필터 s0~s4와 1:1 (클릭=그 단계만).
-  // stats/위젯과 동일하게 ordersInRange(조회기간 적용) 기준 → 날짜 바꾸면 카운트도 따라감.
-  const stageCounts = useMemo(() => {
-    const stages = [0, 0, 0, 0, 0]; // 결제완료 / 발주확인 / 발송 / 배송중 / 배송완료
-    let canceled = 0, unpaid = 0;
-    for (const o of ordersInRange) {
-      const { stage, canceled: cx, unpaid: up } = orderStage(o);
-      // 취소/반품/교환 = order_status 종결 + claimStatus 요청(아직 PAYED/DELIVERED인 진행 클레임) 모두 포함
-      if (cx || getClaimInfo(o, itemsByOrder[o.id])) { canceled++; continue; }
-      // 입금대기는 단계와 독립 — 발주확인까지 간 미입금 건도 양쪽에 잡혀야 한다
-      if (up) unpaid++;
-      if (stage >= 0 && stage <= 4) stages[stage]++;
-    }
-    return { stages, canceled, unpaid };
-  }, [ordersInRange, itemsByOrder]);
+  }, [orderView]);
+  const stageCounts = orderView.stages;
 
   // 🚚 발송 대기 — 아직 발송 못한 미처리 주문 전부(결제완료·발주확인 단계). 재고 없어 발주확인만 해둔 것 포함.
-  //   ⚠️ 전체 orders 기준(날짜 무관) — 네이버에서 직접 발주확인해 우리 시스템엔 '결제완료'로 남은 옛 주문도
+  //   ⚠️ 검색·마켓 범위의 전체 기간 기준 — 네이버에서 직접 발주확인해 우리 시스템엔 '결제완료'로 남은 옛 주문도
   //      절대 놓치지 않도록. isOrderPending(=메뉴 배지와 동일 기준)으로 판정.
   //   기한 초과(dispatch_due_date 지남)·가장 오래된 건을 함께 집계 — "발송해야 할 것" 리마인더.
   const shipWatch = useMemo(() => {
     const now = Date.now();
     let count = 0, overdue = 0, oldest = null;
-    for (const o of orders) {
-      if (!needsAction(o)) continue; // 발송 안 한 미처리(결제완료 or 발주확인) — 전환·완료·배송중·입금대기 제외
-      if (getClaimInfo(o, itemsByOrder[o.id])) continue; // 취소·반품 클레임은 별도 배너
+    for (const o of orderView.matching) {
+      if (!matchesStoreWidget(o, itemsByOrder[o.id] || [], 'needShip', now)) continue;
       count++;
       const dispatchDue = o.dispatch_due_date || o.raw_payload?.productOrder?.dispatchDueDate || o.raw_payload?.dispatchDueDate;
       if (dispatchDue && new Date(dispatchDue).getTime() < now) overdue++;
@@ -1037,23 +867,19 @@ export default function SmartStoreOrders({
       if (t && (!oldest || t < oldest)) oldest = t;
     }
     return { count, overdue, oldestDays: oldest ? Math.floor((now - oldest) / 86400000) : 0 };
-  }, [orders, itemsByOrder]);
+  }, [orderView.matching, itemsByOrder]);
 
   // 🚨 취소·반품 요청 감시 — 구매자가 취소/반품/교환을 요청한 건(놓치면 큰일).
   //   order_status가 취소류이거나, PAYED여도 claimStatus 클레임이 걸린 건(getClaimInfo) 모두 포함.
-  //   ⚠️ 전체 orders 기준(날짜 무관) — 어제 들어온 취소요청도 처리 전엔 계속 보이게.
+  //   ⚠️ 검색·마켓 범위의 전체 기간 기준 — 어제 들어온 취소요청도 처리 전엔 계속 보이게.
   const claimWatch = useMemo(() => {
     const rows = [];
-    for (const o of orders) {
-      const st = o.order_status;
-      const isCancelStatus = st === 'CANCEL_REQUEST' || /cancel/i.test(o.raw_payload?.cancelRequest || '');
-      const claim = getClaimInfo(o, itemsByOrder[o.id]);
-      if (!isCancelStatus && !claim) continue;
-      if (isOrderTerminal(o) && !claim) continue; // 이미 종결된 취소는 제외(진행 클레임만)
+    for (const o of orderView.matching) {
+      if (!matchesStoreWidget(o, itemsByOrder[o.id] || [], 'cancel')) continue;
       rows.push({ id: o.id, name: o.buyer_name || '구매자', at: o.received_at });
     }
     return { count: rows.length, names: rows.slice(0, 3).map((r) => r.name) };
-  }, [orders, itemsByOrder]);
+  }, [orderView.matching, itemsByOrder]);
 
   // Mock 데이터 주입 (Phase 1 테스트용)
   const injectMockOrder = async () => {
@@ -1699,25 +1525,25 @@ export default function SmartStoreOrders({
       {!widgetsCollapsed && (<>
       {/* KPI 카드 — 클릭 시 해당 필터 적용 (위젯 필터 해제) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 px-3 sm:px-4 pt-3 pb-2">
-        <KpiCard label="전체" value={stats.total}
-          hint="모든 상태 / 전체 기간 보기"
-          onClick={() => { setWidgetFilter('none'); setStatusFilter('all'); setDatePreset('all'); setProviderFilter('all'); }} />
+        <KpiCard label="조회 대상" value={stats.total}
+          hint="현재 조회 범위의 모든 상태 보기 (배송완료·취소 포함)"
+          onClick={() => { setWidgetFilter('none'); setStatusFilter('all'); setShowCompleted(true); }} />
         <KpiCard label="오늘" value={stats.todayCount} accent="#4dffff"
           hint="오늘 들어온 주문만 보기"
-          onClick={() => { setWidgetFilter('none'); setStatusFilter('all'); setDatePreset('today'); }} />
+          onClick={() => { setWidgetFilter(f => f === 'receivedToday' ? 'none' : 'receivedToday'); setStatusFilter('all'); setDatePreset('today'); }} />
         <KpiCard label="대기" value={stageCounts.stages[0]} accent="#ffaa00"
           hint="결제완료(발주확인 대기) 주문 보기"
-          onClick={() => { setWidgetFilter('none'); setStatusFilter('s0'); setDatePreset('all'); }} />
+          onClick={() => { setWidgetFilter('none'); setStatusFilter('s0'); }} />
         <KpiCard label="오늘 매출" value={`${fmtNum(stats.todayRevenue)}원`} small
           hint="오늘 매출 상세 카드 보기"
-          onClick={() => { setWidgetFilter('none'); setStatusFilter('all'); setDatePreset('today'); }} />
+          onClick={() => { setWidgetFilter(f => f === 'receivedToday' ? 'none' : 'receivedToday'); setStatusFilter('all'); setDatePreset('today'); }} />
       </div>
 
       {/* 네이버 관리자 페이지 위젯 — 카운트 로직과 1:1 동일 필터 (Codex Major fix) */}
       <div className="px-3 sm:px-4 pb-3">
         <div className="rounded-xl border p-3 sm:p-3.5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between mb-2 sm:mb-2.5">
-            <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider opacity-70">네이버 관리자 — 빠른 확인 (클릭=필터, 다시 클릭=해제)</div>
+            <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider opacity-70">네이버 관리자 — 빠른 확인 · 전체 기간 (클릭=필터, 다시 클릭=해제)</div>
             {widgetFilter !== 'none' && (
               <button onClick={() => setWidgetFilter('none')}
                 className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-semibold"
@@ -1763,7 +1589,7 @@ export default function SmartStoreOrders({
           unpaid={stageCounts.unpaid}
           statusFilter={statusFilter}
           onSelect={(key) => { setWidgetFilter('none'); setStatusFilter(key || 'all'); }}
-          onSelectCancel={() => { setWidgetFilter('none'); setStatusFilter('cancel'); }}
+          onSelectCancel={() => { setWidgetFilter('none'); setStatusFilter(f => f === 'cancel' ? 'all' : 'cancel'); }}
         />
       </div>
       </>)}
@@ -1772,7 +1598,7 @@ export default function SmartStoreOrders({
       {claimWatch.count > 0 && (
         <div className="px-3 sm:px-4 pt-1 pb-2">
           <button
-            onClick={() => { setWidgetFilter('none'); setStatusFilter('cancel'); setDatePreset('all'); }}
+            onClick={() => { setWidgetFilter('cancel'); setStatusFilter('all'); setDatePreset('all'); }}
             className="w-full flex items-center gap-2 rounded-xl border-2 px-3 py-3 text-left font-black transition-all hover:brightness-105 animate-pulse"
             style={{ background: 'rgba(255,77,109,0.14)', borderColor: '#ff4d6d', color: '#ff4d6d', boxShadow: '0 0 0 3px rgba(255,77,109,0.12)' }}>
             <span className="text-xl">🚨</span>
@@ -1887,6 +1713,7 @@ export default function SmartStoreOrders({
           <option value="s2">③ 발송</option>
           <option value="s3">④ 배송중</option>
           <option value="s4">⑤ 배송완료</option>
+          <option value="unpaid">입금대기</option>
           <option value="cancel">취소·반품</option>
         </select>
         {/* 정렬 */}
@@ -3682,7 +3509,7 @@ function StageMonitorBar({ counts, canceled, unpaid = 0, statusFilter, onSelect,
   return (
     <div className="rounded-xl border p-3 sm:p-3.5" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
       <div className="flex items-center justify-between mb-2 sm:mb-2.5">
-        <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider opacity-70">진행 단계 실시간 현황 (클릭=해당 단계만)</div>
+        <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider opacity-70">진행 단계 현황 · 조회 범위 기준</div>
         {(stageActive || statusFilter === 'cancel' || statusFilter === 'unpaid') && (
           <button onClick={() => onSelect(null)}
             className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-semibold"
@@ -3705,7 +3532,8 @@ function StageMonitorBar({ counts, canceled, unpaid = 0, statusFilter, onSelect,
           <span className="ml-auto opacity-80">{statusFilter === 'unpaid' ? '보는 중' : '클릭=따로 보기'}</span>
         </button>
       )}
-      <div className="grid grid-cols-5 gap-1 sm:gap-2">
+      <p className="mb-2 text-[11px]" style={{ color: 'var(--muted-foreground)' }}>접수·작업일과 검색 기준 · 기간 밖 처리대기 포함 · 클릭하면 해당 단계만 표시</p>
+      <div className="grid grid-cols-5 gap-1 sm:gap-2" data-testid="store-stage-monitor">
         {ORDER_STEPS.map((label, i) => {
           const key = `s${i}`;
           const active = statusFilter === key;
@@ -3713,7 +3541,7 @@ function StageMonitorBar({ counts, canceled, unpaid = 0, statusFilter, onSelect,
           const val = counts[i] || 0;
           const on = val > 0;
           return (
-            <button key={label} onClick={() => onSelect(active ? null : key)}
+            <button key={label} onClick={() => onSelect(active ? null : key)} aria-pressed={active}
               title={`${label} ${val}건만 보기`}
               className="rounded-lg px-1 py-2 flex flex-col items-center justify-between transition-all hover:-translate-y-0.5 active:scale-[0.98]"
               style={{
