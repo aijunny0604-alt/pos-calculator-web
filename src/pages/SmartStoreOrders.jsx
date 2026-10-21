@@ -11,7 +11,7 @@ import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/compo
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
 import { isOrderDone, isOrderTerminal, isOrderPending, PAYMENT_PENDING_STATUSES } from '@/lib/orderStatus';
-import { ORDER_STEPS, orderStage, getStoreOrderView, matchesStoreWidget } from '@/lib/storeOrderView';
+import { ORDER_STEPS, orderStage, storeOrderStatus, isStoreOrderTerminal, getStoreOrderView, matchesStoreWidget } from '@/lib/storeOrderView';
 import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/storeOrderSafety';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
@@ -261,8 +261,8 @@ function dispatchErrorHint(err) {
 }
 
 // 진행단계 스텝퍼 — 카드 상단에 가로로 표시. 지난 단계=초록 체크, 현재=강조, 이후=흐림.
-function OrderStepper({ order }) {
-  const { stage, canceled, unpaid } = orderStage(order);
+function OrderStepper({ order, items = [] }) {
+  const { stage, canceled, unpaid } = orderStage(order, items);
   // 입금대기 띠 — 단계와 무관하게 항상 위에 붙인다. 발주확인까지 갔어도 돈이 안 들어왔으면 알아야 한다.
   const unpaidBar = unpaid ? (
     <div className="px-4 py-1.5 flex items-center gap-1.5 border-b text-[11px] font-bold"
@@ -747,7 +747,7 @@ export default function SmartStoreOrders({
   const filtered = useMemo(() => {
     const matched = orderView.filtered;
     // 정렬 — 최신순(기본) / 금액순(높은순) / 상태순(진행단계). 동순위는 최신순.
-    const stageRank = (o) => { const { stage, canceled } = orderStage(o); return canceled ? 99 : stage; };
+    const stageRank = (o) => { const { stage, canceled } = orderStage(o, itemsByOrder[o.id] || []); return canceled ? 99 : stage; };
     // 손상된 received_at(Invalid Date)도 NaN 없이 0으로 안전 처리 → 정렬 안정성 보장
     const ts = (o) => { const t = new Date(o.received_at || 0).getTime(); return Number.isFinite(t) ? t : 0; };
     const recentDesc = (a, b) => ts(b) - ts(a);
@@ -807,7 +807,7 @@ export default function SmartStoreOrders({
       const its = itemsByOrder[o.id] || [];
       const prod = its.map((i) => i.provider_product_name).filter(Boolean).join(' / ');
       const track = its.map((i) => i.tracking_number).filter(Boolean).join(' / ');
-      const statusLabel = STATUS_LABEL[o.order_status]?.label || o.order_status || '';
+      const statusLabel = STATUS_LABEL[storeOrderStatus(o, its)]?.label || o.order_status || '';
       return [fmtDate(o.received_at), o.buyer_name, o.buyer_phone, o.buyer_address, o.provider_order_id,
         prod, o.total_amount, statusLabel, o.delivery_policy_type || '', track].map(esc).join(',');
     });
@@ -825,8 +825,8 @@ export default function SmartStoreOrders({
 
   // 숨겨진 종결 주문 개수 (토글 OFF 시 가려지는 것과 정확히 일치)
   const completedCount = useMemo(() => orders.filter((o) =>
-    isOrderTerminal(o)
-  ).length, [orders]);
+    isStoreOrderTerminal(o, itemsByOrder[o.id] || [])
+  ).length, [orders, itemsByOrder]);
 
   // 날짜 필터 밖이지만 미처리라 끌어올려 표시 중인 주문 수 (놓침 방지 안내용)
   const pendingOutOfRangeCount = useMemo(
@@ -1842,7 +1842,7 @@ export default function SmartStoreOrders({
               const productSummary = itemsForOrder.length === 0 ? '-'
                 : itemsForOrder.length === 1 ? itemsForOrder[0].provider_product_name
                 : `${itemsForOrder[0].provider_product_name} 외 ${itemsForOrder.length - 1}건`;
-              const statusMeta = STATUS_LABEL[order.order_status] || { label: order.order_status || '-', color: '#7e9cb8', bg: 'rgba(126,156,184,0.15)' };
+              const statusMeta = STATUS_LABEL[storeOrderStatus(order, itemsForOrder)] || { label: order.order_status || '-', color: '#7e9cb8', bg: 'rgba(126,156,184,0.15)' };
               const isCash = order.delivery_policy_type === '착불' || /cash/i.test(order.delivery_policy_type || '');
               const dm = getDeliveryMethod(order, itemsForOrder);
               const recvName = getReceiverName(order, itemsForOrder);
@@ -2074,7 +2074,7 @@ export default function SmartStoreOrders({
                     </div>
                     {/* 진행 단계 스텝퍼 (배송 현황) */}
                     <div className="-mx-1">
-                      <OrderStepper order={order} />
+                      <OrderStepper order={order} items={itemsByOrder[order.id] || []} />
                     </div>
                     {order.naver_confirm_succeeded_at && (
                       <div className="text-[11px] font-semibold" style={{ color: '#a78bfa' }}>
@@ -2268,7 +2268,7 @@ export default function SmartStoreOrders({
         {filtered.map((order) => {
           const items = itemsByOrder[order.id] || [];
           // Codex Minor G fix: 매핑 안 된 status 는 '수신' 으로 위장하지 않고 원본 그대로 표시
-          const statusMeta = STATUS_LABEL[order.order_status] || {
+          const statusMeta = STATUS_LABEL[storeOrderStatus(order, items)] || {
             label: order.order_status || '알 수 없음',
             color: '#7e9cb8',
             bg: 'rgba(126,156,184,0.15)',
@@ -2362,7 +2362,7 @@ export default function SmartStoreOrders({
               </div>
 
               {/* 진행 단계 스텝퍼 — 결제완료→발주확인→발송→배송중→배송완료 */}
-              <OrderStepper order={order} />
+              <OrderStepper order={order} items={itemsByOrder[order.id] || []} />
 
               <StoreShippingDetails order={order} items={items} />
 

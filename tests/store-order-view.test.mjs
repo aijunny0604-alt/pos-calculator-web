@@ -73,3 +73,28 @@ test('단계 해제는 원래 조회 범위로 돌아가고 완료 건은 원래
   assert.equal(getStoreOrderView(orders, { ...options, statusFilter: 's4' }).filtered[0].id, '완료');
   assert.deepEqual(getStoreOrderView(orders, options).filtered.map(o => o.id), ['진행']);
 });
+
+test('대표 상태 shipped여도 상품별 네이버 배송중·배송완료를 위젯과 필터에 반영한다', () => {
+  const orders = [row('진행', 'shipped'), row('완료', 'shipped')];
+  const item = status => ({raw_payload:{productOrder:{productOrderStatus:status}}});
+  const itemsByOrder = {진행:[item('DELIVERING'),item('DELIVERED')],완료:[item('DELIVERED'),item('PURCHASE_DECIDED')]};
+  const common = {...options,itemsByOrder};
+  const view = getStoreOrderView(orders,common);
+  assert.deepEqual(view.stages.stages,[0,0,0,1,1]);
+  assert.deepEqual(view.filtered.map(o=>o.id),['진행']);
+  assert.deepEqual(getStoreOrderView(orders,{...common,statusFilter:'s4'}).filtered.map(o=>o.id),['완료']);
+  assert.equal(orderStage(orders[0],itemsByOrder.진행).stage,3);
+  assert.equal(orders[0].order_status,'shipped');
+});
+
+test('일부 배송완료·상태 누락·취소 품목을 섞어도 전체 완료를 성급하게 표시하지 않는다', () => {
+  const item = status => ({raw_payload:{productOrder:{productOrderStatus:status}}});
+  const o=row('혼합','shipped');
+  assert.equal(orderStage(o,[item('DELIVERED'),item('PAYED')]).stage,2);
+  assert.equal(orderStage(o,[item('DELIVERED'),{}]).stage,2);
+  assert.equal(orderStage(o,[item('DELIVERED'),item('CANCELED')]).stage,4);
+  assert.equal(orderStage(row('취소','CANCELED'),[item('DELIVERING')]).canceled,true);
+  assert.equal(orderStage(row('완료','DELIVERED'),[item('PAYED')]).stage,4);
+  assert.equal(orderStage(row('원본','shipped',{raw_payload:{productOrder:{productOrderStatus:'DELIVERING'}}})).stage,3);
+  assert.equal(matchesStoreWidget(row('뒤처짐','confirmed',{needs_naver_dispatch:true}),[item('DELIVERING')],'autoPending',now),false);
+});
