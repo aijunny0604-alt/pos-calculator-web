@@ -1,3 +1,4 @@
+import { customerMatches } from '@/lib/customerSearch.mjs';
 import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -108,7 +109,7 @@ export default function OrderPage({
   // 거래처 검색 결과
   const customerSuggestions = customerName.length >= 1
     ? (customers || []).filter(c =>
-        c?.name?.toLowerCase().replace(/\s/g, '').includes(customerName.toLowerCase().replace(/\s/g, ''))
+        c?.name && customerMatches(c, customerName)
       ).slice(0, 6)
     : [];
 

@@ -1,3 +1,4 @@
+import { customerMatches } from '@/lib/customerSearch.mjs';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useMemo, useEffect } from 'react';
 import { X, Search, Building2, Check, Phone, MapPin } from 'lucide-react';
@@ -12,11 +13,8 @@ export default function CustomerPickerModal({ open, customers = [], current = ''
 
   const norm = (s) => String(s || '').toLowerCase().replace(/\s/g, '');
   const list = useMemo(() => {
-    const ql = norm(q);
     const arr = (customers || []).filter((c) => c?.name);
-    const filtered = ql
-      ? arr.filter((c) => norm(c.name).includes(ql) || norm(c.phone).includes(ql) || norm(c.address).includes(ql))
-      : arr;
+    const filtered = arr.filter((c) => customerMatches(c, q));
     // 현재 업체를 맨 위로, 나머지는 이름순
     return [...filtered].sort((a, b) => {
       const ac = norm(a.name) === norm(current) ? 0 : 1;

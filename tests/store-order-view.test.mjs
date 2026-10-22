@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getStoreOrderView, matchesStoreWidget, orderStage, isStoreAwaitingDispatch } from '../src/lib/storeOrderView.js';
+import { getStoreOrderView, matchesStoreWidget, orderStage, isStoreAwaitingDispatch, storeOrderStatus, storeRefreshInterval } from '../src/lib/storeOrderView.js';
 
 const now = new Date(2026, 9, 21, 12).getTime();
 const today = new Date(2026, 9, 21, 10).toISOString();
@@ -8,6 +8,27 @@ const yesterday = new Date(2026, 9, 20, 10).toISOString();
 const range = { from: new Date(2026, 9, 21), to: new Date(2026, 9, 22) };
 const row = (id, status, extra = {}) => ({ id, provider: 'naver', buyer_name: id, received_at: today, order_status: status, ...extra });
 const options = { dateRange: range, now };
+
+test('발송 대기 → 성공 → 배송중 배지와 단계/대기 숫자가 함께 바뀐다', () => {
+  const waiting = row('배송', 'confirmed', { needs_naver_dispatch: true, naver_confirm_succeeded_at: today });
+  assert.equal(storeRefreshInterval([waiting]), 5000);
+  for (const extra of [{}, { naver_dispatch_tracking: '1234' }, { naver_dispatch_error: '실패' }]) {
+    const order = { ...waiting, ...extra };
+    assert.equal(storeOrderStatus(order), 'confirmed');
+    assert.equal(getStoreOrderView([order], options).widgets.needShip, 1);
+  }
+  const success = { ...waiting, naver_dispatch_succeeded_at: today };
+  assert.equal(storeOrderStatus(success), 'shipped');
+  const view = getStoreOrderView([success], options);
+  assert.deepEqual(view.stages.stages, [0, 0, 1, 0, 0]);
+  assert.equal(view.widgets.needShip, 0);
+  assert.equal(view.widgets.autoPending, 0);
+  assert.equal(storeRefreshInterval([success]), 45000);
+  const items = [{ raw_payload: { productOrder: { productOrderStatus: 'DELIVERING' } } }];
+  assert.equal(storeOrderStatus(success, items), 'DELIVERING');
+  assert.equal(storeOrderStatus({ ...success, order_status: 'DELIVERING' }), 'DELIVERING');
+  for (const status of ['DELIVERED','CANCELED','RETURNED','CANCEL_REQUEST']) assert.equal(storeOrderStatus({...success, order_status:status}), status);
+});
 
 test('어제 접수·오늘 발송한 주문은 단계 숫자와 클릭 목록 모두에 포함한다', () => {
   const orders = [row('오늘발송', 'shipped'), row('어제접수', 'shipped', { received_at: yesterday, naver_dispatch_succeeded_at: today }), row('지난발송', 'shipped', { received_at: yesterday, naver_dispatch_succeeded_at: yesterday })];

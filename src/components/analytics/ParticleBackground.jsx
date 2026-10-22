@@ -1,3 +1,4 @@
+import { shouldReduceMotion } from '@/lib/appMotion.mjs';
 // 부동 입자 배경 (Canvas 기반, 모바일은 입자 수 감소)
 // 시안 입자가 무작위 path로 떠다님 + 미세 별/먼지 효과
 
@@ -5,7 +6,7 @@ import { useEffect, useRef } from 'react';
 
 export default function ParticleBackground({ density = 'auto' }) {
   const canvasRef = useRef(null);
-  const reducedMotion = useRef(typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  const reducedMotion = useRef(typeof window !== 'undefined' && shouldReduceMotion());
 
   useEffect(() => {
     if (reducedMotion.current) return;

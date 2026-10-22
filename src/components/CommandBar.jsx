@@ -1,3 +1,4 @@
+import { customerMatches } from '@/lib/customerSearch.mjs';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X, ArrowRight, Package, Users, ClipboardList, LayoutDashboard, ShoppingBag, FileText, Settings, Sparkles, Calculator, Mic } from 'lucide-react';
 import { matchesSearchQuery } from '@/lib/utils';
@@ -111,7 +112,7 @@ export default function CommandBar({
 
     const customerResults = hasQuery
       ? customers
-        .filter((customer) => matchesSearchQuery(customer?.name || '', q))
+        .filter((customer) => customer?.name && customerMatches(customer, q))
         .map((customer) => ({
           type: 'customers',
           icon: Users,

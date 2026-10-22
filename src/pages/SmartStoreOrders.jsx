@@ -16,8 +16,9 @@ import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/li
 import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/storeOrderSafety';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 import StoreShippingDetails from '@/components/StoreShippingDetails';
-import StoreCarePanel from '@/components/StoreCarePanel';
 import ViewportModal from '@/components/ui/ViewportModal';
+import { storeRefreshInterval } from '@/lib/storeOrderView';
+import { mergePosChange } from '@/lib/posRealtime';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
 const fmtDate = (s) => {
@@ -464,7 +465,6 @@ export default function SmartStoreOrders({
   const [sortBy, setSortBy] = useState('recent'); // recent | amount | status
   // 네이버 연동 로그 모니터 (발주확인/발송 API 성공·실패 내역)
   const [showLogModal, setShowLogModal] = useState(false);
-  const [showCare,setShowCare] = useState(false);
   // 로그 "확인함" 시각 — 이후 새 실패만 뱃지에 표시 (로그는 주문 필드 파생이라 삭제 대신 확인 처리)
   const [logAckAt, setLogAckAt] = useState(() => Number(localStorage.getItem('pos_store_log_ack_at')) || 0);
   const ackLog = () => { const now = Date.now(); setLogAckAt(now); try { localStorage.setItem('pos_store_log_ack_at', String(now)); } catch { /* noop */ } };
@@ -626,24 +626,34 @@ export default function SmartStoreOrders({
   const [dispatchCompany, setDispatchCompany] = useState(DEFAULT_COURIER_CODE);
   const [dispatchTracking, setDispatchTracking] = useState('');
 
+  const reloadVersion = useRef(0);
+  const reloadInFlight = useRef(0);
+  const liveOrders = useRef(orders);
+  liveOrders.current = orders;
   const reload = useCallback(async ({ silent = false } = {}) => {
+    const version = ++reloadVersion.current;
+    reloadInFlight.current++;
     if (!silent) setLoading(true);
     let list, itemsMap;
     try {
       list = await supabase.getStoreMonitorOrders();
       itemsMap = await supabase.getExternalOrderItemsByOrders(list.map(o => o.id), { strict: true });
+      if (version !== reloadVersion.current) return;
       setMonitorLoadError(false);
     } catch (error) {
+      if (version !== reloadVersion.current) return;
       console.error('스토어 모니터링 조회 실패:', error);
       setMonitorLoadError(true);
-      if (!silent) setLoading(false);
+      setLoading(false);
       return;
+    } finally {
+      reloadInFlight.current--;
     }
     setOrders(list || []);
     // 주문은 있는데 items 없는 경우도 빈 배열로 채워 일관성 유지
     for (const o of (list || [])) { if (!itemsMap[o.id]) itemsMap[o.id] = []; }
     setItemsByOrder(itemsMap);
-    if (!silent) setLoading(false);
+    setLoading(false);
 
     // 상품 대문 이미지 — 주문의 네이버 productId를 모아 카탈로그 캐시에서 한 번에 조회.
     // 화면 렌더를 막지 않으려 items 세팅 뒤 별도로 채운다(도착하면 썸네일이 나타남).
@@ -658,6 +668,12 @@ export default function SmartStoreOrders({
 
   useEffect(() => { reload(); }, [reload]);
 
+  const saveQueue = async (id, patch) => {
+    const saved = await saveStoreQueue((key, data) => supabase.updateExternalOrder(key, data), id, patch);
+    window.dispatchEvent(new CustomEvent('external-orders-changed', { detail: { eventType: 'UPDATE', new: saved } }));
+    return saved;
+  };
+
   // 메뉴 배지 즉시 반영 — 메뉴의 기존 내부처리 대기 정책은 유지한다. 출고 모니터링은 별도 기준이며
   // 추가 요청 없이 이 목록으로 카운트를 넘긴다. 전환/발송 직후 배지가 60초 묵는 걸 막는다.
   useEffect(() => {
@@ -666,28 +682,56 @@ export default function SmartStoreOrders({
 
   // 실시간 구독은 전역 StoreOrderAlerts가 전담 → 변경 이벤트 받으면 목록만 갱신
   useEffect(() => {
-    const onChange = () => reload();
+    let timer;
+    const onChange = (event) => {
+      if (event.detail?.new?.id) setOrders(previous => mergePosChange(previous, event.detail));
+      ++reloadVersion.current;
+      clearTimeout(timer);
+      timer = setTimeout(() => reload({ silent: true }), 300);
+    };
     window.addEventListener('external-orders-changed', onChange);
-    return () => window.removeEventListener('external-orders-changed', onChange);
+    return () => { clearTimeout(timer); window.removeEventListener('external-orders-changed', onChange); };
   }, [reload]);
 
-  // ⏱️ 열어둔 채로도 자동 최신화 — 45초 폴링 + 탭 복귀/포커스 시 즉시.
+  // 실시간 누락 안전망: 발송/확인 큐 처리 중 5초, 평소 45초. 숨은 탭은 중지.
   //   external_orders가 realtime publication에 없어 StoreOrderAlerts 구독이 죽어있어도(새 주문 미반영)
   //   이 폴링이 안전망. silent=로딩 스피너 없이 조용히 갱신(스크롤·모달 방해 없음). 숨은 탭은 폴링 스킵.
+  const refreshInterval = storeRefreshInterval(orders, itemsByOrder);
   useEffect(() => {
-    const iv = setInterval(() => { if (!document.hidden) reload({ silent: true }); }, 45000);
+    const iv = setInterval(() => { if (!document.hidden && !reloadInFlight.current) reload({ silent: true }); }, 45000);
     const onWake = () => { if (!document.hidden) reload({ silent: true }); };
     window.addEventListener('focus', onWake);
     document.addEventListener('visibilitychange', onWake);
     return () => { clearInterval(iv); window.removeEventListener('focus', onWake); document.removeEventListener('visibilitychange', onWake); };
   }, [reload]);
 
+  useEffect(() => {
+    if (refreshInterval !== 5000) return;
+    let alive = true, busy = false;
+    const timer = setInterval(async () => {
+      if (document.hidden || busy || reloadInFlight.current) return;
+      busy = true;
+      const version = reloadVersion.current;
+      try {
+        const ids = liveOrders.current.filter(order => !order.naver_dispatch_succeeded_at && (order.needs_naver_dispatch || order.needs_naver_confirm)).map(order => order.id);
+        const rows = await supabase.getStoreDispatchStates(ids);
+        if (alive && version === reloadVersion.current) setOrders(previous => previous.map(order => {
+          const patch = rows.find(row => row.id === order.id);
+          return patch ? { ...order, ...patch } : order;
+        }));
+      } catch (error) { console.warn('발송 상태 갱신 지연:', error); }
+      finally { busy = false; }
+    }, 5000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [refreshInterval]);
+
   // 📦 포장 상태 — 스토어 카드 배지용. 포장은 내부주문(order_packing.order_id=ORD-…) 기준이라
   //   외부주문의 internal_order_id 로 매핑한다. { [internalOrderId]: {checkedCount, itemCount, done} }
   const [packingMap, setPackingMap] = useState({});
+  const packingIdsKey = JSON.stringify([...new Set(orders.map(order => order.internal_order_id).filter(Boolean).map(String))].sort());
   useEffect(() => {
     let alive = true;
-    const ids = (orders || []).map((o) => o.internal_order_id).filter(Boolean).map(String);
+    const ids = JSON.parse(packingIdsKey);
     if (ids.length === 0) { setPackingMap({}); return; }
     (async () => {
       const m = await supabase.getOrderPackingBulk(ids);
@@ -697,7 +741,7 @@ export default function SmartStoreOrders({
       setPackingMap(norm);
     })();
     return () => { alive = false; };
-  }, [orders]);
+  }, [packingIdsKey]);
   // 같은 탭에서 포장 체크 시 즉시 반영
   useEffect(() => {
     const onChange = (e) => {
@@ -984,12 +1028,12 @@ export default function SmartStoreOrders({
       showToast?.('이미 발주확인 완료된 주문입니다', 'info');
       return;
     }
-    await saveStoreQueue((id, patch) => supabase.updateExternalOrder(id, patch), order.id, {
+    await saveQueue(order.id, {
       needs_naver_confirm: true,
       naver_confirm_retry_count: 0,
       naver_confirm_next_retry_at: null,
     });
-    showToast?.('발주확인 대기열 등록 — 매장 PC 가 60초 내 자동 처리', 'success');
+    showToast?.('발주확인 대기열 등록 — 매장 PC에서 자동 처리 · 완료 시 상태 갱신', 'success');
     reload();
     } catch (e) { showToast?.(e.message || '처리 요청 저장 실패', 'error'); }
   };
@@ -1014,6 +1058,7 @@ export default function SmartStoreOrders({
       naver_dispatch_company_code: 'VISIT_RECEIPT', // 센티널 — sync.js가 방문수령 페이로드로 전송
       naver_dispatch_company_name: '방문수령',
       naver_dispatch_tracking: null,
+      naver_dispatch_error: null,
       naver_dispatch_retry_count: 0,
       naver_dispatch_next_retry_at: null,
     };
@@ -1022,11 +1067,11 @@ export default function SmartStoreOrders({
       patch.naver_confirm_retry_count = 0;
       patch.naver_confirm_next_retry_at = null;
     }
-    await saveStoreQueue((id, patch) => supabase.updateExternalOrder(id, patch), order.id, patch);
+    await saveQueue(order.id, patch);
     showToast?.(
       needsConfirm
-        ? '발주확인 + 방문수령 처리 대기열 등록 — 60초 내 순차 자동 처리'
-        : '방문수령 처리 대기열 등록 — 60초 내 자동 처리',
+        ? '발주확인 + 방문수령 처리 대기열 등록 — 자동 처리 후 상태 갱신'
+        : '방문수령 처리 대기열 등록 — 자동 처리 후 상태 갱신',
       'success'
     );
     setVisitReceiptOrder(null);
@@ -1048,6 +1093,7 @@ export default function SmartStoreOrders({
       naver_dispatch_company_code: dispatchCompany,
       naver_dispatch_company_name: company?.name || dispatchCompany,
       naver_dispatch_tracking: dispatchTracking.trim(),
+      naver_dispatch_error: null,
       naver_dispatch_retry_count: 0,
       naver_dispatch_next_retry_at: null,
     };
@@ -1056,11 +1102,11 @@ export default function SmartStoreOrders({
       patch.naver_confirm_retry_count = 0;
       patch.naver_confirm_next_retry_at = null;
     }
-    await saveStoreQueue((id, patch) => supabase.updateExternalOrder(id, patch), order.id, patch);
+    await saveQueue(order.id, patch);
     showToast?.(
       needsConfirm
-        ? `발주확인 + 발송처리 대기열 등록 (${company?.name} · ${dispatchTracking.trim()}) — 60초 내 순차 자동 처리`
-        : `발송처리 대기열 등록 (${company?.name} · ${dispatchTracking.trim()}) — 60초 내 자동 처리`,
+        ? `발주확인 + 발송처리 대기열 등록 (${company?.name} · ${dispatchTracking.trim()}) — 자동 처리 후 상태 갱신`
+        : `발송처리 대기열 등록 (${company?.name} · ${dispatchTracking.trim()}) — 자동 처리 후 상태 갱신`,
       'success'
     );
     setDispatchModalOrder(null);
@@ -1136,7 +1182,7 @@ export default function SmartStoreOrders({
     clearSelection();
     reload();
     showToast?.(
-      `일괄 내부주문 ${ok}건 완료${sendConfirm ? ' + 네이버 발주확인 대기열 등록(60초 내 처리)' : ''}${fail ? ` / ${fail}건 실패(항목 미준비 등)` : ''}`,
+      `일괄 내부주문 ${ok}건 완료${sendConfirm ? ' + 네이버 발주확인 대기열 등록(완료 시 상태 갱신)' : ''}${fail ? ` / ${fail}건 실패(항목 미준비 등)` : ''}`,
       fail ? 'error' : 'success'
     );
   };
@@ -1192,7 +1238,8 @@ export default function SmartStoreOrders({
         naver_dispatch_company_code: code,
         naver_dispatch_company_name: company?.name || code,
         naver_dispatch_tracking: tracking,
-        naver_dispatch_retry_count: 0,
+        naver_dispatch_error: null,
+      naver_dispatch_retry_count: 0,
         naver_dispatch_next_retry_at: null,
       };
       if (needsConfirm) {
@@ -1201,7 +1248,7 @@ export default function SmartStoreOrders({
         patch.naver_confirm_next_retry_at = null;
       }
       const ok = await supabase.updateExternalOrder(order.id, patch);
-      if (ok) { success++; successIds.push(order.id); }
+      if (ok) { success++; successIds.push(order.id); window.dispatchEvent(new CustomEvent('external-orders-changed', { detail: { eventType: 'UPDATE', new: ok } })); }
       else failedOrders.push(order);
     }
     if (failedOrders.length > 0) {
@@ -1226,7 +1273,7 @@ export default function SmartStoreOrders({
         'error'
       );
     } else {
-      showToast?.(`일괄 발송 ${success}건 대기열 등록 — 60초 내 네이버 자동 처리`, 'success');
+      showToast?.(`일괄 발송 ${success}건 대기열 등록 — 네이버 응답 후 상태 갱신`, 'success');
       setBulkDispatchOpen(false);
       clearSelection();
     }
@@ -1385,7 +1432,7 @@ export default function SmartStoreOrders({
       if (!silent) {
         showToast?.(
           queueConfirm
-            ? '내부 주문 전환 + 네이버 발주확인 대기열 등록 (최대 60초 내 자동 처리)'
+            ? '내부 주문 전환 + 네이버 발주확인 대기열 등록 (자동 처리 후 상태 갱신)'
             : (alreadyConfirmed
                 ? '내부 주문으로 전환 완료 (네이버는 이미 확인됨)'
                 : '내부 주문으로 전환 완료 (네이버 발주확인은 보내지 않음)'),
@@ -1423,8 +1470,6 @@ export default function SmartStoreOrders({
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--background)' }}>
       {/* 헤더 */}
-      {showCare&&<div className="fixed inset-0 z-[70] bg-black/50 p-3 sm:p-8 flex items-center justify-center" onClick={()=>setShowCare(false)}><div role="dialog" aria-modal="true" aria-label="고객 응대" className="w-full max-w-5xl max-h-[90dvh] overflow-y-auto rounded-2xl bg-[var(--card)] p-4" onClick={e=>e.stopPropagation()}><button onClick={()=>setShowCare(false)} className="block ml-auto rounded-lg border px-4 py-3 mb-3">닫기</button><StoreCarePanel/></div></div>}
-      <button onClick={()=>setShowCare(true)} className="mx-4 mt-3 self-start border rounded-xl px-4 py-3 text-sm font-bold">고객 Q&A · 리뷰 관리</button>
       <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
         {/* 모바일 햄버거 메뉴 — 다른 페이지와 동일 패턴 (toggle-sidebar 이벤트) */}
         <button
@@ -1931,9 +1976,15 @@ export default function SmartStoreOrders({
                     })()}
                     {order.naver_dispatch_succeeded_at ? (
                       <span className="text-[11px] font-bold text-center" style={{ color: '#03c75a' }} title="네이버 발송완료">✓ 발송</span>
-                    ) : order.naver_confirm_succeeded_at ? (
+                    ) : order.naver_confirm_succeeded_at && orderStage(order, itemsForOrder).stage < 2 ? (
                       <span className="text-[11px] font-bold text-center" style={{ color: '#a78bfa' }} title="네이버 발주확인">✓ 발주확인</span>
                     ) : null}
+                    {isStoreAwaitingDispatch(order, itemsForOrder) && (order.needs_naver_dispatch || order.naver_dispatch_error) && (
+                      <span className="text-[11px] font-semibold text-center" style={{ color: order.naver_dispatch_error ? 'var(--destructive)' : 'var(--primary)' }}
+                        title={order.naver_dispatch_error ? dispatchErrorHint(order.naver_dispatch_error) : '매장 PC의 네이버 발송 성공 응답을 기다리고 있습니다'}>
+                        {order.naver_dispatch_error ? '발송 확인 필요' : '발송 처리 중'}
+                      </span>
+                    )}
                   </div>
                   {/* 금액 + 네이버 수수료 (착불 표기는 배송 칸으로 이동) */}
                   <div className="text-right whitespace-nowrap flex-shrink-0">
@@ -2342,7 +2393,7 @@ export default function SmartStoreOrders({
                   </span>
                 )}
                 {/* 네이버 측 처리 마커 — DB의 succeeded_at 기준 */}
-                {order.naver_confirm_succeeded_at && (
+                {order.naver_confirm_succeeded_at && orderStage(order, items).stage < 2 && (
                   <span className="px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-0.5"
                     style={{ background: 'rgba(167,139,250,0.18)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }}
                     title={`네이버 발주확인 완료 ${fmtDate(order.naver_confirm_succeeded_at)}`}>
@@ -2355,6 +2406,9 @@ export default function SmartStoreOrders({
                     title={`네이버 발송처리 완료 ${fmtDate(order.naver_dispatch_succeeded_at)}`}>
                     ✓ 발송완료
                   </span>
+                )}
+                {isStoreAwaitingDispatch(order, items) && order.needs_naver_dispatch && !order.naver_dispatch_error && (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold" style={{ color: 'var(--primary)', background: 'var(--accent)' }}>발송 처리 중</span>
                 )}
                 {pendingOutOfRange && (
                   <span className="px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-0.5"
@@ -2799,7 +2853,7 @@ export default function SmartStoreOrders({
             </div>
             {/* 푸터 안내 */}
             <div className="px-4 py-2.5 border-t flex-shrink-0 text-[11px] opacity-60 safe-bottom" style={{ borderColor: 'var(--border)' }}>
-              매장 PC가 송장 입력 후 <b>최대 60초</b>(발주확인 동시 시 2~3분) 내 네이버에 자동 연동합니다. 상단 위젯에서 sync 가동 상태(LIVE/STALE)를 확인하세요.
+              매장 PC가 송장 등록 요청을 순차 처리합니다. 네이버 응답과 재시도에 따라 시간이 걸릴 수 있으며, 성공 시 상태가 자동으로 바뀝니다. 상단 위젯에서 sync 가동 상태(LIVE/STALE)를 확인하세요.
             </div>
           </div>
         </ViewportModal>
@@ -2960,7 +3014,7 @@ export default function SmartStoreOrders({
                   style={{ background: 'color-mix(in srgb, #03c75a 10%, var(--card))', color: 'var(--foreground)', border: '1px solid color-mix(in srgb, #03c75a 32%, transparent)' }}>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 animate-pulse" style={{ background: '#03c75a' }} />
                   <span style={{ color: 'var(--muted-foreground)' }}>
-                    매장 PC가 <b style={{ color: '#03c75a' }}>60초 안에</b> 네이버로 발송처리(송장 등록)를 보냅니다.
+                    매장 PC에서 네이버로 발송 요청을 보냅니다. <b style={{ color: '#03c75a' }}>성공 확인 후</b> 배지가 자동으로 바뀝니다.
                     발주확인이 안 된 주문이면 발주확인까지 함께 처리됩니다.
                   </span>
                 </div>
@@ -3038,7 +3092,7 @@ export default function SmartStoreOrders({
                 <div className="rounded-xl px-4 py-3 text-xs leading-relaxed"
                   style={{ background: 'color-mix(in srgb, #f59e0b 11%, var(--card))', color: 'var(--muted-foreground)', border: '1px solid color-mix(in srgb, #f59e0b 38%, transparent)' }}>
                   <b style={{ color: '#b45309' }}>송장번호 없이</b> 네이버에 방문수령 발송처리로 전송됩니다.
-                  매장 PC가 60초 안에 자동 연동하고, 발주확인이 안 된 주문이면 발주확인까지 함께 처리됩니다.
+                  매장 PC가 순차적으로 자동 연동하고, 발주확인이 안 된 주문이면 발주확인까지 함께 처리됩니다.
                 </div>
 
                 <div className="rounded-xl px-4 py-3 flex items-start gap-2.5 text-xs leading-relaxed"
@@ -3202,7 +3256,7 @@ export default function SmartStoreOrders({
                   style={{ background: 'color-mix(in srgb, #03c75a 10%, var(--card))', border: '1px solid color-mix(in srgb, #03c75a 32%, transparent)' }}>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 animate-pulse" style={{ background: '#03c75a' }} />
                   <span style={{ color: 'var(--muted-foreground)' }}>
-                    송장을 넣은 <b style={{ color: '#03c75a' }}>{readyCount}건</b>만 네이버로 전송됩니다(60초 안).
+                    송장을 넣은 <b style={{ color: '#03c75a' }}>{readyCount}건</b>만 네이버로 전송됩니다. 처리 결과는 자동으로 갱신됩니다.
                     발주확인이 안 된 주문은 발주확인까지 함께 처리됩니다.
                   </span>
                 </div>
@@ -3363,7 +3417,7 @@ export default function SmartStoreOrders({
                 <ClipboardCheck className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#7c5cf5' }} />
                 <div>
                   이 주문은 <b>아직 네이버 발주확인 전</b>입니다. 전환하면서 <b>네이버에도 발주확인을 보낼까요?</b>
-                  <div className="opacity-70 mt-1">보내면 매장 PC가 60초 내 자동 처리합니다. 나중에 [발주확인] 버튼으로도 가능해요.</div>
+                  <div className="opacity-70 mt-1">보내면 매장 PC가 자동 처리 후 상태 갱신합니다. 나중에 [발주확인] 버튼으로도 가능해요.</div>
                 </div>
               </div>
               {/* 선택 버튼 */}

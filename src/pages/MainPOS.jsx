@@ -1,3 +1,4 @@
+import { customerMatches } from '@/lib/customerSearch.mjs';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
@@ -406,7 +407,7 @@ export default function MainPOS({
     setOrderCustomerName(value);
     if (value.trim().length > 0 && customers.length > 0) {
       const filtered = customers.filter(c =>
-        c.name?.toLowerCase().includes(value.toLowerCase())
+        c?.name && customerMatches(c, value)
       ).slice(0, 5);
       setCustomerSuggestions(filtered);
     } else {

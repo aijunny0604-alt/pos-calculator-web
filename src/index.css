@@ -136,13 +136,13 @@
 .animate-jarvis-core-pulse { animation: jarvis-core-pulse 2.4s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-jarvis-arc-spin-slow,
-  .animate-jarvis-orbit-1,
-  .animate-jarvis-orbit-2,
-  .animate-jarvis-orbit-3,
-  .animate-jarvis-3d-tumble,
-  .animate-jarvis-radar-pulse,
-  .animate-jarvis-core-pulse { animation: none !important; }
+  :root:not([data-move-motion="always"]) .animate-jarvis-arc-spin-slow,
+  :root:not([data-move-motion="always"]) .animate-jarvis-orbit-1,
+  :root:not([data-move-motion="always"]) .animate-jarvis-orbit-2,
+  :root:not([data-move-motion="always"]) .animate-jarvis-orbit-3,
+  :root:not([data-move-motion="always"]) .animate-jarvis-3d-tumble,
+  :root:not([data-move-motion="always"]) .animate-jarvis-radar-pulse,
+  :root:not([data-move-motion="always"]) .animate-jarvis-core-pulse { animation: none !important; }
 }
 
 /* ===== Real Hologram Effects ===== */
@@ -248,9 +248,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .jarvis-hologram-scanlines::after,
-  .animate-jarvis-hologram-flicker,
-  .animate-jarvis-rgb-glitch { animation: none !important; }
+  :root:not([data-move-motion="always"]) .jarvis-hologram-scanlines::after,
+  :root:not([data-move-motion="always"]) .animate-jarvis-hologram-flicker,
+  :root:not([data-move-motion="always"]) .animate-jarvis-rgb-glitch { animation: none !important; }
 }
 
 /* ===== JARVIS Utility Classes ===== */
@@ -338,18 +338,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-jarvis-pulse,
-  .animate-jarvis-voice-ripple-1,
-  .animate-jarvis-voice-ripple-2,
-  .animate-jarvis-voice-ripple-3,
-  .animate-jarvis-arc-spin,
-  .animate-jarvis-arc-spin-rev,
-  .animate-jarvis-glow-pulse,
-  .animate-jarvis-card-emerge,
-  .animate-jarvis-scanline,
-  .animate-jarvis-cursor { animation: none !important; }
-  .jarvis-scanline-overlay::after { display: none; }
-  .jarvis-tilt:hover { transform: none; }
+  :root:not([data-move-motion="always"]) .animate-jarvis-pulse,
+  :root:not([data-move-motion="always"]) .animate-jarvis-voice-ripple-1,
+  :root:not([data-move-motion="always"]) .animate-jarvis-voice-ripple-2,
+  :root:not([data-move-motion="always"]) .animate-jarvis-voice-ripple-3,
+  :root:not([data-move-motion="always"]) .animate-jarvis-arc-spin,
+  :root:not([data-move-motion="always"]) .animate-jarvis-arc-spin-rev,
+  :root:not([data-move-motion="always"]) .animate-jarvis-glow-pulse,
+  :root:not([data-move-motion="always"]) .animate-jarvis-card-emerge,
+  :root:not([data-move-motion="always"]) .animate-jarvis-scanline,
+  :root:not([data-move-motion="always"]) .animate-jarvis-cursor { animation: none !important; }
+  :root:not([data-move-motion="always"]) .jarvis-scanline-overlay::after { display: none; }
+  :root:not([data-move-motion="always"]) .jarvis-tilt:hover { transform: none; }
 }
 
 :root {
@@ -489,7 +489,7 @@ html, body {
 }
 .animate-pack-confetti { animation: pack-confetti 1.8s ease-out both; }
 @media (prefers-reduced-motion: reduce) {
-  .animate-pack-pop, .animate-pack-confetti { animation-duration: 0.01ms !important; }
+  :root:not([data-move-motion="always"]) .animate-pack-pop, :root:not([data-move-motion="always"]) .animate-pack-confetti { animation-duration: 0.01ms !important; }
 }
 
 /* Modal fullscreen transition - premium spring easing */
@@ -615,9 +615,9 @@ html, body {
    접근성 (Accessibility) — P0 design-sense 2026-04-20
    ────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  :root:not([data-move-motion="always"]) *,
+  :root:not([data-move-motion="always"]) *::before,
+  :root:not([data-move-motion="always"]) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -625,16 +625,16 @@ html, body {
   }
   /* 로딩 인디케이터는 사용자 피드백 필수 → 예외로 애니메이션 유지
      주의: revert는 UA 기본값(0s)로 돌려서 멈춤 → 명시 값 직접 지정 */
-  .animate-spin,
-  [data-spinner],
-  [role="progressbar"] {
+  :root:not([data-move-motion="always"]) .animate-spin,
+  :root:not([data-move-motion="always"]) [data-spinner],
+  :root:not([data-move-motion="always"]) [role="progressbar"] {
     animation: spin 1s linear infinite !important;
   }
-  .animate-pulse {
+  :root:not([data-move-motion="always"]) .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
   }
-  [aria-busy="true"] .animate-spin,
-  [aria-busy="true"] [data-spinner] {
+  :root:not([data-move-motion="always"]) [aria-busy="true"] .animate-spin,
+  :root:not([data-move-motion="always"]) [aria-busy="true"] [data-spinner] {
     animation: spin 1s linear infinite !important;
   }
 }
@@ -763,8 +763,8 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
 
 /* reduce-motion 사용자는 모든 애니메이션 OFF (접근성) */
 @media (prefers-reduced-motion: reduce) {
-  .movis-shimmer, .movis-scan, .movis-ring { animation: none !important; }
-  .movis-menu:hover { transform: none !important; }
+  :root:not([data-move-motion="always"]) .movis-shimmer, :root:not([data-move-motion="always"]) .movis-scan, :root:not([data-move-motion="always"]) .movis-ring { animation: none !important; }
+  :root:not([data-move-motion="always"]) .movis-menu:hover { transform: none !important; }
 }
 
 /* ===== 페이지 전환 페이드인 =====
@@ -780,7 +780,7 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
   animation: page-fade-in 280ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .animate-page-in { animation: none !important; }
+  :root:not([data-move-motion="always"]) .animate-page-in { animation: none !important; }
 }
 
 /* ===== 주문 목록 프리미엄 호버 (사이드바 shimmer 감성) =====
@@ -870,6 +870,5 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
 .ub-retry:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(37,99,235,.55); }
 .ub-retry:active { transform: translateY(0); }
 @media (prefers-reduced-motion: reduce) {
-  .ub-loader .ub-ring-1, .ub-loader .ub-ring-2, .ub-loader .ub-glow, .ub-loader .ub-core,
-  .ub-title, .ub-dots::after, .ub-progress::before { animation-duration: 0s; animation: none; }
+  :root:not([data-move-motion="always"]) .ub-loader .ub-ring-1, :root:not([data-move-motion="always"]) .ub-loader .ub-ring-2, :root:not([data-move-motion="always"]) .ub-loader .ub-glow, :root:not([data-move-motion="always"]) .ub-loader .ub-core, :root:not([data-move-motion="always"]) .ub-title, :root:not([data-move-motion="always"]) .ub-dots::after, :root:not([data-move-motion="always"]) .ub-progress::before { animation-duration: 0s; animation: none; }
 }

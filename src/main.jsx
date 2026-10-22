@@ -4,6 +4,9 @@ import * as Sentry from '@sentry/react'
 import App from './App'
 import './index.css'
 import './styles/move-design.css'
+import { enableAppMotion } from './lib/appMotion.mjs'
+
+enableAppMotion()
 
 Sentry.init({
   dsn: "https://fcee49eeaec122accdf54c42e6f33f3f@o4511136651345920.ingest.us.sentry.io/4511136713670656",

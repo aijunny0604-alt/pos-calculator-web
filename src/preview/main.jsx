@@ -1,4 +1,8 @@
 import InvoicesContainer from '../pages/InvoicesContainer';
+import CustomerSearchPreview from './CustomerSearchPreview';
+import MovisMotionPreview from './MovisMotionPreview';
+import { enableAppMotion } from '../lib/appMotion.mjs';
+enableAppMotion();
 import { invoiceFixture } from './invoiceFixture';
 import OrderHistory from '../pages/OrderHistory';
 import SmartStoreOrders from '../pages/SmartStoreOrders';
@@ -15,7 +19,7 @@ import CustomerPickerModal from '../components/CustomerPickerModal';
 import PaymentRegisterModal from '../components/PaymentRegisterModal';
 import BulkPaymentModal from '../components/BulkPaymentModal';
 import PaymentEditModal from '../components/PaymentEditModal';
-import {sample} from './network';
+import {sample,simulateDispatch} from './network';
 import { StatementResult } from '../components/StatementReconcile';
 import { reconcile } from '../lib/statementReconcile';
 import StoreShippingDetails from '../components/StoreShippingDetails';
@@ -43,6 +47,9 @@ if (new URLSearchParams(location.search).get('tools') === '1') {
  createRoot(document.getElementById('preview-controls')).render(<Controls/>);
 }
 if(import.meta.env.DEV && new URLSearchParams(location.search).has('discountCheck')){createRoot(document.getElementById('root')).render(<><p className="px-4 py-2 text-xs" style={{color:'var(--muted-foreground)'}}>할인 카드 미리보기 · 샘플 자료 · 저장/외부 실행 차단</p><OrderHistory orders={discountOrders} customers={[]} onViewOrder={()=>{}} onReorder={()=>{}} onSaveToCart={()=>{}} onBack={()=>{}}/></>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('customerCheck')){createRoot(document.getElementById('root')).render(<CustomerSearchPreview/>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('motionCheck')){createRoot(document.getElementById('root')).render(<MovisMotionPreview/>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('dispatchCheck')){createRoot(document.getElementById('root')).render(<><div className="flex flex-wrap gap-2 p-2">샘플 발송 검증 · 실제 발송 없음{['대기','성공','배송중','실패'].map(state=><button className="px-3 py-2 border rounded" key={state} onClick={()=>simulateDispatch(state)}>샘플 {state}</button>)}<button className="px-3 py-2 border rounded" onClick={()=>simulateDispatch('성공',false)}>알림 없이 성공</button></div><SmartStoreOrders/></>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')){createRoot(document.getElementById('root')).render(<><p className="px-4 py-2 text-xs" style={{color:'var(--muted-foreground)'}}>스토어 위젯 검증 · 샘플 자료 · 저장/외부 실행 차단</p><SmartStoreOrders/></>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('invoiceCheck')){createRoot(document.getElementById('root')).render(<InvoicesContainer customers={invoiceFixture().customers} initialCustomerId={1}/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('cartCheck')){createRoot(document.getElementById('root')).render(<SavedCarts savedCarts={[{id:'demo-cart',name:'샘플 모터스',date:'2026-10-16',time:'12:00',status:'scheduled',priceType:'wholesale',total:250800,items:[{id:1,name:'스테인리스 브레이크 호스 세트',quantity:2,wholesale:99000,retail:120000},{id:4,name:'플랜지 FL 63',quantity:10,wholesale:5280,retail:6600}]}]} products={[{id:2,name:'브레이크 호스 교체용 세트',wholesale:110000,retail:132000,category:'브레이크'},{id:3,name:'브레이크 호스 스테인리스 롱 타입',wholesale:125000,retail:150000,category:'브레이크'}]} customers={sample.customers} onUpdate={()=>{}} onBack={()=>{}}/>)}

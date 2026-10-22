@@ -1,3 +1,4 @@
+import { customerMatches } from '@/lib/customerSearch.mjs';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { kstDate, enrichInvoiceRecords, partitionInvoiceRecords, calculateInvoice } from '@/lib/invoiceLedger';
@@ -212,13 +213,7 @@ export default function InvoicesPage({
 
   const [outstandingSearch, setOutstandingSearch] = useState('');
   const filteredOutstanding = useMemo(() => {
-    const q = outstandingSearch.trim().toLowerCase().replace(/\s/g, '');
-    if (!q) return outstandingCustomers;
-    return outstandingCustomers.filter((c) => {
-      const n = (c.name || '').toLowerCase().replace(/\s/g, '');
-      const p = (c.phone || '').replace(/[\s-]/g, '');
-      return n.includes(q) || p.includes(q);
-    });
+    return outstandingCustomers.filter((c) => customerMatches(c, outstandingSearch));
   }, [outstandingCustomers, outstandingSearch]);
 
   // 이월 날짜별 그룹 — 업체 선택 시 해당 업체의 이월만 표시 (전체 모드 드로어용)

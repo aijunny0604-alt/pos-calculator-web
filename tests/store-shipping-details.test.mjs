@@ -14,3 +14,10 @@ test('누락 날짜는 미제공, 모르는 코드는 원문 보존',()=>{
  assert.equal(row.reason,'NEW_CODE');assert.equal(row.overdue,false);assert.equal(shippingDate(null),'미제공');assert.equal(shippingDate('invalid'),'미제공');
  assert.match(shippingDate('2026-10-15T16:00:00Z'),/16/);
 });
+
+
+test('상품 상태가 없으면 발송 성공 기록을 사용하고 실제 상품별 배송 상태는 보존한다',()=>{
+ const order={order_status:'confirmed',naver_dispatch_succeeded_at:'2026-10-22T00:00:00Z'};
+ assert.equal(storeShippingDetails(order,[{provider_product_name:'샘플'}])[0].status,'발송완료');
+ assert.equal(storeShippingDetails(order,[{raw_payload:{productOrder:{productOrderStatus:'DELIVERING'}}}])[0].status,'배송중');
+});

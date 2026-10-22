@@ -13,6 +13,17 @@ if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(in
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('catalogCheck')) tables.products = ['플랜지 FL 63','플랜지 FL 54','자바라 SF 63 S 길이 120','자바라 SF 63 S 길이 150','H64 바디','X64 바디','CH 150 64','플랜지 FL 76'].map((name,i)=>({id:i+201,name,category:name.includes('플랜지')?'플랜지':name.includes('자바라')?'자바라':'기타',stock:10+i,wholesale:5280+i*1000,retail:6600+i*1000}));
 const realFetch=window.fetch.bind(window);
+export function simulateDispatch(state, realtime = true) {
+ if (!import.meta.env.DEV || !new URLSearchParams(location.search).has('dispatchCheck')) return;
+ const order = { id:'DISPATCH-DEMO', provider:'naver', provider_order_id:'SAMPLE-DISPATCH', buyer_name:'발송 반응성 샘플', received_at:now, total_amount:10000,
+  order_status:state==='배송중'?'DELIVERING':'confirmed', naver_confirm_succeeded_at:now,
+  needs_naver_dispatch:state==='대기', naver_dispatch_succeeded_at:['성공','배송중'].includes(state)?now:null,
+  naver_dispatch_error:state==='실패'?'샘플 검증 실패':null };
+ tables.external_orders=[order];
+ tables.external_order_items=[{id:'DISPATCH-ITEM',external_order_id:order.id,provider_product_name:'샘플 부품',quantity:1,unit_price:10000}];
+ if(realtime)window.dispatchEvent(new CustomEvent('external-orders-changed',{detail:{eventType:'UPDATE',new:order}}));
+}
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('dispatchCheck')) simulateDispatch('대기',false);
 window.fetch=async(input,options={})=>{
  const url=new URL(typeof input==='string'?input:input.url,location.href);
  const method=(options.method||(input instanceof Request?input.method:'GET')).toUpperCase();
@@ -24,6 +35,7 @@ window.fetch=async(input,options={})=>{
   if(invoiceCheck === 'failure' && table === 'payment_records') return new Response('{}',{status:503});
   data=structuredClone(tables[table]||[]);
   const id=url.searchParams.get('id');if(id?.startsWith('eq.'))data=data.filter(row=>String(row.id)===id.slice(3));
+  if(id?.startsWith('in.(')) { const ids=id.slice(4,-1).split(',').map(value=>value.replaceAll('"','')); data=data.filter(row=>ids.includes(String(row.id))); }
  }else if(url.pathname.endsWith('/status'))data={connected:false,needsLogin:false,models:[]};
  else if(url.pathname.endsWith('/session'))data={token:'design-preview'};
  return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Content-Range':`0-${Math.max(0,data.length-1)}/${data.length||0}`}});

@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchStoreMonitorOrders } from '../src/lib/storeMonitorData.js';
+import { fetchStoreMonitorOrders, fetchStoreDispatchStates } from '../src/lib/storeMonitorData.js';
+
+test('발송 대기는 대상 ID의 상태만 조회하고 실패를 숨기지 않는다', async () => {
+  let count = 0;
+  const rows = await fetchStoreDispatchStates('https://example.test', {}, ['A','A','B'], async url => {
+    const params = new URL(url).searchParams;
+    assert.equal(params.get('id'), 'in.("A","B")');
+    assert.equal(params.get('select').includes('raw_payload'), false);
+    count++;
+    return new Response(JSON.stringify([{id:'A',naver_dispatch_succeeded_at:'2026-10-22T00:00:00Z'}]));
+  });
+  assert.equal(count, 1);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(await fetchStoreDispatchStates('https://example.test', {}, [], () => { throw Error('호출 금지'); }), []);
+  await assert.rejects(fetchStoreDispatchStates('https://example.test', {}, ['A'], async () => new Response('{}',{status:503})), /503/);
+});
 
 test('최신 200건 밖의 미발송을 페이지 끝까지 읽고 중복은 제거한다', async () => {
   const waiting = Array.from({length:503}, (_,i)=>({id:`W${i}`,order_status:'converted',internal_order_id:`POS${i}`}));

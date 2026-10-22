@@ -1,13 +1,15 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-10-22 (제품 교체창 안정화·제품명/규격 검색 개선)
+> 마지막 업데이트: 2026-10-22 (스토어 발송 반응성·업체 검색·전체 모션·무비스 대화)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
 
 ## 2026-10-22 최신 변경
 
-운영 웹 최종 반영은 13:06:50 KST, Pages `9fb58c1d` / 기능 소스 `33276dd7`. 파일 12개 해시와 실제 검색 검증 완료. [변경 이력](docs/CHANGELOG.md), [최신 검증 범위](docs/TESTING.md). 문서 후속 커밋과 정적 웹 배포 버전은 구분한다.
+통합 변경: [업체 검색·전체 모션 점검](docs/CUSTOMER-SEARCH-MOTION-2026-10-22.md). 업체 검색 공통화, 스토어 고객응대 진입점 제거, 사용자 요청에 따른 전체 상시 모션 및 무비스 대화 연출. 스토어 발송 배지·반응성까지 포함해 172 통과 / 0 실패 / 1 건너뜀. [발송 점검](docs/STORE-DISPATCH-LIVE-2026-10-22.md), 최신 완료 버전은 [배포 기록](docs/DEPLOYMENT-2026-10-22.md) 참조.
+
+직전 운영 웹 반영은 13:06:50 KST, Pages `9fb58c1d` / 기능 소스 `33276dd7`. 파일 12개 해시와 실제 검색 검증 완료. [변경 이력](docs/CHANGELOG.md), [최신 검증 범위](docs/TESTING.md). 문서 후속 커밋과 정적 웹 배포 버전은 구분한다.
 
 [제품 교체창](docs/PRODUCT-REPLACEMENT-UI-2026-10-22.md), [제품 검색](docs/CATALOG-SEARCH-2026-10-22.md): 결과 수와 무관한 고정 모달 및 모바일 내부 스크롤. 제품 종류 우선 검색, 정확 규격이 없을 때만 플랜지·자바라 근접 구경 후보 안내. 전체 164 통과 / 0 실패 / 1 건너뜀.
 

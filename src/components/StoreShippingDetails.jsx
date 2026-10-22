@@ -1,3 +1,4 @@
+import { isStoreAwaitingDispatch } from '../lib/storeOrderView';
 import {storeShippingDetails,shippingDate} from '../lib/storeShippingDetails';
 export default function StoreShippingDetails({order,items=[]}) {
   const rows=storeShippingDetails(order,items);
@@ -14,6 +15,6 @@ export default function StoreShippingDetails({order,items=[]}) {
       </dl>
       {row.detail&&<p className="text-sm whitespace-pre-wrap break-words rounded-lg p-2" style={{background:'var(--muted)'}}>{row.detail}</p>}
     </div>)}
-    {(order.needs_naver_dispatch||order.needs_naver_confirm)&&<p className="text-xs">POS 처리 요청 대기 · 네이버 반영 전{order.naver_dispatch_next_retry_at?` · 다음 재시도 ${shippingDate(order.naver_dispatch_next_retry_at)}`:''}</p>}
+    {isStoreAwaitingDispatch(order,items)&&(order.needs_naver_dispatch||order.needs_naver_confirm)&&<p className="text-xs">POS 처리 요청 대기 · 네이버 반영 전{order.naver_dispatch_next_retry_at?` · 다음 재시도 ${shippingDate(order.naver_dispatch_next_retry_at)}`:''}</p>}
   </section>;
 }

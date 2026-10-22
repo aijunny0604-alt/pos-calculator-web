@@ -1,3 +1,4 @@
+import { shouldReduceMotion } from '@/lib/appMotion.mjs';
 // 타이프라이터 효과 훅 — 텍스트를 글자별로 점진적 표시
 // prefers-reduced-motion 시 즉시 전체 표시
 
@@ -15,7 +16,7 @@ export default function useTypewriter(text, { speed = 25, enabled = true, startD
     }
     // reduced motion 감지
     const reduced = typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      shouldReduceMotion();
     if (reduced) {
       setDisplayed(text);
       setDone(true);

@@ -1,4 +1,4 @@
-import { fetchStoreMonitorOrders } from './storeMonitorData.js';
+import { fetchStoreMonitorOrders, fetchStoreDispatchStates } from './storeMonitorData.js';
 import { positiveMoney, paymentRows } from './paymentSafety';
 import { isPersistedResult } from './movisReliability';
 import { fetchPosJSON as fetchJSON, fetchPosRows } from './posConnection';
@@ -1214,6 +1214,9 @@ export const supabase = {
   // 조회 실패를 빈 목록으로 바꾸지 않는다. 화면에서 기존 목록을 유지하며 재시도를 안내한다.
   async getStoreMonitorOrders() {
     return fetchStoreMonitorOrders(SUPABASE_URL, headers);
+  },
+  async getStoreDispatchStates(ids) {
+    return fetchStoreDispatchStates(SUPABASE_URL, headers, ids);
   },
   // 네이버 스토어(엠파츠) 상품 카탈로그 — sync.js가 채운 external_products (MOVIS 검색용)
   async getExternalProducts({ limit = 5000 } = {}) {

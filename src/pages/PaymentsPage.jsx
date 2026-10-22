@@ -1,3 +1,4 @@
+import { customerMatches } from '@/lib/customerSearch.mjs';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { exportFilteredExcel, exportPaymentsExcel } from '@/lib/exportExcel';
@@ -78,7 +79,7 @@ export default function PaymentsPage({ customers, onOpenPayment, onEditHistory, 
       list = list.filter((r) =>
         (r.invoice_number || '').toLowerCase().includes(q) ||
         (r.order_id || '').toString().includes(q) ||
-        customerName(r.customer_id).toLowerCase().includes(q)
+        customerMatches({ name: customerName(r.customer_id) }, q)
       );
     }
     return list;

@@ -959,8 +959,8 @@ export default function CustomerList({
               {filteredCustomers.length === 0 ? (
                 <EmptyState
                   icon={Building}
-                  title="등록된 거래처가 없습니다"
-                  description="관리자 페이지에서 거래처를 추가하세요"
+                  title={customers?.length ? '조건에 맞는 거래처가 없습니다' : '등록된 거래처가 없습니다'}
+                  description={customers?.length ? '검색어나 선택한 필터를 확인해주세요' : '관리자 페이지에서 거래처를 추가하세요'}
                 />
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

@@ -1,5 +1,7 @@
 /* 채팅 모션은 CSS만으로 동작한다. OS 모션 설정과 무관한 연출은 사용자 요청에 따른다. */
 .movis-v2 .movis-message-row { margin-block:16px 23px; }
+.movis-v2 .movis-workspace {animation:movis-workspace-arrive .48s ease-out backwards}
+.movis-v2 .movis-composer-wrap {animation:movis-composer-arrive .52s cubic-bezier(.16,1,.3,1) backwards}
 .movis-v2 .movis-message-card {
   isolation:isolate;
   transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,border-color .3s ease;
@@ -16,16 +18,16 @@
 .movis-message-card:focus-within .movis-message-time {opacity:1}
 @media (hover:hover) and (pointer:fine) {
   .movis-v2 .movis-message-card:hover {
-    transform:translateY(-2px);border-color:#87d5eb85!important;
+    transform:translateY(-2px) scale(1.006);border-color:#87d5eb85!important;
     box-shadow:0 14px 32px #0006,0 0 25px #79d4ee12,inset 0 1px 0 #d8faff16!important;
   }
   .movis-message-card:hover::before {opacity:1}
-  .movis-v2 .movis-composer:hover {border-color:#8bcbdf55}
+  .movis-v2 .movis-composer:hover {border-color:#8bcbdf55;background:#12212be6}
   .movis-send:not(:disabled):hover svg {transform:translateY(-3px)}
   .movis-send:not(:disabled):hover {box-shadow:0 0 22px #91e6f244}
 }
-.movis-message-row.is-entering.is-user {animation:movis-user-arrive .42s cubic-bezier(.16,1,.3,1) both}
-.movis-message-row.is-entering.is-assistant {animation:movis-answer-arrive .58s cubic-bezier(.16,1,.3,1) both}
+.movis-message-row.is-entering.is-user {transform-origin:bottom right;animation:movis-user-arrive .42s cubic-bezier(.16,1,.3,1) backwards}
+.movis-message-row.is-entering.is-assistant {animation:movis-answer-arrive .52s cubic-bezier(.16,1,.3,1) backwards}
 .movis-message-row.is-entering .movis-message-card::before {animation:movis-answer-settle 1.1s ease-out}
 .movis-v2 .movis-live-answer {
   position:relative;isolation:isolate;overflow:hidden;min-height:102px;
@@ -57,8 +59,9 @@
 .movis-stream-cursor {display:inline-block;width:5px;height:13px;margin-top:8px;border-radius:2px;background:#9be4f1;box-shadow:0 0 10px #72d7f055;animation:movis-answer-glow 1s ease-in-out infinite}
 .movis-v2 .movis-composer {position:relative;transition:border-color .3s,box-shadow .3s,background .3s}
 .movis-composer::before {content:'';position:absolute;top:0;left:12%;right:12%;height:1px;background:linear-gradient(90deg,transparent,#afeef6,transparent);opacity:0;pointer-events:none;transition:opacity .35s}
-.movis-v2 .movis-composer:focus-within {box-shadow:0 8px 36px #0004,0 0 28px #64c6e10b;border-color:#81c9df80}
+.movis-v2 .movis-composer:focus-within {background:#12212be6;box-shadow:0 12px 40px #0004,0 0 0 3px #79cee90a,0 0 32px #64c6e112;border-color:#81c9df90}
 .movis-composer:focus-within::before {opacity:.8}
+.movis-send-ripple {position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(105deg,transparent 15%,#8de4ed18 50%,transparent 85%);animation:movis-send-release .48s ease-out both}
 .movis-send,.movis-send svg {transition:transform .22s ease,box-shadow .22s ease}
 .movis-send:not(:disabled):active {transform:scale(.93)}
 .chat-state-thinking .movis-composer::before,.chat-state-responding .movis-composer::before {opacity:.65;animation:movis-answer-glow 2s ease-in-out infinite}
@@ -68,7 +71,10 @@
  .movis-live-header button {min-height:44px}
  .movis-answer-phase {font-size:10px}
 }
-@keyframes movis-user-arrive {from{opacity:0;transform:translate(10px,14px)}to{opacity:1;transform:none}}
+@keyframes movis-workspace-arrive {from{opacity:.3}to{opacity:1}}
+@keyframes movis-composer-arrive {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes movis-send-release {from{opacity:1;transform:translateX(-65%)}to{opacity:0;transform:translateX(65%)}}
+@keyframes movis-user-arrive {from{opacity:0;transform:translate(6px,12px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes movis-answer-arrive {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes movis-line-arrive {from{opacity:.2;transform:translateY(3px)}to{opacity:1;transform:none}}
 @keyframes movis-answer-settle {0%,40%{opacity:1}100%{opacity:0}}

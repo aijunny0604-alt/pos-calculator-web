@@ -1,3 +1,4 @@
+import { shouldReduceMotion } from '@/lib/appMotion.mjs';
 // 양자 우주 공간 — Canvas 다층 레이어
 // 1. 별 필드 (정적, 300개)
 // 2. 성운 가스 (5개 거대 radial gradient, 천천히 이동)
@@ -32,7 +33,7 @@ export default function QuantumSpaceField({ density = 'high' }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const reduced = shouldReduceMotion();
 
     const isMobile = window.innerWidth < 640;
     // 점 개수

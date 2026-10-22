@@ -45,11 +45,14 @@ export default function ChatPanel({
     [preview, setPreview] = useState(''),
     [attachmentError, setAttachmentError] = useState(''),
     [dragging, setDragging] = useState(false),
-    [reading, setReading] = useState(false);
+    [reading, setReading] = useState(false),
+    [sendPulse, setSendPulse] = useState(0);
   const dragDepth = useRef(0), sending = useRef(false);
   const messageKey = (m, i) => m.id || `${m.role}:${m.ts ?? i}`;
   const seenMessages = useRef(new Set(messages.map(messageKey)));
+  const wasStreaming = useRef(false);
   useEffect(() => { messages.forEach((m, i) => seenMessages.current.add(messageKey(m, i))); }, [messages]);
+  useEffect(() => { wasStreaming.current = Boolean(streamingText); }, [streamingText]);
   const input = useRef(null),
     scroll = useRef(null),
     file = useRef(null),
@@ -88,6 +91,7 @@ export default function ChatPanel({
       } else onSend?.(value);
       setAttached(null);
       setText('');
+      setSendPulse(count => count + 1);
       input.current?.focus();
     } catch (error) { setAttachmentError(error.message); }
     finally { sending.current = false; setReading(false); }
@@ -145,7 +149,7 @@ export default function ChatPanel({
       const el = scroll.current;
       follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
     }}>
-      <div className="movis-conversation-inner">{messages.map((m, i) => <MessageBubble key={messageKey(m, i)} animateEntrance={!seenMessages.current.has(messageKey(m, i))} message={m} enableTypewriter={false} customers={customers} onCertRegister={onCertRegister} onFollowUpClick={q => !isLoading && !disabled && onSend?.(q)} userQuery={[...messages.slice(0, i)].reverse().find(x => x.role === 'user')?.content} />)}
+      <div className="movis-conversation-inner">{messages.map((m, i) => <MessageBubble key={messageKey(m, i)} animateEntrance={!seenMessages.current.has(messageKey(m, i)) && !(wasStreaming.current && m.role === 'assistant' && i === messages.length - 1)} message={m} enableTypewriter={false} customers={customers} onCertRegister={onCertRegister} onFollowUpClick={q => !isLoading && !disabled && onSend?.(q)} userQuery={[...messages.slice(0, i)].reverse().find(x => x.role === 'user')?.content} />)}
       {isLoading && <div className={`movis-live-answer ${streamingText ? 'is-streaming' : 'is-thinking'}`} aria-busy="true"><div className="movis-live-header"><span className="movis-answer-orbit" aria-hidden="true" /> MOVIS <span className="movis-answer-phase" role="status">{streamingText ? '답변 작성 중' : '생각 정리 중'}</span><button onClick={() => setShowTrace(v => !v)}>{loadingStep}<ChevronDown size={13} /></button></div>{showTrace && <ol className="movis-trace">{loadingSteps.map(s => <li key={s.id} className={s.status}>{s.status === 'done' ? '✓' : '•'} {s.label}</li>)}</ol>}{streamingText ? <div className="movis-stream-content"><MovisMarkdown content={streamingText} /><span className="movis-stream-cursor" aria-hidden="true" /></div> : <div className="movis-thinking-bars" aria-hidden="true"><i /><i /><i /><i /><i /></div>}</div>}
       </div>
     </div>}
@@ -153,7 +157,7 @@ export default function ChatPanel({
       {awaitingConfirmation && <div className="movis-confirm-hint">확인창에서 변경 내용을 적용하거나 취소하면 대화를 이어갈 수 있습니다.</div>}
       {attachmentError && <div className="movis-attachment-error" role="alert">{attachmentError}</div>}
       {attached && <div className="movis-attachment">{preview && <img src={preview} alt="첨부 이미지 미리보기" />}<span>{attached.name || '붙여넣은 이미지'}</span><button disabled={reading} onClick={() => { setAttached(null); setAttachmentError(''); }} aria-label="첨부 취소"><X size={14} /></button></div>}
-      <div className="movis-composer"><textarea ref={input} aria-label="무비스에게 요청" value={text} maxLength={16000} onChange={e => setText(e.target.value)} onKeyDown={e => {
+      <div className="movis-composer">{sendPulse > 0 && <span key={sendPulse} className="movis-send-ripple" aria-hidden="true" />}<textarea ref={input} aria-label="무비스에게 요청" value={text} maxLength={16000} onChange={e => setText(e.target.value)} onKeyDown={e => {
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
             e.preventDefault();
             submit();

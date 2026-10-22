@@ -1,3 +1,4 @@
+import { shouldReduceMotion } from '@/lib/appMotion.mjs';
 ﻿// 인터랙티브 자비스 dot sphere — 살아있는 양자 구체
 // - Fibonacci sphere + 빠른 회전 (지구처럼)
 // - 5-8개 강한 빛 입자 (sphere 표면에 떠있는 큰 별)
@@ -71,7 +72,7 @@ export default function JarvisDotSphere({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const reduced = shouldReduceMotion();
 
     const isMobile = window.innerWidth < 640;
     const N = isMobile ? Math.floor(pointCount * 0.5) : pointCount;

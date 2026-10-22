@@ -1,3 +1,4 @@
+import { shouldReduceMotion } from '@/lib/appMotion.mjs';
 // 3D 자비스 홀로그램 HUD — 빈 상태 메인 그래픽
 // 다층 SVG + 양자 입자 궤도 + 3D 다이아몬드 + HUD 모서리 마커
 
@@ -14,7 +15,7 @@ export default function JarvisHologramHUD({ size = 'lg' }) {
   // 마우스 따라가는 미세 tilt (데스크탑)
   const containerRef = useRef(null);
   useEffect(() => {
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const reduced = shouldReduceMotion();
     if (reduced) return;
     const el = containerRef.current;
     if (!el) return;

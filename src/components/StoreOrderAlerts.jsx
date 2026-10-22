@@ -79,7 +79,7 @@ export default function StoreOrderAlerts() {
         if (isStoreAlertSoundOn()) playAlertSound('order');
         osNotify('🛍️ 새 주문 도착!', `${o.buyer_name || '구매자'}${o.total_amount ? ` · ${fmt(o.total_amount)}원` : ''}`, 'order');
         setEvent(previous => previous?.kind === 'cancel' ? previous : { kind: 'order', title: '🛍️ 새 주문 도착!', name: o.buyer_name || '구매자', sub: o.total_amount ? `${fmt(o.total_amount)}원` : '', ts: Date.now() });
-        window.dispatchEvent(new CustomEvent('external-orders-changed'));
+        window.dispatchEvent(new CustomEvent('external-orders-changed', { detail: p }));
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'external_orders' }, (p) => {
         const o = p.new || {};
@@ -93,7 +93,7 @@ export default function StoreOrderAlerts() {
           osNotify(`⚠️ ${label} 발생`, `${o.buyer_name || '구매자'}${o.provider_order_id ? ` · #${o.provider_order_id}` : ''}`, 'cancel');
           setEvent({ kind: 'cancel', title: `⚠️ ${label} 발생`, name: o.buyer_name || '구매자', sub: o.provider_order_id ? `주문 #${o.provider_order_id}` : '', ts: Date.now() });
         }
-        window.dispatchEvent(new CustomEvent('external-orders-changed'));
+        window.dispatchEvent(new CustomEvent('external-orders-changed', { detail: p }));
       })
       .subscribe();
     return () => { supabaseClient.removeChannel(ch); };

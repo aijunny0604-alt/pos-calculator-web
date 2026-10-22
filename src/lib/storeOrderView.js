@@ -11,11 +11,18 @@ export function storeOrderStatus(order, items = []) {
   const sources = items.length ? items : (order?.raw_payload?.productOrder ? [{ raw_payload: order.raw_payload }] : []);
   const statuses = sources.map(item => item.raw_payload?.productOrder?.productOrderStatus || item.order_status || base)
     .filter(status => !['CANCELED', 'CANCELED_BY_NOPAYMENT', 'RETURNED', 'EXCHANGED', 'cancelled'].includes(status));
-  if (!statuses.length) return base;
   const delivered = status => ['DELIVERED', 'DELIVERED_COMPLETED', 'PURCHASE_DECIDED'].includes(status);
-  if (statuses.every(delivered)) return 'DELIVERED';
-  if (statuses.every(status => delivered(status) || status === 'DELIVERING')) return 'DELIVERING';
+  if (statuses.length && statuses.every(delivered)) return 'DELIVERED';
+  if (base === 'DELIVERING' || (statuses.length && statuses.every(status => delivered(status) || status === 'DELIVERING'))) return 'DELIVERING';
+  // 발송 API 성공은 원본 주문 상태 동기화보다 먼저 도착할 수 있다.
+  // 송장 입력/큐 등록만으로는 완료 처리하지 않으며 배송중 단계도 되돌리지 않는다.
+  if (base !== 'CANCEL_REQUEST' && order?.naver_dispatch_succeeded_at) return 'shipped';
   return base;
+}
+
+export function storeRefreshInterval(orders, itemsByOrder = {}) {
+  return orders.some(order => isStoreAwaitingDispatch(order, itemsByOrder[order.id] || [])
+    && (order.needs_naver_dispatch || order.needs_naver_confirm)) ? 5000 : 45000;
 }
 
 export function isStoreOrderTerminal(order, items = []) {
