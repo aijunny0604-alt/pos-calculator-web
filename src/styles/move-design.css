@@ -511,3 +511,46 @@
   .shipping-export-content { max-height: min(42dvh, 340px); padding-top: 4px; }
   .shipping-export-content button { min-height: 44px; }
 }
+
+/* 거래처 주문 상세: 내용 높이, 고정 헤더·푸터, 본문 스크롤 */
+.customer-order-dialog { color: var(--foreground); }
+.customer-order-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:22px 24px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.customer-order-heading { display:flex; align-items:center; gap:12px; min-width:0; }
+.customer-order-heading h2 { font-size:21px; font-weight:750; line-height:1.35; }
+.customer-order-heading p { margin-top:4px; color:var(--muted-foreground); font-size:13px; overflow-wrap:anywhere; }
+.customer-order-icon { display:grid; place-items:center; width:44px; height:44px; border-radius:13px; color:var(--primary); background:color-mix(in srgb,var(--primary) 9%,var(--card)); flex-shrink:0; }
+.customer-order-tools { display:flex; gap:6px; flex-shrink:0; }
+.customer-order-tools button { display:grid; place-items:center; width:42px; height:42px; border:1px solid var(--border); border-radius:12px; color:var(--foreground); background:var(--secondary); }
+.customer-order-tools button:hover { background:var(--accent); }
+.customer-order-body { padding:24px; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+.customer-order-summary { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:24px; padding:22px; margin-bottom:24px; border:1px solid var(--border); border-radius:16px; background:color-mix(in srgb,var(--primary) 4%,var(--card)); }
+.customer-order-total > div:first-child { font-size:13px; color:var(--muted-foreground); }
+.customer-order-total > strong { display:block; margin-top:8px; font-size:32px; line-height:1.25; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.035em; }
+.customer-order-total > strong small { font-size:15px; margin-left:4px; font-weight:600; }
+.customer-order-price-type { font-size:11px; padding:3px 7px; border-radius:6px; border:1px solid var(--border); }
+.order-discount-chip { display:inline-flex; flex-shrink:0; align-items:center; padding:3px 7px; border-radius:6px; font-size:11px; line-height:1.2; font-weight:600; color:var(--warning); background:color-mix(in srgb,var(--warning) 10%,var(--card)); }
+.customer-order-saving { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; font-size:13px; font-variant-numeric:tabular-nums; }
+.customer-order-saving s { color:var(--muted-foreground); }
+.customer-order-saving span, .customer-order-item-saving { color:var(--warning); font-weight:600; }
+.customer-order-tax { display:flex; flex-direction:column; justify-content:center; gap:12px; border-left:1px solid var(--border); padding-left:24px; font-size:13px; }
+.customer-order-tax div { display:flex; justify-content:space-between; gap:12px; }
+.customer-order-tax dt { color:var(--muted-foreground); }
+.customer-order-tax dd { margin:0; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.customer-order-item { display:flex; align-items:center; justify-content:space-between; gap:22px; padding:20px; }
+.customer-order-unit { display:flex; flex-wrap:wrap; align-items:baseline; gap:7px; margin-top:10px; font-size:13px; color:var(--muted-foreground); }
+.customer-order-unit strong { font-size:17px; font-weight:650; color:var(--foreground); font-variant-numeric:tabular-nums; }
+.customer-order-unit s { font-size:12px; }
+.customer-order-item-saving { font-size:12px; margin-top:7px; }
+@media(max-width:600px) {
+ .customer-order-header { padding:16px; gap:8px; }
+ .customer-order-heading { gap:8px; }
+ .customer-order-icon { display:none; }
+ .customer-order-heading h2 { font-size:19px; }
+ .customer-order-heading p { font-size:12px; }
+ .customer-order-body { padding:16px; }
+ .customer-order-summary { grid-template-columns:1fr; padding:18px; gap:16px; margin-bottom:20px; }
+ .customer-order-total > strong { font-size:30px; }
+ .customer-order-tax { padding:14px 0 0; border-left:0; border-top:1px solid var(--border); gap:8px; }
+ .customer-order-item { display:block; padding:16px; }
+ .customer-order-item > p:last-child { border-top:1px solid var(--border); padding-top:12px; margin-top:12px; }
+}

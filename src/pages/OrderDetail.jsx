@@ -1,3 +1,4 @@
+import { itemDiscountText, orderDiscountText } from '@/lib/discount';
 import ProductReplacementModal from '@/components/ProductReplacementModal';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
@@ -642,12 +643,14 @@ export default function OrderDetail({
     text += `[ 상품 목록 ]\n\n`;
     order.items.forEach((item, index) => {
       text += `${index + 1}. ${item.name}\n`;
+      text += itemDiscountText(item, order.priceType, formatPrice);
       text += `   ${formatPrice(getItemPrice(item))}원 × ${item.quantity}개 = ${formatPrice(getItemPrice(item) * item.quantity)}원\n\n`;
     });
     text += `[ 결제 정보 ]\n\n`;
     text += `총 수량: ${totalQuantity}개\n`;
     text += `공급가액: ${formatPrice(exVat)}원\n`;
     text += `부가세: ${formatPrice(vat)}원\n`;
+    text += orderDiscountText(order, formatPrice);
     text += `총 금액: ${formatPrice(order.totalAmount)}원\n\n`;
     if (order.memo) text += `메모: ${order.memo}\n\n`;
     text += `입금 계좌: 신한은행 010-5858-6046 무브모터스\n\n`;

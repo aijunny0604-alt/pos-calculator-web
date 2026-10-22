@@ -1,3 +1,4 @@
+import { itemDiscountText, orderDiscountText } from '@/lib/discount';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useMemo } from 'react';
@@ -509,12 +510,14 @@ export default function OrderHistory({
     text += `[ 상품 목록 ]\n\n`;
     items.forEach((it, i) => {
       text += `${i + 1}. ${it.name}\n`;
+      text += itemDiscountText(it, order.priceType, won);
       text += `   ${won(priceOf(it))}원 × ${it.quantity}개 = ${won(priceOf(it) * Number(it.quantity || 0))}원\n\n`;
     });
     text += `[ 결제 정보 ]\n\n`;
     text += `총 수량: ${totalQty}개\n`;
     text += `공급가액: ${won(supply)}원\n`;
     text += `부가세: ${won(total - supply)}원\n`;
+    text += orderDiscountText(order, won);
     text += `총 금액: ${won(total)}원\n\n`;
     text += `입금 계좌: 신한은행 010-5858-6046 무브모터스\n\n`;
     text += `※ 입금 확인 후 빠른 출고로 보답하겠습니다.\n`;

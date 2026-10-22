@@ -56,6 +56,8 @@ export default function App() {
       return next;
     });
   }, []);
+  const [movisVisited, setMovisVisited] = useState(currentPage === 'ai-analytics');
+  useEffect(() => { if (currentPage === 'ai-analytics') setMovisVisited(true); }, [currentPage]);
   const [aiOrderText, setAiOrderText] = useState('');
   // 명세서 페이지로 점프 시 자동 선택할 업체 ID (페이먼트/업체관리 → 명세서 cross-navigation)
   const [invoicesInitialCustomerId, setInvoicesInitialCustomerId] = useState(null);
@@ -1216,24 +1218,7 @@ export default function App() {
         );
 
       case 'ai-analytics':
-        return (
-          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>AI 분석 로드 중...</div>}>
-            <AIAnalytics
-              setSavedCarts={setSavedCarts}
-              setOrders={setOrders}
-              orders={orders}
-              customers={customers}
-              products={products}
-              savedCarts={savedCarts}
-              aiLearningData={aiLearningData}
-              setProducts={setProducts}
-              setCustomers={setCustomers}
-              setCurrentPage={setCurrentPage}
-              showToast={showToast}
-              saveOrder={saveOrder}
-            />
-          </Suspense>
-        );
+        return null; // AppLayout의 고정 세션 영역에서 렌더링한다.
 
       case 'smartstore':
         return (
@@ -1332,6 +1317,27 @@ export default function App() {
         savedCartCount={savedCartCount}
         shippingCount={shippingCount}
         smartstoreCount={smartstoreCount}
+        persistentContent={(movisVisited || currentPage === 'ai-analytics') && (
+          <ChunkErrorBoundary>
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>AI 분석 로드 중...</div>}>
+            <AIAnalytics
+              isActive={currentPage === 'ai-analytics'}
+              setSavedCarts={setSavedCarts}
+              setOrders={setOrders}
+              orders={orders}
+              customers={customers}
+              products={products}
+              savedCarts={savedCarts}
+              aiLearningData={aiLearningData}
+              setProducts={setProducts}
+              setCustomers={setCustomers}
+              setCurrentPage={setCurrentPage}
+              showToast={showToast}
+              saveOrder={saveOrder}
+            />
+          </Suspense>
+          </ChunkErrorBoundary>
+        )}
       >
         {/* 예약일 알림 띠 — 예약일이 됐는데 아직 주문 안 넘긴 저장 장바구니를 상기.
             팝업이 아니라 띠라서 작업을 막지 않고, [30분 뒤에]로 스누즈 가능.

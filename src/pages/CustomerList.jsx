@@ -1,3 +1,4 @@
+import { itemDiscountText, orderDiscountText, getItemDiscountSummary, getOrderDiscountSummary } from '@/lib/discount';
 import { customerMatches, orderProductMatches } from '@/lib/customerSearch.mjs';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
@@ -43,6 +44,7 @@ export default function CustomerList({
   const [certViewer, setCertViewer] = useState(null);         // 사업자등록증 이미지 확대 보기 URL
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(() => window.innerWidth < 768);
   const [detailOrder, setDetailOrder] = useState(null);
+  const detailDiscount = detailOrder ? getOrderDiscountSummary(detailOrder) : null;
   const [blacklistFilter, setBlacklistFilter] = useState('all');
   const [outstandingFilter, setOutstandingFilter] = useState(false); // 미수 있는 업체만
   const [sortBy, setSortBy] = useState('name'); // 'name' | 'outstanding'
@@ -365,7 +367,8 @@ export default function CustomerList({
   const copyOrderText = (order) => {
     const lines = [
       formatDate(order.createdAt),
-      ...(order.items || []).map(item => `${item.name} x${item.quantity}  ${formatPrice(item.price * item.quantity)}`),
+      ...(order.items || []).map(item => `${item.name} x${item.quantity}  ${formatPrice(Number(item.price ?? item.wholesale ?? item.retail ?? 0) * item.quantity)}원\n${itemDiscountText(item, order.priceType, formatPrice).trimEnd()}`),
+      orderDiscountText(order, formatPrice).trimEnd(),
       `총 금액: ${formatPrice(order.totalAmount)}`,
       order.memo ? `메모: ${order.memo}` : ''
     ].filter(Boolean).join('\n');
@@ -381,7 +384,8 @@ export default function CustomerList({
       '',
       ...customerOrders.map((order, idx) => [
         `━━━ ${idx + 1}. ${formatDate(order.createdAt)} ━━━`,
-        ...(order.items || []).map(item => `  ${item.name} x${item.quantity}  ${formatPrice(item.price * item.quantity)}`),
+        ...(order.items || []).map(item => `  ${item.name} x${item.quantity}  ${formatPrice(Number(item.price ?? item.wholesale ?? item.retail ?? 0) * item.quantity)}원\n${itemDiscountText(item, order.priceType, formatPrice).trimEnd()}`),
+        orderDiscountText(order, formatPrice).trimEnd(),
         `  → 소계: ${formatPrice(order.totalAmount)}`,
         order.memo ? `  메모: ${order.memo}` : ''
       ].filter(Boolean)).flat()
@@ -1118,95 +1122,50 @@ export default function CustomerList({
           onClick={() => { if (!isReturning) { setDetailOrder(null); setIsReturning(false); setReturnItems([]); } }}
         >
           <div
-            className="move-dialog bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col animate-modal-up modal-fs-transition"
-            style={{ maxWidth: isDetailFullscreen ? '100vw' : '52rem', maxHeight: isDetailFullscreen ? '100dvh' : '92dvh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+            role="dialog" aria-modal="true" aria-labelledby="customer-order-title"
+            className="move-dialog customer-order-dialog bg-[var(--card)] w-full border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col animate-modal-up modal-fs-transition"
+            style={{ height: isDetailFullscreen ? '100dvh' : 'auto', maxWidth: isDetailFullscreen ? '100vw' : '56rem', maxHeight: isDetailFullscreen ? '100dvh' : '92dvh', borderRadius: isDetailFullscreen ? '0' : '0.75rem', boxShadow: isDetailFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
-            <div
-              className="px-5 py-4 flex-shrink-0"
-              style={{ background: detailOrder.totalReturned > 0 ? 'var(--warning)' : 'var(--success)' }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 bg-white/20 rounded-lg flex items-center justify-center">
-                    <Receipt className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-xl sm:text-2xl font-bold text-white">주문 상세</h2>
-                      {detailOrder.totalReturned > 0 && (
-                        <span className="px-2 py-0.5 bg-white/20 rounded-full text-sm text-white font-medium flex items-center gap-1">
-                          <RotateCcw className="w-3.5 h-3.5" /> 반품
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-base" style={{ color: 'rgba(255,255,255,0.85)' }}>
-                      {formatDate(detailOrder.createdAt)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={toggleDetailFullscreen}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                    title={isDetailFullscreen ? '원래 크기' : '전체화면'}
-                  >
-                    {isDetailFullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
-                  </button>
-                  <button
-                    onClick={() => { setDetailOrder(null); setIsReturning(false); setReturnItems([]); }}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                    title="닫기"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+            <header className="customer-order-header">
+              <div className="customer-order-heading">
+                <span className="customer-order-icon"><Receipt size={23}/></span>
+                <div className="min-w-0">
+                  <h2 id="customer-order-title">주문 상세</h2>
+                  <p>{selectedCustomer?.name || detailOrder.customerName} · {formatDate(detailOrder.createdAt)}</p>
                 </div>
               </div>
-            </div>
+              <div className="customer-order-tools">
+                <button onClick={toggleDetailFullscreen} title={isDetailFullscreen ? '원래 크기' : '전체화면'} aria-label={isDetailFullscreen ? '원래 크기' : '전체화면'}>
+                  {isDetailFullscreen ? <Minimize2 size={19}/> : <Maximize2 size={19}/>}
+                </button>
+                <button onClick={() => { setDetailOrder(null); setIsReturning(false); setReturnItems([]); }} title="닫기" aria-label="주문 상세 닫기"><X size={22}/></button>
+              </div>
+            </header>
 
             {/* Modal content */}
-            <div className="p-5 overflow-y-auto flex-1">
-              {/* Amount summary */}
-              <div className="bg-[var(--secondary)] rounded-xl p-5 mb-5">
-                <div className={`grid gap-4 text-center ${detailOrder.totalReturned > 0 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                  <div>
-                    <p className="text-[var(--muted-foreground)] text-sm mb-1.5">총 금액</p>
-                    <p className="font-black text-2xl sm:text-3xl tabular-nums" style={{ color: 'var(--success)' }}>{formatPrice(detailOrder.totalAmount)}</p>
-                  </div>
-                  {detailOrder.totalReturned > 0 ? (
-                    <div>
-                      <p className="text-[var(--muted-foreground)] text-sm mb-1.5">반품 금액</p>
-                      <p className="font-black text-2xl sm:text-3xl tabular-nums" style={{ color: 'var(--warning)' }}>-{formatPrice(detailOrder.totalReturned)}</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div>
-                        <p className="text-[var(--muted-foreground)] text-sm mb-1.5">공급가액</p>
-                        <p className="font-bold text-xl sm:text-2xl tabular-nums" style={{ color: 'var(--primary)' }}>{formatPrice(calcExVat(detailOrder.totalAmount))}</p>
-                      </div>
-                      <div>
-                        <p className="text-[var(--muted-foreground)] text-sm mb-1.5">부가세</p>
-                        <p className="font-bold text-xl sm:text-2xl tabular-nums" style={{ color: 'var(--purple)' }}>{formatPrice(detailOrder.totalAmount - calcExVat(detailOrder.totalAmount))}</p>
-                      </div>
-                    </>
-                  )}
+            <div className="customer-order-body min-h-0 overflow-y-auto flex-1">
+              <section className="customer-order-summary">
+                <div className="customer-order-total">
+                  <div className="flex flex-wrap items-center gap-2"><span>총 금액</span><span className="customer-order-price-type">{detailOrder.priceType === 'retail' ? '소매가' : '도매가'}</span>{detailDiscount.hasDiscount && <span className="order-discount-chip">할인</span>}</div>
+                  <strong style={{color: detailOrder.priceType === 'retail' ? 'var(--destructive)' : 'var(--primary)'}}>{formatPrice(detailOrder.totalAmount)}<small>원</small></strong>
+                  {detailDiscount.originalTotal != null && <div className="customer-order-saving"><s>{formatPrice(detailDiscount.originalTotal)}원</s><span>−{formatPrice(detailDiscount.saved)}원</span></div>}
+                  {detailDiscount.hasDiscount && detailDiscount.saved == null && <p className="text-xs text-[var(--muted-foreground)]">일부 할인 전 단가 기록 없음</p>}
                 </div>
-                {detailOrder.totalReturned > 0 && (
-                  <div className="mt-4 pt-4 border-t border-[var(--border)]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[var(--muted-foreground)] text-base font-medium">실결제액</span>
-                      <span className="text-[var(--primary)] font-black text-2xl sm:text-3xl tabular-nums">{formatPrice(detailOrder.totalAmount - detailOrder.totalReturned)}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+                <dl className="customer-order-tax">
+                  <div><dt>공급가액</dt><dd>{formatPrice(calcExVat(detailOrder.totalAmount))}원</dd></div>
+                  <div><dt>부가세</dt><dd>{formatPrice(detailOrder.totalAmount - calcExVat(detailOrder.totalAmount))}원</dd></div>
+                  {detailOrder.totalReturned > 0 && <><div><dt>반품 금액</dt><dd>−{formatPrice(detailOrder.totalReturned)}원</dd></div><div><dt>실결제액</dt><dd>{formatPrice(detailOrder.totalAmount - detailOrder.totalReturned)}원</dd></div></>}
+                </dl>
+              </section>
 
               {/* Items */}
               <div className="mb-5">
-                <p className="text-[var(--muted-foreground)] text-sm mb-2.5 font-semibold">상품 목록 ({(detailOrder.items || []).length}종)</p>
+                <p className="text-[var(--foreground)] text-sm mb-3 font-semibold">상품 목록 ({(detailOrder.items || []).length}종)</p>
                 <div className="bg-[var(--background)] rounded-xl border border-[var(--border)] divide-y divide-[var(--border)]">
                   {(detailOrder.items || []).map((item, idx) => {
+                    const discount = getItemDiscountSummary(item, detailOrder.priceType);
+                    const unit = Number(item.price ?? item.wholesale ?? item.retail ?? 0);
                     const returnedQty = (detailOrder.returns || []).reduce((sum, ret) => {
                       if (ret.itemId === item.id || ret.itemName === item.name) {
                         return sum + (ret.quantity || 0);
@@ -1216,12 +1175,13 @@ export default function CustomerList({
                     return (
                       <div
                         key={idx}
-                        className="flex justify-between items-center gap-3 p-3.5"
+                        className="customer-order-item"
                         style={returnedQty > 0 ? { background: 'color-mix(in srgb, var(--warning) 12%, transparent)' } : undefined}
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-base font-semibold break-words leading-snug">{item.name}</p>
+                            {discount.hasDiscount && <span className="order-discount-chip">할인</span>}
                             {returnedQty > 0 && (
                               <span
                                 className="px-2 py-0.5 text-xs rounded font-bold flex-shrink-0"
@@ -1234,20 +1194,19 @@ export default function CustomerList({
                               </span>
                             )}
                           </div>
-                          <p className="text-[var(--muted-foreground)] text-sm mt-0.5">
-                            수량: {item.quantity}개 × {formatPrice(item.price ?? item.wholesale ?? item.retail ?? 0)}원
-                            <span className="ml-1 text-xs opacity-75">(공급 {formatPrice(calcExVat(item.price ?? item.wholesale ?? item.retail ?? 0))}원)</span>
-                            {(item.price == null || Number(item.price) === 0) && (
-                              <span className="ml-1 text-xs text-red-500 font-bold">⚠️ 단가 누락</span>
-                            )}
-                          </p>
+                          <div className="customer-order-unit">
+                            <span>단가</span>{discount.saved != null && discount.hasDiscount && <s>{formatPrice(item.originalPrice)}원</s>}
+                            <strong>{formatPrice(unit)}원</strong><span>×</span><strong>{item.quantity}개</strong>
+                          </div>
+                          {discount.hasDiscount && discount.saved != null && <p className="customer-order-item-saving">할인 −{formatPrice(discount.saved)}원</p>}
+                          {item.price == null && item.wholesale == null && item.retail == null && <p className="text-xs text-red-500">단가 기록 없음</p>}
                         </div>
                         <p
                           className={`font-bold text-lg sm:text-xl text-right tabular-nums flex-shrink-0 ${returnedQty > 0 ? 'line-through' : ''}`}
                           style={{ color: returnedQty > 0 ? 'var(--warning)' : 'var(--success)' }}
                         >
-                          {formatPrice((Number(item.price) || Number(item.wholesale) || Number(item.retail) || 0) * item.quantity)}
-                          <span className="block text-xs font-normal leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat((Number(item.price) || Number(item.wholesale) || Number(item.retail) || 0) * item.quantity))}</span>
+                          {formatPrice(unit * item.quantity)}원
+                          <span className="block text-xs font-normal leading-tight" style={{ color: 'var(--muted-foreground)' }}>공급 {formatPrice(calcExVat(unit * item.quantity))}</span>
                         </p>
                       </div>
                     );
@@ -1319,7 +1278,6 @@ export default function CustomerList({
                   <p className="text-base leading-relaxed break-words">{detailOrder.memo}</p>
                 </div>
               )}
-            </div>
 
             {/* Return form */}
             {isReturning && (
@@ -1374,6 +1332,8 @@ export default function CustomerList({
               </div>
             )}
 
+            </div>
+
             {/* Modal footer buttons */}
             <div className="p-4 border-t border-[var(--border)] flex-shrink-0">
               {isReturning ? (
@@ -1403,9 +1363,10 @@ export default function CustomerList({
                         `[${selectedCustomer?.name || '업체명'}]`,
                         formatDate(detailOrder.createdAt),
                         '',
-                        ...(detailOrder.items || []).map(item => `${item.name} x${item.quantity}  ${formatPrice(item.price * item.quantity)}`),
+                        ...(detailOrder.items || []).map(item => `${item.name} x${item.quantity}  ${formatPrice(Number(item.price ?? item.wholesale ?? item.retail ?? 0) * item.quantity)}원\n${itemDiscountText(item, detailOrder.priceType, formatPrice).trimEnd()}`),
+                        orderDiscountText(detailOrder, formatPrice).trimEnd(),
                         '',
-                        `총 금액: ${formatPrice(detailOrder.totalAmount)}`,
+                        `총 금액: ${formatPrice(detailOrder.totalAmount)}원`,
                       ];
                       if (detailOrder.totalReturned > 0) {
                         lines.push(`반품: -${formatPrice(detailOrder.totalReturned)}`);

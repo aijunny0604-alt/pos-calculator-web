@@ -22,6 +22,7 @@ const TASKS = [{
   icon: ShieldCheck
 }];
 export default function ChatPanel({
+  active = true,
   messages = [],
   onSend,
   isLoading,
@@ -63,8 +64,8 @@ export default function ChatPanel({
     loaded = libraries.filter(s => s.status === 'loaded').length;
   const state = awaitingConfirmation ? 'review' : streamingText ? 'responding' : isLoading ? 'thinking' : 'standby';
   useEffect(() => {
-    if (follow.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
-  }, [messages.length, streamingText, loadingStep, isLoading]);
+    if (active && follow.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
+  }, [messages.length, streamingText, loadingStep, isLoading, active]);
   useEffect(() => {
     if (!attached) { setPreview(''); return; }
     const url = URL.createObjectURL(attached);

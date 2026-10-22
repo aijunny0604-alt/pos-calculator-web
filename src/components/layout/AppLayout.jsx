@@ -6,7 +6,7 @@ import MobileNav from './MobileNav';
 // 자체 레이아웃(sticky header, 패딩)을 관리하는 페이지
 const fullScreenPages = ['pos', 'orders', 'customers', 'saved-carts', 'stock', 'shipping', 'burnway-stock', 'ai-order', 'ai-analytics', 'smartstore'];
 
-export default function AppLayout({ children, currentPage, onNavigate, isOnline, orderCount = 0, savedCartCount = 0, shippingCount = 0, smartstoreCount = 0 }) {
+export default function AppLayout({ children, persistentContent, currentPage, onNavigate, isOnline, orderCount = 0, savedCartCount = 0, shippingCount = 0, smartstoreCount = 0 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isFullScreen = fullScreenPages.includes(currentPage);
 
@@ -90,9 +90,14 @@ export default function AppLayout({ children, currentPage, onNavigate, isOnline,
                쌓여도, 아래 페이지 래퍼(App.jsx의 flex-1 min-h-0)가 남은 높이만 차지해
                h-full 루트가 모바일 하단 네비 밑으로 넘치지 않는다 (2026-07-24 전수수정) */
             className={`animate-page-in ${isFullScreen ? 'h-full min-h-0 flex flex-col' : 'min-h-full h-full'}`}
-            style={pageAnimationStyle}
+            style={{ ...pageAnimationStyle, ...(persistentContent && currentPage === 'ai-analytics' ? { display: 'none' } : {}) }}
           >
             {children}
+          </div>
+          {/* 페이지 애니메이션 key 바깥에서 유지: 이동해도 무비스 요청·확인 대기를 보존한다. */}
+          <div key="movis-session" data-movis-session hidden={currentPage !== 'ai-analytics'}
+            className="h-full min-h-0 flex-col" style={{ display: currentPage === 'ai-analytics' ? 'flex' : 'none' }}>
+            {persistentContent}
           </div>
         </main>
       </div>

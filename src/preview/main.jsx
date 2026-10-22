@@ -1,3 +1,4 @@
+import DiscountPreview from './DiscountPreview';
 import InvoicesContainer from '../pages/InvoicesContainer';
 import CustomerSearchPreview from './CustomerSearchPreview';
 import MovisMotionPreview from './MovisMotionPreview';
@@ -6,10 +7,10 @@ enableAppMotion();
 import { invoiceFixture } from './invoiceFixture';
 import OrderHistory from '../pages/OrderHistory';
 import SmartStoreOrders from '../pages/SmartStoreOrders';
-import { discountOrders } from './discountFixture';
 import SavedCarts from '../pages/SavedCarts';
 import './network';
-import React,{useState} from 'react';
+import React,{useState,useEffect} from 'react';
+import { finishNavigationTurn } from './movisNavigationFixture';
 import {createRoot} from 'react-dom/client';
 import '../index.css';
 import '../styles/move-design.css';
@@ -41,12 +42,18 @@ function Controls(){
  <BulkPaymentModal open={modal==='bulk'} customer={sample.customers[0]} records={[{id:901,customer_id:1,balance:10000,invoice_date:'2026-10-01'},{id:902,customer_id:1,balance:20000,invoice_date:'2026-10-02'}]} onClose={close} onSaved={close}/>
  <PaymentEditModal open={modal==='edit'} history={{id:701,amount:10000,paid_at:'2026-10-14T23:15:37.000Z',method:'현금'}} onClose={close} onSaved={close}/></>;
 }
+function NavigationControls(){
+ const [stats,setStats]=useState({turns:0,cancellations:0});
+ useEffect(()=>{const onStats=e=>setStats(e.detail);window.addEventListener('movis-navigation-stats',onStats);return()=>window.removeEventListener('movis-navigation-stats',onStats)},[]);
+ return <div style={{position:'fixed',right:12,bottom:70,zIndex:9999,background:'white',border:'1px solid #ccd',borderRadius:12,padding:12,color:'#123'}}><span>샘플 요청 {stats.turns} · 취소 {stats.cancellations}</span><button style={{marginLeft:12,padding:8,border:'1px solid #ccd'}} onClick={finishNavigationTurn}>샘플 응답 완료</button></div>
+}
+if(import.meta.env.DEV && new URLSearchParams(location.search).has('movisNavigationCheck')) createRoot(document.getElementById('preview-controls')).render(<NavigationControls/>);
 // 별도 검증 URL에서만 테스트 도구를 표시한다. 기본 미리보기에는 표시하지 않는다.
 if (new URLSearchParams(location.search).get('tools') === '1') {
  document.documentElement.classList.add('preview-with-tools');
  createRoot(document.getElementById('preview-controls')).render(<Controls/>);
 }
-if(import.meta.env.DEV && new URLSearchParams(location.search).has('discountCheck')){createRoot(document.getElementById('root')).render(<><p className="px-4 py-2 text-xs" style={{color:'var(--muted-foreground)'}}>할인 카드 미리보기 · 샘플 자료 · 저장/외부 실행 차단</p><OrderHistory orders={discountOrders} customers={[]} onViewOrder={()=>{}} onReorder={()=>{}} onSaveToCart={()=>{}} onBack={()=>{}}/></>)}
+if(import.meta.env.DEV && new URLSearchParams(location.search).has('discountCheck')){createRoot(document.getElementById('root')).render(<DiscountPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('customerCheck')){createRoot(document.getElementById('root')).render(<CustomerSearchPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('motionCheck')){createRoot(document.getElementById('root')).render(<MovisMotionPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('dispatchCheck')){createRoot(document.getElementById('root')).render(<><div className="flex flex-wrap gap-2 p-2">샘플 발송 검증 · 실제 발송 없음{['대기','성공','배송중','실패'].map(state=><button className="px-3 py-2 border rounded" key={state} onClick={()=>simulateDispatch(state)}>샘플 {state}</button>)}<button className="px-3 py-2 border rounded" onClick={()=>simulateDispatch('성공',false)}>알림 없이 성공</button></div><SmartStoreOrders/></>)}

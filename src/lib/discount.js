@@ -65,3 +65,22 @@ export function getOrderDiscountSummary(order) {
   complete = complete && Number.isSafeInteger(saved) && Number.isSafeInteger(total) && total >= 0 && Number.isSafeInteger(total + saved);
   return { hasDiscount: count > 0, count, saved: complete ? saved : null, originalTotal: complete && count > 0 ? total + saved : null };
 }
+
+// 표시 전용: 저장된 최종 단가를 다시 할인하지 않는다.
+export function getItemDiscountSummary(item, priceType) {
+  return getOrderDiscountSummary({ items: [item], priceType, totalAmount: Number(item.price) * Number(item.quantity) });
+}
+
+export function itemDiscountText(item, priceType, formatPrice) {
+  const discount = getItemDiscountSummary(item, priceType);
+  if (!discount.hasDiscount) return '';
+  if (discount.saved == null) return '   할인 (할인 전 단가 기록 없음)\n';
+  return `   단가: ${formatPrice(item.originalPrice)}원 → ${formatPrice(item.price)}원\n   할인: -${formatPrice(discount.saved)}원\n`;
+}
+
+export function orderDiscountText(order, formatPrice) {
+  const discount = getOrderDiscountSummary(order);
+  if (!discount.hasDiscount) return '';
+  if (discount.saved == null) return '할인: 일부 할인 전 단가 기록 없음\n';
+  return `할인 전 금액: ${formatPrice(discount.originalTotal)}원\n할인: -${formatPrice(discount.saved)}원\n`;
+}

@@ -1,3 +1,4 @@
+import { mockMovisNavigation } from './movisNavigationFixture';
 import { invoiceFixture } from './invoiceFixture';
 import { storeWidgetFixture } from './storeWidgetFixture';
 // 개발 전용 미리보기: 외부 통신 없이 샘플 응답만 제공한다.
@@ -27,6 +28,7 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('dispatchChe
 window.fetch=async(input,options={})=>{
  const url=new URL(typeof input==='string'?input:input.url,location.href);
  const method=(options.method||(input instanceof Request?input.method:'GET')).toUpperCase();
+ if(import.meta.env.DEV && new URLSearchParams(location.search).has('movisNavigationCheck') && url.pathname.startsWith('/api/movis/')) return mockMovisNavigation(url, options);
  if(url.origin===location.origin&&!url.pathname.includes('/api/'))return realFetch(input,options);
  if(method!=='GET'&&method!=='HEAD')return new Response(JSON.stringify({message:'디자인 미리보기에서는 저장·외부 실행을 하지 않습니다.'}),{status:403,headers:{'Content-Type':'application/json'}});
  let data=[];

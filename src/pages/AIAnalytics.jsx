@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Package, Users, Settings, X, Check, AlertTriangle, Trash2, DollarSign, Wallet, PackageX, Truck, Undo2 } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
 import JarvisHeader from '@/components/analytics/JarvisHeader';
@@ -56,6 +56,7 @@ import { commitOrderContact } from '@/lib/movisOrderContact';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { uploadCertToLibrary, deleteImages } from '@/lib/imageUpload';
 export default function AIAnalytics({
+  isActive = true,
   orders = [],
   customers = [],
   products = [],
@@ -69,6 +70,8 @@ export default function AIAnalytics({
   showToast,
   saveOrder: saveOrderProp
 }) {
+  const activeRef = useRef(isActive);
+  activeRef.current = isActive;
   // payment_records / payment_history / customer_returns 는 AIAnalytics 진입 시 lazy load (App state 미보유)
   const chat = useAIAnalystChat({
     orders,
@@ -77,6 +80,8 @@ export default function AIAnalytics({
     savedCarts,
     aiLearningData,
     onNavigate: page => {
+      // 다른 업무로 이동한 사용자의 화면을 응답 완료 시 빼앗지 않는다.
+      if (!activeRef.current) return;
       try {
         setCurrentPage?.(page);
         showToast?.(`${page} 페이지로 이동`, 'success');
@@ -84,6 +89,16 @@ export default function AIAnalytics({
     }
   });
   const [executing, setExecuting] = useState(false);
+  const wasLoading = useRef(false);
+  useEffect(() => {
+    if (wasLoading.current && !chat.isLoading && !isActive) {
+      const failed = chat.messages.at(-1)?.role === 'error';
+      showToast?.(failed ? '무비스 요청을 확인해주세요. 대화창에 오류 내용을 남겼습니다.'
+        : chat.pendingActions.length ? '무비스 주문·변경안이 준비됐습니다. 무비스에서 확인해주세요.'
+        : '무비스 응답이 도착했습니다. 대화창에서 이어서 확인할 수 있습니다.', failed ? 'error' : 'success');
+    }
+    wasLoading.current = chat.isLoading;
+  }, [chat.isLoading, chat.pendingActions.length, chat.messages, isActive, showToast]);
 
   // 📄 사업자등록증 인식 결과 → 거래처 등록 + 등록증 보관함 저장 (CertRegisterCard 콜백)
   const handleCertRegister = async ({
@@ -664,7 +679,7 @@ export default function AIAnalytics({
 
   // 헤더 우측 액션 버튼 묶음
   const rightActions = <>
-      <MovisConnection onChange={setConnection} busy={chat.isLoading} />
+      <MovisConnection onChange={setConnection} busy={chat.isLoading} active={isActive} />
       <button type="button" onClick={() => setShowSettings(true)} className="p-2 rounded hover:bg-cyan-500/10 transition-colors" aria-label="AI 설정" title="AI 설정" style={{
       color: 'var(--jarvis-text-muted)'
     }}>
@@ -747,7 +762,7 @@ export default function AIAnalytics({
       <div className="flex-1 min-h-0 relative" style={{
         zIndex: 5
       }}>
-        <ChatPanel messages={chat.messages} onSend={chat.send} isLoading={chat.isLoading} loadingStep={chat.loadingStep} loadingSteps={chat.loadingSteps} onClear={chat.clear} onCancel={chat.cancel} onSendImage={chat.sendImage} onCertRegister={handleCertRegister} customers={customers} disabled={chat.pendingActions.length > 0} streamingText={chat.streamingText} connection={connection} dataState={chat.dataState} awaitingConfirmation={chat.pendingActions.length > 0} />
+        <ChatPanel active={isActive} messages={chat.messages} onSend={chat.send} isLoading={chat.isLoading} loadingStep={chat.loadingStep} loadingSteps={chat.loadingSteps} onClear={chat.clear} onCancel={chat.cancel} onSendImage={chat.sendImage} onCertRegister={handleCertRegister} customers={customers} disabled={chat.pendingActions.length > 0} streamingText={chat.streamingText} connection={connection} dataState={chat.dataState} awaitingConfirmation={chat.pendingActions.length > 0} />
       </div>
 
       {/* 쓰기 액션 Confirm 모달 — saveOrder는 편집 가능 모달 분기, 나머지는 기존 */}

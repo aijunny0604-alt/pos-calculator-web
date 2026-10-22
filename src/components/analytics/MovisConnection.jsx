@@ -3,7 +3,7 @@ import { Link2, RefreshCw, X } from 'lucide-react';
 import { movisRequest, getMovisModel, setMovisModel } from '@/lib/codexAnalyst';
 import { usageWindows } from '@/lib/movisUsage';
 import { selectMovisModel } from '@/lib/movisModels';
-export default function MovisConnection({onChange,busy}) {
+export default function MovisConnection({onChange,busy,active=true}) {
  const dialogRef=useRef(null), pending=useRef(false), mounted=useRef(true);
  const [status,setStatus]=useState(null),[error,setError]=useState(''),[open,setOpen]=useState(false),[checking,setChecking]=useState(false),[model,setModel]=useState(getMovisModel),[loginUrl,setLoginUrl]=useState(''),[updated,setUpdated]=useState(null),[loggingIn,setLoggingIn]=useState(false);
  const refresh=useCallback(async()=>{
@@ -12,13 +12,14 @@ export default function MovisConnection({onChange,busy}) {
   catch(e){if(mounted.current){setError(e.message);onChange?.(null);}}
   finally{pending.current=false;if(mounted.current)setChecking(false);}
  },[onChange]);
- useEffect(()=>{mounted.current=true;refresh();const t=setInterval(()=>{if(!document.hidden)refresh()},10000);const visible=()=>{if(!document.hidden)refresh()};document.addEventListener('visibilitychange',visible);window.addEventListener('focus',visible);return()=>{mounted.current=false;clearInterval(t);document.removeEventListener('visibilitychange',visible);window.removeEventListener('focus',visible)}},[refresh]);
- useEffect(()=>{if(!busy)refresh()},[busy,refresh]);
+ useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
+ useEffect(()=>{if(!active&&!busy)return;refresh();const t=setInterval(()=>{if(!document.hidden)refresh()},10000);const visible=()=>{if(!document.hidden)refresh()};document.addEventListener('visibilitychange',visible);window.addEventListener('focus',visible);return()=>{clearInterval(t);document.removeEventListener('visibilitychange',visible);window.removeEventListener('focus',visible)}},[refresh,active,busy]);
+ useEffect(()=>{if(active&&!busy)refresh()},[active,busy,refresh]);
  useEffect(()=>{
-  if(!open)return;const previous=document.activeElement;dialogRef.current?.querySelector('button')?.focus();
+  if(!open||!active)return;const previous=document.activeElement;dialogRef.current?.querySelector('button')?.focus();
   const key=e=>{if(e.key==='Escape')setOpen(false);if(e.key==='Tab'){const ns=[...dialogRef.current.querySelectorAll('button:not(:disabled),select:not(:disabled),a[href]')];const a=ns[0],b=ns.at(-1);if(e.shiftKey&&document.activeElement===a){e.preventDefault();b?.focus()}else if(!e.shiftKey&&document.activeElement===b){e.preventDefault();a?.focus()}}};
   document.addEventListener('keydown',key);return()=>{document.removeEventListener('keydown',key);previous?.focus()};
- },[open]);
+ },[open,active]);
  const limits=usageWindows(status?.rateLimits),connected=status?.connected&&!error;
  const recommended=selectMovisModel(status?.models);
  const select=<label className="movis-model-select"><span>GPT 모델</span><select aria-label="GPT 모델 선택" value={model} disabled={busy||!connected||!status?.models?.length} onChange={e=>{setModel(e.target.value);setMovisModel(e.target.value)}}>
