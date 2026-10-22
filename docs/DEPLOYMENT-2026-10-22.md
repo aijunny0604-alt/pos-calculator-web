@@ -69,3 +69,31 @@
 | `assets/SmartStoreOrders-C8ACTXkd.js` | `df3ce145949e6321f5fc0b8d353efe6de5e3f894d962ec2de8166d0620cdbf92` |
 | `assets/InvoicesContainer-B4UlFC0x.js` | `7708f1e9d21e7a13c20108d8875e0cab2d5a7ebc14eb981aecf19d7891eb4b8b` |
 | `assets/PaymentsContainer-BTGakU4o.js` | `0fdf3e80040677782eb2c20c79aba471260ed437de134846f85c9208c2a0b11b` |
+
+
+## 추가 배포: 스토어 발송 반응성·무비스·업체 검색 (15:24:23 KST)
+
+- 기능 소스 `9ee550a4`, 정적 배포 `4dc2964ffd5c974b591f95b3c8b9259b5539fcf9`.
+- GitHub Pages built, 오류 없음. 2026-10-22 06:24:23 UTC 완료.
+- 전체 172 통과 / 0 실패 / MOVIS_TEST_URL 미지정 1 건너뜀. 최종 빌드 56.45초 성공. 기존 큰 번들/unknown minify 옵션 경고 유지.
+- 운영 자산 14개 모두 HTTP 200·SHA-256 일치. 스토어 배송중 표시, 상시 모션 data-move-motion=always, 스토어 콘솔 오류 없음 확인.
+- 실제 주문/결제/발송 쓰기 없이 샘플 전환과 운영 읽기 전용으로 검증. 실제 네이버 발송 처리 주기는 이번 웹 배포로 바꾸지 않았다.
+- [발송 검증](STORE-DISPATCH-LIVE-2026-10-22.md), [업체 검색·전체 모션·무비스](CUSTOMER-SEARCH-MOTION-2026-10-22.md).
+- 이전 정적 자산 보존. 롤백 기준 `9fb58c1dc622d163d0e347dbb5c0f744375b160e`.
+
+| 파일 | SHA-256 |
+|---|---|
+| `index.html` | `11f81b016e90954388f5d26d8639e393ac5e82cd035797860652960b027de305` |
+| `assets/polyfills-BuIMzCmj.js` | `540b5fa7c6a9c558b2ea322d7b89f9220b794ead829d543caae094397f689664` |
+| `assets/index-c1vj71vW.js` | `886d600bfc7cb828445972cd36da6bcdb363711c7274a513165f193129d15305` |
+| `assets/sentry-CsY0hej4.js` | `9fe0c4b368b1ed7dfdac2b86d2a6b56090fd9dc588812de1da8d6ca376923946` |
+| `assets/react-core-C_nVshIL.js` | `c592fa79fa78914144b4b049a63308302fa81b9534bc14a82c4c3c428f505880` |
+| `assets/supabase-js-CfVawArw.js` | `fc41fe3db7dd2cf6b87087b7c2ef0dce8f46d1d4f4f45e39e188e6d3964a76cd` |
+| `assets/index-C0x6n5Di.css` | `66914b758b36797aae3e48df296db290fe9dc6d9197aa443f3fa2deaf702d776` |
+| `assets/polyfills-legacy-D6nrY_rc.js` | `4905f7be8d3ff03eab0c6d7588def3b70d858ffe2097005dd6a86b9d2dcfedcd` |
+| `assets/index-legacy-CUkfb-MG.js` | `cfe4454f0fcafdceb49b423a477d711665afcfe28863f516fcfdf823eb9a75a2` |
+| `assets/AIAnalytics-5VAxSXD6.css` | `e44123ffe25b8258cb5186b8adede7687c5cf1deacd3e9849a07b987f0fb2ed7` |
+| `assets/AIAnalytics-CPRifuZg.js` | `e11c0393030af25b018ad9db30232a3efc758f5cda664bc6e4d2569b67f004aa` |
+| `assets/InvoicesContainer-DGDWT7t9.js` | `d9804801da1700103261ee3b9dfba155dd97fd59c79aca22815f67ab09d1d9a2` |
+| `assets/PaymentsContainer-2X-e7bwM.js` | `1df540aba609317778fb20c23337c89079b24ed6c73ee3d4f140e7a8832330fc` |
+| `assets/SmartStoreOrders-D-VKJxF6.js` | `9297c36ff1534ca3bd73b5208376ffaea641c88dbe3de5f60ec3e59daa82b0cd` |
