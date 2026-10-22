@@ -146,3 +146,28 @@
 | `assets/AIAnalytics-5VAxSXD6.css` | `e44123ffe25b8258cb5186b8adede7687c5cf1deacd3e9849a07b987f0fb2ed7` |
 | `assets/AIAnalytics-DY5o27K8.js` | `f2ad714c871277c18fb16541282c5d1c6e6cd58073d913fcbda10a3a5dd0e8cf` |
 | `assets/AIAnalytics-legacy-nQVtDw7J.js` | `e5601ff013da9be8a93a98f366060b2c157aefc6c31c2f6616f94ddb2c738579` |
+
+
+## 추가 배포: 스토어 장바구니·예약 주문 채널 유지 (19:16:43 KST)
+
+- 기능 소스 `7e8d63de`, 정적 배포 `55f86a731cefe2e27ef1c9f340b47be86b035718`.
+- GitHub Pages built, 오류 없음. 2026-10-22 10:16:43 UTC 완료.
+- 전체 테스트 184 통과 / 0 실패 / 환경 의존 테스트 1 생략. 빌드 성공, 기존 번들 경고 유지.
+- 운영 기존 스토어 고객 주문의 네이버 배지·초록색 카드 확인. 주문 생성 및 발송 없이 확인했으며 브라우저 오류 없음.
+- [변경·검증 기록](STORE-CART-CHANNEL-2026-10-22.md).
+- 이전 정적 자산 유지. 롤백 기준 `cd9845275827ec6c042a8d1b6613531b8edab992`.
+
+| 파일 | SHA-256 |
+|---|---|
+| `index.html` | `0f5d808c7d74da92aa2c206030818c3ef8e2024ab3e0394901a2115be6ec55c6` |
+| `assets/index-CzU3n0oH.js` | `860b6e5963dc4c0bda75220a3ca66520d632bdfe6f21d8c55b86d747a9e99ee8` |
+| `assets/index-fRfkULk2.css` | `73c227c1128d215bb29a66048211ae78c6ad8311a7746a124ea40b62a7118bb8` |
+| `assets/index-legacy-CQPicY8y.js` | `5eff822851665d956c5d2f11242137194f1f13250e7b6394ddfd7864d7587670` |
+| `assets/polyfills-BuIMzCmj.js` | `540b5fa7c6a9c558b2ea322d7b89f9220b794ead829d543caae094397f689664` |
+| `assets/polyfills-legacy-DcBBl53y.js` | `85742b9c3d4b7fb6aef45145c858a3dfcdb50d2d634bbf75ce3da130ceb92227` |
+| `assets/react-core-C_nVshIL.js` | `c592fa79fa78914144b4b049a63308302fa81b9534bc14a82c4c3c428f505880` |
+| `assets/sentry-CsY0hej4.js` | `9fe0c4b368b1ed7dfdac2b86d2a6b56090fd9dc588812de1da8d6ca376923946` |
+| `assets/supabase-js-CfVawArw.js` | `fc41fe3db7dd2cf6b87087b7c2ef0dce8f46d1d4f4f45e39e188e6d3964a76cd` |
+| `assets/AIAnalytics-5VAxSXD6.css` | `e44123ffe25b8258cb5186b8adede7687c5cf1deacd3e9849a07b987f0fb2ed7` |
+| `assets/AIAnalytics-DjabTzdb.js` | `08ed901a88136b14b87c1cd71fd3ff5e57ebcc8895ff080777fb02208a6f1570` |
+| `assets/AIAnalytics-legacy-Fix6PqbE.js` | `7c1849adf8c02af7aa3ca69885a25f4b1080df0356fa69688e4ba1602315f396` |
