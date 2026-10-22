@@ -33,3 +33,31 @@
 | `assets/exportExcel-LtAC9CoZ.js` | `02026b4be474f26ada2c96658763769d5d655a4f714f21745ce62808e3619075` |
 | `assets/index-legacy-BJzjuTNX.js` | `4ddf243ef932d3e3eb03aa15e0e29abf5596a225e5515f73af00cff03df10aab` |
 | `assets/index-Cly5xELr.css` | `96e9700563087e70eec6303fca2dbbc1a2986c850cffb3704ff9371aad474266` |
+
+## 추가 배포: 제품 교체창·검색 개선 (13:06:50 KST)
+
+- 소스 커밋: `33276dd7` (master).
+- 정적 배포: `9fb58c1dc622d163d0e347dbb5c0f744375b160e` (gh-pages).
+- GitHub Pages `built`, 오류 없음. 2026-10-22 04:06:50 UTC 완료.
+- 전체 자동 테스트 164 통과 / 0 실패 / 선택적 MOVIS 서버 검사 1 건너뜀.
+- 빌드 54.45초 성공. 기존 큰 번들 경고만 유지.
+- 결과 0/1/40건 교체창 크기 동일, 360×450 내부 스크롤·취소 접근·Escape 부모 유지 재검증.
+- 목록/카드 보기와 카테고리 필터 조합 정상. 모바일 및 태블릿 검증은 브라우저 뷰포트 기준, 실제 iOS 키보드 미검증.
+- 운영 674개 상품에서 플랜지 64 / 64플랜지 → 동일한 근접 규격 4개, H64/X64/CH 무관 상품 제외. 자바라 64 → 정확 규격 3개. 오류 로그 없음.
+- 운영 파일 12개 모두 HTTP 200 및 SHA-256 일치. 실제 주문 저장·재고 변경 없이 조회 검증.
+- 이전 정적 자산 보존. 롤백 기준 `1de4627c028f70201805d1b6162442ddf864cf01`.
+
+| 파일 | SHA-256 |
+|---|---|
+| `index.html` | `474a461a1ed993c91e0724fd04b1edec4410e42bcb0dec93d2192cf254770ca7` |
+| `assets/polyfills-BuIMzCmj.js` | `540b5fa7c6a9c558b2ea322d7b89f9220b794ead829d543caae094397f689664` |
+| `assets/index-I-Hqo1ZG.js` | `197390db8690995391fe92611382a1bb738de093dbbf5062973c1137c762e04a` |
+| `assets/sentry-CsY0hej4.js` | `9fe0c4b368b1ed7dfdac2b86d2a6b56090fd9dc588812de1da8d6ca376923946` |
+| `assets/react-core-C_nVshIL.js` | `c592fa79fa78914144b4b049a63308302fa81b9534bc14a82c4c3c428f505880` |
+| `assets/supabase-js-CfVawArw.js` | `fc41fe3db7dd2cf6b87087b7c2ef0dce8f46d1d4f4f45e39e188e6d3964a76cd` |
+| `assets/index-BKtfIJpI.css` | `5ec422e3078d021f8f8569c964ac4686c0a327608085a13bc769caebd1a723e1` |
+| `assets/polyfills-legacy-D6nrY_rc.js` | `4905f7be8d3ff03eab0c6d7588def3b70d858ffe2097005dd6a86b9d2dcfedcd` |
+| `assets/index-legacy-D7-ye0dh.js` | `4c15edce7b78f665dd4a2a6561adc671c5511b9105de25822c800fa596c3518c` |
+| `assets/SmartStoreOrders-C8ACTXkd.js` | `df3ce145949e6321f5fc0b8d353efe6de5e3f894d962ec2de8166d0620cdbf92` |
+| `assets/InvoicesContainer-B4UlFC0x.js` | `7708f1e9d21e7a13c20108d8875e0cab2d5a7ebc14eb981aecf19d7891eb4b8b` |
+| `assets/PaymentsContainer-BTGakU4o.js` | `0fdf3e80040677782eb2c20c79aba471260ed437de134846f85c9208c2a0b11b` |
