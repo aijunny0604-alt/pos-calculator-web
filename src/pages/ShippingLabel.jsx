@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useId } from 'react';
 import {
   ArrowLeft, Menu, Truck, X, Plus, Search, Trash2, Download, FileText,
-  Printer, Check, Maximize2, Minimize2, MessageCircle, Copy
+  Printer, Check, Maximize2, Minimize2, MessageCircle, Copy, ChevronUp
 } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST } from '@/lib/utils';
@@ -101,6 +101,8 @@ function NaverDispatchPanel({ providerOrderId, showToast }) {
 
 export default function ShippingLabel({ orders = [], customers = [], savedCarts = [], onBack, refreshCustomers, showToast }) {
   const [selectedOrders, setSelectedOrders] = useState([]);
+  const [exportCollapsed, setExportCollapsed] = useState(true);
+  const exportPanelId = useId();
   const [kakaoCopied, setKakaoCopied] = useState(false);
   const [senderList] = useState(['무브모터스', '엠파츠']);
   const [dateFilter, setDateFilter] = useState('today');
@@ -1450,99 +1452,108 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
         </div>
 
         {/* Right panel (or bottom on mobile): Export actions */}
-        <div className="lg:w-72 border-t lg:border-t-0 lg:border-l border-[var(--border)] bg-[var(--card)] flex flex-col">
-          <div className="p-3 sm:p-4 flex-1 flex flex-col justify-between lg:justify-start gap-3 sm:gap-4">
-            {/* Selection summary + Sender preview: 모바일 가로 2열 */}
-            <div className="grid grid-cols-2 sm:grid-cols-1 gap-2 sm:gap-4">
-            {/* Selection summary */}
-            <div className="bg-[var(--secondary)] rounded-xl p-3 sm:p-4">
-              <p className="text-[var(--muted-foreground)] text-[10px] sm:text-xs mb-1 sm:mb-2">선택 현황</p>
-              <div className="space-y-0.5 sm:space-y-1">
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span className="text-[var(--muted-foreground)]">주문 선택</span>
-                  <span className="font-semibold">{selectedOrders.filter(id => filteredOrders.some(o => o.orderNumber === id)).length}건</span>
+        <div className="shipping-export-panel lg:w-72 shrink-0 border-t lg:border-t-0 lg:border-l border-[var(--border)] bg-[var(--card)] flex flex-col" data-collapsed={exportCollapsed}>
+          <button type="button" className="shipping-export-toggle lg:hidden" aria-expanded={!exportCollapsed} aria-controls={exportPanelId}
+            aria-label={exportCollapsed ? '송장 출력 영역 펼치기' : '송장 출력 영역 접기'} onClick={() => setExportCollapsed(value => !value)}>
+            <span className="flex items-center gap-2 min-w-0"><Printer className="w-4 h-4 shrink-0" aria-hidden="true" /><span>송장 출력</span><strong className="shipping-export-count">선택 {selectedOrders.length}건</strong></span>
+            <span className="flex items-center gap-1 text-xs shrink-0">{exportCollapsed ? '펼치기' : '접기'}<ChevronUp className="shipping-export-chevron w-4 h-4" aria-hidden="true" /></span>
+          </button>
+          <div id={exportPanelId} className="shipping-export-reveal">
+            <div className="shipping-export-clip">
+              <div className="shipping-export-content p-3 sm:p-4 flex flex-col gap-3 sm:gap-4">
+                {/* Selection summary + Sender preview: 모바일 가로 2열 */}
+                <div className="grid grid-cols-2 sm:grid-cols-1 gap-2 sm:gap-4">
+                {/* Selection summary */}
+                <div className="bg-[var(--secondary)] rounded-xl p-3 sm:p-4">
+                  <p className="text-[var(--muted-foreground)] text-[10px] sm:text-xs mb-1 sm:mb-2">선택 현황</p>
+                  <div className="space-y-0.5 sm:space-y-1">
+                    <div className="flex justify-between text-xs sm:text-sm">
+                      <span className="text-[var(--muted-foreground)]">주문 선택</span>
+                      <span className="font-semibold">{selectedOrders.filter(id => filteredOrders.some(o => o.orderNumber === id)).length}건</span>
+                    </div>
+                    <div className="flex justify-between text-xs sm:text-sm">
+                      <span className="text-[var(--muted-foreground)]">임의 추가</span>
+                      <span className="font-semibold">{selectedOrders.filter(id => customEntries.some(e => e.id === id)).length}건</span>
+                    </div>
+                    <div className="flex justify-between text-xs sm:text-sm font-bold border-t border-[var(--border)] pt-1 mt-1">
+                      <span>합계</span>
+                      <span style={{ color: 'var(--warning)' }}>{selectedOrders.length}건</span>
+                    </div>
+                  </div>
+                  {selectedOrders.length === 0 && (
+                    <p className="text-[var(--muted-foreground)] text-[10px] sm:text-xs mt-1 sm:mt-2">선택 없으면 빈 양식 출력</p>
+                  )}
                 </div>
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span className="text-[var(--muted-foreground)]">임의 추가</span>
-                  <span className="font-semibold">{selectedOrders.filter(id => customEntries.some(e => e.id === id)).length}건</span>
+
+                {/* Sender preview */}
+                <div className="bg-[var(--secondary)] rounded-xl p-3">
+                  <p className="text-[var(--muted-foreground)] text-[10px] sm:text-xs mb-1 sm:mb-2">보내는 곳별 현황</p>
+                  {senderList.map(sender => {
+                    const senderCount = selectedOrders.filter(id => {
+                      const order = filteredOrders.find(o => o.orderNumber === id);
+                      if (order) {
+                        const setting = getOrderSetting(order.orderNumber, order.customerName, order);
+                        return (setting.sender || senderList[0]) === sender;
+                      }
+                      const entry = customEntries.find(e => e.id === id);
+                      if (entry) return entry.sender === sender;
+                      return false;
+                    }).length;
+                    return (
+                      <div key={sender} className="flex justify-between text-xs sm:text-sm py-0.5">
+                        <span className="text-[var(--muted-foreground)]">{sender}</span>
+                        <span className="font-medium">{senderCount}건</span>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="flex justify-between text-xs sm:text-sm font-bold border-t border-[var(--border)] pt-1 mt-1">
-                  <span>합계</span>
-                  <span style={{ color: 'var(--warning)' }}>{selectedOrders.length}건</span>
+                </div>
+
+                {/* 카톡용 복사 — 모바일에서 택배사에 그대로 붙여넣기 */}
+                <button
+                  onClick={copyKakaoText}
+                  className="w-full py-2.5 sm:py-3 mb-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all hover:brightness-95 active:scale-[0.98] text-xs sm:text-sm shadow-sm"
+                  style={{ background: kakaoCopied ? '#22c55e' : '#FEE500', color: kakaoCopied ? 'white' : '#3C1E1E' }}
+                  title="오늘 발송 내역(업체·주소·품명·착불선불)을 카톡에 붙여넣기 좋게 복사"
+                >
+                  {kakaoCopied ? <Check className="w-4 h-4 flex-shrink-0" /> : <MessageCircle className="w-4 h-4 flex-shrink-0" />}
+                  {kakaoCopied ? '복사됨!' : (
+                    <>
+                      <span className="hidden sm:inline">카톡용 발송내역 복사</span>
+                      <span className="sm:hidden">카톡 복사</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Export buttons - 모바일: 가로 한줄, 데스크톱: 세로 */}
+                <div className="grid grid-cols-3 sm:grid-cols-1 gap-2">
+                  <button
+                    onClick={generateShippingLabel}
+                    className="w-full py-2 sm:py-2.5 rounded-lg font-medium flex items-center justify-center gap-1 sm:gap-2 transition-colors hover:opacity-90 text-white text-xs sm:text-sm"
+                    style={{ background: 'var(--success)', color: 'white' }}
+                  >
+                    <Download className="w-4 h-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">CSV 다운로드</span>
+                    <span className="sm:hidden">CSV</span>
+                  </button>
+                  <button
+                    onClick={generateXlsxLabel}
+                    className="w-full py-2 sm:py-2.5 rounded-lg font-medium flex items-center justify-center gap-1 sm:gap-2 transition-colors bg-[var(--primary)] hover:opacity-90 text-white text-xs sm:text-sm"
+                  >
+                    <FileText className="w-4 h-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">Excel 다운로드</span>
+                    <span className="sm:hidden">Excel</span>
+                  </button>
+                  <button
+                    onClick={printShippingLabels}
+                    className="w-full py-2 sm:py-2.5 rounded-lg font-medium flex items-center justify-center gap-1 sm:gap-2 transition-colors hover:opacity-90 text-white text-xs sm:text-sm"
+                    style={{ background: 'var(--warning)', color: 'white' }}
+                  >
+                    <Printer className="w-4 h-4 flex-shrink-0" />
+                    인쇄
+                  </button>
                 </div>
               </div>
-              {selectedOrders.length === 0 && (
-                <p className="text-[var(--muted-foreground)] text-[10px] sm:text-xs mt-1 sm:mt-2">선택 없으면 빈 양식 출력</p>
-              )}
-            </div>
-
-            {/* Sender preview */}
-            <div className="bg-[var(--secondary)] rounded-xl p-3">
-              <p className="text-[var(--muted-foreground)] text-[10px] sm:text-xs mb-1 sm:mb-2">보내는 곳별 현황</p>
-              {senderList.map(sender => {
-                const senderCount = selectedOrders.filter(id => {
-                  const order = filteredOrders.find(o => o.orderNumber === id);
-                  if (order) {
-                    const setting = getOrderSetting(order.orderNumber, order.customerName, order);
-                    return (setting.sender || senderList[0]) === sender;
-                  }
-                  const entry = customEntries.find(e => e.id === id);
-                  if (entry) return entry.sender === sender;
-                  return false;
-                }).length;
-                return (
-                  <div key={sender} className="flex justify-between text-xs sm:text-sm py-0.5">
-                    <span className="text-[var(--muted-foreground)]">{sender}</span>
-                    <span className="font-medium">{senderCount}건</span>
-                  </div>
-                );
-              })}
-            </div>
-            </div>
-
-            {/* 카톡용 복사 — 모바일에서 택배사에 그대로 붙여넣기 */}
-            <button
-              onClick={copyKakaoText}
-              className="w-full py-2.5 sm:py-3 mb-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all hover:brightness-95 active:scale-[0.98] text-xs sm:text-sm shadow-sm"
-              style={{ background: kakaoCopied ? '#22c55e' : '#FEE500', color: kakaoCopied ? 'white' : '#3C1E1E' }}
-              title="오늘 발송 내역(업체·주소·품명·착불선불)을 카톡에 붙여넣기 좋게 복사"
-            >
-              {kakaoCopied ? <Check className="w-4 h-4 flex-shrink-0" /> : <MessageCircle className="w-4 h-4 flex-shrink-0" />}
-              {kakaoCopied ? '복사됨!' : (
-                <>
-                  <span className="hidden sm:inline">카톡용 발송내역 복사</span>
-                  <span className="sm:hidden">카톡 복사</span>
-                </>
-              )}
-            </button>
-
-            {/* Export buttons - 모바일: 가로 한줄, 데스크톱: 세로 */}
-            <div className="grid grid-cols-3 sm:grid-cols-1 gap-2">
-              <button
-                onClick={generateShippingLabel}
-                className="w-full py-2 sm:py-2.5 rounded-lg font-medium flex items-center justify-center gap-1 sm:gap-2 transition-colors hover:opacity-90 text-white text-xs sm:text-sm"
-                style={{ background: 'var(--success)', color: 'white' }}
-              >
-                <Download className="w-4 h-4 flex-shrink-0" />
-                <span className="hidden sm:inline">CSV 다운로드</span>
-                <span className="sm:hidden">CSV</span>
-              </button>
-              <button
-                onClick={generateXlsxLabel}
-                className="w-full py-2 sm:py-2.5 rounded-lg font-medium flex items-center justify-center gap-1 sm:gap-2 transition-colors bg-[var(--primary)] hover:opacity-90 text-white text-xs sm:text-sm"
-              >
-                <FileText className="w-4 h-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Excel 다운로드</span>
-                <span className="sm:hidden">Excel</span>
-              </button>
-              <button
-                onClick={printShippingLabels}
-                className="w-full py-2 sm:py-2.5 rounded-lg font-medium flex items-center justify-center gap-1 sm:gap-2 transition-colors hover:opacity-90 text-white text-xs sm:text-sm"
-                style={{ background: 'var(--warning)', color: 'white' }}
-              >
-                <Printer className="w-4 h-4 flex-shrink-0" />
-                인쇄
-              </button>
             </div>
           </div>
         </div>

@@ -495,3 +495,19 @@
  .replacement-results-meta { margin-top:5px; }
  .replacement-footer { padding:6px 14px; }
 }
+/* 모바일 송장 출력 패널: 접힌 상태에서도 선택 건수와 열기 버튼은 유지한다. */
+.shipping-export-reveal { display: grid; grid-template-rows: 1fr; min-height: 0; }
+.shipping-export-clip { min-height: 0; overflow: hidden; }
+.shipping-export-content { overflow-y: auto; overscroll-behavior: contain; }
+.shipping-export-toggle { min-height: 52px; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; color: var(--foreground); font-size: 13px; font-weight: 600; }
+.shipping-export-count { border-radius: 999px; padding: 4px 9px; color: var(--primary); background: color-mix(in srgb, var(--primary) 9%, var(--card)); font-size: 12px; white-space: nowrap; }
+.shipping-export-chevron { transition: transform .24s cubic-bezier(.22,1,.36,1); transform: rotate(180deg); }
+.shipping-export-panel[data-collapsed="true"] .shipping-export-chevron { transform: rotate(0deg); }
+@media (max-width: 1023px) {
+  .shipping-export-toggle { display: flex; }
+  .shipping-export-panel { box-shadow: 0 -4px 20px rgb(15 35 50 / .05); }
+  .shipping-export-reveal { transition: grid-template-rows .24s cubic-bezier(.22,1,.36,1), visibility .24s; }
+  .shipping-export-panel[data-collapsed="true"] .shipping-export-reveal { grid-template-rows: 0fr; visibility: hidden; }
+  .shipping-export-content { max-height: min(42dvh, 340px); padding-top: 4px; }
+  .shipping-export-content button { min-height: 44px; }
+}
