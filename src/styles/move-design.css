@@ -436,3 +436,62 @@
  .order-card-amount[data-discounted=true] .order-card-final{font-size:22px}
 }
 @media(max-width:639px){.order-card-final{font-size:22px}}
+
+/* 제품 교체: 결과 개수와 독립된 창 크기, 목록만 스크롤. */
+.replacement-backdrop { position:fixed; inset:0; z-index:220; display:flex; align-items:center; justify-content:center; padding:20px; overflow:hidden; }
+.replacement-dialog { width:min(800px,100%); height:min(720px,100%); min-height:0; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--border); border-radius:22px; background:var(--card); color:var(--foreground); outline:none; }
+.replacement-header { flex:none; display:flex; align-items:center; gap:12px; padding:18px 22px; border-bottom:1px solid var(--border); }
+.replacement-header h2 { margin:0; font-size:20px; font-weight:750; }
+.replacement-icon { display:grid; place-items:center; width:42px; height:42px; border-radius:13px; background:color-mix(in srgb,var(--primary) 10%,transparent); color:var(--primary); }
+.replacement-close { margin-left:auto; width:44px; height:44px; border:1px solid var(--border); background:var(--secondary); color:var(--foreground); border-radius:12px; }
+.replacement-search-area { flex:none; padding:14px 22px 10px; }
+.replacement-current { display:flex; align-items:center; gap:10px; min-width:0; margin-bottom:12px; font-size:13px; }
+.replacement-current>span { flex:none; color:var(--muted-foreground); }
+.replacement-current strong { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-weight:600; }
+.replacement-search { display:flex; align-items:center; gap:10px; padding:0 14px; border:1px solid var(--border); border-radius:12px; background:var(--background); color:var(--muted-foreground); }
+.replacement-search:focus-within { border-color:var(--primary); box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 12%,transparent); }
+.replacement-search>svg { flex:none; }
+.replacement-search input { width:100%; min-width:0; height:48px; border:0; outline:0; box-shadow:none; background:transparent; font-size:16px; color:var(--foreground); }
+.replacement-search input:focus-visible { outline:none; box-shadow:none; }
+.replacement-results-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:var(--muted-foreground); }
+.replacement-results-meta>span:last-child { display:flex; align-items:center; gap:7px; }
+.replacement-results-meta b { color:var(--foreground); margin-left:4px; }
+.replacement-results { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:6px 18px 18px 22px; outline-offset:-3px; }
+.replacement-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; align-content:start; }
+.replacement-product { min-width:0; display:flex; flex-direction:column; gap:10px; text-align:left; padding:15px; border:1px solid var(--border); border-radius:14px; background:var(--card); color:var(--foreground); transition:border-color .18s ease,box-shadow .18s ease,background .18s ease; }
+.replacement-product-name { font-size:15px; line-height:1.5; font-weight:650; word-break:keep-all; overflow-wrap:anywhere; }
+.replacement-product-meta { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--muted-foreground); }
+.replacement-product-meta>span { display:inline-flex; align-items:center; gap:4px; overflow-wrap:anywhere; }
+.replacement-product-meta [data-empty=true] { color:var(--destructive,#dc3545); }
+.replacement-product-bottom { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:10px; margin-top:auto; border-top:1px solid var(--border); }
+.replacement-product-bottom>strong { color:var(--primary); font-size:18px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.replacement-product-bottom>strong[data-retail=true] { color:var(--destructive,#dc3545); }
+.replacement-product-bottom small { font-size:12px; margin-left:3px; font-weight:500; }
+.replacement-product-bottom>span { display:flex; align-items:center; gap:4px; flex:none; font-size:12px; color:var(--muted-foreground); }
+.replacement-footer { flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 22px; border-top:1px solid var(--border); background:var(--background); }
+.replacement-footer>span { font-size:12px; color:var(--muted-foreground); word-break:keep-all; }
+.replacement-footer>button { flex:none; min-width:76px; min-height:44px; border:1px solid var(--border); border-radius:11px; background:var(--card); font-size:14px; font-weight:600; }
+.replacement-empty { height:100%; min-height:100px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--muted-foreground); text-align:center; font-size:13px; }
+.replacement-empty strong { font-size:15px; color:var(--foreground); }
+.replacement-product:focus-visible,.replacement-close:focus-visible,.replacement-footer button:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+@media (hover:hover) and (pointer:fine) { .replacement-product:hover { border-color:var(--primary); background:color-mix(in srgb,var(--primary) 3%,var(--card)); box-shadow:0 4px 14px rgba(20,60,70,.08); } }
+@media(max-width:600px) {
+ .replacement-backdrop { padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom)); }
+ .replacement-dialog { height:100%; border-radius:18px; }
+ .replacement-header { padding:12px 14px; }
+ .replacement-header h2 { font-size:18px; }
+ .replacement-search-area { padding:10px 14px 8px; }
+ .replacement-current { margin-bottom:9px; }
+ .replacement-grid { grid-template-columns:minmax(0,1fr); }
+ .replacement-results { padding:4px 10px 14px 14px; }
+ .replacement-footer { padding:10px 14px; }
+}
+@media(max-height:500px) {
+ .replacement-backdrop { padding:8px; }
+ .replacement-header { padding:6px 14px; }
+ .replacement-icon { width:34px; height:34px; }
+ .replacement-search-area { padding:6px 14px; }
+ .replacement-current { margin-bottom:4px; }
+ .replacement-results-meta { margin-top:5px; }
+ .replacement-footer { padding:6px 14px; }
+}

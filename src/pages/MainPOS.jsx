@@ -11,7 +11,7 @@ import { isImageDemoMode, getSampleImage } from '@/lib/sampleProductImages';
 import ProductGalleryModal from '@/components/ProductGalleryModal';
 import OrderPage from './OrderPage';
 import ProductCatalogList from '@/components/ProductCatalogList';
-import { catalogMatch, repeatOrderItems } from '@/lib/catalogSearch';
+import { catalogMatch, catalogDimensionsMatch, repeatOrderItems } from '@/lib/catalogSearch';
 import TextAnalyze from './TextAnalyze';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import useVoiceOrder from '@/hooks/useVoiceOrder';
@@ -120,7 +120,7 @@ export default function MainPOS({
     if (aiSearch && q) {
       let ranked = searchProductsRanked(q, available);
       if (selectedCategory !== '전체') ranked = ranked.filter(p => p.category === selectedCategory);
-      return ranked; // 관련도순 상위 18개까지만 (너무 많으면 어지러움 — 노이즈는 엔진서 이미 컷)
+      return ranked;
     }
     // 기존 정확검색(부분일치/자모순서) — AI OFF 또는 검색어 없음
     return available.filter(product => {
@@ -625,6 +625,9 @@ export default function MainPOS({
             {filteredProducts.length}개 제품
             {aiSearch && searchTerm.trim() && (
               <span className="ml-1.5 font-semibold" style={{ color: 'var(--warning)' }}>· ⚡ 관련도순</span>
+            )}
+            {aiSearch && filteredProducts.some(p=>!catalogDimensionsMatch(searchTerm,p.name)) && (
+              <span className="block mt-1">정확한 규격이 없어 같은 종류의 근접 규격(구경 ±1)을 표시합니다. 실제 규격을 확인해 주세요.</span>
             )}
           </div>
         </div>

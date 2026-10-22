@@ -1,11 +1,13 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-10-22 (스마트스토어 미발송 상시 모니터링)
+> 마지막 업데이트: 2026-10-22 (제품 교체창 안정화·제품명/규격 검색 개선)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
 
 ## 2026-10-22 최신 변경
+
+[제품 교체창](docs/PRODUCT-REPLACEMENT-UI-2026-10-22.md), [제품 검색](docs/CATALOG-SEARCH-2026-10-22.md): 결과 수와 무관한 고정 모달 및 모바일 내부 스크롤. 제품 종류 우선 검색, 정확 규격이 없을 때만 플랜지·자바라 근접 구경 후보 안내. 전체 164 통과 / 0 실패 / 1 건너뜀.
 
 [미발송 모니터링](docs/STORE-MONITORING-2026-10-22.md), [배포 기록](docs/DEPLOYMENT-2026-10-22.md). 오늘 필터에서도 이전 발주확인·내부 등록 미발송은 유지한다. 내부 전환과 실제 발송 완료를 구분하며, 최신 200건 밖 미발송도 별도 조회한다. 전체 테스트 161 통과 / 0 실패 / 1 건너뜀.
 

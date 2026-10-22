@@ -1,3 +1,4 @@
+import ProductReplacementModal from '@/components/ProductReplacementModal';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { orderContactText } from '@/lib/orderContact';
@@ -332,11 +333,11 @@ export default function OrderDetail({
 
   // Product search for replacing
   const replaceFilteredProducts = products.filter(product => {
-    if (!replaceSearchTerm) return false;
-    return matchesSearchQuery(product.name, replaceSearchTerm);
+    if (!replaceSearchTerm.trim()) return false;
+    return matchesSearchQuery(product.name, replaceSearchTerm.trim());
   }).slice(0, 30);
 
-  const replaceListToShow = replaceSearchTerm ? replaceFilteredProducts : relatedProducts;
+  const replaceListToShow = replaceSearchTerm.trim() ? replaceFilteredProducts : relatedProducts;
 
   const getReturnedQuantity = (itemId) => {
     return (order.returns || [])
@@ -1229,104 +1230,16 @@ export default function OrderDetail({
               </div>
             )}
 
-            {/* Product replace search modal */}
             {replacingItemIndex !== null && (
-              <MotionBackdrop
-                className="move-dialog-backdrop fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4"
-                style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
-                onClick={() => { setReplacingItemIndex(null); setReplaceSearchTerm(''); }}
-              >
-                <div
-                  className="move-dialog w-full max-w-3xl rounded-2xl border shadow-2xl overflow-hidden flex flex-col"
-                  style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 2rem)' }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* 헤더 */}
-                  <div className="px-5 py-4 flex items-start justify-between gap-3 flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 78%, #000))', color: 'var(--primary-foreground)' }}>
-                    <div className="min-w-0 flex items-center gap-2.5">
-                      <Replace className="w-6 h-6 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <h4 className="font-black text-lg leading-tight">제품 교체</h4>
-                        <p className="text-sm opacity-90 truncate">현재: {editedOrder.items[replacingItemIndex]?.name}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => { setReplacingItemIndex(null); setReplaceSearchTerm(''); }}
-                      className="p-2 rounded-lg hover:bg-white/15 transition-colors flex-shrink-0"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  {/* 검색 */}
-                  <div className="px-5 pt-4 pb-2 flex-shrink-0">
-                    <div className="relative">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted-foreground)' }} />
-                      <input
-                        type="text"
-                        value={replaceSearchTerm}
-                        onChange={(e) => setReplaceSearchTerm(e.target.value)}
-                        onFocus={handleSearchFocus}
-                        placeholder="교체할 제품 검색 (제품명·규격)..."
-                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2"
-                        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
-                        autoFocus
-                      />
-                    </div>
-                    {/* 섹션 라벨 */}
-                    <div className="flex items-center gap-1.5 mt-3 mb-1 text-xs font-bold" style={{ color: 'var(--muted-foreground)' }}>
-                      {replaceSearchTerm
-                        ? (<><Search className="w-3.5 h-3.5" />검색 결과 {replaceListToShow.length}건</>)
-                        : (<><Layers className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />관련 제품 (같은 카테고리) {replaceListToShow.length}건</>)}
-                    </div>
-                  </div>
-
-                  {/* 제품 리스트 (2컬럼 카드) */}
-                  <div className="px-5 pb-5 overflow-y-auto flex-1 min-h-0">
-                    {replaceListToShow.length === 0 ? (
-                      <p className="text-center py-10 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                        {replaceSearchTerm ? '검색 결과가 없습니다' : '관련 제품이 없어요 — 위에서 검색해보세요'}
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {replaceListToShow.map(product => {
-                          const price = order.priceType === 'wholesale'
-                            ? product.wholesale
-                            : (product.retail || product.wholesale);
-                          const stock = Number(product.stock || 0);
-                          return (
-                            <button
-                              key={product.id}
-                              onClick={() => handleReplaceProduct(product)}
-                              className="text-left rounded-xl border p-3 transition-all hover:-translate-y-0.5 hover:shadow-md hover:border-[var(--primary)]"
-                              style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-sm font-bold leading-snug break-words" style={{ color: 'var(--foreground)' }}>{product.name}</div>
-                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                    {product.category && (
-                                      <span className="text-[11px] px-1.5 py-0.5 rounded-md" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>{product.category}</span>
-                                    )}
-                                    <span className="text-[11px] px-1.5 py-0.5 rounded-md font-medium"
-                                      style={{ background: stock > 0 ? 'rgba(34,197,94,0.14)' : 'rgba(239,68,68,0.14)', color: stock > 0 ? '#16a34a' : '#dc2626' }}>
-                                      재고 {stock}
-                                    </span>
-                                  </div>
-                                </div>
-                                <span className="font-black text-sm whitespace-nowrap" style={{ color: 'var(--primary)' }}>
-                                  {formatPrice(price)}원
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </MotionBackdrop>
+              <ProductReplacementModal
+                currentItem={replacingItem}
+                products={replaceListToShow}
+                query={replaceSearchTerm}
+                onQueryChange={setReplaceSearchTerm}
+                priceType={order.priceType}
+                onSelect={handleReplaceProduct}
+                onClose={() => { setReplacingItemIndex(null); setReplaceSearchTerm(''); }}
+              />
             )}
 
             {/* Desktop table header */}

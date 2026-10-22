@@ -11,6 +11,7 @@ const tables={products,customers,orders,saved_carts:[],payment_records:[],paymen
 const invoiceCheck = new URLSearchParams(location.search).get('invoiceCheck');
 if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(invoiceCheck));
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('catalogCheck')) tables.products = ['플랜지 FL 63','플랜지 FL 54','자바라 SF 63 S 길이 120','자바라 SF 63 S 길이 150','H64 바디','X64 바디','CH 150 64','플랜지 FL 76'].map((name,i)=>({id:i+201,name,category:name.includes('플랜지')?'플랜지':name.includes('자바라')?'자바라':'기타',stock:10+i,wholesale:5280+i*1000,retail:6600+i*1000}));
 const realFetch=window.fetch.bind(window);
 window.fetch=async(input,options={})=>{
  const url=new URL(typeof input==='string'?input:input.url,location.href);

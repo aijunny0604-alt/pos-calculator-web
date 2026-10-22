@@ -21,3 +21,35 @@ test('다시 담기는 현재 단가를 사용하고 없는 상품을 알린다'
  const r=repeatOrderItems({items:[{id:1,quantity:2,wholesale:1},{id:999,quantity:1,name:'없음'}]},products);
  assert.equal(r.items[0].wholesale,9900);assert.equal(r.items[0].quantity,2);assert.deepEqual(r.missing,['없음']);
 });
+
+const diameterProducts = [
+ {id:10,name:'플랜지 FL 63'}, {id:11,name:'플랜지 FL 54'},
+ {id:12,name:'자바라 SF 63 S 길이 120'}, {id:13,name:'자바라 SF 63 S 길이 150'},
+ {id:14,name:'H64 바디'}, {id:15,name:'X64 바디'}, {id:16,name:'CH 150 64'},
+ {id:17,name:'플랜지 FL 76'}, {id:18,name:'실리콘 호스 60.5mm'},
+];
+const ids=q=>searchProductsRanked(q,diameterProducts).map(p=>p.id);
+test('부품명 없이 숫자만 맞는 바디·소음기를 결과에 섞지 않는다',()=>{
+ for(const q of ['플랜지 64','64 플랜지','플랜지64','후렌지 64','플랜지 ６４','플랜지 64파이']) assert.deepEqual(ids(q),[10],q);
+ assert.deepEqual(ids('플랜지 999'),[]);
+ assert.deepEqual(ids('없는부품 64'),[]);
+ assert.deepEqual(ids('ㅍㄹㅈ 63'),[10]);
+ assert.deepEqual(ids('ㅎㅅ 64'),[],'초성 의미부가 다르면 숫자만으로 통과 금지');
+ assert.deepEqual(ids('64'),[14,15,16]);
+});
+test('제품명만 입력하거나 순서를 바꿔도 검색된다',()=>{
+ assert.deepEqual(ids('플랜지'),[10,11,17]);
+ assert.deepEqual(ids('자바라'),[12,13]);
+ for(const q of ['자바라 64 120','120 자바라 64','자바라64 길이120']) assert.deepEqual(ids(q),[12],q);
+});
+test('정확한 규격 우선, 근접 규격은 구경만 후보로 안내',()=>{
+ assert.deepEqual(ids('플랜지 63'),[10]);
+ assert.deepEqual(searchProductsRanked('플랜지 64',[...diameterProducts,{id:19,name:'플랜지 FL 64'}]).map(p=>p.id),[19]);
+ assert.deepEqual(ids('자바라 63 121'),[],'길이 보정 금지');
+ assert.deepEqual(ids('자바라 64 121'),[],'두 치수 동시 보정 금지');
+ assert.deepEqual(ids('플랜지 63.5'),[],'소수 규격 보정 금지');
+ assert.deepEqual(ids('H65'),[],'모델번호 보정 금지');
+ assert.deepEqual(ids('실리콘 61'),[],'다른 종류로 근접 보정 확장 금지');
+ assert.equal(catalogMatch('플랜지 64','플랜지 FL 63'),false,'AI OFF 정확 검색 유지');
+ assert.deepEqual(searchProductsRanked('자바라 64',diameterProducts,{limit:1}).map(p=>p.id),[12]);
+});

@@ -1,4 +1,4 @@
-import { catalogMatch, catalogDimensionsMatch } from './catalogSearch.js';
+import { catalogMatch, catalogDimensionsMatch, catalogNearbyDiameterMatch } from './catalogSearch.js';
 // 제품 매칭 유틸 — TextAnalyze.jsx의 matchWithTolerance 추출 + ai_learning 우선 매칭
 // 사용: saveOrder / updateProductStock / updateProductPrice 등 쓰기 도구에서 공유
 
@@ -509,18 +509,33 @@ export function searchProductsRanked(query, products, { limit = 0 } = {}) {
   const q = String(query || '').trim();
   if (!q || !Array.isArray(products) || products.length === 0) return [];
   const expand = text => {
-    let result = String(text || '').toLowerCase();
+    let result = String(text || '').normalize('NFC').toLowerCase().replace(/[０-９Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248));
     for (const [from,to] of Object.entries(SYNONYMS).sort((a,b)=>b[0].length-a[0].length)) result=result.replaceAll(from,to.toLowerCase());
     return result;
   };
   const expanded = expand(q);
-  const exact = products.filter(p=>catalogMatch(expanded,expand(p.name)));
+  const exact = products.filter(p=>catalogMatch(q,p.name) || catalogMatch(expanded,expand(p.name)));
   if (exact.length) {
     const compact=s=>s.replace(/[^가-힣a-z0-9.]/g,'');
     exact.sort((a,b)=>Number(compact(expand(b.name))===compact(expanded))-Number(compact(expand(a.name))===compact(expanded)));
     return limit>0?exact.slice(0,limit):exact;
   }
-  const scored=scoreProducts(q,products,{synonymTokens:true}).filter(s=>catalogDimensionsMatch(q,s.product.name));
+  // 숫자 점수만으로 무관한 부품이 올라오지 않도록 의미부를 먼저 검사한다.
+  // 자동 주문/재고 쓰기 매칭과 분리된 목록 검색에만 적용한다.
+  const textOnly = text => text.replace(/\d+(?:\.\d+)?\s*(?:mm|파이|cm|인치|inch|도)(?=$|\s|[^가-힣a-z])/gi,' ').replace(/\d+(?:\.\d+)?/g,' ');
+  const queryText = textOnly(expanded).trim();
+  const meaningful = products.filter(p=>{
+    if(!queryText) return true;
+    const nameText=textOnly(expand(p.name));
+    if(catalogMatch(queryText,nameText)) return true;
+    const words=queryText.match(/[가-힣ㄱ-ㅎa-z]+/g)||[];
+    const names=nameText.match(/[가-힣a-z]+/g)||[];
+    return words.length>0 && words.every(word=>catalogMatch(word,nameText) ||
+      (word.length>=3 && names.some(name=>name.length>=3 && getSimilarity(word,name)>=0.7)));
+  });
+  const exactDimensions=meaningful.filter(p=>catalogDimensionsMatch(expanded,p.name));
+  const candidates=exactDimensions.length ? exactDimensions : meaningful.filter(p=>catalogNearbyDiameterMatch(expanded,expand(p.name)));
+  const scored=scoreProducts(expanded,candidates,{synonymTokens:true});
   if(!scored.length)return [];
   const floor=Math.max(scored[0].score*.55,35);
   const ranked=scored.filter(s=>s.score>=floor).map(s=>s.product);

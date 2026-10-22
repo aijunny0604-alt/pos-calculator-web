@@ -23,6 +23,18 @@ export function catalogDimensionsMatch(query,name) {
  const p=parts(name).filter(t=>/^\d/.test(t)).map(Number);
  return q.every(n=>p.includes(n));
 }
+// 검색 후보 안내 전용. 플랜지/자바라의 첫 치수(구경)만 ±1 허용한다.
+// 길이·각도·SKU와 소수 규격에는 보정을 적용하지 않는다.
+export function catalogNearbyDiameterMatch(query, name) {
+ const qText=normalize(query), pText=normalize(name);
+ const family=['플랜지','자바라'].find(word=>qText.includes(word)&&pText.includes(word));
+ if(!family) return false;
+ const q=parts(query).filter(t=>/^\d/.test(t)).map(Number);
+ const p=parts(name).filter(t=>/^\d/.test(t)).map(Number);
+ if(!q.length || !p.length || p[0]<20 || p[0]>200 || !Number.isInteger(p[0])) return false;
+ return q.some((n,index)=>Number.isInteger(n) && Math.abs(n-p[0])===1 &&
+   q.every((other,i)=>i===index || p.slice(1).includes(other)));
+}
 export function repeatOrderItems(order, products) {
  const missing=[],items=[];
  for(const item of order.items || []) {
