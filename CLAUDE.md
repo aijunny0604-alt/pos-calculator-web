@@ -1,9 +1,13 @@
 # POS Calculator Web
 
-> 마지막 업데이트: 2026-10-21 (스토어 상태 위젯 · 할인 배지 · 명세서/입출금 점검)
+> 마지막 업데이트: 2026-10-22 (스마트스토어 미발송 상시 모니터링)
 > 배포 URL: https://aijunny0604-alt.github.io/pos-calculator-web/
 
 자동차 튜닝 부품 판매용 POS 웹 시스템. React 18 + Vite + Tailwind CSS v3 + Supabase + Sentry + Gemini AI.
+
+## 2026-10-22 최신 변경
+
+[미발송 모니터링](docs/STORE-MONITORING-2026-10-22.md), [배포 기록](docs/DEPLOYMENT-2026-10-22.md). 오늘 필터에서도 이전 발주확인·내부 등록 미발송은 유지한다. 내부 전환과 실제 발송 완료를 구분하며, 최신 200건 밖 미발송도 별도 조회한다. 전체 테스트 161 통과 / 0 실패 / 1 건너뜀.
 
 ## 2026-10-21 최신 변경
 

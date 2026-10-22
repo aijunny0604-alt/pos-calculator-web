@@ -4,6 +4,8 @@ export function storeWidgetFixture() {
   const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
   const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
   const rows = [
+    ['어제 발주확인 내부등록', 'confirmed', { received_at: yesterday.toISOString(), naver_confirm_succeeded_at: yesterday.toISOString(), internal_order_id: 'DEMO-OLD-CONFIRM' }],
+    ['지난 내부전환 미발송', 'converted', { received_at: yesterday.toISOString(), internal_order_id: 'DEMO-OLD-CONVERT' }],
     ['오늘 결제', 'PAYED'], ['오늘 발주확인', 'confirmed'], ['오늘 발송', 'shipped'],
     ['어제 주문 오늘 발송', 'shipped', { received_at: yesterday.toISOString(), naver_dispatch_succeeded_at: today.toISOString() }],
     ['배송중 샘플', 'shipped'], ['배송완료 샘플', 'shipped'],

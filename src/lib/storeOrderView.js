@@ -1,4 +1,4 @@
-import { isOrderDone, isOrderPending, isOrderTerminal, IN_TRANSIT_STATUSES, PAYMENT_PENDING_STATUSES } from './orderStatus.js';
+import { isOrderTerminal, PAYMENT_PENDING_STATUSES } from './orderStatus.js';
 import { getClaimInfo } from './storeOrderSafety.js';
 
 export const ORDER_STEPS = ['결제완료', '발주확인', '발송', '배송중', '배송완료'];
@@ -26,12 +26,19 @@ export function isStoreOrderTerminal(order, items = []) {
 export function orderStage(o, items = []) {
   const st = storeOrderStatus(o, items);
   const unpaid = PAYMENT_PENDING_STATUSES.has(st);
-  if (['cancelled', 'CANCELED', 'CANCELED_BY_NOPAYMENT', 'CANCEL_REQUEST', 'RETURNED', 'EXCHANGED'].includes(st)) return { stage: -1, canceled: true, unpaid: false };
+  if (o?.naver_cancel_succeeded_at || ['cancelled', 'CANCELED', 'CANCELED_BY_NOPAYMENT', 'CANCEL_REQUEST', 'RETURNED', 'EXCHANGED'].includes(st)) return { stage: -1, canceled: true, unpaid: false };
   if (['DELIVERED', 'DELIVERED_COMPLETED', 'PURCHASE_DECIDED'].includes(st)) return { stage: 4, canceled: false, unpaid };
   if (st === 'DELIVERING') return { stage: 3, canceled: false, unpaid };
   if (o?.naver_dispatch_succeeded_at || st === 'shipped' || st === 'DISPATCHED') return { stage: 2, canceled: false, unpaid };
   if (o?.naver_confirm_succeeded_at || o?.internal_order_id || st === 'confirmed' || st === 'converted') return { stage: 1, canceled: false, unpaid };
   return { stage: unpaid ? -2 : 0, canceled: false, unpaid };
+}
+
+// 내부 POS 등록은 발송 완료가 아니다. 날짜와 무관한 출고 모니터링 전용 판정.
+export function isStoreAwaitingDispatch(order, items = []) {
+  if (!order || getClaimInfo(order, items)) return false;
+  const state = orderStage(order, items);
+  return !state.unpaid && !state.canceled && (state.stage === 0 || state.stage === 1);
 }
 
 export function matchesStoreStage(order, items, key) {
@@ -59,20 +66,20 @@ export function inStoreActivityRange(order, items, range) {
   const inRange = value => value && new Date(value) >= range.from && new Date(value) < range.to;
   return !!(inRange(order.received_at)
     || [order.naver_confirm_succeeded_at, order.naver_dispatch_succeeded_at, order.naver_cancel_succeeded_at, order.naver_dispatch_attempted_at].some(inRange)
-    || (isOrderPending(order) && orderStage(order, items).stage < 2) || getClaimInfo(order, items));
+    || isStoreAwaitingDispatch(order, items) || getClaimInfo(order, items));
 }
 
 export function matchesStoreWidget(order, items, key, now = Date.now()) {
   if (key === 'receivedToday') return !!order.received_at && new Date(order.received_at).toDateString() === new Date(now).toDateString();
   const claimed = !!getClaimInfo(order, items);
-  const done = isOrderDone(order) || IN_TRANSIT_STATUSES.has(order.order_status) || orderStage(order, items).stage >= 2;
+  const awaitingDispatch = isStoreAwaitingDispatch(order, items);
   if (key === 'cancel') return (!isOrderTerminal(order) && (order.order_status === 'CANCEL_REQUEST' || /cancel/i.test(order.raw_payload?.cancelRequest || ''))) || claimed;
-  if (key === 'needShip') return !done && isOrderPending(order) && !claimed && order.order_status !== 'CANCEL_REQUEST';
-  if (key === 'autoPending') return !done && !claimed && order.order_status !== 'CANCEL_REQUEST' && !!(order.needs_naver_confirm || order.needs_naver_dispatch);
-  if (key === 'newAfterConfirm') return !done && !claimed && !!order.naver_confirm_succeeded_at;
+  if (key === 'needShip') return awaitingDispatch;
+  if (key === 'autoPending') return awaitingDispatch && !!(order.needs_naver_confirm || order.needs_naver_dispatch);
+  if (key === 'newAfterConfirm') return awaitingDispatch && orderStage(order, items).stage === 1;
   const dueValue = order.dispatch_due_date || order.raw_payload?.productOrder?.dispatchDueDate || order.raw_payload?.dispatchDueDate;
   const due = dueValue ? new Date(dueValue).getTime() : NaN;
-  if (done || claimed || order.order_status === 'CANCEL_REQUEST' || !Number.isFinite(due)) return false;
+  if (!awaitingDispatch || !Number.isFinite(due)) return false;
   const start = new Date(now); start.setHours(0, 0, 0, 0);
   const tomorrow = new Date(start); tomorrow.setDate(start.getDate() + 1);
   const afterTomorrow = new Date(tomorrow); afterTomorrow.setDate(tomorrow.getDate() + 1);

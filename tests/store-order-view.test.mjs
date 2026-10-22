@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getStoreOrderView, matchesStoreWidget, orderStage } from '../src/lib/storeOrderView.js';
+import { getStoreOrderView, matchesStoreWidget, orderStage, isStoreAwaitingDispatch } from '../src/lib/storeOrderView.js';
 
 const now = new Date(2026, 9, 21, 12).getTime();
 const today = new Date(2026, 9, 21, 10).toISOString();
@@ -97,4 +97,46 @@ test('일부 배송완료·상태 누락·취소 품목을 섞어도 전체 완�
   assert.equal(orderStage(row('완료','DELIVERED'),[item('PAYED')]).stage,4);
   assert.equal(orderStage(row('원본','shipped',{raw_payload:{productOrder:{productOrderStatus:'DELIVERING'}}})).stage,3);
   assert.equal(matchesStoreWidget(row('뒤처짐','confirmed',{needs_naver_dispatch:true}),[item('DELIVERING')],'autoPending',now),false);
+});
+
+
+test('이전 발주확인·내부등록 주문은 오늘/다음날/사용자 기간에도 미발송으로 남는다', () => {
+  const orders = [row('확인내부등록', 'confirmed', {received_at:yesterday,naver_confirm_succeeded_at:yesterday,internal_order_id:'POS-1'}),
+    row('전환미발송', 'converted', {received_at:yesterday,internal_order_id:'POS-2'}),
+    row('발송성공', 'confirmed', {received_at:yesterday,internal_order_id:'POS-3',naver_dispatch_succeeded_at:yesterday})];
+  for (const day of [21,22,28]) {
+    const dateRange = {from:new Date(2026,9,day),to:new Date(2026,9,day+1)};
+    const common = {...options,dateRange};
+    const view = getStoreOrderView(orders,common);
+    assert.equal(view.stages.stages[1],2);
+    assert.equal(view.widgets.needShip,2);
+    assert.equal(view.widgets.newAfterConfirm,2);
+    assert.deepEqual(getStoreOrderView(orders,{...common,statusFilter:'s1'}).filtered.map(o=>o.id),['확인내부등록','전환미발송']);
+    assert.deepEqual(view.filtered.map(o=>o.id),['확인내부등록','전환미발송']);
+  }
+});
+
+test('발송 실패/대기열/송장만 입력된 주문은 남고 발송 성공·종결·미결제·클레임은 제외한다', () => {
+  const base = row('예전확인','confirmed',{received_at:yesterday,internal_order_id:'POS',naver_confirm_succeeded_at:yesterday});
+  for (const extra of [{},{needs_naver_dispatch:true},{naver_dispatch_error:'실패'},{tracking_number:'1234'}])
+    assert.equal(isStoreAwaitingDispatch({...base,...extra}),true);
+  for (const status of ['shipped','DISPATCHED','DELIVERING','DELIVERED','PURCHASE_DECIDED','CANCELED','CANCEL_REQUEST','RETURNED','EXCHANGED','PAYMENT_WAITING','PAY_WAITING'])
+    assert.equal(isStoreAwaitingDispatch({...base,order_status:status}),false,status);
+  assert.equal(isStoreAwaitingDispatch({...base,naver_dispatch_succeeded_at:today}),false);
+  assert.equal(isStoreAwaitingDispatch({...base,naver_cancel_succeeded_at:today}),false);
+  assert.equal(orderStage({...base,naver_cancel_succeeded_at:today}).canceled,true);
+  for (const status of ['DELIVERING','DELIVERED']) assert.equal(isStoreAwaitingDispatch(base,[{raw_payload:{productOrder:{productOrderStatus:status}}}]),false);
+  assert.equal(isStoreAwaitingDispatch(base,[{raw_payload:{productOrder:{claimStatus:'CANCEL_REQUEST'}}}]),false);
+});
+
+test('미발송 예외도 마켓/검색 필터를 지키고 발송 완료 뒤 다음날 범위에서는 빠진다', () => {
+  const orders = [row('네이버','converted',{received_at:yesterday,provider:'naver',internal_order_id:'P1'}),row('타마켓','confirmed',{received_at:yesterday,provider:'mock'})];
+  const common = {...options,providerFilter:'naver'};
+  assert.equal(getStoreOrderView(orders,common).widgets.needShip,1);
+  assert.equal(getStoreOrderView(orders,{...common,searchQuery:'없음'}).filtered.length,0);
+  orders[0] = {...orders[0],naver_dispatch_succeeded_at:today};
+  assert.equal(getStoreOrderView(orders,common).stages.stages[1],0);
+  assert.equal(getStoreOrderView(orders,common).stages.stages[2],1);
+  assert.equal(getStoreOrderView(orders,common).widgets.needShip,0);
+  assert.equal(getStoreOrderView(orders,{...common,dateRange:{from:range.to,to:new Date(2026,9,23)}}).filtered.length,0);
 });

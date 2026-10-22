@@ -1,3 +1,4 @@
+import { fetchStoreMonitorOrders } from './storeMonitorData.js';
 import { positiveMoney, paymentRows } from './paymentSafety';
 import { isPersistedResult } from './movisReliability';
 import { fetchPosJSON as fetchJSON, fetchPosRows } from './posConnection';
@@ -1210,6 +1211,10 @@ export const supabase = {
       return await fetchJSON(url, { headers });
     } catch (e) { console.error('getExternalOrders:', e); return []; }
   },
+  // 조회 실패를 빈 목록으로 바꾸지 않는다. 화면에서 기존 목록을 유지하며 재시도를 안내한다.
+  async getStoreMonitorOrders() {
+    return fetchStoreMonitorOrders(SUPABASE_URL, headers);
+  },
   // 네이버 스토어(엠파츠) 상품 카탈로그 — sync.js가 채운 external_products (MOVIS 검색용)
   async getExternalProducts({ limit = 5000 } = {}) {
     try {
@@ -1242,7 +1247,7 @@ export const supabase = {
     } catch (e) { console.error('getExternalOrderItems:', e); return []; }
   },
   // 여러 주문의 items를 한 번에 — N+1 제거(주문마다 따로 요청하던 것 → 단일 in.() 쿼리). 반환: { [external_order_id]: items[] }
-  async getExternalOrderItemsByOrders(orderIds) {
+  async getExternalOrderItemsByOrders(orderIds, { strict = false } = {}) {
     const ids = (orderIds || []).filter(Boolean);
     if (ids.length === 0) return {};
     const map = {};
@@ -1250,8 +1255,8 @@ export const supabase = {
       // URL 길이 한도 대비 100개씩 청크 (49건 규모면 1번이지만 안전하게)
       for (let i = 0; i < ids.length; i += 100) {
         const chunk = ids.slice(i, i + 100);
-        const rows = await fetchJSON(
-          `${SUPABASE_URL}/rest/v1/external_order_items?external_order_id=in.(${chunk.map(encodeURIComponent).join(',')})&order=created_at.asc`,
+        const rows = await (strict ? fetchPosRows : fetchJSON)(
+          `${SUPABASE_URL}/rest/v1/external_order_items?external_order_id=in.(${chunk.map(encodeURIComponent).join(',')})&order=created_at.asc,id.asc`,
           { headers }
         );
         for (const r of (rows || [])) {
@@ -1259,7 +1264,7 @@ export const supabase = {
         }
       }
       return map;
-    } catch (e) { console.error('getExternalOrderItemsByOrders:', e); return map; }
+    } catch (e) { console.error('getExternalOrderItemsByOrders:', e); if (strict) throw e; return map; }
   },
   // provider_order_id 로 외부주문 단건 조회 (택배 송장 페이지 → 네이버 발송 연동용)
   async getExternalOrderByProviderOrderId(providerOrderId) {

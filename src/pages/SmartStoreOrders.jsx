@@ -11,7 +11,7 @@ import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/compo
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates } from '@/lib/productMatch';
 import { isOrderDone, isOrderTerminal, isOrderPending, PAYMENT_PENDING_STATUSES } from '@/lib/orderStatus';
-import { ORDER_STEPS, orderStage, storeOrderStatus, isStoreOrderTerminal, getStoreOrderView, matchesStoreWidget } from '@/lib/storeOrderView';
+import { ORDER_STEPS, orderStage, storeOrderStatus, isStoreOrderTerminal, getStoreOrderView, matchesStoreWidget, isStoreAwaitingDispatch } from '@/lib/storeOrderView';
 import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/storeOrderSafety';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
@@ -235,17 +235,9 @@ const CLAIM_COLORS = { CANCEL: '#fb923c', RETURN: '#ec4899', EXCHANGE: '#d946ef'
 // 발주확인 가능 상태 (네이버 원본 + 내부 status 모두 포함)
 const PENDING_CONFIRM_STATUSES = new Set(['received', 'PAYED', 'PAYMENT_WAITING', 'matched']);
 
-// 처리 대기 주문 = 매장이 아직 손대야 하는 주문 (발주확인 전 or 발송 전).
-// 이런 주문은 날짜 필터에서 빠지면 그대로 놓치므로, 기간과 무관하게 항상 노출한다 (2026-06-03).
-// ⚠️ 판정은 orderStatus.js의 단일 정책 isOrderPending을 그대로 재사용한다.
-//   (자체 orderStage 재구현 시 입금대기·내부전환 건이 잘못 끌려오는 드리프트 발생 — 메뉴 배지와 불일치)
-//   isOrderPending = 내부전환 X · 완료(발송 succeeded_at 포함) X · 배송중 X · 입금대기 X.
-const needsAction = isOrderPending;
-
-// 조회기간 밖이지만 미처리라 끌어올려 표시되는 주문인가 — 배너 카운트와 카드 배지가
-// 동일 판정을 쓰도록 단일 헬퍼로 통일 (드리프트 방지).
-function isPendingOutOfRange(o, dateRange) {
-  if (!dateRange || !needsAction(o) || !o.received_at) return false;
+// 기간 밖 미발송 안내도 위젯과 동일한 출고 판정을 사용한다.
+function isPendingOutOfRange(o, items, dateRange) {
+  if (!dateRange || !isStoreAwaitingDispatch(o, items) || !o.received_at) return false;
   const rec = new Date(o.received_at);
   return rec < dateRange.from || rec >= dateRange.to;
 }
@@ -455,6 +447,7 @@ export default function SmartStoreOrders({
   const [productImages, setProductImages] = useState({}); // { productId: 대문 이미지 URL }
   const [imageZoom, setImageZoom] = useState(null); // 상품 이미지 확대 오버레이 URL
   const [loading, setLoading] = useState(true);
+  const [monitorLoadError, setMonitorLoadError] = useState(false);
   const [soundOn, setSoundOn] = useState(isStoreAlertSoundOn());
   const [providerFilter, setProviderFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -635,10 +628,18 @@ export default function SmartStoreOrders({
 
   const reload = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
-    const list = await supabase.getExternalOrders({ limit: 200 });
+    let list, itemsMap;
+    try {
+      list = await supabase.getStoreMonitorOrders();
+      itemsMap = await supabase.getExternalOrderItemsByOrders(list.map(o => o.id), { strict: true });
+      setMonitorLoadError(false);
+    } catch (error) {
+      console.error('스토어 모니터링 조회 실패:', error);
+      setMonitorLoadError(true);
+      if (!silent) setLoading(false);
+      return;
+    }
     setOrders(list || []);
-    // 모든 주문의 items를 단일 배치 쿼리로 로드 (N+1 제거 — 주문마다 따로 요청하던 게 로딩 지연 원인, 2026-06-22)
-    const itemsMap = await supabase.getExternalOrderItemsByOrders((list || []).map((o) => o.id));
     // 주문은 있는데 items 없는 경우도 빈 배열로 채워 일관성 유지
     for (const o of (list || [])) { if (!itemsMap[o.id]) itemsMap[o.id] = []; }
     setItemsByOrder(itemsMap);
@@ -657,7 +658,7 @@ export default function SmartStoreOrders({
 
   useEffect(() => { reload(); }, [reload]);
 
-  // 메뉴 배지 즉시 반영 — 여기 reload()가 배지와 같은 쿼리(limit 200, 날짜 무관)를 쓰므로
+  // 메뉴 배지 즉시 반영 — 메뉴의 기존 내부처리 대기 정책은 유지한다. 출고 모니터링은 별도 기준이며
   // 추가 요청 없이 이 목록으로 카운트를 넘긴다. 전환/발송 직후 배지가 60초 묵는 걸 막는다.
   useEffect(() => {
     if (!loading && onPendingCountChange) onPendingCountChange(orders.filter(isOrderPending).length);
@@ -788,10 +789,10 @@ export default function SmartStoreOrders({
   const filteredSummary = useMemo(() => ({
     count: filtered.length,
     sum: filtered.reduce((s, o) => s + Number(o.total_amount || 0), 0),
-    pending: filtered.filter((o) => needsAction(o)).length,
-    // 입금대기는 needsAction에서 빠지므로(고객 미결제) 따로 세어 요약에 노출 — "2건인데 왜 1건?" 혼선 방지
+    pending: filtered.filter((o) => isStoreAwaitingDispatch(o, itemsByOrder[o.id] || [])).length,
+    // 입금대기는 출고 모니터링에서 빠지므로(고객 미결제) 따로 세어 요약에 노출 — "2건인데 왜 1건?" 혼선 방지
     unpaid: filtered.filter((o) => PAYMENT_PENDING_STATUSES.has(o.order_status)).length,
-  }), [filtered]);
+  }), [filtered, itemsByOrder]);
 
   // CSV 내보내기 — 현재 조회된(필터 적용) 주문을 정산/세무용으로 다운로드
   const exportCsv = () => {
@@ -830,8 +831,8 @@ export default function SmartStoreOrders({
 
   // 날짜 필터 밖이지만 미처리라 끌어올려 표시 중인 주문 수 (놓침 방지 안내용)
   const pendingOutOfRangeCount = useMemo(
-    () => filtered.filter((o) => isPendingOutOfRange(o, dateRange)).length,
-    [filtered, dateRange]
+    () => filtered.filter((o) => isPendingOutOfRange(o, itemsByOrder[o.id] || [], dateRange)).length,
+    [filtered, itemsByOrder, dateRange]
   );
 
   // 진행 단계와 목록은 접수일 + 작업일 + 기간 밖 처리대기를 같은 기준으로 집계한다.
@@ -853,7 +854,7 @@ export default function SmartStoreOrders({
 
   // 🚚 발송 대기 — 아직 발송 못한 미처리 주문 전부(결제완료·발주확인 단계). 재고 없어 발주확인만 해둔 것 포함.
   //   ⚠️ 검색·마켓 범위의 전체 기간 기준 — 네이버에서 직접 발주확인해 우리 시스템엔 '결제완료'로 남은 옛 주문도
-  //      절대 놓치지 않도록. isOrderPending(=메뉴 배지와 동일 기준)으로 판정.
+  //      절대 놓치지 않도록. 내부 주문 등록 여부와 무관하게 실제 발송 상태로 판정.
   //   기한 초과(dispatch_due_date 지남)·가장 오래된 건을 함께 집계 — "발송해야 할 것" 리마인더.
   const shipWatch = useMemo(() => {
     const now = Date.now();
@@ -1158,7 +1159,7 @@ export default function SmartStoreOrders({
       return;
     }
     // 선택된 주문 중 이미 발송완료 제외
-    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !isOrderDone(o));
+    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && isStoreAwaitingDispatch(o, itemsByOrder[o.id] || []));
     if (eligible.length === 0) {
       showToast?.('발송 가능한 주문이 없어요 (이미 발송완료/취소)', 'error');
       return;
@@ -1170,7 +1171,7 @@ export default function SmartStoreOrders({
     setBulkDispatchOpen(true);
   };
   const submitBulkDispatch = async () => {
-    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !isOrderDone(o));
+    const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && isStoreAwaitingDispatch(o, itemsByOrder[o.id] || []));
     const ready = eligible.filter((o) => (bulkTrackingMap[o.id] || '').trim().length > 0);
     if (ready.length === 0) {
       showToast?.('송장번호를 1건 이상 입력해주세요', 'error');
@@ -1562,7 +1563,7 @@ export default function SmartStoreOrders({
               active={widgetFilter === 'autoPending'}
               onClick={() => { setWidgetFilter((f) => f === 'autoPending' ? 'none' : 'autoPending'); setStatusFilter('all'); setDatePreset('all'); }} />
             <NaverStatBox icon="🚚" label="발송 대기" value={shipWatch.count} accent="#ffaa00" alert={shipWatch.overdue > 0}
-              hint={`아직 발송 안 한 미처리 주문 전부 (결제완료·발주확인, 재고 대기 포함)${shipWatch.overdue > 0 ? ` · 기한 초과 ${shipWatch.overdue}건` : ''}`}
+              hint={`아직 발송 안 한 주문 전부 (결제완료·발주확인, 재고 대기 포함)${shipWatch.overdue > 0 ? ` · 기한 초과 ${shipWatch.overdue}건` : ''}`}
               active={widgetFilter === 'needShip'}
               onClick={() => { setStatusFilter('all'); setWidgetFilter((f) => f === 'needShip' ? 'none' : 'needShip'); setDatePreset('all'); }} />
             <NaverStatBox icon="🚨" label="취소·반품 요청" value={stats.cancelRequest} alert={stats.cancelRequest > 0}
@@ -1599,12 +1600,12 @@ export default function SmartStoreOrders({
         <div className="px-3 sm:px-4 pt-1 pb-2">
           <button
             onClick={() => { setWidgetFilter('cancel'); setStatusFilter('all'); setDatePreset('all'); }}
-            className="w-full flex items-center gap-2 rounded-xl border-2 px-3 py-3 text-left font-black transition-all hover:brightness-105 animate-pulse"
+            className="w-full flex flex-wrap items-center break-keep gap-2 rounded-xl border-2 px-3 py-3 text-left font-black transition-all hover:brightness-105 animate-pulse"
             style={{ background: 'rgba(255,77,109,0.14)', borderColor: '#ff4d6d', color: '#ff4d6d', boxShadow: '0 0 0 3px rgba(255,77,109,0.12)' }}>
             <span className="text-xl">🚨</span>
-            <span className="text-base">취소·반품 요청 {claimWatch.count}건</span>
-            <span className="font-semibold text-sm opacity-90">— 구매자 요청 대기 중{claimWatch.names.length ? ` (${claimWatch.names.join(', ')}${claimWatch.count > claimWatch.names.length ? ' 외' : ''})` : ''}</span>
-            <span className="ml-auto text-xs font-bold px-2 py-1 rounded-lg" style={{ background: '#ff4d6d', color: '#fff' }}>클릭 = 확인하기</span>
+            <span className="text-base shrink-0">취소·반품 요청 {claimWatch.count}건</span>
+            <span className="w-full sm:w-auto min-w-0 font-semibold text-sm opacity-90 order-last sm:order-none">— 구매자 요청 대기 중{claimWatch.names.length ? ` (${claimWatch.names.join(', ')}${claimWatch.count > claimWatch.names.length ? ' 외' : ''})` : ''}</span>
+            <span className="ml-auto shrink-0 text-xs font-bold px-2 py-1 rounded-lg" style={{ background: '#ff4d6d', color: '#fff' }}>클릭 = 확인하기</span>
           </button>
         </div>
       )}
@@ -1614,16 +1615,16 @@ export default function SmartStoreOrders({
         <div className="px-3 sm:px-4 pb-2">
           <button
             onClick={() => { setStatusFilter('all'); setWidgetFilter('needShip'); setDatePreset('all'); }}
-            className="w-full flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-bold transition-all hover:brightness-105"
+            className="w-full flex flex-wrap items-center break-keep gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-bold transition-all hover:brightness-105"
             style={shipWatch.overdue > 0
               ? { background: 'rgba(255,77,109,0.10)', borderColor: '#ff4d6d', color: '#ff4d6d' }
               : { background: 'rgba(255,170,0,0.10)', borderColor: '#e6961b', color: '#e6961b' }}>
             <span className="text-base">🚚</span>
-            <span>발송 대기 {shipWatch.count}건</span>
-            <span className="font-normal opacity-80">— 아직 발송 안 한 미처리 주문 (결제완료·발주확인)</span>
+            <span className="shrink-0">발송 대기 {shipWatch.count}건</span>
+            <span className="w-full sm:w-auto min-w-0 font-normal opacity-80 order-last sm:order-none">— 날짜와 무관하게 미발송 주문 표시 (내부 등록 포함)</span>
             {shipWatch.overdue > 0 && <span className="px-1.5 py-0.5 rounded-full text-[11px] font-black" style={{ background: '#ff4d6d', color: '#fff' }}>🔥 기한 초과 {shipWatch.overdue}건</span>}
-            {shipWatch.oldestDays > 0 && <span className="text-[11px] font-semibold opacity-80">가장 오래된 {shipWatch.oldestDays}일째</span>}
-            <span className="ml-auto text-[11px] font-semibold opacity-70">클릭 = 모아보기</span>
+            {shipWatch.oldestDays > 0 && <span className="shrink-0 text-[11px] font-semibold opacity-80">가장 오래된 {shipWatch.oldestDays}일째</span>}
+            <span className="ml-auto shrink-0 text-[11px] font-semibold opacity-70">클릭 = 모아보기</span>
           </button>
         </div>
       )}
@@ -1671,7 +1672,7 @@ export default function SmartStoreOrders({
         <div className="mx-3 sm:mx-4 mb-2 px-3 py-2 rounded-lg text-xs flex items-center gap-2"
           style={{ background: 'rgba(255,193,7,0.12)', border: '1px solid rgba(255,193,7,0.4)', color: 'var(--foreground)' }}>
           <span>⏳</span>
-          <span><b>처리 대기 {pendingOutOfRangeCount}건</b>은 조회기간 밖이지만 아직 <b>발주확인·발송 전</b>이라 함께 표시 중이에요 (놓침 방지)</span>
+          <span><b>미발송 {pendingOutOfRangeCount}건</b>은 조회기간 밖이어도 계속 표시합니다. 발주확인·내부 주문 등록 후에도 발송 전까지 남습니다.</span>
         </div>
       )}
 
@@ -1743,6 +1744,12 @@ export default function SmartStoreOrders({
       </div>
 
       {/* 조회 결과 요약 바 — 현재 필터 기준 건수·합계·대기 한눈에 + CSV 내보내기 */}
+      {monitorLoadError && (
+        <div role="alert" className="mx-4 my-3 rounded-xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--warning)', background: 'var(--muted)' }}>
+          미발송 주문을 최신화하지 못했습니다. 기존 목록은 유지됩니다.
+          <button className="ml-3 min-h-11 font-semibold underline" onClick={() => reload()}>다시 조회</button>
+        </div>
+      )}
       {!loading && filtered.length > 0 && (
         <div className="mx-3 sm:mx-4 mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 rounded-lg text-sm"
           style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
@@ -1766,7 +1773,7 @@ export default function SmartStoreOrders({
       {/* 주문 카드 목록 — 항상 풀 디스플레이, 모바일 우선 디자인 */}
       <div className="px-3 sm:px-4">
         {loading && <div className="text-center py-12 text-sm opacity-60">불러오는 중...</div>}
-        {!loading && filtered.length === 0 && (
+        {!loading && !monitorLoadError && filtered.length === 0 && (
           <div className="text-center py-16 opacity-60">
             <ShoppingBag className="w-12 h-12 mx-auto mb-3 opacity-40" />
             {orders.length > 0 ? (
@@ -1949,10 +1956,10 @@ export default function SmartStoreOrders({
                     )}
                     {/* 방문수령 주문이어도 발송 버튼을 같이 둔다 — 손님이 "그냥 택배로 보내달라"고 바꾸는
                         경우가 실제로 있는데, 예전엔 버튼이 스왑돼 송장 입력 자체가 불가능했다 (2026-07-22) */}
-                    {!isOrderDone(order) && isVisitReceiptOrder(order, itemsForOrder) && (
+                    {isStoreAwaitingDispatch(order, itemsByOrder[order.id] || []) && isVisitReceiptOrder(order, itemsForOrder) && (
                       <ActionBtn onClick={() => setVisitReceiptOrder(order)} icon={Store} label="방문수령" variant="amber" title="방문수령 발송처리 (송장 불필요)" />
                     )}
-                    {!isOrderDone(order) && (
+                    {isStoreAwaitingDispatch(order, itemsByOrder[order.id] || []) && (
                       <ActionBtn onClick={() => openDispatch(order)} icon={Truck} label="발송" variant="green"
                         title={isVisitReceiptOrder(order, itemsForOrder) ? '택배로 발송처리 (송장번호 입력)' : '발송처리'} />
                     )}
@@ -2228,13 +2235,13 @@ export default function SmartStoreOrders({
                             <ClipboardCheck className="w-4 h-4" />발주확인
                           </button>
                         )}
-                        {!isOrderDone(order) && isVisitReceiptOrder(order, itemsByOrder[order.id]) && (
+                        {isStoreAwaitingDispatch(order, itemsByOrder[order.id] || []) && isVisitReceiptOrder(order, itemsByOrder[order.id]) && (
                           <button onClick={() => { setExpandedCompactId(null); setVisitReceiptOrder(order); }} className={MODAL_FOOTER_CLASS}
                             style={{ background: ACTION_VARIANTS.amber.bg, color: ACTION_VARIANTS.amber.color, borderColor: ACTION_VARIANTS.amber.border }}>
                             <Store className="w-4 h-4" />방문수령
                           </button>
                         )}
-                        {!isOrderDone(order) && (
+                        {isStoreAwaitingDispatch(order, itemsByOrder[order.id] || []) && (
                           <button onClick={() => { setExpandedCompactId(null); openDispatch(order); }} className={MODAL_FOOTER_CLASS}
                             style={{ background: ACTION_VARIANTS.green.bg, color: ACTION_VARIANTS.green.color, borderColor: ACTION_VARIANTS.green.border }}>
                             <Truck className="w-4 h-4" />발송
@@ -2279,7 +2286,7 @@ export default function SmartStoreOrders({
           const isCashOnDelivery = order.delivery_policy_type === '착불' || /cash/i.test(order.delivery_policy_type || '');
           const cardDm = getDeliveryMethod(order, items);
           // 조회기간 밖이지만 미처리라 끌어올려진 주문 → 카드에도 표시 (배너 카운트와 동일 헬퍼)
-          const pendingOutOfRange = isPendingOutOfRange(order, dateRange);
+          const pendingOutOfRange = isPendingOutOfRange(order, itemsByOrder[order.id] || [], dateRange);
           // 구매자 클레임(취소/반품/교환 요청)이면 카드 전체를 종류별 색으로 차별화 (한눈에 구분)
           const cardClaim = getClaimInfo(order, items);
           const claimColor = cardClaim ? (CLAIM_COLORS[cardClaim.type] || '#ff4d6d') : null;
@@ -2352,8 +2359,8 @@ export default function SmartStoreOrders({
                 {pendingOutOfRange && (
                   <span className="px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-0.5"
                     style={{ background: 'rgba(255,193,7,0.18)', color: '#ffc107', border: '1px solid rgba(255,193,7,0.45)' }}
-                    title="조회기간 밖이지만 아직 발주확인·발송 전이라 끌어올려 표시 중">
-                    ⏳ 기간 외 미처리
+                    title="조회기간 밖이어도 실제 발송 전까지 계속 표시합니다">
+                    ⏳ 기간 외 미발송
                   </span>
                 )}
                 <span className="ml-auto text-sm opacity-80 font-mono">
@@ -2666,7 +2673,7 @@ export default function SmartStoreOrders({
                     <ClipboardCheck className="w-4 h-4" />발주확인
                   </button>
                 )}
-                {!isOrderDone(order) && isVisitReceiptOrder(order, items) && (
+                {isStoreAwaitingDispatch(order, itemsByOrder[order.id] || []) && isVisitReceiptOrder(order, items) && (
                   <button
                     onClick={() => setVisitReceiptOrder(order)}
                     className={CARD_ACTION_CLASS}
@@ -2675,7 +2682,7 @@ export default function SmartStoreOrders({
                     <Store className="w-4 h-4" />방문수령 처리
                   </button>
                 )}
-                {!isOrderDone(order) && (
+                {isStoreAwaitingDispatch(order, itemsByOrder[order.id] || []) && (
                   <button
                     onClick={() => openDispatch(order)}
                     className={CARD_ACTION_CLASS}
@@ -3063,7 +3070,7 @@ export default function SmartStoreOrders({
 
       {/* 일괄 발송처리 모달 (Task #109) */}
       {bulkDispatchOpen && (() => {
-        const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && !isOrderDone(o));
+        const eligible = filtered.filter((o) => selectedOrderIds.has(o.id) && isStoreAwaitingDispatch(o, itemsByOrder[o.id] || []));
         const readyCount = eligible.filter((o) => (bulkTrackingMap[o.id] || '').trim().length > 0).length;
         return (
           <ViewportModal className="store-dispatch-backdrop bg-black/60 backdrop-blur-sm animate-modal-backdrop"
@@ -3532,7 +3539,7 @@ function StageMonitorBar({ counts, canceled, unpaid = 0, statusFilter, onSelect,
           <span className="ml-auto opacity-80">{statusFilter === 'unpaid' ? '보는 중' : '클릭=따로 보기'}</span>
         </button>
       )}
-      <p className="mb-2 text-[11px]" style={{ color: 'var(--muted-foreground)' }}>접수·작업일과 검색 기준 · 기간 밖 처리대기 포함 · 클릭하면 해당 단계만 표시</p>
+      <p className="mb-2 text-[11px]" style={{ color: 'var(--muted-foreground)' }}>접수·작업일과 검색 기준 · 미발송은 기간 무관 · 내부 주문 등록 포함 · 클릭하면 해당 단계만 표시</p>
       <div className="grid grid-cols-5 gap-1 sm:gap-2" data-testid="store-stage-monitor">
         {ORDER_STEPS.map((label, i) => {
           const key = `s${i}`;
