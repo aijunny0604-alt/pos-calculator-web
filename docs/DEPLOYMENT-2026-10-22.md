@@ -97,3 +97,26 @@
 | `assets/InvoicesContainer-DGDWT7t9.js` | `d9804801da1700103261ee3b9dfba155dd97fd59c79aca22815f67ab09d1d9a2` |
 | `assets/PaymentsContainer-2X-e7bwM.js` | `1df540aba609317778fb20c23337c89079b24ed6c73ee3d4f140e7a8832330fc` |
 | `assets/SmartStoreOrders-D-VKJxF6.js` | `9297c36ff1534ca3bd73b5208376ffaea641c88dbe3de5f60ec3e59daa82b0cd` |
+
+
+## 추가 배포: 모바일 송장 출력 패널 접기·펼치기 (17:26:19 KST)
+
+- 기능 소스 `d92b449b`, 정적 배포 `2b37cbf4d375f416b7d25335e0e0f1e24d3db291`.
+- GitHub Pages built, 오류 없음. 2026-10-22 08:26:19 UTC 완료.
+- 최종 빌드 58.05초 성공. 기존 큰 번들 경고 유지.
+- 로컬 360×800 / 390×844 / PC 1280×720: 기본 접기, 선택 유지, Enter 조작, 출력 버튼 최소 44px, PC 오른쪽 패널 유지 확인.
+- 운영 390×844: 기본 접힘 → 펼침 → 다시 접기 및 카톡·CSV·Excel·인쇄 버튼 접근 확인. 콘솔 오류 없음. 실제 출력·주문 저장 없이 검증.
+- 운영 파일 9개 모두 HTTP 200 및 SHA-256 일치. 실기기 iOS/Android 검증은 별도.
+- 이전 정적 자산 보존. 롤백 기준 `4dc2964ffd5c974b591f95b3c8b9259b5539fcf9`.
+
+| 파일 | SHA-256 |
+|---|---|
+| `index.html` | `fe1ab5e7c2293c6720321b6751b89bd0f4ec97600f134096b60ee97a5ace28a5` |
+| `assets/polyfills-BuIMzCmj.js` | `540b5fa7c6a9c558b2ea322d7b89f9220b794ead829d543caae094397f689664` |
+| `assets/index-Bk7Ojwiw.js` | `51936474b7dc654115158dc640e5fd61a1bc53a6db901a78aeef384ccbd03a17` |
+| `assets/sentry-CsY0hej4.js` | `9fe0c4b368b1ed7dfdac2b86d2a6b56090fd9dc588812de1da8d6ca376923946` |
+| `assets/react-core-C_nVshIL.js` | `c592fa79fa78914144b4b049a63308302fa81b9534bc14a82c4c3c428f505880` |
+| `assets/supabase-js-CfVawArw.js` | `fc41fe3db7dd2cf6b87087b7c2ef0dce8f46d1d4f4f45e39e188e6d3964a76cd` |
+| `assets/index-z0mkSM8L.css` | `c03cbf943baf104ade9eb6d2d5b1dfe76c51dd471e250562beff2cb2cb306cd4` |
+| `assets/polyfills-legacy-D6nrY_rc.js` | `4905f7be8d3ff03eab0c6d7588def3b70d858ffe2097005dd6a86b9d2dcfedcd` |
+| `assets/index-legacy-MOcIpnhB.js` | `2fcde9d825c3b9d6961e939b11f4e6644cc077272ca3b653dfe85266f834603c` |
