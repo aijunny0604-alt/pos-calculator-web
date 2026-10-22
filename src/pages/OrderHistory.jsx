@@ -14,7 +14,7 @@ import StatementReconcile from '@/components/StatementReconcile';
 import useManualPaid, { PAYMENT_METHODS, METHOD_MAP } from '@/hooks/useManualPaid';
 import useCountUp from '@/hooks/useCountUp';
 import { supabase, supabaseClient } from '@/lib/supabase';
-import { classifyOrderChannel, extractNaverBuyer } from '@/lib/channelClassifier';
+import { classifyOrderChannel, extractNaverBuyer, getNaverDispatchOrderId } from '@/lib/channelClassifier';
 import { NAVER_COURIERS, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
 
 // 🚨 2026-07-16: 이 파일이 택배사 목록을 자체 복제하면서 로젠=LOGEN, 경동=KGB로 잘못 갖고 있었다.
@@ -87,8 +87,7 @@ export default function OrderHistory({
     setNaverDispatching(true);
     try {
       const order = naverDispatchModal;
-      const match = (order.memo || '').match(/\[\s*네\s*이\s*버[^\]]*\]\s*(\d+)/);
-      const providerOrderId = match?.[1];
+      const providerOrderId = getNaverDispatchOrderId(order);
       if (!providerOrderId) {
         alert('이 주문의 네이버 주문번호를 찾을 수 없습니다. memo 형식 확인 필요.');
         return;
@@ -193,7 +192,7 @@ export default function OrderHistory({
   const storeOrdinalByOrderId = useMemo(() => {
     const byBuyer = new Map();
     for (const o of orders || []) {
-      if (classifyOrderChannel(o) !== 'naver') continue;
+      if (classifyOrderChannel(o, customers) !== 'naver') continue;
       const key = normName(extractNaverBuyer(o) || o.customerName);
       if (!key) continue;
       const t = new Date(o.createdAt || o.received_at || 0).getTime();
@@ -207,7 +206,7 @@ export default function OrderHistory({
       arr.forEach((x, i) => ord.set(x.id, i + 1));
     }
     return ord;
-  }, [orders]);
+  }, [orders, customers]);
 
   // 📄 거래처 사업자등록증 — 이름 매칭으로 연동된 등록증 URL 조회 (거래처관리에서 올린 것)
   const getCustomerCert = (customerName) => {
@@ -1136,7 +1135,7 @@ export default function OrderHistory({
               const isReturned = (order.totalReturned || 0) > 0;
               const discount = getOrderDiscountSummary(order);
               // 네이버 스마트스토어 경유 주문 — channelClassifier로 통합 (M2: DRY 적용)
-              const isNaverOrder = classifyOrderChannel(order) === 'naver';
+              const isNaverOrder = classifyOrderChannel(order, customers) === 'naver';
               // memo 에서 실제 구매자 이름 추출 (옛 엠파츠 거래처 데이터 호환용)
               const naverBuyer = isNaverOrder ? extractNaverBuyer(order) : null;
               // 스토어 주문자(구매자)·받는분 파싱 — 주문자≠받는분일 때 받는분 별도 표시
@@ -1590,8 +1589,8 @@ export default function OrderHistory({
                       </button>
                     )}
 
-                    {/* 네이버 발송처리 — 네이버 주문에만 노출 */}
-                    {isNaverOrder && (
+                    {/* 실제 외부 주문번호가 하나로 확인될 때만 발송 가능 */}
+                    {isNaverOrder && getNaverDispatchOrderId(order) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); openNaverDispatch(order); }}
                         className="py-2 px-2.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center justify-center gap-1.5 transition-colors"

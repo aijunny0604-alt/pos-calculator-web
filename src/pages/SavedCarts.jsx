@@ -114,6 +114,22 @@ export default function SavedCarts({
   const [showCustomerPicker, setShowCustomerPicker] = useState(false); // 업체 교체 선택 모달
   const [showProductSearchDetail, setShowProductSearchDetail] = useState(false);
   const [productSearchTermDetail, setProductSearchTermDetail] = useState('');
+  const orderingRef = useRef(false);
+  const [ordering, setOrdering] = useState(false);
+  const confirmCartOrder = async (cart) => {
+    if (orderingRef.current) return null;
+    orderingRef.current = true;
+    setOrdering(true);
+    try {
+      return await onOrder(cart);
+    } catch {
+      showToast?.('주문 저장에 실패했습니다. 장바구니를 확인하고 다시 시도해주세요.', 'error');
+      return null;
+    } finally {
+      orderingRef.current = false;
+      setOrdering(false);
+    }
+  };
   const detailSearchRef = useRef(null); // [제품 추가] 누르면 바로 타이핑되게 포커스
   // 라인별 제품 교체 (잘못 주문한 제품 바로잡기) — 펼친 라인 idx + 검색어
   const [replaceLineIdx, setReplaceLineIdx] = useState(null);
@@ -1267,10 +1283,12 @@ export default function SavedCarts({
                 </button>
                 {onOrder && (
                   <button
-                    onClick={() => {
-                      onOrder(currentCart);
-                      setDetailCart(null);
-                      setDetailIndex(null);
+                    disabled={ordering}
+                    onClick={async () => {
+                      if (await confirmCartOrder(currentCart)) {
+                        setDetailCart(null);
+                        setDetailIndex(null);
+                      }
                     }}
                     className="flex-1 min-w-[7rem] flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2 bg-[var(--primary)] hover:opacity-90 text-white rounded-lg text-sm sm:text-base font-semibold whitespace-nowrap transition-opacity"
                   >
@@ -1778,7 +1796,8 @@ export default function SavedCarts({
                             </button>
                             {onOrder && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); onOrder(cart); }}
+                                disabled={ordering}
+                                onClick={(e) => { e.stopPropagation(); void confirmCartOrder(cart); }}
                                 className="flex-1 flex items-center justify-center gap-1.5 h-11 bg-[var(--primary)] hover:opacity-90 text-white rounded-xl text-sm font-bold whitespace-nowrap transition-opacity"
                               >
                                 <FileText className="w-4 h-4" />

@@ -1,4 +1,5 @@
 import DiscountPreview from './DiscountPreview';
+import StoreCartPreview from './StoreCartPreview';
 import InvoicesContainer from '../pages/InvoicesContainer';
 import CustomerSearchPreview from './CustomerSearchPreview';
 import MovisMotionPreview from './MovisMotionPreview';
@@ -53,7 +54,8 @@ if (new URLSearchParams(location.search).get('tools') === '1') {
  document.documentElement.classList.add('preview-with-tools');
  createRoot(document.getElementById('preview-controls')).render(<Controls/>);
 }
-if(import.meta.env.DEV && new URLSearchParams(location.search).has('discountCheck')){createRoot(document.getElementById('root')).render(<DiscountPreview/>)}
+if(import.meta.env.DEV && new URLSearchParams(location.search).has('storeCartCheck')){createRoot(document.getElementById('root')).render(<StoreCartPreview/>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('discountCheck')){createRoot(document.getElementById('root')).render(<DiscountPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('customerCheck')){createRoot(document.getElementById('root')).render(<CustomerSearchPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('motionCheck')){createRoot(document.getElementById('root')).render(<MovisMotionPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('dispatchCheck')){createRoot(document.getElementById('root')).render(<><div className="flex flex-wrap gap-2 p-2">샘플 발송 검증 · 실제 발송 없음{['대기','성공','배송중','실패'].map(state=><button className="px-3 py-2 border rounded" key={state} onClick={()=>simulateDispatch(state)}>샘플 {state}</button>)}<button className="px-3 py-2 border rounded" onClick={()=>simulateDispatch('성공',false)}>알림 없이 성공</button></div><SmartStoreOrders/></>)}

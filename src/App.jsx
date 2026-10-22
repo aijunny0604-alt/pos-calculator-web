@@ -37,6 +37,7 @@ import { subscribePosChanges, mergePosChange } from '@/lib/posRealtime';
 import { priceData } from '@/lib/priceData';
 import { formatPrice, getTodayKST, toDateKST } from '@/lib/utils';
 import { isOrderPending } from '@/lib/orderStatus';
+import { mergeOrderMemos, loadedCustomerMemo, confirmSavedCart } from '@/lib/cartOrderContext';
 
 // 자체 레이아웃(h-full 루트)을 쓰는 페이지 — AppLayout.jsx의 fullScreenPages와 동일하게 유지.
 // 이 페이지들만 flex-1 래퍼로 감싸 알림바 위 겹침을 방지한다 (2026-07-24).
@@ -865,6 +866,7 @@ export default function App() {
         name: cartData.name || '',
         phone: cartData.phone || '',
         address: cartData.address || '',
+        memo: cartData.memo || '',
       });
       setCurrentPage('pos');
       showToast('장바구니를 불러왔습니다', 'success');
@@ -1071,7 +1073,7 @@ export default function App() {
                     const mergedTotal = mergedItems.reduce(
                       (sum, item) => sum + ((item.price || item.wholesale || 0) * (item.quantity || 1)), 0
                     );
-                    const mergedMemo = [existingCart.memo, `주문이력에서 병합 (${order.orderNumber})`].filter(Boolean).join('\n');
+                    const mergedMemo = mergeOrderMemos(existingCart.memo, order.memo, `주문이력에서 병합 (${order.orderNumber})`);
                     const result = await handleUpdateSavedCart(existingCart.id, {
                       items: mergedItems,
                       total: mergedTotal,
@@ -1098,7 +1100,7 @@ export default function App() {
                 date: now.toLocaleDateString('ko-KR'),
                 time: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
                 created_at: now.toISOString(),
-                memo: `주문이력에서 복사 (${order.orderNumber})`,
+                memo: mergeOrderMemos(order.memo, `주문이력에서 복사 (${order.orderNumber})`),
               });
               showToast('장바구니에 저장되었습니다', 'success');
               setCurrentPage('saved-carts');
@@ -1116,31 +1118,7 @@ export default function App() {
             onDelete={handleDeleteSavedCart}
             onDeleteAll={handleDeleteAllSavedCarts}
             onUpdate={handleUpdateSavedCart}
-            onOrder={async (cartData) => {
-              const pt = cartData.price_type || 'wholesale';
-              // 🚨 items의 price 필드를 폴백 체인으로 보강해서 저장 (명세서 0원 방지)
-              // 저장된 장바구니의 items에 price가 없거나 0이면 wholesale/retail에서 폴백
-              const items = (cartData.items || []).map((i) => {
-                const fallbackPrice = pt === 'wholesale'
-                  ? (Number(i.wholesale) || 0)
-                  : (Number(i.retail) || Number(i.wholesale) || 0);
-                const price = Number(i.price) > 0 ? Number(i.price) : fallbackPrice;
-                return { ...i, price };
-              });
-              const total = items.reduce((sum, i) => sum + (Number(i.price) || 0) * (i.quantity || 1), 0);
-              // 먼저 장바구니 카드 삭제
-              if (cartData.id) {
-                await handleDeleteSavedCart(cartData.id);
-              }
-              await saveOrder({
-                customer_name: cartData.name || '일반고객',
-                customer_phone: cartData.phone || '',
-                customer_address: cartData.address || '',
-                items,
-                total_amount: total,
-                price_type: pt,
-              });
-            }}
+            onOrder={(cartData) => confirmSavedCart(cartData, saveOrder, handleDeleteSavedCart)}
             products={products}
             customers={customers}
             onBack={() => setCurrentPage('pos')}
@@ -1414,7 +1392,7 @@ export default function App() {
               delivery_date: data.deliveryDate,
               status: data.status,
               priority: data.priority,
-              memo: data.memo,
+              memo: loadedCustomerMemo(loadedCustomer, data.name, data.memo),
               items: cart.map(item => ({
                 id: item.id,
                 name: item.name,

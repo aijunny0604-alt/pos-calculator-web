@@ -1,3 +1,4 @@
+import { loadedCustomerMemo } from '@/lib/cartOrderContext';
 import { customerMatches } from '@/lib/customerSearch.mjs';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -1242,7 +1243,7 @@ export default function MainPOS({
               customer_name: orderData.customerName || '일반고객',
               customer_phone: orderData.customerPhone || '',
               customer_address: orderData.customerAddress || '',
-              memo: orderData.memo || '',
+              memo: loadedCustomerMemo(effectiveCustomer, orderData.customerName, orderData.memo),
               items: orderData.items,
               total_amount: orderData.totalAmount,
               price_type: orderData.priceType,
@@ -1264,7 +1265,6 @@ export default function MainPOS({
           customers={customers}
           onBack={() => {
             setShowOrderConfirm(false);
-            onClearLoadedCustomer?.();
           }}
           onSaveCart={(info) => {
             if (onSaveCartModal) onSaveCartModal(info);
