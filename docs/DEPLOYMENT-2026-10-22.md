@@ -120,3 +120,29 @@
 | `assets/index-z0mkSM8L.css` | `c03cbf943baf104ade9eb6d2d5b1dfe76c51dd471e250562beff2cb2cb306cd4` |
 | `assets/polyfills-legacy-D6nrY_rc.js` | `4905f7be8d3ff03eab0c6d7588def3b70d858ffe2097005dd6a86b9d2dcfedcd` |
 | `assets/index-legacy-MOcIpnhB.js` | `2fcde9d825c3b9d6961e939b11f4e6644cc077272ca3b653dfe85266f834603c` |
+
+
+## 추가 배포: 주문 할인 상세·무비스 페이지 이동 유지 (18:34:52 KST)
+
+- 기능 소스 `cd62a621`, 정적 배포 `cd9845275827ec6c042a8d1b6613531b8edab992`.
+- GitHub Pages built, 오류 없음. 2026-10-22 09:34:52 UTC 완료.
+- 전체 테스트 175 통과 / 0 실패 / 선택적 MOVIS 서버 검사 1 건너뜀. 최종 빌드 57.92초 성공. 기존 큰 번들 경고 유지.
+- 할인 복사·상세 표시, 내용 높이 모달, 모바일 본문 스크롤 및 무비스 요청/확인 대기 유지 배포.
+- 운영 예성모터스 할인 전 3,960,000원, 할인 210,000원, 최종 3,750,000원 확인. 콘솔 오류 없음. 실제 주문·결제·반품 데이터 변경 없음.
+- [변경·검증 기록](ORDER-DISCOUNT-MOVIS-SESSION-2026-10-22.md).
+- 이전 정적 자산 보존. 롤백 기준 `2b37cbf4d375f416b7d25335e0e0f1e24d3db291`.
+
+| 파일 | SHA-256 |
+|---|---|
+| `index.html` | `9825dd00a4c1e12111bcec13708c172783b5414ab9c839b3177efef1bf07adf4` |
+| `assets/index-DgTaa0Gw.js` | `efdb14f99eb84aa5c4efe7f6f472641143a93a9e3e1f30e4e027a3298acddb4c` |
+| `assets/index-fRfkULk2.css` | `73c227c1128d215bb29a66048211ae78c6ad8311a7746a124ea40b62a7118bb8` |
+| `assets/index-legacy-BriFB3J6.js` | `8af3bddd2598da0c3e52ac5df348cb68bcfa2c669105fa558092f7c56c2a0be5` |
+| `assets/polyfills-BuIMzCmj.js` | `540b5fa7c6a9c558b2ea322d7b89f9220b794ead829d543caae094397f689664` |
+| `assets/polyfills-legacy-D6nrY_rc.js` | `4905f7be8d3ff03eab0c6d7588def3b70d858ffe2097005dd6a86b9d2dcfedcd` |
+| `assets/react-core-C_nVshIL.js` | `c592fa79fa78914144b4b049a63308302fa81b9534bc14a82c4c3c428f505880` |
+| `assets/sentry-CsY0hej4.js` | `9fe0c4b368b1ed7dfdac2b86d2a6b56090fd9dc588812de1da8d6ca376923946` |
+| `assets/supabase-js-CfVawArw.js` | `fc41fe3db7dd2cf6b87087b7c2ef0dce8f46d1d4f4f45e39e188e6d3964a76cd` |
+| `assets/AIAnalytics-5VAxSXD6.css` | `e44123ffe25b8258cb5186b8adede7687c5cf1deacd3e9849a07b987f0fb2ed7` |
+| `assets/AIAnalytics-DY5o27K8.js` | `f2ad714c871277c18fb16541282c5d1c6e6cd58073d913fcbda10a3a5dd0e8cf` |
+| `assets/AIAnalytics-legacy-nQVtDw7J.js` | `e5601ff013da9be8a93a98f366060b2c157aefc6c31c2f6616f94ddb2c738579` |
