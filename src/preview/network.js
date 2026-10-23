@@ -16,12 +16,15 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('catalogChec
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('jsrCheck')) {
  tables.supplier_ledger = [
   {id: 'sample-lent', kind: 'lent', item_name: 'JSR 대여 샘플', spec: '긴 규격명 표시 확인', qty: 5, unit: '세트', occurred_on: '2026-08-19', resolved: false, note: '미리보기 전용 · 실제 기록 아님'},
+  {id: 'sample-lent-2', kind: 'lent', item_name: 'X64 바디 · 표시 샘플', qty: 1, unit: '개', occurred_on: '2026-08-20', resolved: false, note: '본사 입고 후 교환 예정 · 긴 비고가 여러 줄이어도 수량과 버튼을 가리지 않는지 확인'},
+  {id: 'sample-lent-done', kind: 'lent', item_name: '회수 완료 샘플', qty: 2, unit: '개', occurred_on: '2026-07-19', resolved: true},
   {id: 'sample-defect', kind: 'defect', item_name: '보관 중인 불량 샘플', spec: 'NPK89S_B', qty: 6, unit: '개', resolved: false},
  ];
  tables.defect_returns = [
   {id: 'sample-return', supplier: 'JSR', return_date: '2026-08-19', status: '진행중', items: [{category: 'NPK', spec: 'NPK 89S-B', qty: 6, unit: '개', received_qty: 0}, {category: '기타', spec: 'DSQ2_B · 긴 품명과 규격 줄바꿈 샘플', qty: 2, unit: '세트', received_qty: 0}]},
   {id: 'sample-return-part', supplier: 'JSR', return_date: '2026-08-20', status: '진행중', items: [{category: 'NPK', spec: 'NPK 89S-T', qty: 4, unit: '개', received_qty: 2}]},
   {id: 'sample-return-done', supplier: 'JSR', return_date: '2026-07-19', status: '완료', items: [{category: 'NPK', spec: 'NPK 89S-B', qty: 1, unit: '개', received_qty: 1}]},
+  {id: 'sample-return-long', supplier: 'JSR', return_date: '2026-09-01', status: '진행중', memo: '스크롤 확인용 샘플 · 실제 발송 기록 아님', items: Array.from({length: 19}, (_, i) => ({category: '검증용', spec: `상세 품목 ${i + 1} · 긴 규격명 표시 샘플`, qty: i + 1, unit: i % 3 === 0 ? '세트' : '개', received_qty: 0}))},
  ];
 }
 const realFetch=window.fetch.bind(window);

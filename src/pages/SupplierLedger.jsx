@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { HandCoins, Search, ArrowLeft, Database, Plus, Trash2, AlertTriangle, Copy, FileDown, X } from 'lucide-react';
+import { HandCoins, Search, ArrowLeft, Database, Plus, Trash2, AlertTriangle, Copy, FileDown } from 'lucide-react';
 import { getTodayKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import SupplierModal from '@/components/purchase/SupplierModal';
 import DefectReturns from '@/components/purchase/DefectReturns';
 import { quantityLabel } from '@/lib/supplierManagement';
 import { copyText, downloadCSV, daysSince } from '@/lib/purchaseExport';
@@ -235,27 +236,33 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>{q ? '검색 결과가 없습니다' : `${KIND[tab].label} 내역이 없습니다`}</div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <div className="rounded-2xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+            <div aria-hidden="true" className="hidden xl:grid grid-cols-[minmax(0,1fr)_76px_112px_116px_244px] items-center gap-4 px-5 py-3 text-xs font-bold" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>
+              <span>품목 · 규격 / 비고</span><span className="text-right">수량</span><span>발생일</span><span>상태</span><span className="text-right">관리</span>
+            </div>
+            <ul aria-label={`${KIND[tab].label} 기록 목록`}>
             {filtered.map((r) => {
               const days = r.occurred_on ? daysSince(r.occurred_on) : 0;
-              return <article key={r.id} className="p-4 sm:p-5 rounded-2xl border" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-                <div className="flex items-start gap-3 justify-between">
-                  <div className="min-w-0"><KindBadge kind={r.kind} /><h3 className="font-bold text-base sm:text-lg mt-2 break-words">{r.item_name}</h3>{r.spec && <p className="text-sm mt-1 break-words" style={{ color: 'var(--muted-foreground)' }}>{r.spec}</p>}</div>
-                  <div className="text-xl font-black tabular-nums shrink-0" style={{ color: 'var(--primary)' }}>{num(r.qty)}<span className="text-sm ml-1">{r.unit}</span></div>
+              return <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1fr)_76px_112px_116px_244px] items-center gap-x-4 gap-y-3 px-4 sm:px-5 py-4 border-t first:border-t-0 xl:first:border-t hover:bg-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-base sm:text-lg break-words min-w-0">{r.item_name}</h3>{tab === 'done' && <KindBadge kind={r.kind} />}</div>
+                  {r.spec && <p className="text-sm mt-1 break-words" style={{ color: 'var(--muted-foreground)' }}>{r.spec}</p>}
+                  {r.note && <p className="text-sm whitespace-pre-line break-words mt-1.5 leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>{r.note}</p>}
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs mt-3" style={{ color: 'var(--muted-foreground)' }}>
-                  {r.occurred_on && <span>{r.occurred_on}</span>}
-                  {r.occurred_on && !r.resolved && <span style={{ color: days >= 90 ? 'var(--warning)' : undefined }}>{days}일 경과</span>}
-                  <span className="font-bold" style={{ color: r.resolved ? 'var(--success)' : 'var(--primary)' }}>{r.resolved ? '정리 완료' : r.kind === 'lent' ? '회수 대기' : r.kind === 'defect' ? '발송 전 · 보관 중' : '입고 대기'}</span>
+                <div className="text-xl font-bold tabular-nums text-right self-start xl:self-center whitespace-nowrap" style={{ color: 'var(--primary)' }}>{num(r.qty)}<span className="text-sm ml-1 font-medium">{r.unit}</span></div>
+                <div className="text-xs tabular-nums flex flex-wrap gap-x-2 gap-y-1 xl:block" style={{ color: 'var(--muted-foreground)' }}>
+                  <span>{r.occurred_on || '날짜 미등록'}</span>
+                  {r.occurred_on && !r.resolved && <span className="xl:block xl:mt-1" style={{ color: days >= 90 ? 'var(--warning)' : undefined }}>{days}일 경과</span>}
                 </div>
-                {r.note && <p className="text-sm whitespace-pre-line break-words rounded-xl p-3 mt-3" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>{r.note}</p>}
-                <div className="border-t mt-4 pt-3 flex flex-wrap gap-2" style={{ borderColor: 'var(--border)' }}>
-                  <button onClick={() => toggleResolved(r)} className="min-h-11 px-3 rounded-xl text-sm font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--primary)' }}>{r.resolved ? '완료 되돌리기' : r.kind === 'lent' ? '회수 완료' : '정리 완료'}</button>
-                  <button onClick={() => setEditing({ ...r })} className="min-h-11 px-3 rounded-xl text-sm border ml-auto" style={{ borderColor: 'var(--border)' }}>수정</button>
-                  <button aria-label={`${r.item_name} 삭제`} onClick={() => setConfirmDelete(r)} className="min-h-11 min-w-11 flex items-center justify-center rounded-xl" style={{ color: 'var(--destructive)' }}><Trash2 className="w-4 h-4" /></button>
+                <span className="text-xs font-semibold text-right xl:text-left" style={{ color: r.resolved ? 'var(--muted-foreground)' : 'var(--primary)' }}>{r.resolved ? '정리 완료' : r.kind === 'lent' ? '회수 대기' : r.kind === 'defect' ? '발송 전 · 보관 중' : '입고 대기'}</span>
+                <div className="col-span-2 xl:col-span-1 flex items-center justify-end gap-1.5 border-t pt-2 xl:border-t-0 xl:pt-0" style={{ borderColor: 'var(--border)' }}>
+                  <button onClick={() => toggleResolved(r)} className="min-h-11 px-3 rounded-lg text-sm font-semibold whitespace-nowrap hover:bg-[var(--muted)]" style={{ color: 'var(--primary)' }}>{r.resolved ? '완료 되돌리기' : r.kind === 'lent' ? '회수 완료' : '정리 완료'}</button>
+                  <button aria-label={`${r.item_name} 수정`} onClick={() => setEditing({ ...r })} className="min-h-11 px-3 rounded-lg text-sm border" style={{ borderColor: 'var(--border)' }}>수정</button>
+                  <button aria-label={`${r.item_name} 삭제`} onClick={() => setConfirmDelete(r)} className="min-h-11 min-w-11 flex items-center justify-center rounded-lg hover:bg-[var(--muted)]" style={{ color: 'var(--destructive)' }}><Trash2 className="w-4 h-4" /></button>
                 </div>
-              </article>;
+              </li>;
             })}
+            </ul>
           </div>
         )}
 
@@ -265,16 +272,9 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
         </>}
       </div>
 
-      {/* 추가/수정 */}
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={() => !saving && setEditing(null)}>
-          <div className="w-full max-w-2xl max-h-[90dvh] rounded-2xl border overflow-hidden flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="shrink-0 px-4 sm:px-6 py-4 border-b flex items-center gap-3" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>
-              <HandCoins className="w-6 h-6" style={{ color: 'var(--primary)' }} />
-              <h2 className="text-2xl font-black" style={{ color: 'var(--foreground)' }}>{editing.id ? '수정' : '추가'}</h2>
-              <button onClick={() => setEditing(null)} className="ml-auto p-2 rounded-lg hover:bg-[var(--accent)]" style={{ color: 'var(--muted-foreground)' }}><X className="w-5 h-5" /></button>
-            </div>
-            <div className="px-4 sm:px-6 py-5 space-y-4 overflow-y-auto min-h-0">
+      {editing && <SupplierModal title={editing.id ? 'JSR 기록 수정' : 'JSR 기록 추가'} onClose={() => setEditing(null)} busy={saving}
+        footer={<><button onClick={() => setEditing(null)} disabled={saving} className="min-h-11 px-5 border rounded-xl">취소</button><button onClick={save} disabled={saving} className="min-h-11 px-7 rounded-xl text-white disabled:opacity-60" style={{ background: 'var(--primary)' }}>{saving ? '저장 중...' : '저장'}</button></>}>
+        <div className="space-y-5">
               <div>
                 <span className="text-sm font-bold" style={{ color: 'var(--muted-foreground)' }}>구분</span>
                 <div className="flex flex-wrap gap-2 mt-1.5">
@@ -326,36 +326,14 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
                   placeholder="예) 팀 본즈 / 본사 입고 후 물건 받기로함 / 택배 선불 6000"
                   className="mt-1.5 w-full px-3.5 py-2.5 rounded-xl text-base border outline-none resize-y" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
               </label>
-            </div>
-            <div className="shrink-0 px-4 sm:px-6 py-4 border-t flex items-center gap-2" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>
-              <button onClick={() => setEditing(null)} className="ml-auto px-5 py-2.5 rounded-xl text-base font-bold border" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>취소</button>
-              <button onClick={save} disabled={saving} className="px-7 py-2.5 rounded-xl text-base font-bold text-white disabled:opacity-60" style={{ background: 'var(--primary)' }}>{saving ? '저장 중...' : '저장'}</button>
-            </div>
-          </div>
         </div>
-      )}
+      </SupplierModal>}
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setConfirmDelete(null)}>
-          <div className="w-full max-w-md rounded-2xl border p-6" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-6 h-6" style={{ color: 'var(--destructive)' }} />
-              <h3 className="text-xl font-black" style={{ color: 'var(--foreground)' }}>삭제</h3>
-            </div>
-            <div className="text-base mb-5" style={{ color: 'var(--foreground)' }}>
-              <b>{confirmDelete.item_name}</b> {num(confirmDelete.qty)}{confirmDelete.unit}
-              <br />
-              <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                정리된 건이면 삭제 말고 <b>완료 스위치</b>를 켜세요 — 이력이 남습니다.
-              </span>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmDelete(null)} className="px-5 py-2.5 rounded-xl text-base font-bold border" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>취소</button>
-              <button onClick={del} className="px-5 py-2.5 rounded-xl text-base font-bold text-white" style={{ background: 'var(--destructive)' }}>삭제</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {confirmDelete && <SupplierModal compact title="기록 삭제" onClose={() => setConfirmDelete(null)}
+        footer={<><button onClick={() => setConfirmDelete(null)} className="min-h-11 px-5 border rounded-xl">취소</button><button onClick={del} className="min-h-11 px-5 rounded-xl text-white" style={{ background: 'var(--destructive)' }}>삭제</button></>}>
+        <p className="text-lg font-semibold">{confirmDelete.item_name} · {num(confirmDelete.qty)}{confirmDelete.unit}</p><p className="text-sm mt-3" style={{ color: 'var(--muted-foreground)' }}>정리된 건이면 완료 처리로 이력을 남길 수 있습니다. 이 기록을 삭제할까요?</p>
+      </SupplierModal>}
+
     </div>
   );
 }

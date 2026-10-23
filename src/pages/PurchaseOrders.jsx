@@ -109,12 +109,11 @@ function ToolBtn({ onClick, icon: Icon, children, tone = 'default', disabled }) 
   );
 }
 
-export default function PurchaseOrders({ onOpenReturns, showToast, setCurrentPage, products = [], orders = [] }) {
+export default function PurchaseOrders({ showToast, setCurrentPage, products = [], orders = [] }) {
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false); // 마이그008 미적용과 빈 목록을 구분
-  const [tab, setTab] = useState('orders'); // 'orders' | 'pending' | 'restock' | 'defect'
-  const [defectCount, setDefectCount] = useState(null); // 불량 반품 탭 뱃지(컴포넌트가 보고)
+  const [tab, setTab] = useState('orders'); // 'orders' | 'pending' | 'restock' | 'docs'
   const [docCount, setDocCount] = useState(null); // 증빙 보관 탭 뱃지
   const [restockPicked, setRestockPicked] = useState(() => new Set()); // 재주문 리스트에서 고른 제품 id
   const [restockCat, setRestockCat] = useState('전체'); // 재주문 리스트 카테고리 필터
@@ -158,11 +157,10 @@ export default function PurchaseOrders({ onOpenReturns, showToast, setCurrentPag
     })();
   }, []);
 
-  // 불량 반품·증빙 보관 탭 뱃지 — 탭을 열지 않아도 건수가 보이도록 초기 로드(탭 열면 컴포넌트가 실시간 갱신).
+  // 증빙 보관 탭 건수 초기 로드.
   useEffect(() => {
     (async () => {
-      const [dr, pd] = await Promise.all([supabase.getDefectReturns(), supabase.getPurchaseDocs()]);
-      if (Array.isArray(dr)) setDefectCount(dr.length);
+      const pd = await supabase.getPurchaseDocs();
       if (Array.isArray(pd)) setDocCount(pd.length);
     })();
   }, []);
@@ -694,19 +692,19 @@ export default function PurchaseOrders({ onOpenReturns, showToast, setCurrentPag
               클릭 업로드 외에 드래그드롭 / Ctrl+V(캡처 붙여넣기)도 됨 — 세 방법을 버튼에 명시 */}
           <label className="ml-auto min-h-11 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white cursor-pointer border-2 border-dashed border-white/45"
             title="클릭 업로드 · 이미지 드래그드롭 · Ctrl+V 붙여넣기 모두 됩니다"
-            style={{ background: scanning ? 'var(--muted-foreground)' : 'var(--success)', display: (tab === 'defect' || tab === 'docs') ? 'none' : undefined }}>
+            style={{ background: scanning ? 'var(--muted-foreground)' : 'var(--success)', display: (tab === 'docs') ? 'none' : undefined }}>
             {scanning
               ? <><Loader2 className="w-4 h-4 animate-spin" /> 판독 중...</>
               : <><Camera className="w-4 h-4" /> 발주서 등록 <span className="hidden lg:inline text-[10px] font-semibold opacity-90 whitespace-nowrap">클릭·드래그·Ctrl+V</span></>}
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickQuote} disabled={scanning} />
           </label>
-          <button onClick={openNew} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white ${tab === 'defect' ? 'ml-auto' : ''}`} style={{ background: 'var(--primary)', display: (tab === 'defect' || tab === 'docs') ? 'none' : undefined }}>
+          <button onClick={openNew} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white `} style={{ background: 'var(--primary)', display: (tab === 'docs') ? 'none' : undefined }}>
             <Plus className="w-4 h-4" /> 직접 입력
           </button>
         </div>
 
         {/* 요약 */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3" style={{ display: (tab === 'defect' || tab === 'docs') ? 'none' : undefined }}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3" style={{ display: (tab === 'docs') ? 'none' : undefined }}>
           {[
             { label: '발주 건수', value: `${summary.count}건` },
             { label: '총 발주액', value: `₩${formatPrice(summary.total)}` },
@@ -732,12 +730,11 @@ export default function PurchaseOrders({ onOpenReturns, showToast, setCurrentPag
             { id: 'orders', label: '발주 목록', count: filtered.length },
             { id: 'pending', label: '미입고 현황', count: pendingItems.length },
             { id: 'restock', label: '재주문 리스트', count: restockAll.length },
-            { id: 'defect', label: '반품·교환 ↗', count: defectCount },
             { id: 'docs', label: '증빙 보관', count: docCount },
           ].map((t) => (
             <button
               key={t.id}
-              onClick={() => t.id === 'defect' ? onOpenReturns?.() : setTab(t.id)}
+              onClick={() => setTab(t.id)}
               className="px-3.5 py-2 rounded-xl text-sm font-bold border transition-all flex items-center gap-1.5"
               style={tab === t.id
                 ? { background: 'var(--primary)', color: 'white', borderColor: 'var(--primary)' }
@@ -762,7 +759,7 @@ export default function PurchaseOrders({ onOpenReturns, showToast, setCurrentPag
 
         {/* 필터 한 줄 — 좌: 상태칩(발주목록 전용) / 우: 발주일. 3층이던 걸 2층으로 정리 (2026-07-23)
             재주문 리스트는 제품 목록이라 발주 필터가 안 맞아 통째로 숨긴다 */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2" style={{ display: (tab === 'restock' || tab === 'defect' || tab === 'docs') ? 'none' : undefined }}>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2" style={{ display: (tab === 'restock' || tab === 'docs') ? 'none' : undefined }}>
           {tab === 'orders' && (
             <div className="flex flex-wrap items-center gap-1.5">
               {[
@@ -862,7 +859,7 @@ export default function PurchaseOrders({ onOpenReturns, showToast, setCurrentPag
         )}
 
         {/* 내보내기 툴바 — 현재 탭 기준으로 동작. 재주문 리스트는 발주 데이터가 아니라 제외 */}
-        <div className="flex flex-wrap items-center gap-2" style={{ display: (tab === 'restock' || tab === 'defect' || tab === 'docs') ? 'none' : undefined }}>
+        <div className="flex flex-wrap items-center gap-2" style={{ display: (tab === 'restock' || tab === 'docs') ? 'none' : undefined }}>
           {tab === 'pending' && (
             <ToolBtn onClick={onCopyKakao} icon={copied ? Check : Copy} tone={copied ? 'done' : 'kakao'}>
               {copied ? '복사됨!' : '카톡용 복사'}
@@ -1158,8 +1155,6 @@ export default function PurchaseOrders({ onOpenReturns, showToast, setCurrentPag
               })}
             </div>
           )
-        ) : tab === 'defect' ? (
-          <button onClick={onOpenReturns} className="min-h-11 px-4 rounded-xl border">JSR 관리에서 반품·교환 보기 →</button>
         ) : tab === 'docs' ? (
           <PurchaseDocs showToast={showToast} onCount={setDocCount} />
         ) : pendingFiltered.length === 0 ? (

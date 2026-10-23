@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef } from 'react';
+import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 
 // 업무 콜백은 즉시 끝내고, 퇴장 장면만 잠깐 유지한다. 복제본에는 이벤트/포커스가 없다.
-export default function MotionBackdrop({ children, ...props }) {
+export default forwardRef(function MotionBackdrop({ children, ...props }, forwardedRef) {
   const root = useRef(null);
+  useImperativeHandle(forwardedRef, () => root.current);
   useLayoutEffect(() => {
     const node = root.current;
     let painted = false;
@@ -36,4 +37,4 @@ export default function MotionBackdrop({ children, ...props }) {
     };
   }, []);
   return <div ref={root} {...props}>{children}</div>;
-}
+});

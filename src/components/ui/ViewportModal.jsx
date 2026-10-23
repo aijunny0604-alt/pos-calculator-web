@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import MotionBackdrop from './MotionBackdrop';
 
 // 페이지 스크롤/transform 및 하단 내비게이션에서 독립된 화면 기준 모달.
-export default function ViewportModal({ children, ...props }) {
+export default function ViewportModal({ children, animated = false, ...props }) {
   const ref = useRef(null);
   useLayoutEffect(() => {
     const viewport = window.visualViewport;
@@ -21,5 +22,6 @@ export default function ViewportModal({ children, ...props }) {
       window.removeEventListener('resize', update);
     };
   }, []);
-  return createPortal(<div ref={ref} {...props}>{children}</div>, document.body);
+  const Backdrop = animated ? MotionBackdrop : 'div';
+  return createPortal(<Backdrop ref={ref} {...props}>{children}</Backdrop>, document.body);
 }
