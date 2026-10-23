@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { HandCoins, Search, ArrowLeft, Database, Plus, Trash2, AlertTriangle, Copy, FileDown } from 'lucide-react';
+import { HandCoins, Search, ArrowLeft, Database, Plus, Trash2, AlertTriangle, Copy, FileDown, Clock3, CheckCircle2 } from 'lucide-react';
 import { getTodayKST } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import SupplierModal from '@/components/purchase/SupplierModal';
@@ -13,7 +13,7 @@ import { copyText, downloadCSV, daysSince } from '@/lib/purchaseExport';
 // 사장님이 구글시트 "JSR 퍼포먼스 미입고 현황 체크 리스트"로 관리하던 것.
 
 const KIND = {
-  lent:    { label: '대여·회수', color: 'var(--warning)',     desc: '돌려받아야 할 것' },
+  lent:    { label: '대여·회수', color: 'var(--warning)',     desc: '빌려준 제품과 돌려받은 내역을 함께 확인하세요' },
   pending: { label: '미입고', color: 'var(--destructive)', desc: '아직 안 들어온 것' },
   done:    { label: '정리 이력',   color: 'var(--success)',     desc: '정리된 건' },
   defect:  { label: '불량 보관', color: '#a855f7',            desc: '아직 발송하지 않은 매장 보관 불량품' },
@@ -35,9 +35,10 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const setTab = (next) => { onTabChange?.(next); setQ(''); };
+  const setTab = (next) => { onTabChange?.(next); setQ(''); setLentStatus('all'); };
   const [returnCount, setReturnCount] = useState(null);
   const [q, setQ] = useState('');
+  const [lentStatus, setLentStatus] = useState('all');
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -72,7 +73,7 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
     return m;
   }, [rows]);
 
-  const filtered = useMemo(() => {
+  const searched = useMemo(() => {
     let list = byKind[tab] || [];
     // 빌려줌/미입고/불량품은 정리 안 된 것부터, 완료된 건 뒤로
     if (tab === 'lent' || tab === 'pending' || tab === 'defect') list = [...list].sort((a, b) => Number(a.resolved) - Number(b.resolved) || String(a.occurred_on || '').localeCompare(String(b.occurred_on || '')));
@@ -80,6 +81,14 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
     if (ql) list = list.filter((r) => `${r.item_name} ${r.spec || ''} ${r.note || ''}`.toLowerCase().includes(ql));
     return list;
   }, [byKind, tab, q]);
+
+  const lentCounts = useMemo(() => ({
+    all: searched.length,
+    open: searched.filter(r => !r.resolved).length,
+    done: searched.filter(r => r.resolved).length,
+  }), [searched]);
+  const filtered = tab !== 'lent' || lentStatus === 'all' ? searched
+    : searched.filter(r => lentStatus === 'done' ? r.resolved : !r.resolved);
 
   const summary = useMemo(() => {
     const openLent = byKind.lent.filter((r) => !r.resolved);
@@ -144,12 +153,13 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
     const k = KIND[tab];
     const lines = [`[JSR ${k.label} 현황]`, `(${new Date().toLocaleDateString('ko-KR')} 기준)`, ''];
     for (const r of filtered) {
-      if (r.resolved && tab !== 'done') continue;
-      const d = r.occurred_on ? ` — ${r.occurred_on} (${daysSince(r.occurred_on)}일 경과)` : '';
-      lines.push(`· ${r.item_name}${r.spec ? ` ${r.spec}` : ''} ${num(r.qty)}${r.unit}${d}`);
+      if (r.resolved && tab !== 'done' && tab !== 'lent') continue;
+      const d = r.occurred_on ? ` — ${r.occurred_on}${r.resolved ? '' : ` (${daysSince(r.occurred_on)}일 경과)`}` : '';
+      const status = tab === 'lent' ? `[${r.resolved ? '회수 완료' : '대여 중 · 미회수'}] ` : '';
+      lines.push(`· ${status}${r.item_name}${r.spec ? ` ${r.spec}` : ''} ${num(r.qty)}${r.unit}${d}`);
       if (r.note) lines.push(`  ${String(r.note).replace(/\n/g, ' / ')}`);
     }
-    const open = tab === 'done' ? filtered : filtered.filter((r) => !r.resolved);
+    const open = tab === 'done' || tab === 'lent' ? filtered : filtered.filter((r) => !r.resolved);
     lines.push('', `합계 ${open.length}건 / ${quantityLabel(open)}`);
     const ok = await copyText(lines.join('\n'));
     if (!ok) { showToast?.('복사 실패', 'error'); return; }
@@ -178,7 +188,7 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
         </div>
         <div className="grid grid-cols-3 gap-2 sm:mt-5" aria-label="JSR 업무 선택">
           {[
-            { id: 'lent', label: '대여·회수', sub: '빌려준 제품', value: summary.lentQty },
+            { id: 'lent', label: '대여·회수', sub: '미회수 대여품', value: summary.lentQty },
             { id: 'defect', label: '불량 보관', sub: '발송 전 보관', value: summary.defectQty },
             { id: 'returns', label: '반품·교환', sub: '발송 후 확인', value: returnCount === null ? '발송 이력' : `${returnCount}건` },
           ].map((t) => <button key={t.id} onClick={() => setTab(t.id)} aria-pressed={tab === t.id}
@@ -186,7 +196,7 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
             style={{ background: tab === t.id ? 'var(--accent)' : 'var(--card)', borderColor: tab === t.id ? 'var(--primary)' : 'var(--border)', color: tab === t.id ? 'var(--primary)' : 'var(--foreground)' }}>
             <div className="text-sm sm:text-base font-bold">{t.label}</div>
             <div className="text-[11px] sm:text-xs mt-1 leading-relaxed break-keep" style={{ color: 'var(--muted-foreground)' }}>{t.sub}</div>
-            <div className="text-base sm:text-xl font-black mt-2 tabular-nums">{t.id !== 'returns' && loadFailed ? '확인 필요' : loading && t.id !== 'returns' ? '…' : t.value}</div>
+            <div className="text-base sm:text-xl font-black mt-2 tabular-nums">{t.id !== 'returns' && loadFailed ? '확인 필요' : loading && t.id !== 'returns' ? '…' : String(t.value).split(' + ').map((part, index) => <span key={part} className="inline-block whitespace-nowrap">{index > 0 && <span className="mx-1">+</span>}{part}</span>)}</div>
           </button>)}
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -208,6 +218,22 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
           <button onClick={onCopy} className="min-h-11 px-3 rounded-xl text-sm border flex items-center gap-1" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}><Copy className="w-4 h-4" />{copied ? '복사됨' : '내역 복사'}</button>
           <button onClick={onCSV} className="min-h-11 px-3 rounded-xl text-sm border flex items-center gap-1" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}><FileDown className="w-4 h-4" />CSV</button>
         </div>
+        {tab === 'lent' && !loading && !loadFailed && <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div role="group" aria-label="대여 회수 상태 필터" className="inline-flex flex-wrap gap-1 rounded-xl border p-1" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+            {[
+              { id: 'all', label: '전체', color: 'var(--primary)' },
+              { id: 'open', label: '미회수', color: 'var(--warning)' },
+              { id: 'done', label: '회수 완료', color: 'var(--success)' },
+            ].map(s => <button key={s.id} aria-pressed={lentStatus === s.id} onClick={() => setLentStatus(s.id)}
+              className="min-h-11 px-3 sm:px-4 rounded-lg text-sm font-semibold transition-colors"
+              style={{ color: lentStatus === s.id ? s.color : 'var(--muted-foreground)', background: lentStatus === s.id ? `color-mix(in srgb, ${s.color} 10%, transparent)` : 'transparent' }}>
+              {s.label}<span className="ml-2 tabular-nums">{lentCounts[s.id]}</span>
+            </button>)}
+          </div>
+          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+            {q ? '검색 내 ' : ''}미회수 <strong style={{ color: 'var(--warning)' }}>{quantityLabel(searched.filter(r => !r.resolved))}</strong>
+          </p>
+        </div>}
         {loadFailed && (
           <div className="mb-4 p-4 rounded-xl border flex items-start gap-3" style={{ background: 'var(--card)', borderColor: 'var(--destructive)' }}>
             <Database className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--destructive)' }} />
@@ -234,27 +260,33 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
         {loading ? (
           <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>불러오는 중...</div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>{q ? '검색 결과가 없습니다' : `${KIND[tab].label} 내역이 없습니다`}</div>
+          <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>{q ? '검색 결과가 없습니다' : tab === 'lent' && lentStatus !== 'all' ? `${lentStatus === 'done' ? '회수 완료된' : '미회수'} 내역이 없습니다` : `${KIND[tab].label} 내역이 없습니다`}</div>
         ) : (
           <div className="rounded-2xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-            <div aria-hidden="true" className="hidden xl:grid grid-cols-[minmax(0,1fr)_76px_112px_116px_244px] items-center gap-4 px-5 py-3 text-xs font-bold" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>
-              <span>품목 · 규격 / 비고</span><span className="text-right">수량</span><span>발생일</span><span>상태</span><span className="text-right">관리</span>
+            <div aria-hidden="true" className="hidden xl:grid grid-cols-[minmax(0,1fr)_76px_112px_132px_244px] items-center gap-4 px-5 py-3 text-xs font-bold" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)' }}>
+              <span>품목 · 규격 / 비고</span><span className="text-right">수량</span><span>{tab === 'lent' ? '대여일' : '발생일'}</span><span>상태</span><span className="text-right">관리</span>
             </div>
             <ul aria-label={`${KIND[tab].label} 기록 목록`}>
             {filtered.map((r) => {
               const days = r.occurred_on ? daysSince(r.occurred_on) : 0;
-              return <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1fr)_76px_112px_116px_244px] items-center gap-x-4 gap-y-3 px-4 sm:px-5 py-4 border-t first:border-t-0 xl:first:border-t hover:bg-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>
+              return <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1fr)_76px_112px_132px_244px] items-center gap-x-4 gap-y-3 px-4 sm:px-5 py-4 border-t first:border-t-0 xl:first:border-t hover:bg-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-base sm:text-lg break-words min-w-0">{r.item_name}</h3>{tab === 'done' && <KindBadge kind={r.kind} />}</div>
                   {r.spec && <p className="text-sm mt-1 break-words" style={{ color: 'var(--muted-foreground)' }}>{r.spec}</p>}
                   {r.note && <p className="text-sm whitespace-pre-line break-words mt-1.5 leading-relaxed" style={{ color: 'var(--muted-foreground)' }}>{r.note}</p>}
                 </div>
-                <div className="text-xl font-bold tabular-nums text-right self-start xl:self-center whitespace-nowrap" style={{ color: 'var(--primary)' }}>{num(r.qty)}<span className="text-sm ml-1 font-medium">{r.unit}</span></div>
+                <div className="text-right self-start xl:self-center whitespace-nowrap">
+                  {r.kind === 'lent' && <div className="text-[11px] mb-1" style={{ color: 'var(--muted-foreground)' }}>{r.resolved ? '회수 수량' : '대여 수량'}</div>}
+                  <div className="text-xl font-bold tabular-nums" style={{ color: r.kind === 'lent' ? (r.resolved ? 'var(--success)' : 'var(--warning)') : 'var(--primary)' }}>{num(r.qty)}<span className="text-sm ml-1 font-medium">{r.unit}</span></div>
+                </div>
                 <div className="text-xs tabular-nums flex flex-wrap gap-x-2 gap-y-1 xl:block" style={{ color: 'var(--muted-foreground)' }}>
                   <span>{r.occurred_on || '날짜 미등록'}</span>
                   {r.occurred_on && !r.resolved && <span className="xl:block xl:mt-1" style={{ color: days >= 90 ? 'var(--warning)' : undefined }}>{days}일 경과</span>}
                 </div>
-                <span className="text-xs font-semibold text-right xl:text-left" style={{ color: r.resolved ? 'var(--muted-foreground)' : 'var(--primary)' }}>{r.resolved ? '정리 완료' : r.kind === 'lent' ? '회수 대기' : r.kind === 'defect' ? '발송 전 · 보관 중' : '입고 대기'}</span>
+                {r.kind === 'lent' ? <span className="justify-self-end xl:justify-self-start inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+                  style={{ color: r.resolved ? 'var(--success)' : 'var(--warning)', background: `color-mix(in srgb, ${r.resolved ? 'var(--success)' : 'var(--warning)'} 10%, transparent)` }}>
+                  {r.resolved ? <CheckCircle2 size={15} /> : <Clock3 size={15} />}{r.resolved ? '회수 완료' : '대여 중 · 미회수'}
+                </span> : <span className="text-xs font-semibold text-right xl:text-left" style={{ color: r.resolved ? 'var(--muted-foreground)' : 'var(--primary)' }}>{r.resolved ? '정리 완료' : r.kind === 'defect' ? '발송 전 · 보관 중' : '입고 대기'}</span>}
                 <div className="col-span-2 xl:col-span-1 flex items-center justify-end gap-1.5 border-t pt-2 xl:border-t-0 xl:pt-0" style={{ borderColor: 'var(--border)' }}>
                   <button onClick={() => toggleResolved(r)} className="min-h-11 px-3 rounded-lg text-sm font-semibold whitespace-nowrap hover:bg-[var(--muted)]" style={{ color: 'var(--primary)' }}>{r.resolved ? '완료 되돌리기' : r.kind === 'lent' ? '회수 완료' : '정리 완료'}</button>
                   <button aria-label={`${r.item_name} 수정`} onClick={() => setEditing({ ...r })} className="min-h-11 px-3 rounded-lg text-sm border" style={{ borderColor: 'var(--border)' }}>수정</button>
