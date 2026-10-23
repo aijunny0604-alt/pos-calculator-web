@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, X, Trash2, Copy, Check, Printer, Database, PackageCheck, RotateCcw, ClipboardPaste, Minus } from 'lucide-react';
+import { filterReturnRecords } from '@/lib/supplierManagement';
 import { supabase } from '@/lib/supabase';
 import { getTodayKST, escapeHtml } from '@/lib/utils';
 
@@ -78,7 +79,9 @@ function buildKakaoText(row) {
   return lines.join('\n');
 }
 
-export default function DefectReturns({ showToast, onCount }) {
+export default function DefectReturns({ showToast, onCount, onOpenStorage }) {
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -98,7 +101,7 @@ export default function DefectReturns({ showToast, onCount }) {
   }, []);
   useEffect(() => { load(); }, [load]);
   // 상위(매입 발주 탭 뱃지)로 건수 보고 — 로드/추가/삭제/완료 반영
-  useEffect(() => { if (!loadFailed) onCount?.(rows.length); }, [rows, loadFailed, onCount]);
+  useEffect(() => { if (!loading && !loadFailed) onCount?.(rows.length); }, [rows, loading, loadFailed, onCount]);
 
   const openNew = () => {
     setPasteText('');
@@ -217,6 +220,8 @@ export default function DefectReturns({ showToast, onCount }) {
 
   const openCount = useMemo(() => rows.filter((r) => r.status !== '완료').length, [rows]);
 
+  const visibleRows = useMemo(() => filterReturnRecords(rows, query, statusFilter), [rows, query, statusFilter]);
+
   if (loading) return <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>불러오는 중...</div>;
   if (loadFailed) return (
     <div className="p-4 rounded-xl border flex items-start gap-3" style={{ background: 'var(--card)', borderColor: 'var(--destructive)' }}>
@@ -230,28 +235,27 @@ export default function DefectReturns({ showToast, onCount }) {
 
   return (
     <div className="space-y-3">
-      <div className="p-3 rounded-xl border flex items-start gap-2.5 text-xs" style={{ background: 'rgba(0,212,255,0.06)', borderColor: 'var(--primary)' }}>
-        <RotateCcw className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--primary)' }} />
-        <div style={{ color: 'var(--foreground)' }}>
-          <b>JSR로 발송한 불량품 묶음 + 교환품 회수</b>를 추적하는 곳입니다.
-          <br />발생만 하고 아직 안 보낸 <b>누적 불량품 목록</b>은 <b>[JSR 대여·불량 관리] → 불량품</b> 탭에서 봅니다.
+      <div className="flex flex-wrap justify-between items-center gap-3">
+        <div><h2 className="font-bold text-lg">반품·교환</h2><p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>발송한 불량품과 교환품 수령 내역</p></div>
+        <button onClick={openNew} className="min-h-11 flex items-center gap-1.5 px-4 rounded-xl text-sm font-bold text-white" style={{ background: 'var(--primary)' }}><Plus className="w-4 h-4" /> 발송 기록 추가</button>
+      </div>
+      <div className="rounded-xl border px-4 py-3 flex flex-wrap items-center gap-x-3 text-sm" style={{ background: 'var(--card)', borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}>
+        <span>아직 매장에 있는 불량품은</span><button onClick={onOpenStorage} className="min-h-11 font-bold underline" style={{ color: 'var(--primary)' }}>불량 보관에서 관리 →</button>
+      </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex gap-1 rounded-xl p-1 border" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+          {[['all', `전체 ${rows.length}`], ['open', `교환 대기 ${openCount}`], ['done', `완료 ${rows.length - openCount}`]].map(([id, label]) => <button key={id} onClick={() => setStatusFilter(id)} aria-pressed={statusFilter === id} className="px-3 min-h-11 rounded-lg text-sm font-bold" style={{ background: statusFilter === id ? 'var(--accent)' : 'transparent', color: statusFilter === id ? 'var(--primary)' : 'var(--muted-foreground)' }}>{label}</button>)}
         </div>
+        <input aria-label="반품·교환 검색" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="품목 · 발송일 · 메모 검색" className="flex-1 min-w-[180px] min-h-11 rounded-xl border px-3 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--card)' }} />
       </div>
-      <div className="flex items-center gap-2">
-        <button onClick={openNew} className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold text-white" style={{ background: 'var(--primary)' }}>
-          <Plus className="w-4 h-4" /> 새 불량 반품 기록
-        </button>
-        <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>진행 중 {openCount}건 · 전체 {rows.length}건</span>
-      </div>
-
-      {rows.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <div className="py-16 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>
           <PackageCheck className="w-10 h-10 mx-auto mb-2" style={{ color: 'var(--success)' }} />
-          아직 불량품 반품 기록이 없습니다. <b>새 불량 반품 기록</b>으로 리스트를 붙여넣어 보세요.
+          {rows.length === 0 ? '발송 기록이 없습니다. 발송 기록 추가에서 등록하세요.' : '조건에 맞는 반품 기록이 없습니다.'}
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {rows.map((row) => {
+        <div className="grid gap-3 xl:grid-cols-2">
+          {visibleRows.map((row) => {
             const s = summarize(row.items);
             const done = row.status === '완료';
             const isOpen = expanded.has(row.id);
@@ -266,11 +270,12 @@ export default function DefectReturns({ showToast, onCount }) {
                         <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{row.return_date}</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={done
                           ? { background: 'rgba(16,185,129,0.15)', color: 'var(--success)' }
-                          : { background: 'rgba(255,176,32,0.15)', color: '#e6961b' }}>{done ? '완료' : '진행중'}</span>
+                          : { background: 'rgba(255,176,32,0.15)', color: '#e6961b' }}>{done ? '교환 완료' : s.totalRec > 0 ? '일부 수령' : '미수령'}</span>
                       </div>
                       <div className="text-lg font-black mt-0.5">{summaryLabel(s)}</div>
                       <div className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
-                        회수 {s.totalRec}/{s.totalQty} ({pct}%) · 품목 {row.items?.length || 0}종
+                        발송 {row.items?.length || 0}품목 · 수령률 {pct}%
+                        <div className="mt-1 text-sm font-bold" style={{ color: done ? 'var(--success)' : 'var(--primary)' }}>미수령 {summaryLabel({ gae: s.gae - s.recGae, set: s.set - s.recSet })}</div>
                       </div>
                     </div>
                   </div>
@@ -280,20 +285,20 @@ export default function DefectReturns({ showToast, onCount }) {
                   </div>
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                     <button onClick={() => setExpanded((s2) => { const n = new Set(s2); n.has(row.id) ? n.delete(row.id) : n.add(row.id); return n; })}
-                      className="px-2 py-1 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
-                      {isOpen ? '접기' : '품목·회수'}
+                      className="px-3 min-h-11 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                      {isOpen ? '접기' : '품목·수령 확인'}
                     </button>
-                    <button onClick={() => copyKakao(row)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                    <button onClick={() => copyKakao(row)} className="flex items-center gap-1 px-3 min-h-11 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
                       {copiedId === row.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} 복사
                     </button>
-                    <button onClick={() => printRow(row)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                    <button onClick={() => printRow(row)} className="flex items-center gap-1 px-3 min-h-11 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
                       <Printer className="w-3.5 h-3.5" /> 명세서
                     </button>
-                    <button onClick={() => toggleStatus(row)} className="px-2 py-1 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: done ? '#e6961b' : 'var(--success)' }}>
+                    <button onClick={() => toggleStatus(row)} className="px-3 min-h-11 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: done ? '#e6961b' : 'var(--success)' }}>
                       {done ? '진행중으로' : '완료 처리'}
                     </button>
-                    <button onClick={() => openEdit(row)} className="px-2 py-1 rounded-lg text-xs font-bold border ml-auto" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>수정</button>
-                    <button onClick={() => setConfirmDel(row)} className="p-1.5 rounded-lg" style={{ color: 'var(--destructive)' }}><Trash2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => openEdit(row)} className="px-3 min-h-11 rounded-lg text-xs font-bold border ml-auto" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>수정</button>
+                    <button aria-label={`${row.supplier} ${row.return_date} 발송 기록 삭제`} onClick={() => setConfirmDel(row)} className="p-3 min-h-11 min-w-11 rounded-lg" style={{ color: 'var(--destructive)' }}><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
                 {isOpen && (
@@ -301,19 +306,19 @@ export default function DefectReturns({ showToast, onCount }) {
                     {(row.items || []).map((it, i) => {
                       const full = num(it.received_qty) >= num(it.qty);
                       return (
-                        <div key={i} className="flex items-center gap-2 text-xs py-1">
+                        <div key={i} className="flex flex-wrap items-center gap-2 text-sm py-2 border-b">
                           {it.category && <span className="px-1.5 py-0.5 rounded font-bold text-[10px]" style={{ background: 'var(--card)', color: 'var(--muted-foreground)' }}>{it.category}</span>}
-                          <span className="font-mono font-bold flex-1 truncate" style={{ color: full ? 'var(--success)' : 'var(--foreground)' }}>{it.spec}</span>
+                          <span className="font-mono font-bold flex-1 min-w-[120px] break-words" style={{ color: full ? 'var(--success)' : 'var(--foreground)' }}>{it.spec}</span>
                           <span style={{ color: 'var(--muted-foreground)' }}>{num(it.qty)}{it.unit}</span>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => bump(row, i, -1)} disabled={num(it.received_qty) <= 0} className="p-1 rounded disabled:opacity-30" style={{ background: 'var(--card)' }}><Minus className="w-3 h-3" /></button>
+                            <button aria-label={`${it.spec} 수령 수량 줄이기`} onClick={() => bump(row, i, -1)} disabled={num(it.received_qty) <= 0} className="min-w-11 min-h-11 rounded-lg disabled:opacity-30 flex items-center justify-center" style={{ background: 'var(--card)' }}><Minus className="w-3 h-3" /></button>
                             <span className="w-10 text-center font-bold" style={{ color: full ? 'var(--success)' : '#e6961b' }}>{num(it.received_qty)}/{num(it.qty)}</span>
-                            <button onClick={() => bump(row, i, 1)} disabled={num(it.received_qty) >= num(it.qty)} className="p-1 rounded disabled:opacity-30" style={{ background: 'var(--card)' }}><Plus className="w-3 h-3" /></button>
+                            <button aria-label={`${it.spec} 수령 수량 늘리기`} onClick={() => bump(row, i, 1)} disabled={num(it.received_qty) >= num(it.qty)} className="min-w-11 min-h-11 rounded-lg disabled:opacity-30 flex items-center justify-center" style={{ background: 'var(--card)' }}><Plus className="w-3 h-3" /></button>
                           </div>
                         </div>
                       );
                     })}
-                    <div className="text-[11px] pt-1" style={{ color: 'var(--muted-foreground)' }}>+/- 로 교환품 회수 수량을 기록하세요. 전량 회수되면 자동 완료됩니다.</div>
+                    <div className="text-[11px] pt-1" style={{ color: 'var(--muted-foreground)' }}>+/- 로 실제 받은 교환품 수량을 기록하세요. 전량 회수되면 자동 완료됩니다.</div>
                   </div>
                 )}
               </div>
@@ -328,10 +333,10 @@ export default function DefectReturns({ showToast, onCount }) {
           <div className="w-full max-w-2xl rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92dvh' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <RotateCcw className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-              <h3 className="text-base font-bold flex-1">{editing.id ? '불량 반품 수정' : '새 불량 반품 기록'}</h3>
+              <h3 className="text-base font-bold flex-1">{editing.id ? '발송 기록 수정' : '발송 기록 추가'}</h3>
               <button onClick={() => !saving && setEditing(null)}><X className="w-5 h-5 opacity-60" /></button>
             </div>
-            <div className="overflow-y-auto px-4 py-3 space-y-3">
+            <div className="min-h-0 overflow-y-auto px-4 py-3 space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs font-bold" style={{ color: 'var(--muted-foreground)' }}>발송일
                   <input type="date" value={editing.return_date} onChange={(e) => setEditing({ ...editing, return_date: e.target.value })}
@@ -360,24 +365,24 @@ export default function DefectReturns({ showToast, onCount }) {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-bold" style={{ color: 'var(--muted-foreground)' }}>품목 {editing.items.length}종</span>
-                  <button onClick={addItem} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}><Plus className="w-3 h-3" /> 행 추가</button>
+                  <button onClick={addItem} className="flex items-center gap-1 px-3 min-h-11 rounded-lg text-xs font-bold border" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}><Plus className="w-3 h-3" /> 행 추가</button>
                 </div>
                 <div className="space-y-1 max-h-[38dvh] overflow-y-auto">
                   {editing.items.length === 0 ? (
                     <div className="text-xs py-6 text-center" style={{ color: 'var(--muted-foreground)' }}>위에 리스트를 붙여넣거나 행을 추가하세요</div>
                   ) : editing.items.map((it, i) => (
-                    <div key={i} className="flex items-center gap-1.5">
+                    <div key={i} className="grid grid-cols-6 gap-2 p-2 rounded-xl border" style={{ borderColor: 'var(--border)' }}>
                       <input value={it.category} onChange={(e) => setItem(i, { category: e.target.value })} placeholder="분류"
-                        className="w-16 px-2 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+                        className="col-span-2 min-w-0 min-h-11 px-2 rounded-lg border text-sm" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
                       <input value={it.spec} onChange={(e) => setItem(i, { spec: e.target.value })} placeholder="규격/품명"
-                        className="flex-1 min-w-0 px-2 py-1.5 rounded-lg border text-xs font-mono" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
-                      <input type="number" value={it.qty} onChange={(e) => setItem(i, { qty: e.target.value })}
-                        className="w-14 px-2 py-1.5 rounded-lg border text-xs text-right" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
-                      <select value={it.unit} onChange={(e) => setItem(i, { unit: e.target.value })}
-                        className="px-1.5 py-1.5 rounded-lg border text-xs" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
+                        className="col-span-4 min-w-0 min-h-11 px-2 rounded-lg border text-sm font-mono" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+                      <input aria-label={`${it.spec || '품목'} 발송 수량`} type="number" value={it.qty} onChange={(e) => setItem(i, { qty: e.target.value })}
+                        className="col-span-2 min-w-0 min-h-11 px-2 rounded-lg border text-sm text-right" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+                      <select aria-label={`${it.spec || '품목'} 단위`} value={it.unit} onChange={(e) => setItem(i, { unit: e.target.value })}
+                        className="col-span-3 min-w-0 min-h-11 px-2 rounded-lg border text-sm" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}>
                         <option value="개">개</option><option value="세트">세트</option>
                       </select>
-                      <button onClick={() => delItem(i)} className="p-1.5 rounded-lg" style={{ color: 'var(--destructive)' }}><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => delItem(i)} className="p-3 min-h-11 min-w-11 rounded-lg" style={{ color: 'var(--destructive)' }}><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
                 </div>

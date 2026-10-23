@@ -2,6 +2,7 @@ import { Menu } from 'lucide-react';
 
 const pageTitles = {
   dashboard: '대시보드',
+  'supplier-ledger': 'JSR 관리',
   pos: '제품 주문',
   orders: '주문 내역',
   'saved-carts': '저장된 장바구니',

@@ -903,7 +903,7 @@ export const GEMINI_TOOLS = [
     parameters: {
       type: 'object',
       properties: {
-        page: { type: 'string', enum: ['dashboard', 'pos', 'orders', 'saved-carts', 'customers', 'stock', 'burnway-stock', 'shipping', 'invoices', 'memos', 'ai-order', 'smartstore', 'admin', 'purchase-orders', 'supplier-prices', 'supplier-ledger'], description: '이동할 페이지 키. purchase-orders=매입 발주·불량반품·증빙, supplier-prices=매입 단가, supplier-ledger=공급처 장부' },
+        page: { type: 'string', enum: ['dashboard', 'pos', 'orders', 'saved-carts', 'customers', 'stock', 'burnway-stock', 'shipping', 'invoices', 'memos', 'ai-order', 'smartstore', 'admin', 'purchase-orders', 'supplier-prices', 'supplier-ledger'], description: '이동할 페이지 키. purchase-orders=매입 발주·불량반품·증빙, supplier-prices=매입 단가, supplier-ledger=JSR 대여·불량 보관·반품교환 관리' },
       },
       required: ['page'],
     },
@@ -1436,7 +1436,7 @@ export function executeTool(name, args = {}, context = {}) {
         const PAGE_LABELS = {
           dashboard: '대시보드', pos: '제품 주문', orders: '주문 내역', 'saved-carts': '저장 장바구니',
           customers: '거래처 관리', stock: '재고 현황', 'burnway-stock': '번웨이 재고', shipping: '택배 송장',
-          invoices: '명세서', memos: '메모 모아보기', 'ai-order': 'AI 주문인식', smartstore: '스마트스토어 주문', admin: '관리자', 'purchase-orders': '매입 발주', 'supplier-prices': '매입 단가', 'supplier-ledger': '공급처 장부',
+          invoices: '명세서', memos: '메모 모아보기', 'ai-order': 'AI 주문인식', smartstore: '스마트스토어 주문', admin: '관리자', 'purchase-orders': '매입 발주', 'supplier-prices': '매입 단가', 'supplier-ledger': 'JSR 관리',
         };
         const page = String(args?.page || '').trim();
         if (!PAGE_LABELS[page]) {

@@ -13,6 +13,17 @@ const invoiceCheck = new URLSearchParams(location.search).get('invoiceCheck');
 if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(invoiceCheck));
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('catalogCheck')) tables.products = ['플랜지 FL 63','플랜지 FL 54','자바라 SF 63 S 길이 120','자바라 SF 63 S 길이 150','H64 바디','X64 바디','CH 150 64','플랜지 FL 76'].map((name,i)=>({id:i+201,name,category:name.includes('플랜지')?'플랜지':name.includes('자바라')?'자바라':'기타',stock:10+i,wholesale:5280+i*1000,retail:6600+i*1000}));
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('jsrCheck')) {
+ tables.supplier_ledger = [
+  {id: 'sample-lent', kind: 'lent', item_name: 'JSR 대여 샘플', spec: '긴 규격명 표시 확인', qty: 5, unit: '세트', occurred_on: '2026-08-19', resolved: false, note: '미리보기 전용 · 실제 기록 아님'},
+  {id: 'sample-defect', kind: 'defect', item_name: '보관 중인 불량 샘플', spec: 'NPK89S_B', qty: 6, unit: '개', resolved: false},
+ ];
+ tables.defect_returns = [
+  {id: 'sample-return', supplier: 'JSR', return_date: '2026-08-19', status: '진행중', items: [{category: 'NPK', spec: 'NPK 89S-B', qty: 6, unit: '개', received_qty: 0}, {category: '기타', spec: 'DSQ2_B · 긴 품명과 규격 줄바꿈 샘플', qty: 2, unit: '세트', received_qty: 0}]},
+  {id: 'sample-return-part', supplier: 'JSR', return_date: '2026-08-20', status: '진행중', items: [{category: 'NPK', spec: 'NPK 89S-T', qty: 4, unit: '개', received_qty: 2}]},
+  {id: 'sample-return-done', supplier: 'JSR', return_date: '2026-07-19', status: '완료', items: [{category: 'NPK', spec: 'NPK 89S-B', qty: 1, unit: '개', received_qty: 1}]},
+ ];
+}
 const realFetch=window.fetch.bind(window);
 export function simulateDispatch(state, realtime = true) {
  if (!import.meta.env.DEV || !new URLSearchParams(location.search).has('dispatchCheck')) return;

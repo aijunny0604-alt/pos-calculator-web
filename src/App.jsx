@@ -59,6 +59,8 @@ export default function App() {
   }, []);
   const [movisVisited, setMovisVisited] = useState(currentPage === 'ai-analytics');
   useEffect(() => { if (currentPage === 'ai-analytics') setMovisVisited(true); }, [currentPage]);
+  const [jsrTab, setJsrTab] = useState('lent');
+  const openJsrReturns = () => { setJsrTab('returns'); setCurrentPage('supplier-ledger'); };
   const [aiOrderText, setAiOrderText] = useState('');
   // 명세서 페이지로 점프 시 자동 선택할 업체 ID (페이먼트/업체관리 → 명세서 cross-navigation)
   const [invoicesInitialCustomerId, setInvoicesInitialCustomerId] = useState(null);
@@ -1217,6 +1219,7 @@ export default function App() {
         return (
           <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>매입 발주 로드 중...</div>}>
             <PurchaseOrders
+              onOpenReturns={openJsrReturns}
               showToast={showToast}
               setCurrentPage={setCurrentPage}
               products={products}
@@ -1237,8 +1240,10 @@ export default function App() {
 
       case 'supplier-ledger':
         return (
-          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>대여·불량 관리 로드 중...</div>}>
+          <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--muted-foreground)' }}>JSR 관리 로드 중...</div>}>
             <SupplierLedger
+              tab={jsrTab}
+              onTabChange={setJsrTab}
               showToast={showToast}
               setCurrentPage={setCurrentPage}
             />

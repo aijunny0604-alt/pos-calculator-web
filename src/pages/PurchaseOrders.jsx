@@ -5,7 +5,6 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { extractPurchaseQuote } from '@/lib/quoteVision';
 import { fileToScaledBase64 } from '@/lib/certVision';
 import QuoteScanModal from '@/components/purchase/QuoteScanModal';
-import DefectReturns from '@/components/purchase/DefectReturns';
 import PurchaseDocs from '@/components/purchase/PurchaseDocs';
 import {
   itemStatus, itemSupply, itemRemaining, poTotal, poOpenItems, poStatus,
@@ -110,7 +109,7 @@ function ToolBtn({ onClick, icon: Icon, children, tone = 'default', disabled }) 
   );
 }
 
-export default function PurchaseOrders({ showToast, setCurrentPage, products = [], orders = [] }) {
+export default function PurchaseOrders({ onOpenReturns, showToast, setCurrentPage, products = [], orders = [] }) {
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false); // 마이그008 미적용과 빈 목록을 구분
@@ -733,12 +732,12 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
             { id: 'orders', label: '발주 목록', count: filtered.length },
             { id: 'pending', label: '미입고 현황', count: pendingItems.length },
             { id: 'restock', label: '재주문 리스트', count: restockAll.length },
-            { id: 'defect', label: '불량 반품', count: defectCount },
+            { id: 'defect', label: '반품·교환 ↗', count: defectCount },
             { id: 'docs', label: '증빙 보관', count: docCount },
           ].map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => t.id === 'defect' ? onOpenReturns?.() : setTab(t.id)}
               className="px-3.5 py-2 rounded-xl text-sm font-bold border transition-all flex items-center gap-1.5"
               style={tab === t.id
                 ? { background: 'var(--primary)', color: 'white', borderColor: 'var(--primary)' }
@@ -1160,7 +1159,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
             </div>
           )
         ) : tab === 'defect' ? (
-          <DefectReturns showToast={showToast} onCount={setDefectCount} />
+          <button onClick={onOpenReturns} className="min-h-11 px-4 rounded-xl border">JSR 관리에서 반품·교환 보기 →</button>
         ) : tab === 'docs' ? (
           <PurchaseDocs showToast={showToast} onCount={setDocCount} />
         ) : pendingFiltered.length === 0 ? (
