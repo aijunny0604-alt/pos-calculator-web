@@ -21,7 +21,7 @@ export default function SupplierModal({ title, subtitle, onClose, children, foot
         if (!locked.current) close.current();
       }
       if (event.key !== 'Tab') return;
-      const controls = [...dialog.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')];
+      const controls = [...dialog.current.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')];
       const first = controls[0], last = controls.at(-1);
       if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
         event.preventDefault(); last?.focus();

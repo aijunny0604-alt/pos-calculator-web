@@ -1219,6 +1219,10 @@ export const supabase = {
     return fetchStoreDispatchStates(SUPABASE_URL, headers, ids);
   },
   // 네이버 스토어(엠파츠) 상품 카탈로그 — sync.js가 채운 external_products (MOVIS 검색용)
+  async getStoreCatalog() {
+    // 관리 화면은 일부 페이지나 조회 실패를 정상 빈 목록으로 표시하지 않는다.
+    return fetchPosRows(`${SUPABASE_URL}/rest/v1/external_products?select=channel_product_no,name,status_type,sale_price,seller_management_code,category_name,options,option_count,synced_at&order=channel_product_no.asc`, { headers: { ...headers, Prefer: 'count=exact' } });
+  },
   async getExternalProducts({ limit = 5000 } = {}) {
     try {
       const url = `${SUPABASE_URL}/rest/v1/external_products?select=channel_product_no,name,status_type,sale_price,seller_management_code,category_name,options,option_count,product_url&order=name.asc&limit=${limit}`;

@@ -16,6 +16,7 @@ import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/li
 import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/storeOrderSafety';
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 import StoreShippingDetails from '@/components/StoreShippingDetails';
+import StoreCatalog from '@/components/StoreCatalog';
 import ViewportModal from '@/components/ui/ViewportModal';
 import { storeRefreshInterval } from '@/lib/storeOrderView';
 import { mergePosChange } from '@/lib/posRealtime';
@@ -492,14 +493,17 @@ export default function SmartStoreOrders({
   };
   // 네이버 상품 카탈로그 수동 동기화 — sync.js가 5분 내 감지해 전 상품·옵션 갱신 (MOVIS 검색용)
   const [catalogSyncing, setCatalogSyncing] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const requestCatalogSync = async () => {
     setCatalogSyncing(true);
     try {
       const { error } = await supabaseClient.rpc('request_naver_catalog_sync_now');
       if (error) throw error;
       showToast?.('🛒 네이버 상품 동기화 요청됨 — 매장 PC가 5분 내 전 상품·옵션을 갱신합니다 (MOVIS에서 검색 가능)', 'success');
+      return true;
     } catch (e) {
       showToast?.(`상품 동기화 요청 실패: ${e.message || e}`, 'error');
+      return false;
     } finally {
       setTimeout(() => setCatalogSyncing(false), 1500);
     }
@@ -1467,6 +1471,7 @@ export default function SmartStoreOrders({
     }
   };
 
+  if (catalogOpen) return <StoreCatalog onBack={() => setCatalogOpen(false)} onSync={requestCatalogSync} syncing={catalogSyncing} showToast={showToast} />;
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--background)' }}>
       {/* 헤더 */}
@@ -1537,6 +1542,10 @@ export default function SmartStoreOrders({
         </button>
       </div>
 
+      <div className="shrink-0 px-3 sm:px-4 py-2 border-b flex items-center gap-3" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+        <span className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>주문 관리</span>
+        <button onClick={() => setCatalogOpen(true)} className="min-h-11 px-4 rounded-xl border text-sm font-semibold flex items-center gap-2 hover:bg-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}><Package size={17} />상품·품절 관리<ArrowRight size={16} /></button>
+      </div>
       {/* 본문 스크롤 영역 — 헤더 외 모든 컨텐츠를 포함 (모바일 스크롤 보장) */}
       <div className="flex-1 min-h-0 overflow-y-auto pb-20 sm:pb-6" style={{ WebkitOverflowScrolling: 'touch' }}>
 

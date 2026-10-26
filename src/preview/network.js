@@ -1,6 +1,7 @@
 import { mockMovisNavigation } from './movisNavigationFixture';
 import { invoiceFixture } from './invoiceFixture';
 import { storeWidgetFixture } from './storeWidgetFixture';
+import { storeCatalogFixture } from './storeCatalogFixture';
 // 개발 전용 미리보기: 외부 통신 없이 샘플 응답만 제공한다.
 const now = new Date().toISOString();
 const names = ['스텐 밴딩 54-30','브레이크 호스 세트','퍼포먼스 배기 팁','실리콘 엘보 호스','알루미늄 플랜지','스테인리스 클램프','레이싱 흡기 필터','티타늄 볼트 세트'];
@@ -10,6 +11,8 @@ const orders=Array.from({length:8},(_,i)=>({id:'DEMO-'+(100+i),order_number:'DEM
 export const sample = {products,customers,orders};
 const tables={products,customers,orders,saved_carts:[],payment_records:[],payment_history:[],purchase_orders:[],supplier_prices:[],external_orders:[{id:'DEMO-STORE-1',provider:'naver',provider_order_id:'DEMO-20261020',buyer_name:'발송 검증용 고객',order_status:'PAYED',raw_payload:{productOrder:{expectedDeliveryMethod:'VISIT_RECEIPT'}},total_amount:164000,created_at:now,ordered_at:now}],external_order_items:[{id:'DEMO-ITEM-1',external_order_id:'DEMO-STORE-1',product_name:'모바일 발송 모달 검증용 상품',quantity:1,unit_price:164000}],external_products:[],app_settings:[]};
 const invoiceCheck = new URLSearchParams(location.search).get('invoiceCheck');
+const stockCheck = new URLSearchParams(location.search).get('stockCheck');
+if (import.meta.env.DEV && stockCheck && stockCheck !== 'empty') tables.external_products = storeCatalogFixture();
 if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(invoiceCheck));
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('catalogCheck')) tables.products = ['플랜지 FL 63','플랜지 FL 54','자바라 SF 63 S 길이 120','자바라 SF 63 S 길이 150','H64 바디','X64 바디','CH 150 64','플랜지 FL 76'].map((name,i)=>({id:i+201,name,category:name.includes('플랜지')?'플랜지':name.includes('자바라')?'자바라':'기타',stock:10+i,wholesale:5280+i*1000,retail:6600+i*1000}));
@@ -48,6 +51,7 @@ window.fetch=async(input,options={})=>{
  let data=[];
  if(url.pathname.includes('/rest/v1/')){
   const table=url.pathname.split('/').at(-1);
+  if (stockCheck === 'failure' && table === 'external_products') return new Response('{}', {status:503});
   if(invoiceCheck === 'failure' && table === 'payment_records') return new Response('{}',{status:503});
   data=structuredClone(tables[table]||[]);
   const id=url.searchParams.get('id');if(id?.startsWith('eq.'))data=data.filter(row=>String(row.id)===id.slice(3));
