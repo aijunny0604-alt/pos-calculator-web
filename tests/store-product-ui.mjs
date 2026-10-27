@@ -9,6 +9,9 @@ try {
   await page.goto('http://127.0.0.1:5186/pos-calculator-web/design-preview.html?stockCheck=1&storeCheck=1&productEditorCheck=1');
   await page.getByRole('button',{name:'상품·품절 관리'}).click();
   await page.getByRole('button',{name:/샘플 플랜지 FL 63.*옵션 상세/}).click();
+  await page.getByRole('button',{name:'휴대폰 연결',exact:true}).click();
+  assert.equal(await page.getByLabel('휴대폰 연결 코드').count(),1);
+  await page.getByRole('button',{name:'휴대폰 연결 접기'}).click();
   await page.getByRole('button',{name:'현재 상태 조회'}).click();
   await page.waitForTimeout(500);
   if (!(await page.getByLabel('변경할 옵션').count())) throw new Error(`조회 실패: ${await page.getByRole('dialog').innerText()}`);

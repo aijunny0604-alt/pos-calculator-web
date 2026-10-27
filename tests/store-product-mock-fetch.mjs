@@ -1,7 +1,9 @@
 // 서버 프로세스 전용 네이버 가짜 응답. 외부 네트워크로 전송하지 않는다.
 let optionStock=3;
+const realFetch=globalThis.fetch;
 globalThis.fetch=async (url, options={})=>{
  const address=String(url);
+ if(address.startsWith('http://127.0.0.1:'))return realFetch(url,options);
  if(!address.startsWith('https://api.commerce.naver.com/'))throw new Error('외부 요청 차단');
  if(address.includes('/oauth2/token'))return Response.json({access_token:'sample',expires_in:3600});
  if(address.endsWith('/products/search'))return Response.json({contents:[{originProductNo:20,channelProducts:[{channelProductNo:10}]}]});

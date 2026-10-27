@@ -1,5 +1,9 @@
 const base = 'http://127.0.0.1:43128';
 export async function productRequest(path, { data, params } = {}, fetcher = fetch) {
+  if (['product-snapshot','product-change/prepare','product-change/confirm'].includes(path)) {
+    const { mobileCode, mobileRequest } = await import('./storeMobile');
+    if (mobileCode()) return mobileRequest(path, { data, params });
+  }
   let session;
   try { session = await fetcher(`${base}/session`, { signal: AbortSignal.timeout(5000) }); } catch { throw new Error('매장 PC에서 최신 스토어 연결 프로그램을 실행해주세요.'); }
   if (!session.ok) throw new Error('스토어 연결 인증을 확인해주세요.');

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { productRequest } from '@/lib/storeProduct';
+import StoreMobilePair from '@/components/StoreMobilePair';
 
 const labels = { SALE: '판매중', OUTOFSTOCK: '품절', SUSPENSION: '판매중지', WAIT: '판매 대기' };
 const button = 'min-h-11 rounded-xl border px-3 text-sm font-semibold disabled:opacity-40';
@@ -30,6 +31,7 @@ export default function StoreProductEditor({ product, onChanged, onBusyChange })
   const valid = /^\d+$/.test(stock) && Number(stock) <= 99999999;
   return <section className="rounded-xl border p-4 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
     <div className="flex flex-wrap justify-between items-center gap-2"><div><h3 className="font-bold">네이버 실시간 변경</h3><p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>변경 전 네이버 원본을 조회하고 확인 후 적용합니다.</p></div><button disabled={busy || !origin} onClick={read} className={button} style={{ color: 'var(--primary)' }}>{busy ? '처리 중…' : '현재 상태 조회'}</button></div>
+    <StoreMobilePair />
     {!origin && <p className="text-sm" style={{ color: 'var(--warning)' }}>원상품 번호가 없습니다. 상품 동기화 후 다시 확인해주세요.</p>}
     {error && <p role="alert" className="text-sm" style={{ color: 'var(--destructive)' }}>{error}</p>}
     {snapshot && <>

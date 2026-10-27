@@ -6,12 +6,14 @@ import {createRequire} from 'node:module';
 import {randomBytes} from 'node:crypto';
 import {financeQuery, financeResult} from './store-finance.mjs';
 import {productSnapshot, prepareProductChange, productFingerprint} from './store-product.mjs';
+import {createMobileRelay} from './store-mobile.mjs';
 const source=process.env.NAVER_SYNC_DIR||path.join(os.homedir(),'naver-sync-bridge');
 const require=createRequire(path.join(source,'package.json'));
 require('dotenv').config({path:path.join(source,'.env'),quiet:true});
 const bcrypt=require('bcryptjs');
 const session=randomBytes(32).toString('hex');
 const port=Number(process.env.MOVIS_CARE_PORT||43128);
+const mobile=createMobileRelay({port,session,url:'https://jubzppndcclhnvgbvrxr.supabase.co',anonKey:'sb_publishable_td4p48nPHKjXByMngvyjZQ_AJttp5KU'});
 const origins=new Set(['https://aijunny0604-alt.github.io','http://127.0.0.1:5186','http://127.0.0.1:43127']);
 let token=null,expires=0;
 const previews=new Map(), changing=new Set();
@@ -47,6 +49,12 @@ const server=http.createServer(async(req,res)=>{
  const url=new URL(req.url,`http://127.0.0.1:${port}`);
  if(url.pathname==='/session' && req.method==='GET')return send(200,{token:session});
  if(req.headers.authorization!==`Bearer ${session}`)return send(401,{error:'연결을 새로고침해주세요.'});
+ if(url.pathname==='/mobile-pair/start' && req.method==='POST'){
+  try{return send(200,await mobile.start());}catch(error){return send(503,{error:error.message||'휴대폰 연결을 시작하지 못했습니다.'});}
+ }
+ if(url.pathname==='/mobile-pair/stop' && req.method==='POST'){
+  try{await mobile.stop();return send(200,{ok:true});}catch{return send(503,{error:'연결을 종료하지 못했습니다.'});}
+ }
  if(url.pathname==='/product-snapshot' && req.method==='GET'){
   try{return send(200,await readProduct(url.searchParams.get('channel'),url.searchParams.get('origin')));}catch(error){return send(400,{error:error.message});}
  }

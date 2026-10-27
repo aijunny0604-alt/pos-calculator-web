@@ -13,6 +13,7 @@ const tables={products,customers,orders,saved_carts:[],payment_records:[],paymen
 const invoiceCheck = new URLSearchParams(location.search).get('invoiceCheck');
 const stockCheck = new URLSearchParams(location.search).get('stockCheck');
 if (import.meta.env.DEV && stockCheck && stockCheck !== 'empty') tables.external_products = storeCatalogFixture();
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('mobileTransportCheck') && tables.external_products[0]) { tables.external_products[0].channel_product_no='10';tables.external_products[0].origin_product_no='20'; }
 if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(invoiceCheck));
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('catalogCheck')) tables.products = ['플랜지 FL 63','플랜지 FL 54','자바라 SF 63 S 길이 120','자바라 SF 63 S 길이 150','H64 바디','X64 바디','CH 150 64','플랜지 FL 76'].map((name,i)=>({id:i+201,name,category:name.includes('플랜지')?'플랜지':name.includes('자바라')?'자바라':'기타',stock:10+i,wholesale:5280+i*1000,retail:6600+i*1000}));
@@ -45,6 +46,7 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('dispatchChe
 window.fetch=async(input,options={})=>{
  const url=new URL(typeof input==='string'?input:input.url,location.href);
  const method=(options.method||(input instanceof Request?input.method:'GET')).toUpperCase();
+ if(import.meta.env.DEV && new URLSearchParams(location.search).has('mobileTransportCheck') && url.origin==='http://127.0.0.1:43128') return realFetch(`http://127.0.0.1:43132${url.pathname}${url.search}`,options);
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('productEditorCheck') && url.origin==='http://127.0.0.1:43128') {
   const snapshot={originNo:'80000000',name:'샘플',status:'SALE',stock:3,stockManagement:true,options:[{type:'combination',id:'8',name:'블랙',stock:3,price:0,usable:true}]};
   let data={};
@@ -75,5 +77,5 @@ window.fetch=async(input,options={})=>{
  return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Content-Range':`0-${Math.max(0,data.length-1)}/${data.length||0}`}});
 };
 const RealWebSocket=window.WebSocket;
-window.WebSocket=class extends EventTarget {static CONNECTING=0;static OPEN=1;static CLOSING=2;static CLOSED=3;readyState=3;constructor(url,protocols){super();if(new URL(url,location.href).host===location.host)return new RealWebSocket(url,protocols)}send(){}close(){}};
+window.WebSocket=class extends EventTarget {static CONNECTING=0;static OPEN=1;static CLOSING=2;static CLOSED=3;readyState=3;constructor(url,protocols){super();const host=new URL(url,location.href).host;if(host===location.host||(import.meta.env.DEV&&new URLSearchParams(location.search).has('mobileTransportCheck')&&host==='jubzppndcclhnvgbvrxr.supabase.co'))return new RealWebSocket(url,protocols)}send(){}close(){}};
 navigator.sendBeacon=()=>false;
