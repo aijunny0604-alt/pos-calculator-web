@@ -209,7 +209,7 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
             <span className="font-bold text-sm">비상용 계산기</span>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title={isFullscreen ? '원래 크기' : '전체화면'}>
+            <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(e); }} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title={isFullscreen ? '원래 크기' : '전체화면'}>
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
           <button

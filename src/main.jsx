@@ -5,6 +5,7 @@ import App from './App'
 import './index.css'
 import './styles/move-design.css'
 import { enableAppMotion } from './lib/appMotion.mjs'
+import StoreQrConnect from './components/StoreQrConnect'
 
 enableAppMotion()
 
@@ -19,8 +20,11 @@ Sentry.init({
   ],
 })
 
+const storeQrCandidate = window.__moveStoreQrCandidate || ''
+delete window.__moveStoreQrCandidate
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
+    <StoreQrConnect candidate={storeQrCandidate} />
   </React.StrictMode>
 )

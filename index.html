@@ -2,6 +2,24 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // 연결 코드는 페이지 실행 전에 주소와 브라우저 기록에서 즉시 제거한다.
+      (function () {
+        function capture() {
+          var match = /^#store-pair=([0-9a-f]{32})$/i.exec(window.location.hash);
+          if (!match) return;
+          try {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            window.__moveStoreQrCandidate = match[1].toLowerCase();
+            window.dispatchEvent(new Event('move-store-qr'));
+          } catch (_) {
+            window.location.replace(window.location.pathname + window.location.search);
+          }
+        }
+        window.addEventListener('hashchange', capture);
+        capture();
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <link rel="icon" type="image/png" sizes="32x32" href="/pos-calculator-web/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/pos-calculator-web/apple-touch-icon.png" />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { animateModalFullscreen } from '@/lib/modalFullscreenMotion';
 
 const MIN_W = 320;
 const MIN_H = 240;
@@ -171,9 +172,11 @@ export default function useDraggableResizable(storageKey, defaults = { w: 960, h
     if (transitionTimer.current) clearTimeout(transitionTimer.current);
     transitionTimer.current = setTimeout(() => setTransitioning(false), duration);
   }, []);
-  const toggleMaximized = useCallback(() => {
-    triggerTransition();
-    setMaximized((m) => !m);
+  const toggleMaximized = useCallback((event) => {
+    animateModalFullscreen(event, () => {
+      triggerTransition();
+      setMaximized((m) => !m);
+    });
   }, [triggerTransition]);
   const reset = useCallback(() => {
     try { localStorage.removeItem(storageKey); } catch {}

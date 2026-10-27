@@ -21,6 +21,7 @@ import StoreFinance from '@/components/StoreFinance';
 import ViewportModal from '@/components/ui/ViewportModal';
 import { storeRefreshInterval } from '@/lib/storeOrderView';
 import { mergePosChange } from '@/lib/posRealtime';
+import { animateModalFullscreen } from '@/lib/modalFullscreenMotion';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
 const fmtDate = (s) => {
@@ -2043,10 +2044,10 @@ export default function SmartStoreOrders({
                 </div>
                 {/* 상세 모달 — 컴팩트 행 클릭 시 크게 표시 (폰트↑, 깔끔) */}
                 {isExpanded && (
-                  <div className={`fixed inset-0 z-50 flex justify-center animate-modal-backdrop ${modalFullscreen ? 'items-stretch p-0' : 'items-stretch sm:items-center p-0 sm:p-4'}`}
+                  <div className={`fixed inset-0 z-50 flex justify-center animate-modal-backdrop modal-backdrop-fs-transition ${modalFullscreen ? 'items-stretch p-0' : 'items-stretch sm:items-center p-0 sm:p-4'}`}
                     style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
                     onClick={() => setExpandedCompactId(null)}>
-                    <div className={`w-full flex flex-col border shadow-2xl animate-modal-up text-base sm:text-[17px] overflow-hidden ${modalFullscreen
+                    <div className={`w-full flex flex-col border shadow-2xl animate-modal-up modal-fs-transition text-base sm:text-[17px] overflow-hidden ${modalFullscreen
                         ? 'max-w-none h-full max-h-none rounded-none'
                         : 'max-w-3xl h-full sm:h-auto max-h-[100dvh] sm:max-h-[94dvh] rounded-none sm:rounded-2xl'}`}
                       style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
@@ -2056,7 +2057,7 @@ export default function SmartStoreOrders({
                         {order.provider === 'naver' && <span className="text-sm px-2 py-0.5 rounded font-bold" style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a' }}>N</span>}
                         <span className="font-bold text-base sm:text-lg flex-1">주문 상세</span>
                         <span className="px-2.5 sm:px-3 py-1 rounded-md text-sm sm:text-base font-bold whitespace-nowrap" style={{ background: statusMeta.bg, color: statusMeta.color }}>{statusMeta.label}</span>
-                        <button onClick={() => setModalFullscreen((v) => !v)} className="hidden sm:flex p-2 rounded-lg hover:bg-[var(--accent)]" title={modalFullscreen ? '창 모드' : '전체화면'}>
+                        <button onClick={(event) => animateModalFullscreen(event, () => setModalFullscreen((v) => !v))} className="hidden sm:flex p-2 rounded-lg hover:bg-[var(--accent)]" title={modalFullscreen ? '창 모드' : '전체화면'}>
                           {modalFullscreen ? <Minimize2 className="w-5 h-5 opacity-60" /> : <Maximize2 className="w-5 h-5 opacity-60" />}
                         </button>
                         <button onClick={() => setExpandedCompactId(null)}

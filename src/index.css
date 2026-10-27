@@ -505,6 +505,8 @@ html, body {
 .modal-backdrop-fs-transition {
   transition: padding 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* 크기 전환 중에는 기존 CSS 전환과 겹치지 않게 한다. */
+[data-fullscreen-motion='true'] { transition: none !important; }
 
 /* 작은 화면(갤럭시 S8 등) 모달 잘림 방지 — 내용이 길면 모달 자체가 화면을 넘지 않고 내부 스크롤.
    100dvh(모바일 브라우저 툴바 반영) 기준으로 높이 상한 + 세로 스크롤. 인라인 모달 카드에 부여. */

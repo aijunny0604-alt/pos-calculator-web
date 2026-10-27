@@ -1299,7 +1299,7 @@ export default function MainPOS({
               </div>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={(e) => { e.stopPropagation(); toggleCartFullscreen(); }}
+                  onClick={(e) => { e.stopPropagation(); toggleCartFullscreen(e); }}
                   className="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors"
                   title={isCartFullscreen ? '원래 크기' : '전체화면'}
                 >

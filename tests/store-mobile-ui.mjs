@@ -13,8 +13,9 @@ try{
  a.on('console',m=>{if(m.type()==='error')console.log(`샘플 브라우저 오류: ${m.text().slice(0,200)}`);});
  const target='http://127.0.0.1:5186/pos-calculator-web/design-preview.html?stockCheck=1&storeCheck=1&mobileTransportCheck=1';
  const open=async page=>{await page.goto(target);await page.getByRole('button',{name:'상품·품절 관리'}).click();await page.getByRole('button',{name:/샘플 플랜지 FL 63.*옵션 상세/}).click();await page.getByRole('button',{name:'휴대폰 연결',exact:true}).click();};
- await open(a);await a.getByRole('button',{name:'PC에서 연결 코드 만들기'}).click();
+ await open(a);await a.getByRole('button',{name:'PC에서 QR코드 만들기'}).click();
  await a.waitForTimeout(3000);if(await a.getByRole('alert').count())throw new Error(`PC 연결: ${await a.getByRole('alert').first().innerText()}`);
+ await a.getByRole('button',{name:'스캔이 안 되나요? 코드 직접 입력'}).click();
  const code=await a.locator('p.font-mono').innerText();
  await open(b);await b.getByLabel('휴대폰 연결 코드').fill(code);await b.getByRole('button',{name:'휴대폰 연결하기'}).click();
  await b.getByText('이 휴대폰에 연결 정보가 저장됨').waitFor({timeout:15000});

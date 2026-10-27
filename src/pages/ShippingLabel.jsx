@@ -1576,7 +1576,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                 임의 항목 추가
               </h3>
               <div className="flex items-center gap-1">
-                <button onClick={(e) => { e.stopPropagation(); toggleAddModalFullscreen(); }} className="p-1 hover:bg-white/20 rounded transition-colors" title={isAddModalFullscreen ? '원래 크기' : '전체화면'}>
+                <button onClick={(e) => { e.stopPropagation(); toggleAddModalFullscreen(e); }} className="p-1 hover:bg-white/20 rounded transition-colors" title={isAddModalFullscreen ? '원래 크기' : '전체화면'}>
                   {isAddModalFullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}
                 </button>
                 <button onClick={() => setShowAddCustomModal(false)} className="p-1 hover:bg-white/20 rounded transition-colors">
