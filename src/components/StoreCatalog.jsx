@@ -3,6 +3,7 @@ import { ArrowLeft, Search, RefreshCw, Download, ExternalLink, PackageSearch, Ch
 import { supabase } from '@/lib/supabase';
 import SupplierModal from '@/components/purchase/SupplierModal';
 import StoreReorderList from '@/components/StoreReorderList';
+import StoreProductEditor from '@/components/StoreProductEditor';
 import { REORDER_KEY, readReorders, reorderKey, makeReorder, appendShortages } from '@/lib/storeReorder';
 import { downloadCSV } from '@/lib/purchaseExport';
 import { CATALOG_STATES, catalogState, catalogSourceStatus, catalogOptions, soldOutOptions, optionStock, catalogOld, catalogUrl, filterCatalog, catalogCounts, catalogCSV } from '@/lib/storeCatalog';
@@ -49,6 +50,7 @@ export default function StoreCatalog({ onBack, onSync, syncing, showToast }) {
   const [filter, setFilter] = useState('attention');
   const [visible, setVisible] = useState(40);
   const [selectedId, setSelectedId] = useState(null);
+  const [productBusy, setProductBusy] = useState(false);
   const [optionQuery, setOptionQuery] = useState('');
   const [zeroOnly, setZeroOnly] = useState(false);
   const [requestNote, setRequestNote] = useState(false);
@@ -95,7 +97,7 @@ export default function StoreCatalog({ onBack, onSync, syncing, showToast }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs leading-relaxed" style={muted}>
           <p className="flex items-center gap-1.5"><Clock size={14} />상품별 동기화 {rows.length ? `${date(oldest)} ~ ${date(newest)} (한국시간)` : loading ? '확인 중' : '자료 없음'}</p>
-          <p className="mt-1">연동 자료를 30초마다 확인합니다. 재고·판매 상태 변경은 네이버 관리자에서 진행하세요.</p>
+          <p className="mt-1">연동 자료를 30초마다 확인합니다. 상품 상세에서 네이버 현재 상태를 조회하고 변경할 수 있습니다.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={load} disabled={loading} className={button} style={panel}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} />{loading ? '조회 중' : '새로고침'}</button>
@@ -143,13 +145,14 @@ export default function StoreCatalog({ onBack, onSync, syncing, showToast }) {
       </div>}
       </>}
     </main>
-    {selected && <SupplierModal title="스토어 상품 상세" subtitle={`#${selected.channel_product_no} · 동기화 ${date(selected.synced_at)} (한국시간)`} onClose={() => setSelectedId(null)} footer={<>
+    {selected && <SupplierModal title="스토어 상품 상세" subtitle={`#${selected.channel_product_no} · 동기화 ${date(selected.synced_at)} (한국시간)`} busy={productBusy} onClose={() => setSelectedId(null)} footer={<>
       {catalogUrl(selected) && <a href={catalogUrl(selected)} target="_blank" rel="noopener noreferrer" className={button} style={panel}><ExternalLink size={16} />네이버 상품</a>}
       <a href="https://sell.smartstore.naver.com/#/home/dashboard" target="_blank" rel="noopener noreferrer" className={button} style={panel}>네이버 관리자</a>
-      <button onClick={() => setSelectedId(null)} className={`${button} text-white`} style={{ background: 'var(--primary)' }}>닫기</button></>}>
+      <button disabled={productBusy} onClick={() => setSelectedId(null)} className={`${button} text-white disabled:opacity-40`} style={{ background: 'var(--primary)' }}>닫기</button></>}>
       <div className="space-y-4">
         <div className="p-4 rounded-xl" style={{ background: 'var(--muted)' }}><Badge row={selected} /><h3 className="text-lg sm:text-xl font-bold leading-relaxed mt-2 break-words">{selected.name}</h3><p className="text-sm mt-2" style={muted}>네이버 상태: {catalogSourceStatus(selected)} · 기본 판매가 {money(selected.sale_price)}</p>{selected.seller_management_code && <p className="text-sm mt-1 break-words" style={muted}>관리코드 {selected.seller_management_code}</p>}</div>
         {catalogOld(selected) && <p className="text-sm" style={{ color: 'var(--warning)' }}>오래되었거나 동기화 시각이 없는 자료입니다. 네이버에서 현재 상태를 확인해주세요.</p>}
+        <StoreProductEditor key={selected.channel_product_no} product={selected} onBusyChange={setProductBusy} onChanged={() => { showToast?.('네이버 변경 결과를 확인했습니다. 동기화를 요청해주세요.', 'success'); }} />
         <div className="flex flex-wrap items-center gap-2"><input aria-label="옵션 검색" value={optionQuery} onChange={e => setOptionQuery(e.target.value)} placeholder="옵션명 검색" className="min-h-11 flex-1 min-w-[160px] border rounded-xl px-3 text-base" style={panel} /><button aria-pressed={zeroOnly} onClick={() => setZeroOnly(v => !v)} className={button} style={{ ...panel, color: zeroOnly ? 'var(--warning)' : 'var(--foreground)' }}>재고 0만 {soldOutOptions(selected).length}</button></div>
         <p className="text-xs" style={muted}>사용하지 않는 옵션은 품절 집계에서 제외합니다. 재고 미확인은 0으로 계산하지 않습니다.</p>
         <div className="flex flex-wrap items-center justify-between gap-2">{!catalogOptions(selected).length && <button onClick={() => addReorder(selected)} disabled={reorders.some(r => r.key === reorderKey(selected, null))} className={`${button} disabled:opacity-50`} style={{ ...panel, color: 'var(--primary)' }}>{reorders.some(r => r.key === reorderKey(selected, null)) ? '상품 담김' : '+ 재주문 담기'}</button>}<button onClick={() => { setSelectedId(null); setView('reorders'); }} className="min-h-11 text-sm font-semibold" style={{ color: 'var(--primary)' }}>재주문 목록 보기 · {reorders.filter(r => !r.ordered).length}</button><span className="text-xs" style={muted}>수량은 담은 후 입력</span></div>

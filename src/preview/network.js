@@ -45,6 +45,15 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('dispatchChe
 window.fetch=async(input,options={})=>{
  const url=new URL(typeof input==='string'?input:input.url,location.href);
  const method=(options.method||(input instanceof Request?input.method:'GET')).toUpperCase();
+ if(import.meta.env.DEV && new URLSearchParams(location.search).has('productEditorCheck') && url.origin==='http://127.0.0.1:43128') {
+  const snapshot={originNo:'80000000',name:'샘플',status:'SALE',stock:3,stockManagement:true,options:[{type:'combination',id:'8',name:'블랙',stock:3,price:0,usable:true}]};
+  let data={};
+  if(url.pathname==='/session')data={token:'sample'};
+  else if(url.pathname==='/product-snapshot')data=snapshot;
+  else if(url.pathname.endsWith('/prepare'))data={preview:'sample',description:'블랙: 3개 → 5개'};
+  else if(url.pathname.endsWith('/confirm')) {window.previewProductConfirms=(window.previewProductConfirms||0)+1;data={snapshot:{...snapshot,stock:5,options:[{...snapshot.options[0],stock:5}]}};}
+  return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
+ }
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('movisNavigationCheck') && url.pathname.startsWith('/api/movis/')) return mockMovisNavigation(url, options);
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('financeCheck') && ['/settlements','/settlement-case','/commission-details','/vat-case'].includes(url.pathname)) {
   const common={orderId:'SAMPLE-1234',productOrderId:'SAMPLE-5678',productName:'샘플 상품 · 긴 옵션명과 규격 확인',settleBasisDate:'2026-09-20',settleCompleteDate:null};
