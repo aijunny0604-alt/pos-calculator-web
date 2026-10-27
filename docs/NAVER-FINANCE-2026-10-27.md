@@ -8,3 +8,7 @@
 - 2026-10-27 실제 네이버 계정에서 건별 정산 2건, 수수료 상세 4건, 9월 건별 부가세 29건 읽기 조회 성공. 개인 정보 및 금액을 시험 로그에 기록하지 않았다.
 - GPT-6.1 Sol에 가상 부가세 API 응답을 전달해 조회 도구 호출과 과세 매출·납부세액 구분을 검증했다. PC 1366×768, 모바일 390×844·360×800 Chromium 샘플에서 네 종류 조회, 상세 열기와 가로 넘침을 확인했다. 실제 모바일·Safari, 장기간 정산 총액 대사는 미검증이다.
 - [건별 정산](https://apicenter.commerce.naver.com/docs/commerce-api/current/find-settle-by-case-pay-settle), [수수료 상세](https://apicenter.commerce.naver.com/docs/commerce-api/current/find-commission-details-pay-settle), [건별 부가세](https://apicenter.commerce.naver.com/docs/commerce-api/current/find-vat-declaration-by-case-pay-settle).
+- 전체 회귀 테스트 209개 중 208 통과, 0 실패, 환경 의존 1 생략. 최종 프로덕션 빌드 55초 성공. 기존 빌드 크기·출력 옵션 경고 유지.
+- 운영 소스 `2c3cee7d`, GitHub Pages `e0c7ad1d1eacb455dc298c6032ff9c8090fd92fe`; 2026-10-27 13:25:11 KST built / 오류 없음. 주요 자산 18개 HTTP 200 및 로컬 빌드 SHA-256 일치. 실제 운영 UI 전체 대화는 검증하지 않았다.
+- 매장 PC 읽기 연결을 새 버전으로 갱신 후 기존 문의·일별 정산 및 새 건별 정산·수수료·부가세 조회를 확인했다. 이전 Pages 롤백 기준 `3fe39a8e62bf370787249d2010278f6c69acbefa`.
+- 네이버 상품의 판매상태·옵션 재고 직접 변경과 POS 상품 자동 매칭·재주문 수량 추천은 이번에 구현하지 않았다. 옵션 변경 API는 누락된 가격·사용 여부를 초기화할 수 있어 원상품·옵션 ID와 현재 값을 검증하는 별도 흐름이 필요하다.
