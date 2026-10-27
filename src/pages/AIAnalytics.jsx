@@ -53,6 +53,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { commitOrderMemo, isPersistedResult, verifyOrderPaid } from '@/lib/movisReliability';
 import { commitPosWorkflow, POS_WORKFLOWS } from '@/lib/movisPosWorkflows';
 import { commitOrderContact } from '@/lib/movisOrderContact';
+import { commitStoreReorder } from '@/lib/movisStoreTools';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { uploadCertToLibrary, deleteImages } from '@/lib/imageUpload';
 export default function AIAnalytics({
@@ -197,7 +198,11 @@ export default function AIAnalytics({
     try {
       await checkActionBeforeCommit(pending);
       committedActions.current.add(pending.id);
-      if (pending.action === 'posWorkflow') {
+      if (pending.action === 'storeReorder') {
+        commitStoreReorder(pending.params);
+        chat.addSystemMessage('✅ 스토어 재주문 목록 저장 완료. 실제 발주와 네이버 재고는 변경하지 않았습니다.');
+        showToast?.('스토어 재주문 목록 저장 완료', 'success');
+      } else if (pending.action === 'posWorkflow') {
         const result = await commitPosWorkflow(pending.params, supabaseClient);
         const setter = { products: setProducts, savedCarts: setSavedCarts }[result.library];
         if (setter && result.row) setter(prev => prev.map(row => String(row.id) === String(result.row.id) ? { ...row, ...result.row } : row));
@@ -770,6 +775,7 @@ export default function AIAnalytics({
       {chat.pendingActions.length > 0 && chat.pendingActions[0].action !== 'saveOrder' && (() => {
         const pending = chat.pendingActions[0];
         const titleMap = {
+          storeReorder: { title: '스토어 재주문 목록 확인', Icon: Package },
           addProduct: {
             title: '제품 등록 확인',
             Icon: Package
@@ -852,7 +858,7 @@ export default function AIAnalytics({
                     확인 대기 {chat.pendingActions.length}건 · 1번째
                   </span>}
               </div>
-              <div className="bg-[#0f1a2d]/70 border border-cyan-400/20 rounded-xl p-4 sm:p-5 mb-5 text-base sm:text-lg whitespace-pre-line break-words leading-relaxed">
+              <div className="bg-[#0f1a2d]/70 border border-cyan-400/20 rounded-xl p-4 sm:p-5 mb-5 text-base sm:text-lg whitespace-pre-line break-words leading-relaxed max-h-[40vh] overflow-y-auto">
                 {pending.preview}
               </div>
               {pending.warnings.length > 0 && <div className="bg-amber-500/10 border border-amber-400/25 rounded-xl p-4 mb-5">
@@ -862,7 +868,7 @@ export default function AIAnalytics({
                     </div>)}
                 </div>}
               <div className="text-xs sm:text-sm text-[var(--jarvis-text-muted)] mb-5 break-words leading-snug">
-                💡 [실행] 누르면 Supabase에 즉시 저장됩니다. 잘못된 경우 관리자 페이지에서 수정/삭제 가능합니다.
+                {pending.action === 'storeReorder' ? '💡 [실행] 누르면 이 브라우저의 재주문 목록에 저장됩니다.' : '💡 [실행] 누르면 Supabase에 즉시 저장됩니다. 잘못된 경우 관리자 페이지에서 수정/삭제 가능합니다.'}
               </div>
               <div className="flex gap-3">
                 <button onClick={() => handleExecuteAction(pending)} disabled={executing} className="flex-1 flex items-center justify-center gap-2 py-3 sm:py-3.5 rounded-xl bg-[var(--jarvis-cyan)] text-[#050b18] font-bold text-base sm:text-lg hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50">

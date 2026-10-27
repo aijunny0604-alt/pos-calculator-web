@@ -27,7 +27,9 @@ export default function StoreCatalog({ onBack, onSync, syncing, showToast }) {
   useEffect(() => {
     const onStorage = event => { if (event.key === REORDER_KEY || event.key === null) setReorders(readReorders()); };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    const onLocalChange = () => setReorders(readReorders());
+    window.addEventListener('movis-store-reorder-change', onLocalChange);
+    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('movis-store-reorder-change', onLocalChange); };
   }, []);
   const updateReorders = next => {
     try { localStorage.setItem(REORDER_KEY, JSON.stringify(next)); setReorders(next); return true; }

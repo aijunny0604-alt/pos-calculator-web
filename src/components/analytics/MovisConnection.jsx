@@ -25,7 +25,7 @@ export default function MovisConnection({onChange,busy,active=true}) {
  const select=<label className="movis-model-select"><span>GPT 모델</span><select aria-label="GPT 모델 선택" value={model} disabled={busy||!connected||!status?.models?.length} onChange={e=>{setModel(e.target.value);setMovisModel(e.target.value)}}>
  <option value="auto">자동 선택{recommended?` · ${recommended.displayName||recommended.model}`:''}</option>
  {model!=='auto'&&!status?.models?.some(m=>m.model===model)&&<option value={model}>{model}</option>}
- {status?.models?.map(m=><option key={m.model} value={m.model}>{m.displayName||m.model}</option>)}
+ {status?.models?.filter(m=>m && typeof m.model==='string' && !m.hidden).map(m=><option key={m.model} value={m.model}>{m.displayName||m.model}</option>)}
  </select></label>;
  const gauges=<div className="movis-live-gauges">{limits.length?limits.map(w=><div key={w.id} className={`movis-live-gauge ${w.used>=90?'is-high':''}`} title={`${w.bucket} · ${w.resetsAt?'초기화 '+new Date(w.resetsAt*1000).toLocaleString('ko-KR'):'초기화 시각 미제공'}`}>
  <div><span>{w.bucket} · {w.label}</span><strong>{w.used===null?'확인 불가':`${w.used}% 사용`}</strong></div>
