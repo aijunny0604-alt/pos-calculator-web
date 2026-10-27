@@ -8,6 +8,7 @@ enableAppMotion();
 import { invoiceFixture } from './invoiceFixture';
 import OrderHistory from '../pages/OrderHistory';
 import SmartStoreOrders from '../pages/SmartStoreOrders';
+import StoreFinance from '../components/StoreFinance';
 import SavedCarts from '../pages/SavedCarts';
 import './network';
 import React,{useState,useEffect} from 'react';
@@ -54,7 +55,8 @@ if (new URLSearchParams(location.search).get('tools') === '1') {
  document.documentElement.classList.add('preview-with-tools');
  createRoot(document.getElementById('preview-controls')).render(<Controls/>);
 }
-if(import.meta.env.DEV && new URLSearchParams(location.search).has('storeCartCheck')){createRoot(document.getElementById('root')).render(<StoreCartPreview/>)}
+if(import.meta.env.DEV && new URLSearchParams(location.search).has('financeCheck')){createRoot(document.getElementById('root')).render(<div style={{height:'100dvh'}}><StoreFinance onBack={()=>{}}/></div>)}
+else if(import.meta.env.DEV && new URLSearchParams(location.search).has('storeCartCheck')){createRoot(document.getElementById('root')).render(<StoreCartPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('discountCheck')){createRoot(document.getElementById('root')).render(<DiscountPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('customerCheck')){createRoot(document.getElementById('root')).render(<CustomerSearchPreview/>)}
 else if(import.meta.env.DEV && new URLSearchParams(location.search).has('motionCheck')){createRoot(document.getElementById('root')).render(<MovisMotionPreview/>)}

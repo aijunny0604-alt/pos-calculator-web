@@ -84,3 +84,15 @@ test('정산은 공식 응답과 페이지 범위를 보존하며 오류를 0원
   assert.equal(error.ok, false);
   assert.match(error.error, /권한 없음/);
 });
+
+test('한 주문의 서로 다른 상품별 취소·반품 요청을 구분하고 자료 실패를 알린다', () => {
+  const claims = { externalOrders:[{id:'order1',provider_order_id:'S-1'}], externalOrderItems:[
+    {external_order_id:'order1',provider_product_name:'상품 A',raw_payload:{productOrder:{claimType:'RETURN',claimStatus:'RETURN_REQUEST'}}},
+    {external_order_id:'order1',provider_product_name:'상품 B',raw_payload:{productOrder:{claimType:'CANCEL',claimStatus:'CANCEL_REQUEST'}}},
+    {external_order_id:'order1',provider_product_name:'상품 C',raw_payload:{productOrder:{claimType:'RETURN',claimStatus:'RETURN_DONE'}}},
+  ], dataState:{externalOrders:{status:'loaded',coverage:'complete'},externalOrderItems:{status:'loaded',coverage:'complete'}} };
+  const result=executeMovisStoreTool('getStoreClaims',{},claims);
+  assert.equal(result.data.total,2);assert.deepEqual(result.data.items.map(item=>item.type),['RETURN','CANCEL']);
+  assert.equal(executeMovisStoreTool('getStoreClaims',{type:'RETURN'},claims).data.total,1);
+  assert.equal(executeMovisStoreTool('getStoreClaims',{}, {...claims,dataState:{...claims.dataState,externalOrderItems:{status:'error'}}}).ok,false);
+});

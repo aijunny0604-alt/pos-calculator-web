@@ -17,6 +17,7 @@ import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/sto
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 import StoreShippingDetails from '@/components/StoreShippingDetails';
 import StoreCatalog from '@/components/StoreCatalog';
+import StoreFinance from '@/components/StoreFinance';
 import ViewportModal from '@/components/ui/ViewportModal';
 import { storeRefreshInterval } from '@/lib/storeOrderView';
 import { mergePosChange } from '@/lib/posRealtime';
@@ -494,6 +495,7 @@ export default function SmartStoreOrders({
   // 네이버 상품 카탈로그 수동 동기화 — sync.js가 5분 내 감지해 전 상품·옵션 갱신 (MOVIS 검색용)
   const [catalogSyncing, setCatalogSyncing] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [financeOpen, setFinanceOpen] = useState(false);
   const requestCatalogSync = async () => {
     setCatalogSyncing(true);
     try {
@@ -1472,6 +1474,7 @@ export default function SmartStoreOrders({
   };
 
   if (catalogOpen) return <StoreCatalog onBack={() => setCatalogOpen(false)} onSync={requestCatalogSync} syncing={catalogSyncing} showToast={showToast} />;
+  if (financeOpen) return <StoreFinance onBack={() => setFinanceOpen(false)} />;
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--background)' }}>
       {/* 헤더 */}
@@ -1545,6 +1548,7 @@ export default function SmartStoreOrders({
       <div className="shrink-0 px-3 sm:px-4 py-2 border-b flex items-center gap-3" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
         <span className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>주문 관리</span>
         <button onClick={() => setCatalogOpen(true)} className="min-h-11 px-4 rounded-xl border text-sm font-semibold flex items-center gap-2 hover:bg-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}><Package size={17} />상품·품절 관리<ArrowRight size={16} /></button>
+        <button onClick={() => setFinanceOpen(true)} className="min-h-11 px-4 rounded-xl border text-sm font-semibold flex items-center gap-2 hover:bg-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>정산·부가세<ArrowRight size={16} /></button>
       </div>
       {/* 본문 스크롤 영역 — 헤더 외 모든 컨텐츠를 포함 (모바일 스크롤 보장) */}
       <div className="flex-1 min-h-0 overflow-y-auto pb-20 sm:pb-6" style={{ WebkitOverflowScrolling: 'touch' }}>

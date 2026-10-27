@@ -8,7 +8,7 @@ import { checkToolData } from './movisToolData';
 import { listMovisImages } from './movisLibraries';
 import { fetchMovis } from './movisTransport';
 import { selectMovisModel } from './movisModels';
-import { MOVIS_STORE_TOOLS, executeMovisStoreTool, fetchStoreQuestions, fetchStoreSettlements } from './movisStoreTools';
+import { MOVIS_STORE_TOOLS, executeMovisStoreTool, fetchStoreQuestions, fetchStoreSettlements, fetchMovisFinanceDetails } from './movisStoreTools';
 export function getMovisModel() {
   return localStorage.getItem('movis_model_v2') || 'auto';
 }
@@ -108,7 +108,7 @@ export async function askCodex(question, context, options = {}) {
         };else {
           try {
             const storeEvidence = name === 'prepareStoreReorder' && !calls.some(c => c.result?.ok && (args.operation === 'add' ? c.name === 'getStoreShortages' && c.result.data.items.some(r => r.productId === args.productId) : c.name === 'getStoreReorders' && c.result.data.items.some(r => r.key === args.key)));
-            output = navigationBlocked(name, calls) || checkToolData(name, context) || (storeEvidence ? { ok: false, error: '변경할 정확한 품절 상품 또는 재주문 항목을 먼저 조회하세요.' } : null) || (name === 'listAvailableTools' ? { ok: true, data: { tools: tools.map(t => ({ name: t.name, description: t.description, requiresConfirmation: WRITE_TOOLS.has(t.name) || !!POS_WORKFLOWS[t.name] || t.name === 'prepareStoreReorder' })), note: '이 목록은 실제 전달된 도구입니다. 미구현 작업은 임의 SQL이나 다른 작업으로 대체하지 마세요.' } } : name === 'verifyWork' ? verifyWork(calls, context) : name === 'listImageFiles' ? await listMovisImages(args, options.signal) : name === 'getStoreQuestions' ? await fetchStoreQuestions(args) : name === 'getStoreSettlements' ? await fetchStoreSettlements(args) : executeMovisStoreTool(name, args, context) || preparePosWorkflow(name, args, context) || executeDataTool(name, args, context) || (await executeTool(name, args, {
+            output = navigationBlocked(name, calls) || checkToolData(name, context) || (storeEvidence ? { ok: false, error: '변경할 정확한 품절 상품 또는 재주문 항목을 먼저 조회하세요.' } : null) || (name === 'listAvailableTools' ? { ok: true, data: { tools: tools.map(t => ({ name: t.name, description: t.description, requiresConfirmation: WRITE_TOOLS.has(t.name) || !!POS_WORKFLOWS[t.name] || t.name === 'prepareStoreReorder' })), note: '이 목록은 실제 전달된 도구입니다. 미구현 작업은 임의 SQL이나 다른 작업으로 대체하지 마세요.' } } : name === 'verifyWork' ? verifyWork(calls, context) : name === 'listImageFiles' ? await listMovisImages(args, options.signal) : name === 'getStoreQuestions' ? await fetchStoreQuestions(args) : name === 'getStoreSettlements' ? await fetchStoreSettlements(args) : name === 'getStoreFinanceDetails' ? await fetchMovisFinanceDetails(args) : executeMovisStoreTool(name, args, context) || preparePosWorkflow(name, args, context) || executeDataTool(name, args, context) || (await executeTool(name, args, {
               ...context,
               question,
               enforceLegacyIntent: false

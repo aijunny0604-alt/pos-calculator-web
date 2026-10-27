@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {createRequire} from 'node:module';
 import {randomBytes} from 'node:crypto';
+import {financeQuery, financeResult} from './store-finance.mjs';
 const source=process.env.NAVER_SYNC_DIR||path.join(os.homedir(),'naver-sync-bridge');
 const require=createRequire(path.join(source,'package.json'));
 require('dotenv').config({path:path.join(source,'.env'),quiet:true});
@@ -33,8 +34,17 @@ const server=http.createServer(async(req,res)=>{
  const url=new URL(req.url,`http://127.0.0.1:${port}`);
  if(url.pathname==='/session')return send(200,{token:session});
  if(req.headers.authorization!==`Bearer ${session}`)return send(401,{error:'연결을 새로고침해주세요.'});
- if(!['/qnas','/settlements'].includes(url.pathname))return send(404,{error:'지원하지 않는 경로입니다.'});
+ if(!['/qnas','/settlements','/settlement-case','/commission-details','/vat-case'].includes(url.pathname))return send(404,{error:'지원하지 않는 경로입니다.'});
  try{
+  if(['/settlement-case','/commission-details','/vat-case'].includes(url.pathname)){
+   const type=url.pathname.slice(1);let request;
+   try { request=financeQuery(type,Object.fromEntries(url.searchParams)); } catch(error) { return send(400,{error:error.message}); }
+   const response=await fetch(request.url,{headers:{Authorization:`Bearer ${await accessToken()}`},signal:AbortSignal.timeout(20000)});
+   if(response.status===401){token=null;return send(401,{error:'네이버 인증이 만료됐습니다. 다시 조회해주세요.'});}
+   if(!response.ok)return send(response.status,{error:response.status===403?'네이버 정산·부가세 API 권한 또는 등록 IP를 확인해주세요.':`네이버 조회 실패 (${response.status})`});
+   const data=await response.json();
+   try { return send(200,financeResult(type,data,request.page)); } catch { return send(502,{error:'네이버 정산·부가세 응답 형식을 확인할 수 없습니다.'}); }
+  }
   if(url.pathname==='/settlements'){
    const start=url.searchParams.get('start')||'',end=url.searchParams.get('end')||'',page=Number(url.searchParams.get('page')||1);
    const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&!Number.isNaN(Date.parse(`${value}T00:00:00Z`))&&new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;

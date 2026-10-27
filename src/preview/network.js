@@ -46,6 +46,11 @@ window.fetch=async(input,options={})=>{
  const url=new URL(typeof input==='string'?input:input.url,location.href);
  const method=(options.method||(input instanceof Request?input.method:'GET')).toUpperCase();
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('movisNavigationCheck') && url.pathname.startsWith('/api/movis/')) return mockMovisNavigation(url, options);
+ if(import.meta.env.DEV && new URLSearchParams(location.search).has('financeCheck') && ['/settlements','/settlement-case','/commission-details','/vat-case'].includes(url.pathname)) {
+  const common={orderId:'SAMPLE-1234',productOrderId:'SAMPLE-5678',productName:'샘플 상품 · 긴 옵션명과 규격 확인',settleBasisDate:'2026-09-20',settleCompleteDate:null};
+  const rows={'/settlements':{settleBasisStartDate:'2026-09-01',settleBasisEndDate:'2026-09-30',settleAmount:110000,commissionSettleAmount:-10000,settleExpectDate:'2026-10-01',settleCompleteDate:null},'/settlement-case':{...common,paySettleAmount:110000,totalPayCommissionAmount:3000,settleExpectAmount:107000,settleType:'NORMAL_SETTLE_ORIGINAL'},'/commission-details':{...common,orderNo:'SAMPLE-1234',commissionType:'PAY_COMMISSION',commissionBasisAmount:110000,commissionAmount:3000},'/vat-case':{...common,totalSalesAmount:110000,taxationSalesAmount:110000,taxExemptionSalesAmount:0,status:'VOUCH_PUBLICATION'}};
+  return new Response(JSON.stringify({elements:[rows[url.pathname]],page:1,last:true,totalElements:1,fetchedAt:'2026-10-27T00:00:00Z'}),{status:200,headers:{'Content-Type':'application/json'}});
+ }
  if(url.origin===location.origin&&!url.pathname.includes('/api/'))return realFetch(input,options);
  if(method!=='GET'&&method!=='HEAD')return new Response(JSON.stringify({message:'디자인 미리보기에서는 저장·외부 실행을 하지 않습니다.'}),{status:403,headers:{'Content-Type':'application/json'}});
  let data=[];
