@@ -1,4 +1,5 @@
 import { customerMatches } from '@/lib/customerSearch.mjs';
+import { searchProductChoices } from '@/lib/productMatch';
 import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -8,7 +9,7 @@ import {
 } from 'lucide-react';
 import QuickCalculator from './QuickCalculator';
 import QuickItemBar from '@/components/ui/QuickItemBar';
-import { formatPrice, calcExVat, calcOrderVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
+import { formatPrice, calcExVat, calcOrderVat, formatDate, formatDateTime, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
@@ -138,9 +139,7 @@ export default function OrderPage({
 
   // 검색 결과 필터링
   const searchResults = productSearch.length >= 1
-    ? products.filter(p => {
-        return matchesSearchQuery(p.name, productSearch) || matchesSearchQuery(p.category, productSearch);
-      }).slice(0, 8)
+    ? searchProductChoices(productSearch, products, { limit: 8 })
     : [];
 
   const { highlightIndex: prodHi, handleKeyDown: prodKeyDown } = useKeyboardNav(
@@ -640,7 +639,7 @@ export default function OrderPage({
           {/* 제품 추가 검색 */}
           <div className="relative mb-4" data-product-search-area onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
             <div
-              className="flex items-center gap-2 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-[var(--primary)]"
+              className="move-search-shell flex items-center gap-2 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-[var(--primary)]"
               style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
             >
               <Search className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
@@ -764,11 +763,11 @@ export default function OrderPage({
                   const anyDiscount = hasDiscount || isLineDiscounted;
 
                   const changeSearchResults = isChanging && changeSearchQuery.trim()
-                    ? products.filter(p => {
+                    ? searchProductChoices(changeSearchQuery, products.filter(p => {
                         if (p.id === item.id) return false;
                         if (cart.some(c => c.id === p.id)) return false;
-                        return matchesSearchQuery(p.name, changeSearchQuery) || matchesSearchQuery(p.category || '', changeSearchQuery);
-                      }).slice(0, 8)
+                        return true;
+                      }), { limit: 8 })
                     : [];
 
                   return (
@@ -868,7 +867,7 @@ export default function OrderPage({
                       {isChanging && (
                         <div className="mb-3 relative">
                           <div
-                            className="flex items-center gap-2 rounded-lg px-3 py-2"
+                            className="move-search-shell flex items-center gap-2 rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--primary)]"
                             style={{
                               background: 'var(--secondary)',
                               border: '1px solid color-mix(in srgb, var(--primary) 50%, transparent)',

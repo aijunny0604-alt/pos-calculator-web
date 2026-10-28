@@ -1,5 +1,7 @@
 import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { searchProductChoices } from '@/lib/productMatch';
+import { customerMatches, orderProductMatches } from '@/lib/customerSearch.mjs';
 import {
   ArrowLeft, Menu, Save, Search, ShoppingCart, Trash2, Check, RefreshCw,
   ChevronDown, ChevronUp, Package, Clock, Download, FileText, Edit3, X, Plus,
@@ -10,7 +12,7 @@ import SubPrice from '@/components/ui/SubPrice';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import QuickItemBar from '@/components/ui/QuickItemBar';
-import { formatPrice, matchesSearchQuery, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST, calcExVat, calcOrderVat, formatDate } from '@/lib/utils';
+import { formatPrice, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST, calcExVat, calcOrderVat, formatDate } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountLabel as fmtDiscountLabel, discountPlaceholder } from '@/lib/discount';
 import QuickCalculator from './QuickCalculator';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
@@ -168,10 +170,7 @@ export default function SavedCarts({
   const [isBottomExpanded, setIsBottomExpanded] = useState(false); // 기본 접힘 (총금액·액션버튼은 항상 노출, 공급가/부가세만 접힘) — 사장님 요청 2026-06-09
 
   // Keyboard nav for product search in detail modal (must be in component body, not inside renderDetailModal)
-  const scFilteredProducts = products.length > 0 ? products.filter(product => {
-    if (!productSearchTermDetail) return false;
-    return matchesSearchQuery(product.name, productSearchTermDetail);
-  }).slice(0, 8) : [];
+  const scFilteredProducts = searchProductChoices(productSearchTermDetail, products, { limit: 8 });
 
   const scSelectProduct = useCallback((product) => {
     const cart = isEditingDetail ? (editedDetailCart || detailCart) : detailCart;
@@ -190,7 +189,7 @@ export default function SavedCarts({
 
   // 라인 제품 교체 — 수량은 유지하고 제품만 다른 것으로 교체 (단가/할인 메타 초기화)
   const replaceFilteredProducts = products.length > 0 && replaceSearchTerm
-    ? products.filter(p => matchesSearchQuery(p.name, replaceSearchTerm)).slice(0, 8)
+    ? searchProductChoices(replaceSearchTerm, products, { limit: 8 })
     : [];
   const replaceLineProduct = useCallback((idx, product) => {
     const cart = editedDetailCart || detailCart;
@@ -354,9 +353,8 @@ export default function SavedCarts({
 
   const filterBySearch = (cart) => {
     if (!searchTerm.trim()) return true;
-    const term = searchTerm.toLowerCase().replace(/\s/g, '');
-    if (cart.name?.toLowerCase().replace(/\s/g, '').includes(term)) return true;
-    if (cart.items?.some(item => item.name?.toLowerCase().replace(/\s/g, '').includes(term))) return true;
+    if (customerMatches({ name: cart.name }, searchTerm)) return true;
+    if (orderProductMatches(cart, searchTerm)) return true;
     if (cart.date?.includes(searchTerm)) return true;
     return false;
   };

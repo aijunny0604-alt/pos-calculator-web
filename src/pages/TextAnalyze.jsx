@@ -5,7 +5,8 @@ import {
   AlertTriangle, Check, Zap, Package, ArrowLeft, ChevronDown, ChevronUp,
   Menu, Maximize2, Minimize2,
 } from 'lucide-react';
-import { matchesSearchQuery, normalizeText } from '@/lib/utils';
+import { normalizeText } from '@/lib/utils';
+import { searchProductChoices } from '@/lib/productMatch';
 import { recordApiCall, setContextTokens } from '@/lib/apiUsageTracker';
 import ApiUsageGauge from '@/components/analytics/ApiUsageGauge';
 
@@ -841,7 +842,7 @@ ${aiLearningData.slice(0, 50).map(l =>
 
   const getSearchResults = () => {
     if (!searchQuery.trim()) return [];
-    return products.filter(p => matchesSearchQuery(p.name, searchQuery)).slice(0, 8);
+    return searchProductChoices(searchQuery, products, { limit: 8 });
   };
 
   const addSelectedToCart = () => {
@@ -901,7 +902,7 @@ ${aiLearningData.slice(0, 50).map(l =>
   };
 
   const productAddResults = productSearchQuery.trim()
-    ? products.filter(p => matchesSearchQuery(p.name, productSearchQuery)).slice(0, 10)
+    ? searchProductChoices(productSearchQuery, products, { limit: 10 })
     : [];
 
   const selectedCount = analyzedItems.filter(item => item.selected && item.matchedProduct).length;

@@ -1,4 +1,5 @@
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
+import { customerMatches } from '@/lib/customerSearch.mjs';
 import { useState, useEffect } from 'react';
 import { Save, X, Maximize2, Minimize2 } from 'lucide-react';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
@@ -30,7 +31,7 @@ export default function SaveCartModal({
   // 부분 매칭 거래처 검색 (OrderPage 패턴)
   const customerSuggestions = cartName.trim().length >= 1
     ? (customers || []).filter(c =>
-        c?.name?.toLowerCase().replace(/\s/g, '').includes(cartName.trim().toLowerCase().replace(/\s/g, ''))
+        c?.name && customerMatches(c, cartName)
       ).slice(0, 6)
     : [];
   const {

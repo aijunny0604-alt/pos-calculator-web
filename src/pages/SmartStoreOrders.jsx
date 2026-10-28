@@ -9,7 +9,7 @@ import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, Arrow
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/components/StoreOrderAlerts';
 import { matchCustomer } from '@/lib/fuzzyMatch';
-import { findProductCandidates } from '@/lib/productMatch';
+import { findProductCandidates, searchProductChoices } from '@/lib/productMatch';
 import { isOrderDone, isOrderTerminal, isOrderPending, PAYMENT_PENDING_STATUSES } from '@/lib/orderStatus';
 import { ORDER_STEPS, orderStage, storeOrderStatus, isStoreOrderTerminal, getStoreOrderView, matchesStoreWidget, isStoreAwaitingDispatch } from '@/lib/storeOrderView';
 import { NAVER_COURIERS as DELIVERY_COMPANIES, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
@@ -554,9 +554,7 @@ export default function SmartStoreOrders({
   const matchSearchResults = useMemo(() => {
     const q = matchSearch.trim().toLowerCase();
     if (!q || q.length < 1) return [];
-    return (products || [])
-      .filter((p) => (p.name || '').toLowerCase().includes(q))
-      .slice(0, 8);
+    return searchProductChoices(q, products || [], { limit: 8 });
   }, [products, matchSearch]);
 
   const applyManualMatch = async (item, product) => {

@@ -1,4 +1,5 @@
 import { itemDiscountText, orderDiscountText } from '@/lib/discount';
+import { searchProductChoices } from '@/lib/productMatch';
 import ProductReplacementModal from '@/components/ProductReplacementModal';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
@@ -11,7 +12,7 @@ import {
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
   ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2, Tag, Percent, Replace, Search, Layers
 } from 'lucide-react';
-import { formatPrice, calcExVat, calcOrderVat, formatDate, formatDateTime, matchesSearchQuery, handleSearchFocus, escapeHtml } from '@/lib/utils';
+import { formatPrice, calcExVat, calcOrderVat, formatDate, formatDateTime, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
 import QuickItemBar from '@/components/ui/QuickItemBar';
 import QuickCalculator from './QuickCalculator';
@@ -264,10 +265,7 @@ export default function OrderDetail({
   }, [isOpen]);
 
   // Product search for adding (must be before early return for hooks rule)
-  const filteredProducts = products.filter(product => {
-    if (!productSearchTerm) return false;
-    return matchesSearchQuery(product.name, productSearchTerm);
-  }).slice(0, 8);
+  const filteredProducts = searchProductChoices(productSearchTerm, products, { limit: 8 });
 
   const handleAddProduct = useCallback((product) => {
     if (!editedOrder || !order) return;
@@ -333,10 +331,7 @@ export default function OrderDetail({
   const totalReturned = order.totalReturned || 0;
 
   // Product search for replacing
-  const replaceFilteredProducts = products.filter(product => {
-    if (!replaceSearchTerm.trim()) return false;
-    return matchesSearchQuery(product.name, replaceSearchTerm.trim());
-  }).slice(0, 30);
+  const replaceFilteredProducts = searchProductChoices(replaceSearchTerm, products, { limit: 30 });
 
   const replaceListToShow = replaceSearchTerm.trim() ? replaceFilteredProducts : relatedProducts;
 

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Menu, Package, Search, ChevronDown } from 'lucide-react';
+import { catalogMatch } from '@/lib/catalogSearch';
 
 // 토큰 단위 매칭 — "플랜지 54" 처럼 여러 단어를 띄어 입력해도 각 토큰이 모두 들어있으면 매칭.
 // 제품명 + 카테고리 + 코드까지 검색 대상에 포함. null 안전.
-function matchesSearchQuery(name, query, extra = '') {
+function matchesSearchQuery(product, query) {
   if (!query.trim()) return true;
-  const hay = (String(name || '') + ' ' + String(extra || '')).toLowerCase().replace(/\s/g, '');
-  const tokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  return tokens.every((t) => hay.includes(t));
+  const codeQuery = query.normalize('NFKC').toLowerCase().replace(/[\s-]/g, '');
+  const codeMatch = codeQuery && [product.code, product.barcode].some(code =>
+    String(code || '').normalize('NFKC').toLowerCase().replace(/[\s-]/g, '').includes(codeQuery));
+  return !!codeMatch || catalogMatch(query, `${product.name || ''} ${product.category || ''}`);
 }
 
 // 현재가 대비 초기 원본가 표기 — 얼마나 올렸/내렸는지 모니터링용.
@@ -44,7 +46,7 @@ export default function StockOverview({ products = [], categories = [], formatPr
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === '전체' || p.category === selectedCategory;
-    const matchesSearch = matchesSearchQuery(p.name, searchTerm, `${p.category || ''} ${p.code || ''} ${p.barcode || ''}`);
+    const matchesSearch = matchesSearchQuery(p, searchTerm);
     const stock = p.stock ?? 50;
     const minStock = p.min_stock || 5;
 

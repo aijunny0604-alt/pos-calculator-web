@@ -453,6 +453,7 @@
 .replacement-search>svg { flex:none; }
 .replacement-search input { width:100%; min-width:0; height:48px; border:0; outline:0; box-shadow:none; background:transparent; font-size:16px; color:var(--foreground); }
 .replacement-search input:focus-visible { outline:none; box-shadow:none; }
+.move-search-shell input, .move-search-shell input:focus-visible { min-width:0; border:0; outline:none; box-shadow:none; background:transparent; }
 .replacement-results-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:12px; font-size:13px; color:var(--muted-foreground); }
 .replacement-results-meta>span:last-child { display:flex; align-items:center; gap:7px; }
 .replacement-results-meta b { color:var(--foreground); margin-left:4px; }

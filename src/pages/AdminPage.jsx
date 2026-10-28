@@ -17,6 +17,7 @@ import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import StatusBadge from '../components/ui/StatusBadge';
 import { formatPrice, matchesSearchQuery, handleSearchFocus, normalizeText } from '../lib/utils';
+import { customerMatches } from '@/lib/customerSearch.mjs';
 import { priceData } from '../lib/priceData';
 import { recordApiCall, setContextTokens } from '../lib/apiUsageTracker';
 
@@ -1170,10 +1171,7 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
 
   const filtered = useMemo(() => {
     if (!customers) return [];
-    return customers.filter(c => c &&
-      (matchesSearchQuery(c.name || '', search) ||
-      (c.phone && c.phone.includes(search)))
-    );
+    return customers.filter(c => c && customerMatches(c, search));
   }, [customers, search]);
 
   const openNew = () => {

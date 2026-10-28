@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {catalogMatch,repeatOrderItems} from '../src/lib/catalogSearch.js';
-import {searchProductsRanked} from '../src/lib/productMatch.js';
+import {searchProductsRanked,searchProductChoices} from '../src/lib/productMatch.js';
 const products=[{id:1,name:'스텐 밴딩 54-30',wholesale:9900},{id:2,name:'스텐 밴딩 54-45'},{id:3,name:'실리콘 엘보 호스 60.5mm'},{id:4,name:'실리콘 엘보 호스 65mm'},{id:5,name:'브레이크 호스 세트'}];
 test('앞뒤 단어 순서·붙여쓰기·기호와 초성 검색',()=>{
  for(const q of ['밴딩 스텐 30 54','54/30 스텐 밴딩','밴딩스텐 54-30','ㅅㅌ ㅂㄷ 54 30']) assert.equal(searchProductsRanked(q,products)[0]?.id,1,q);
@@ -52,4 +52,14 @@ test('정확한 규격 우선, 근접 규격은 구경만 후보로 안내',()=>
  assert.deepEqual(ids('실리콘 61'),[],'다른 종류로 근접 보정 확장 금지');
  assert.equal(catalogMatch('플랜지 64','플랜지 FL 63'),false,'AI OFF 정확 검색 유지');
  assert.deepEqual(searchProductsRanked('자바라 64',diameterProducts,{limit:1}).map(p=>p.id),[12]);
+});
+
+test('수동 제품 선택은 공통 순위·규격 안전성과 카테고리 검색을 유지한다',()=>{
+ const candidates=[...diameterProducts,{id:20,name:'특수 제품',category:'브레이크'},{id:21,name:'정확 제품',category:'특수'}];
+ assert.deepEqual(searchProductChoices('플랜지 64',candidates).map(p=>p.id),[10]);
+ assert.deepEqual(searchProductChoices('자바라 64 121',candidates),[]);
+ assert.deepEqual(searchProductChoices('브레이크',candidates).map(p=>p.id),[20]);
+ assert.deepEqual(searchProductChoices(' ',candidates),[]);
+ assert.equal(searchProductChoices('플랜지',candidates,{limit:1}).length,1);
+ assert.doesNotThrow(()=>searchProductChoices('플랜지',[null,{category:'플랜지'},...candidates]));
 });

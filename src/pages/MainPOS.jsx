@@ -503,7 +503,7 @@ export default function MainPOS({
           {/* Search bar with AI button */}
           <div className="flex gap-2 items-center">
             <div
-              className="relative flex-1 min-w-0 rounded-xl border-2 shadow-sm transition-all focus-within:shadow-md"
+              className="move-search-shell relative flex-1 min-w-0 rounded-xl border-2 shadow-sm transition-all focus-within:shadow-md focus-within:ring-2 focus-within:ring-[var(--primary)]"
               style={{ borderColor: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 5%, var(--background))' }}
             >
               <Search

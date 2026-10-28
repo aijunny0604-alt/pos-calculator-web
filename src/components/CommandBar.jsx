@@ -1,4 +1,5 @@
 import { customerMatches } from '@/lib/customerSearch.mjs';
+import { searchProductChoices } from '@/lib/productMatch';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X, ArrowRight, Package, Users, ClipboardList, LayoutDashboard, ShoppingBag, FileText, Settings, Sparkles, Calculator, Mic } from 'lucide-react';
 import { matchesSearchQuery } from '@/lib/utils';
@@ -93,8 +94,7 @@ export default function CommandBar({
       }));
 
     const productResults = hasQuery
-      ? products
-        .filter((product) => matchesSearchQuery(product?.name || '', q))
+      ? searchProductChoices(q, products)
         .map((product) => {
           const price = formatPrice(getProductPrice(product));
           return {

@@ -542,6 +542,17 @@ export function searchProductsRanked(query, products, { limit = 0 } = {}) {
   return limit>0?ranked.slice(0,limit):ranked;
 }
 
+// 화면에서 직접 선택하는 제품 후보. 제품명 랭킹을 우선하고 정확한 카테고리 검색도 유지한다.
+// 자동 매칭이나 재고 변경에는 사용하지 않는다.
+export function searchProductChoices(query, products, { limit = 0 } = {}) {
+  const q = String(query || '').trim();
+  if (!q || !Array.isArray(products)) return [];
+  const ranked = searchProductsRanked(q, products.filter(p => p?.name));
+  const seen = new Set(ranked);
+  const choices = [...ranked, ...products.filter(p => p?.name && !seen.has(p) && catalogMatch(q, p.category || ''))];
+  return limit > 0 ? choices.slice(0, limit) : choices;
+}
+
 // 비슷한 제품 후보 TOP N (매칭 실패 시 사용자에게 제안)
 // findProductSmart 내부 scoreProducts와 동일한 점수 체계 사용
 export function findProductCandidates(query, products, limit = 5) {
