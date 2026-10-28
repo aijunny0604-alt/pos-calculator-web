@@ -16,6 +16,10 @@ if (import.meta.env.DEV && stockCheck && stockCheck !== 'empty') tables.external
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('mobileTransportCheck') && tables.external_products[0]) { tables.external_products[0].channel_product_no='10';tables.external_products[0].origin_product_no='20'; }
 if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(invoiceCheck));
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('salesCheck')) {
+ tables.external_orders=[{id:'SALES-1',provider:'naver',buyer_name:'매출 샘플',order_status:'PAYED',received_at:now},{id:'SALES-2',provider:'naver',buyer_name:'반품 샘플',order_status:'PAYED',received_at:now},{id:'SALES-3',provider:'naver',buyer_name:'미결제 샘플',order_status:'PAYMENT_WAITING',received_at:now}];
+ tables.external_order_items=[{id:'SALES-I1',external_order_id:'SALES-1',provider_product_name:'플랜지',raw_payload:{productOrder:{remainPaymentAmount:10000}}},{id:'SALES-I2',external_order_id:'SALES-2',provider_product_name:'자바라',raw_payload:{productOrder:{remainPaymentAmount:3000,claimStatus:'RETURN_DONE'}}}];
+}
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('catalogCheck')) tables.products = ['플랜지 FL 63','플랜지 FL 54','자바라 SF 63 S 길이 120','자바라 SF 63 S 길이 150','H64 바디','X64 바디','CH 150 64','플랜지 FL 76'].map((name,i)=>({id:i+201,name,category:name.includes('플랜지')?'플랜지':name.includes('자바라')?'자바라':'기타',stock:10+i,wholesale:5280+i*1000,retail:6600+i*1000}));
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('jsrCheck')) {
  tables.supplier_ledger = [

@@ -18,9 +18,11 @@ import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 import StoreShippingDetails from '@/components/StoreShippingDetails';
 import StoreCatalog from '@/components/StoreCatalog';
 import StoreFinance from '@/components/StoreFinance';
+import StoreSales from '@/components/StoreSales';
 import ViewportModal from '@/components/ui/ViewportModal';
 import { storeRefreshInterval } from '@/lib/storeOrderView';
 import { mergePosChange } from '@/lib/posRealtime';
+import { orderPaymentTotal } from '@/lib/storeOrderAmount';
 import { animateModalFullscreen } from '@/lib/modalFullscreenMotion';
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('ko-KR');
@@ -90,31 +92,6 @@ const computeNaverFees = (items = []) => {
   const totalFee = payment + sale + channel + knowledge;
   const rate = paymentTotal > 0 ? (totalFee / paymentTotal) * 100 : 0;
   return { hasData, payment, sale, channel, knowledge, settlement, paymentTotal, totalFee, rate };
-};
-
-// 주문 실제 결제금액 — external_orders.total_amount 는 sync 가 상품주문 1건(lineTotal)만
-// 저장해 다건 주문에서 과소계상됨. items 의 totalPaymentAmount(실결제액) 합이 정확.
-// (없으면 unit_price*qty 합, 그것도 없으면 order.total_amount 폴백)
-const orderLevelPayment = (od) => {
-  if (!od) return 0;
-  return Number(od.generalPaymentAmount || 0) + Number(od.naverMileagePaymentAmount || 0)
-    + Number(od.payLaterPaymentAmount || 0) + Number(od.chargeAmountPaymentAmount || 0);
-};
-const orderPaymentTotal = (order, items = []) => {
-  // 1) order 레벨 결제금액(전체 상품주문 포함, 가장 정확) — items 또는 order.raw_payload에서
-  const odTotal = orderLevelPayment(order?.raw_payload?.order)
-    || items.map((it) => orderLevelPayment(it?.raw_payload?.order)).find((v) => v > 0) || 0;
-  if (odTotal > 0) return odTotal;
-  // 2) 동기화된 items 의 실결제액 합
-  let paySum = 0, lineSum = 0, hasPay = false;
-  for (const it of items) {
-    const p = Number(it?.raw_payload?.productOrder?.totalPaymentAmount);
-    if (Number.isFinite(p) && p > 0) { paySum += p; hasPay = true; }
-    lineSum += Number(it.unit_price || 0) * Number(it.quantity || 0);
-  }
-  if (hasPay) return paySum;
-  if (lineSum > 0) return lineSum;
-  return Number(order?.total_amount || 0);
 };
 
 // 고객정보만 따로 복사 (카톡/배송 라벨용)
@@ -497,6 +474,7 @@ export default function SmartStoreOrders({
   const [catalogSyncing, setCatalogSyncing] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [financeOpen, setFinanceOpen] = useState(false);
+  const [salesOpen, setSalesOpen] = useState(false);
   const requestCatalogSync = async () => {
     setCatalogSyncing(true);
     try {
@@ -839,13 +817,13 @@ export default function SmartStoreOrders({
   // 조회 결과 요약 (현재 필터 적용 기준)
   const filteredSummary = useMemo(() => ({
     count: filtered.length,
-    sum: filtered.reduce((s, o) => s + Number(o.total_amount || 0), 0),
+    sum: filtered.reduce((s, o) => s + orderPaymentTotal(o, itemsByOrder[o.id] || []), 0),
     pending: filtered.filter((o) => isStoreAwaitingDispatch(o, itemsByOrder[o.id] || [])).length,
     // 입금대기는 출고 모니터링에서 빠지므로(고객 미결제) 따로 세어 요약에 노출 — "2건인데 왜 1건?" 혼선 방지
     unpaid: filtered.filter((o) => PAYMENT_PENDING_STATUSES.has(o.order_status)).length,
   }), [filtered, itemsByOrder]);
 
-  // CSV 내보내기 — 현재 조회된(필터 적용) 주문을 정산/세무용으로 다운로드
+  // CSV 내보내기 — 현재 필터에 표시된 주문만 포함하며 정산 확정 자료는 아니다.
   const exportCsv = () => {
     if (!filtered.length) { showToast?.('내보낼 주문이 없어요', 'error'); return; }
     const headers = ['주문일', '구매자', '전화', '주소', '주문번호', '상품', '금액', '상태', '배송', '송장'];
@@ -861,7 +839,7 @@ export default function SmartStoreOrders({
       const track = its.map((i) => i.tracking_number).filter(Boolean).join(' / ');
       const statusLabel = STATUS_LABEL[storeOrderStatus(o, its)]?.label || o.order_status || '';
       return [fmtDate(o.received_at), o.buyer_name, o.buyer_phone, o.buyer_address, o.provider_order_id,
-        prod, o.total_amount, statusLabel, o.delivery_policy_type || '', track].map(esc).join(',');
+        prod, orderPaymentTotal(o, its), statusLabel, o.delivery_policy_type || '', track].map(esc).join(',');
     });
     const csv = '﻿' + [headers.map(esc).join(','), ...rows].join('\r\n'); // BOM = Excel 한글 깨짐 방지
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -893,14 +871,14 @@ export default function SmartStoreOrders({
     return {
       total: orderView.scoped.length,
       todayCount: todayOrders.length,
-      todayRevenue: todayOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
+      todayRevenue: todayOrders.reduce((sum, o) => sum + orderPaymentTotal(o, itemsByOrder[o.id] || []), 0),
       overdue: orderView.widgets.overdue,
       autoConfirmPending: orderView.widgets.autoPending,
       dispatchDueDday: orderView.widgets.dueDday,
       dispatchDueD1: orderView.widgets.dueD1,
       cancelRequest: orderView.widgets.cancel,
     };
-  }, [orderView]);
+  }, [orderView, itemsByOrder]);
   const stageCounts = orderView.stages;
 
   // 🚚 발송 대기 — 아직 발송 못한 미처리 주문 전부(결제완료·발주확인 단계). 재고 없어 발주확인만 해둔 것 포함.
@@ -1475,6 +1453,7 @@ export default function SmartStoreOrders({
   };
 
   if (catalogOpen) return <StoreCatalog onBack={() => setCatalogOpen(false)} onSync={requestCatalogSync} syncing={catalogSyncing} showToast={showToast} />;
+  if (salesOpen) return <StoreSales onBack={() => setSalesOpen(false)} />;
   if (financeOpen) return <StoreFinance onBack={() => setFinanceOpen(false)} />;
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--background)' }}>
@@ -1549,6 +1528,7 @@ export default function SmartStoreOrders({
       <div className="shrink-0 px-3 sm:px-4 py-2 border-b flex items-center gap-3" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
         <span className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>주문 관리</span>
         <button onClick={() => setCatalogOpen(true)} className="min-h-11 px-4 rounded-xl border text-sm font-semibold flex items-center gap-2 hover:bg-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}><Package size={17} />상품·품절 관리<ArrowRight size={16} /></button>
+        <button onClick={() => setSalesOpen(true)} className="min-h-11 px-4 rounded-xl border text-sm font-semibold flex items-center gap-2 hover:bg-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>기간 매출<ArrowRight size={16} /></button>
         <button onClick={() => setFinanceOpen(true)} className="min-h-11 px-4 rounded-xl border text-sm font-semibold flex items-center gap-2 hover:bg-[var(--accent)] transition-colors" style={{ borderColor: 'var(--border)' }}>정산·부가세<ArrowRight size={16} /></button>
       </div>
       {/* 본문 스크롤 영역 — 헤더 외 모든 컨텐츠를 포함 (모바일 스크롤 보장) */}
@@ -1594,8 +1574,8 @@ export default function SmartStoreOrders({
         <KpiCard label="대기" value={stageCounts.stages[0]} accent="#ffaa00"
           hint="결제완료(발주확인 대기) 주문 보기"
           onClick={() => { setWidgetFilter('none'); setStatusFilter('s0'); }} />
-        <KpiCard label="오늘 매출" value={`${fmtNum(stats.todayRevenue)}원`} small
-          hint="오늘 매출 상세 카드 보기"
+        <KpiCard label="오늘 접수 금액" value={`${fmtNum(stats.todayRevenue)}원`} small
+          hint="취소·미결제 포함 주문액 · 기간 매출에서 상품 결제금액 확인"
           onClick={() => { setWidgetFilter(f => f === 'receivedToday' ? 'none' : 'receivedToday'); setStatusFilter('all'); setDatePreset('today'); }} />
       </div>
 

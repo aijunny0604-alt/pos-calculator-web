@@ -1,4 +1,5 @@
 import { fetchStoreMonitorOrders, fetchStoreDispatchStates } from './storeMonitorData.js';
+import { storeSalesOrdersUrl } from './storeSales.js';
 import { positiveMoney, paymentRows } from './paymentSafety';
 import { isPersistedResult } from './movisReliability';
 import { fetchPosJSON as fetchJSON, fetchPosRows } from './posConnection';
@@ -1214,6 +1215,10 @@ export const supabase = {
   // 조회 실패를 빈 목록으로 바꾸지 않는다. 화면에서 기존 목록을 유지하며 재시도를 안내한다.
   async getStoreMonitorOrders() {
     return fetchStoreMonitorOrders(SUPABASE_URL, headers);
+  },
+  // 기간 매출은 최근 200건 모니터링과 별도로 전체 페이지를 조회한다.
+  async getStoreSalesOrders(start, end) {
+    return fetchPosRows(storeSalesOrdersUrl(SUPABASE_URL, start, end), { headers: { ...headers, Prefer: 'count=exact' } });
   },
   async getStoreDispatchStates(ids) {
     return fetchStoreDispatchStates(SUPABASE_URL, headers, ids);
