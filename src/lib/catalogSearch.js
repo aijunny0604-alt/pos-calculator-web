@@ -23,15 +23,17 @@ export function catalogDimensionsMatch(query,name) {
  const p=parts(name).filter(t=>/^\d/.test(t)).map(Number);
  return q.every(n=>p.includes(n));
 }
-// 검색 후보 안내 전용. 플랜지/자바라의 첫 치수(구경)만 ±1 허용한다.
+// 검색 후보 안내 전용. 제품명과 함께 입력한 첫 구경만 ±1 허용한다.
 // 길이·각도·SKU와 소수 규격에는 보정을 적용하지 않는다.
 export function catalogNearbyDiameterMatch(query, name) {
  const qText=normalize(query), pText=normalize(name);
- const family=['플랜지','자바라'].find(word=>qText.includes(word)&&pText.includes(word));
- if(!family) return false;
+ if (/[a-z]\d/i.test(qText)) return false;
+ const letters=qText.replace(/\d+(?:\.\d+)?/g,'').replace(/(?:mm|파이|cm|인치|inch|도)/gi,'').replace(/[^가-힣ㄱ-ㅎa-z]/g,'');
+ if(letters.length<2) return false;
  const q=parts(query).filter(t=>/^\d/.test(t)).map(Number);
- const p=parts(name).filter(t=>/^\d/.test(t)).map(Number);
- if(!q.length || !p.length || p[0]<20 || p[0]>200 || !Number.isInteger(p[0])) return false;
+ if(q.length===1 && /(?:길이|각도|도수)\s*\d/i.test(qText)) return false;
+ const p=parts(name).filter(t=>/^\d/.test(t)).map(Number).filter(n=>n>=20 && n<=200);
+ if(!q.length || !p.length || !Number.isInteger(p[0])) return false;
  return q.some((n,index)=>Number.isInteger(n) && Math.abs(n-p[0])===1 &&
    q.every((other,i)=>i===index || p.slice(1).includes(other)));
 }

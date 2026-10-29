@@ -44,7 +44,7 @@ test('제품명만 입력하거나 순서를 바꿔도 검색된다',()=>{
 });
 test('정확한 규격 우선, 근접 규격은 구경만 후보로 안내',()=>{
  assert.deepEqual(ids('플랜지 63'),[10]);
- assert.deepEqual(searchProductsRanked('플랜지 64',[...diameterProducts,{id:19,name:'플랜지 FL 64'}]).map(p=>p.id),[19]);
+ assert.deepEqual(searchProductsRanked('플랜지 64',[...diameterProducts,{id:19,name:'플랜지 FL 64'}]).map(p=>p.id),[19,10]);
  assert.deepEqual(ids('자바라 63 121'),[],'길이 보정 금지');
  assert.deepEqual(ids('자바라 64 121'),[],'두 치수 동시 보정 금지');
  assert.deepEqual(ids('플랜지 63.5'),[],'소수 규격 보정 금지');
@@ -52,6 +52,15 @@ test('정확한 규격 우선, 근접 규격은 구경만 후보로 안내',()=>
  assert.deepEqual(ids('실리콘 61'),[],'다른 종류로 근접 보정 확장 금지');
  assert.equal(catalogMatch('플랜지 64','플랜지 FL 63'),false,'AI OFF 정확 검색 유지');
  assert.deepEqual(searchProductsRanked('자바라 64',diameterProducts,{limit:1}).map(p=>p.id),[12]);
+});
+
+test('직선 규격도 ±1을 찾고 정확한 규격을 우선한다',()=>{
+ const candidates=[{id:1,name:'실리콘 직선 호스 SS60'},{id:2,name:'스덴 직선 파이프 2m 60파이'},
+  {id:3,name:'실리콘 직선 호스 SS61'},{id:4,name:'H60 바디'}];
+ assert.deepEqual(searchProductsRanked('직선61',candidates).map(p=>p.id),[3,1,2]);
+ assert.deepEqual(searchProductsRanked('직선 62',candidates).map(p=>p.id),[3]);
+ assert.deepEqual(searchProductsRanked('직선 64',candidates),[]);
+ assert.deepEqual(searchProductsRanked('H61',candidates),[]);
 });
 
 test('수동 제품 선택은 공통 순위·규격 안전성과 카테고리 검색을 유지한다',()=>{

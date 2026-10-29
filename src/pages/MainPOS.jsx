@@ -623,7 +623,7 @@ export default function MainPOS({
               <span className="ml-1.5 font-semibold" style={{ color: 'var(--warning)' }}>· ⚡ 관련도순</span>
             )}
             {aiSearch && filteredProducts.some(p=>!catalogDimensionsMatch(searchTerm,p.name)) && (
-              <span className="block mt-1">정확한 규격이 없어 같은 종류의 근접 규격(구경 ±1)을 표시합니다. 실제 규격을 확인해 주세요.</span>
+              <span className="block mt-1">근접 규격(구경 ±1)이 포함되어 있습니다. 주문 전 실제 규격을 확인해 주세요.</span>
             )}
           </div>
         </div>
@@ -673,7 +673,7 @@ export default function MainPOS({
               <p style={{ color: 'var(--muted-foreground)' }}>검색 결과가 없습니다</p>
             </div>
           ) : catalogView==='list' ? (
-            <ProductCatalogList products={filteredProducts} cartMap={cartMap} priceType={priceType} onAdd={addToCart} onStep={stepQuantity} onQuantity={updateQuantity} favorites={favorites} onFavorite={toggleFavorite}/>
+            <ProductCatalogList products={filteredProducts} cartMap={cartMap} priceType={priceType} onAdd={addToCart} onStep={stepQuantity} onQuantity={updateQuantity} favorites={favorites} onFavorite={toggleFavorite} nearbyQuery={aiSearch ? searchTerm : ''}/>
           ) : (
             <div className={`grid gap-4 ${(aiSearch && searchTerm.trim()) ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
               {Object.entries(groupedProducts)
@@ -834,6 +834,7 @@ export default function MainPOS({
                                     <span className="inline-flex items-center mr-1 align-middle" title={product.note} style={{ color: flagColor || 'var(--warning)' }}>⚠️</span>
                                   )}
                                   {product.name}
+                                  {aiSearch && searchTerm.trim() && !catalogDimensionsMatch(searchTerm, product.name) && <span className="ml-2 text-xs font-semibold" style={{ color: 'var(--warning)' }}>근접 규격</span>}
                                 </p>
                                 <span
                                   className="pos-card-stock text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 flex items-center gap-0.5"

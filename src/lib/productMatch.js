@@ -518,7 +518,6 @@ export function searchProductsRanked(query, products, { limit = 0 } = {}) {
   if (exact.length) {
     const compact=s=>s.replace(/[^가-힣a-z0-9.]/g,'');
     exact.sort((a,b)=>Number(compact(expand(b.name))===compact(expanded))-Number(compact(expand(a.name))===compact(expanded)));
-    return limit>0?exact.slice(0,limit):exact;
   }
   // 숫자 점수만으로 무관한 부품이 올라오지 않도록 의미부를 먼저 검사한다.
   // 자동 주문/재고 쓰기 매칭과 분리된 목록 검색에만 적용한다.
@@ -534,11 +533,11 @@ export function searchProductsRanked(query, products, { limit = 0 } = {}) {
       (word.length>=3 && names.some(name=>name.length>=3 && getSimilarity(word,name)>=0.7)));
   });
   const exactDimensions=meaningful.filter(p=>catalogDimensionsMatch(expanded,p.name));
-  const candidates=exactDimensions.length ? exactDimensions : meaningful.filter(p=>catalogNearbyDiameterMatch(expanded,expand(p.name)));
+  const nearby=meaningful.filter(p=>!exact.includes(p) && catalogNearbyDiameterMatch(expanded,expand(p.name)));
+  const candidates=exact.length ? nearby : [...new Set([...exactDimensions,...nearby])];
   const scored=scoreProducts(expanded,candidates,{synonymTokens:true});
-  if(!scored.length)return [];
-  const floor=Math.max(scored[0].score*.55,35);
-  const ranked=scored.filter(s=>s.score>=floor).map(s=>s.product);
+  const floor=scored.length ? Math.max(scored[0].score*.55,35) : 0;
+  const ranked=[...exact,...scored.filter(s=>s.score>=floor).map(s=>s.product)];
   return limit>0?ranked.slice(0,limit):ranked;
 }
 
