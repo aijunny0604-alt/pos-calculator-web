@@ -10,7 +10,7 @@ import {
 import QuickCalculator from './QuickCalculator';
 import QuickItemBar from '@/components/ui/QuickItemBar';
 import { formatPrice, calcExVat, calcOrderVat, formatDate, formatDateTime, handleSearchFocus, escapeHtml } from '@/lib/utils';
-import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
+import { calcFinalPrice, convertDiscountValue, discountPlaceholder, serializeDiscountedItem } from '@/lib/discount';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 
@@ -265,10 +265,8 @@ export default function OrderPage({
     itemsToShow.forEach((item, index) => {
       text += `${index + 1}. ${item.name}\n`;
       if (item.appliedTier && item.totalDiscount > 0) {
-        const discountDesc = item.appliedTier.type === 'percent'
-          ? `${item.appliedTier.value}%`
-          : fmt(item.appliedTier.value);
-        text += `   ${fmt(item.unitPrice)}원 × ${item.quantity}개 = ${fmt(item.finalTotal)}원 (${discountDesc} 할인)\n\n`;
+        text += `   ${fmt(item.discountedPrice)}원 × ${item.quantity}개 = ${fmt(item.finalTotal)}원\n`;
+        text += `   기존 단가 ${fmt(item.unitPrice)}원 · 총 할인 ${fmt(item.totalDiscount)}원\n\n`;
       } else {
         text += `   ${fmt(item.unitPrice)}원 × ${item.quantity}개 = ${fmt(item.finalTotal)}원\n\n`;
       }
@@ -313,6 +311,7 @@ export default function OrderPage({
       // 수량 할인(cartWithDiscount.unitPrice)과 라인 할인 모두 반영되도록
       // cartWithDiscount가 있으면 그 단가 사용, 없으면 라인 단가 헬퍼 사용
       items: (cartWithDiscount.length > 0 ? cartWithDiscount : cart).map(item => {
+        if (cartWithDiscount.length > 0) return serializeDiscountedItem(item, priceType);
         const unit = cartWithDiscount.length > 0
           ? Number(item.unitPrice) || 0
           : getLineUnit(item);
@@ -743,7 +742,7 @@ export default function OrderPage({
                 })).map((item) => {
                   // 할인된 라인은 unitPrice가 0이어도 유효 → ?? 사용
                   const price = item.unitPrice ?? getLineUnit(item);
-                  const itemTotal = item.finalTotal || price * item.quantity;
+                  const itemTotal = item.finalTotal ?? price * item.quantity;
                   const hasDiscount = item.appliedTier && item.totalDiscount > 0;
                   const isChanging = changingItemId === item.id;
 
@@ -793,7 +792,7 @@ export default function OrderPage({
                                 className="text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0"
                                 style={{ background: 'color-mix(in srgb, var(--warning) 30%, transparent)', color: 'var(--warning)' }}
                               >
-                                {item.appliedTier.type === 'percent' ? `${item.appliedTier.value}%↓` : `${fmt(item.appliedTier.value)}↓`}
+                                할인 {fmt(item.discountAmount)}원
                               </span>
                             )}
                             {isLineDiscounted && (

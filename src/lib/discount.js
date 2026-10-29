@@ -44,6 +44,23 @@ export function discountPlaceholder(type) {
 
 export const DISCOUNT_TYPES = ['percent', 'amount', 'fixed'];
 
+// 주문 당시 가격과 실제 할인액을 저장해 나중에 상품 단가가 바뀌어도 이력이 유지된다.
+export function serializeDiscountedItem(item, priceType) {
+  const field = priceType === 'retail' ? 'retail' : 'wholesale';
+  const unit = Number(item.unitPrice ?? item.price ?? 0);
+  const final = Number(item.discountedPrice ?? unit);
+  const manual = item.discountType && Number(item.discountValue) > 0 &&
+    (!item.originalPriceField || item.originalPriceField === field);
+  const original = manual && Number.isFinite(Number(item.originalPrice)) ? Number(item.originalPrice) : unit;
+  const base = { id: item.id, name: item.name, price: final, quantity: item.quantity };
+  if (item.category) base.category = item.category;
+  if (item.taxFree === true) base.taxFree = true;
+  if (manual && !(item.appliedTier && item.discountAmount > 0)) {
+    Object.assign(base, { originalPrice: original, discountType: item.discountType, discountValue: Number(item.discountValue), originalPriceField: field });
+  } else if (original > final) Object.assign(base, { originalPrice: original, discountType: 'amount', discountValue: original - final, originalPriceField: field });
+  return base;
+}
+
 // 주문에 저장된 할인 전/후 단가만 사용한다. 현재 상품 가격으로 과거 할인을 추정하지 않는다.
 export function getOrderDiscountSummary(order) {
   const priceField = order.priceType === 'retail' ? 'retail' : 'wholesale';

@@ -34,27 +34,41 @@ export const matchesSearchQuery = (productName, searchTerm) => {
   return false;
 };
 
+// 져스트 표의 10개 이상 도매 단가. ID와 이름을 함께 확인해 다른 상품에 적용하지 않는다.
+const XHAUST_WHOLESALE_TIERS = new Map([
+  [879, ['져스트 G1', 720000]], [880, ['져스트 G2', 918000]],
+  [881, ['져스트 G1C1', 852000]], [882, ['져스트 G2C1', 1050000]],
+  [883, ['져스트 모듈', 480000]], [884, ['메인 스피커', 198000]], [885, ['고음 스피커', 145200]],
+]);
+
 // 수량별 할인 계산
-export const calculateDiscount = (product, quantity, unitPrice) => {
-  if (!product?.discount_tiers || !Array.isArray(product.discount_tiers) || product.discount_tiers.length === 0) {
-    return { discountedPrice: unitPrice, discountAmount: 0, appliedTier: null };
-  }
-  const sortedTiers = [...product.discount_tiers].sort((a, b) => (b.minQty || 0) - (a.minQty || 0));
+export const calculateDiscount = (product, quantity, unitPrice, priceType) => {
+  let result = { discountedPrice: unitPrice, discountAmount: 0, appliedTier: null };
+  const sortedTiers = [...(Array.isArray(product?.discount_tiers) ? product.discount_tiers : [])].sort((a, b) => (b.minQty || 0) - (a.minQty || 0));
   for (const tier of sortedTiers) {
+    if (tier.priceType && tier.priceType !== 'all' && tier.priceType !== priceType) continue;
     const minQty = tier.minQty || 0;
     const maxQty = tier.maxQty || Infinity;
     if (quantity >= minQty && quantity <= maxQty) {
       let discountedPrice;
       if (tier.type === 'percent') {
         discountedPrice = Math.round(unitPrice * (1 - tier.value / 100));
-      } else {
+      } else if (tier.type === 'amount') {
         discountedPrice = unitPrice - tier.value;
-      }
+      } else if (tier.type === 'fixed') {
+        discountedPrice = Math.min(unitPrice, Number(tier.value));
+      } else continue;
+      if (!Number.isFinite(discountedPrice)) continue;
       discountedPrice = Math.max(0, discountedPrice);
-      return { discountedPrice, discountAmount: unitPrice - discountedPrice, appliedTier: tier };
+      result = { discountedPrice, discountAmount: unitPrice - discountedPrice, appliedTier: tier };
+      break;
     }
   }
-  return { discountedPrice: unitPrice, discountAmount: 0, appliedTier: null };
+  const xhaust = XHAUST_WHOLESALE_TIERS.get(Number(product?.id));
+  if (priceType === 'wholesale' && Number(quantity) >= 10 && xhaust && product.name === xhaust[0] && xhaust[1] < result.discountedPrice) {
+    result = { discountedPrice: xhaust[1], discountAmount: unitPrice - xhaust[1], appliedTier: { minQty: 10, type: 'fixed', value: xhaust[1], priceType: 'wholesale' } };
+  }
+  return result;
 };
 
 export const calculateItemDiscount = (item, products) => {

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { handleSearchFocus, formatPrice, calcExVat, calcOrderVat, calculateDiscount, isTaxFreeItem, escapeHtml } from '@/lib/utils';
 import { searchProductsRanked } from '@/lib/productMatch';
+import { serializeDiscountedItem } from '@/lib/discount';
 import { isImageDemoMode, getSampleImage } from '@/lib/sampleProductImages';
 import ProductGalleryModal from '@/components/ProductGalleryModal';
 import OrderPage from './OrderPage';
@@ -157,7 +158,7 @@ export default function MainPOS({
     return cart.map(item => {
       const price = priceType === 'wholesale' ? item.wholesale : (item.retail || item.wholesale);
       const product = products.find(p => p.id === item.id);
-      const discountInfo = calculateDiscount(product || {}, item.quantity, price);
+      const discountInfo = calculateDiscount(product || {}, item.quantity, price, priceType);
       return {
         ...item,
         unitPrice: price,
@@ -430,15 +431,7 @@ export default function MainPOS({
       customer_phone: orderCustomerPhone.trim(),
       memo: orderMemo.trim(),
       payment_method: orderPaymentMethod,
-      items: cartWithDiscount.map(item => ({
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        price: item.discountedPrice,
-        quantity: item.quantity,
-        // 🚨 비과세 플래그 보존 — 빠뜨리면 저장 순간 과세로 되돌아가 명세서 공급가액이 화면과 달라짐
-        ...(item.taxFree === true ? { taxFree: true } : {}),
-      })),
+      items: cartWithDiscount.map(item => serializeDiscountedItem(item, priceType)),
       total_amount: totalAmount,
       price_type: priceType,
     });
@@ -1069,7 +1062,7 @@ export default function MainPOS({
                           className="text-[11px] px-1.5 py-0.5 rounded-md font-bold flex-shrink-0 whitespace-nowrap"
                           style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)' }}
                         >
-                          {item.appliedTier.type === 'percent' ? `${item.appliedTier.value}%↓` : `${formatPrice(item.appliedTier.value)}↓`}
+                          할인 {formatPrice(item.discountAmount)}원
                         </span>
                       ) : isFee ? (
                         <span
@@ -1234,6 +1227,8 @@ export default function MainPOS({
       {showOrderConfirm && (
         <OrderPage
           cart={cart}
+          cartWithDiscount={cartWithDiscount}
+          totalDiscount={totalDiscount}
           priceType={priceType}
           totalAmount={totalAmount}
           formatPrice={formatPrice}
@@ -1358,7 +1353,7 @@ export default function MainPOS({
                                 className="text-xs px-2 py-0.5 rounded font-medium"
                                 style={{ background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--warning)' }}
                               >
-                                {item.appliedTier.type === 'percent' ? `${item.appliedTier.value}% 할인` : `${formatPrice(item.appliedTier.value)}원 할인`}
+                                할인 {formatPrice(item.discountAmount)}원
                               </span>
                             )}
                             <span
