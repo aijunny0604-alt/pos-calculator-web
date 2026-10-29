@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useMemo } from 'react';
 import { X, AlertTriangle, Check, Gift, Trash2, Camera, Loader2 } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
@@ -41,8 +42,8 @@ export default function QuoteScanModal({ scan, pos, onClose, onConfirm, saving, 
   const freeRows = (q.items || []).map((it, i) => ({ it, i })).filter(({ it }) => it.freeFill);
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => !saving && onClose()}>
-      <div className="w-full max-w-[92rem] max-h-[94dvh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
+    <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => !saving && onClose()}>
+      <div className="motion-modal-panel w-full max-w-[92rem] max-h-[94dvh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
         style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
 
         {/* 헤더 */}
@@ -199,12 +200,12 @@ export default function QuoteScanModal({ scan, pos, onClose, onConfirm, saving, 
 
         {/* 원본 사진 전체화면 확대 */}
         {zoom && imgUrl && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }} onClick={() => setZoom(false)}>
+          <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.9)' }} onClick={() => setZoom(false)}>
             <button className="absolute top-4 right-4 p-2 rounded-lg z-10" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }} onClick={() => setZoom(false)}><X className="w-6 h-6" /></button>
-            <div className="w-full h-full overflow-auto flex items-start justify-center" onClick={(e) => e.stopPropagation()}>
+            <div className="motion-modal-panel w-full h-full overflow-auto flex items-start justify-center" onClick={(e) => e.stopPropagation()}>
               <img src={imgUrl} alt="발주서 원본 확대" className="rounded-lg bg-white" style={{ width: '95vw', maxWidth: '1600px', height: 'auto', cursor: 'zoom-out' }} onClick={() => setZoom(false)} />
             </div>
-          </div>
+          </MotionBackdrop>
         )}
 
         {/* 푸터 */}
@@ -221,6 +222,6 @@ export default function QuoteScanModal({ scan, pos, onClose, onConfirm, saving, 
           </button>
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }

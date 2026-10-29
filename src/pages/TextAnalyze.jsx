@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, X, Settings, Search, Plus, Minus, Trash2, Edit3,
@@ -1419,8 +1420,8 @@ ${aiLearningData.slice(0, 50).map(l =>
 
       {/* AI Settings Modal */}
       {showApiSettings && (
-        <div className="fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowApiSettings(false)}>
-          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden border shadow-2xl animate-modal-up flex flex-col" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 2rem)' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowApiSettings(false)}>
+          <div className="motion-modal-panel rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden border shadow-2xl animate-modal-up flex flex-col" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 2rem)' }} onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)' }}>
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
                 <Settings className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
@@ -1459,13 +1460,13 @@ ${aiLearningData.slice(0, 50).map(l =>
             </div>
             <div className="h-6" />
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* Backup Modal */}
       {showBackupModal && (
-        <div className="fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowBackupModal(false)}>
-          <div className="rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[75dvh] flex flex-col border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowBackupModal(false)}>
+          <div className="motion-modal-panel rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[75dvh] flex flex-col border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
                 <FolderOpen className="w-5 h-5" style={{ color: 'var(--primary)' }} />
@@ -1505,18 +1506,18 @@ ${aiLearningData.slice(0, 50).map(l =>
               )}
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* AI 학습 수정사유 모달 — 제품 수동 교정 직후 */}
       {showReasonInput !== null && analyzedItems[showReasonInput] && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        <MotionBackdrop
+          className="motion-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4"
           style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
           onClick={() => setShowReasonInput(null)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border shadow-2xl"
+            className="motion-modal-panel w-full max-w-md rounded-2xl border shadow-2xl"
             style={{ backgroundColor: 'var(--card)', borderColor: 'var(--primary)' }}
             onClick={e => e.stopPropagation()}
           >
@@ -1595,7 +1596,7 @@ ${aiLearningData.slice(0, 50).map(l =>
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
     </div>
   );

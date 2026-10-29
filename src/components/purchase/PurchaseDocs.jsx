@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, X, Trash2, Database, FileImage, Search, Camera, Loader2, Calendar } from 'lucide-react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
@@ -173,8 +174,8 @@ export default function PurchaseDocs({ showToast, onCount }) {
 
       {/* 등록/수정 모달 */}
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => !saving && setEditing(null)}>
-          <div className="w-full max-w-lg rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92dvh' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => !saving && setEditing(null)}>
+          <div className="motion-modal-panel w-full max-w-lg rounded-2xl border flex flex-col" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: '92dvh' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <FileImage className="w-5 h-5" style={{ color: 'var(--primary)' }} />
               <h3 className="text-base font-bold flex-1">{editing.id ? '증빙 수정' : '증빙 등록'}</h3>
@@ -235,21 +236,21 @@ export default function PurchaseDocs({ showToast, onCount }) {
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 확대보기 */}
       {viewer && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setViewer(null)}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setViewer(null)}>
           <button className="absolute top-4 right-4 p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}><X className="w-6 h-6" /></button>
-          <img src={viewer} alt="증빙 원본" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
-        </div>
+          <img src={viewer} alt="증빙 원본" className="motion-modal-panel max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+        </MotionBackdrop>
       )}
 
       {/* 삭제 확인 */}
       {confirmDel && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={() => setConfirmDel(null)}>
-          <div className="w-full max-w-sm rounded-2xl border p-4" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={() => setConfirmDel(null)}>
+          <div className="motion-modal-panel w-full max-w-sm rounded-2xl border p-4" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="font-bold mb-2">이 증빙을 삭제할까요?</div>
             <div className="text-sm mb-4" style={{ color: 'var(--muted-foreground)' }}>{confirmDel.supplier} · {confirmDel.doc_type} · {confirmDel.doc_date}</div>
             <div className="flex gap-2">
@@ -257,7 +258,7 @@ export default function PurchaseDocs({ showToast, onCount }) {
               <button onClick={doDelete} className="flex-1 py-2 rounded-xl text-sm font-bold text-white" style={{ background: 'var(--destructive)' }}>삭제</button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
     </div>
   );

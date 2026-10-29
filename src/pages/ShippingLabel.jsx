@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useCallback, useMemo, useId } from 'react';
 import {
   ArrowLeft, Menu, Truck, X, Plus, Search, Trash2, Download, FileText,
@@ -1561,8 +1562,8 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
 
       {/* Add custom entry modal */}
       {showAddCustomModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isAddModalFullscreen ? '0' : '1rem' }} onClick={() => setShowAddCustomModal(false)}>
-          <div className="relative bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl animate-modal-up modal-fs-transition overflow-y-auto" style={{ maxWidth: isAddModalFullscreen ? '100vw' : '48rem', maxHeight: isAddModalFullscreen ? '100dvh' : '90dvh', borderRadius: isAddModalFullscreen ? '0' : '0.75rem', boxShadow: isAddModalFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)', ...(isAddModalDraggable ? addModalDragStyle : {}) }} onClick={e => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isAddModalFullscreen ? '0' : '1rem' }} onClick={() => setShowAddCustomModal(false)}>
+          <div className="motion-modal-panel relative bg-[var(--card)] w-full h-full border border-[var(--border)] shadow-2xl animate-modal-up modal-fs-transition overflow-y-auto" style={{ maxWidth: isAddModalFullscreen ? '100vw' : '48rem', maxHeight: isAddModalFullscreen ? '100dvh' : '90dvh', borderRadius: isAddModalFullscreen ? '0' : '0.75rem', boxShadow: isAddModalFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)', ...(isAddModalDraggable ? addModalDragStyle : {}) }} onClick={e => e.stopPropagation()}>
             {addModalResizeHandles}
             <div
               {...addModalDragHandleProps}
@@ -1723,7 +1724,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
     </div>
   );

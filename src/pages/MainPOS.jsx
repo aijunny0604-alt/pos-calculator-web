@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { loadedCustomerMemo } from '@/lib/cartOrderContext';
 import { customerMatches } from '@/lib/customerSearch.mjs';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
@@ -1270,13 +1271,13 @@ export default function MainPOS({
 
       {/* Cart Expanded Modal */}
       {isCartExpanded && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop-fs-transition"
+        <MotionBackdrop
+          className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center modal-backdrop-fs-transition"
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', padding: isCartFullscreen ? '0' : '1rem' }}
           onClick={() => setIsCartExpanded(false)}
         >
           <div
-            className="w-full overflow-hidden flex flex-col border shadow-2xl modal-fs-transition"
+            className="motion-modal-panel w-full overflow-hidden flex flex-col border shadow-2xl modal-fs-transition"
             style={{ background: 'var(--card)', borderColor: 'var(--border)', maxWidth: isCartFullscreen ? '100vw' : 'min(56rem, calc(100vw - 2rem))', height: isCartFullscreen ? '100dvh' : 'auto', maxHeight: isCartFullscreen ? '100dvh' : 'calc(100dvh - 2rem)', borderRadius: isCartFullscreen ? '0' : '1rem', boxShadow: isCartFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1499,17 +1500,17 @@ export default function MainPOS({
               </div>
             )}
           </div>
-        </div>
+        </MotionBackdrop>
       )}
       {/* AI 주문 인식 모달 */}
       {showAiModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+        <MotionBackdrop
+          className="motion-modal-backdrop fixed inset-0 z-50 flex items-end sm:items-center justify-center"
           style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
           onClick={() => setShowAiModal(false)}
         >
           <div
-            className="w-full overflow-hidden flex flex-col modal-fs-transition animate-modal-up"
+            className="motion-modal-panel w-full overflow-hidden flex flex-col modal-fs-transition animate-modal-up"
             style={{
               backgroundColor: 'var(--background)',
               maxWidth: isAiFullscreen ? '100vw' : '64rem',
@@ -1544,7 +1545,7 @@ export default function MainPOS({
               onClose={() => setShowAiModal(false)}
             />
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 주문 저장 로딩 오버레이 - OrderPage(z-50), successModal(z-70) 위에 표시 */}

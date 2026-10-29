@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useRef } from 'react';
 import { Calculator, X, Maximize2, Minimize2 } from 'lucide-react';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
@@ -178,13 +179,13 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
   };
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center z-[9999] animate-modal-backdrop modal-backdrop-fs-transition"
+    <MotionBackdrop
+      className="motion-modal-backdrop fixed inset-0 flex items-center justify-center z-[9999] animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', padding: isFullscreen ? '0' : '1rem' }}
       onClick={onClose}
     >
       <div
-        className="relative w-full overflow-hidden border shadow-2xl animate-modal-up modal-fs-transition"
+        className="motion-modal-panel relative w-full overflow-hidden border shadow-2xl animate-modal-up modal-fs-transition"
         style={{
           backgroundColor: 'var(--card)', borderColor: 'var(--border)',
           maxWidth: isFullscreen ? '100vw' : '28rem',
@@ -317,6 +318,6 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
           </button>
         </div>
       </div>
-    </div>
+    </MotionBackdrop>
   );
 }

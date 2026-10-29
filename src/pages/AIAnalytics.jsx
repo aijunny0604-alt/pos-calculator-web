@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useRef, useEffect } from 'react';
 import { Package, Users, Settings, X, Check, AlertTriangle, Trash2, DollarSign, Wallet, PackageX, Truck, Undo2 } from 'lucide-react';
 import ChatPanel from '@/components/analytics/ChatPanel';
@@ -709,8 +710,8 @@ export default function AIAnalytics({
       }} rightActions={rightActions} onBack={() => setCurrentPage?.('dashboard')} onSidebarToggle={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))} />
 
       {/* 설정 모달 */}
-      {showSettings && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowSettings(false)}>
-          <div className="movis-glass-card max-w-md w-full p-4 sm:p-6 min-w-0 modal-card-safe" onClick={e => e.stopPropagation()}>
+      {showSettings && <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowSettings(false)}>
+          <div className="motion-modal-panel movis-glass-card max-w-md w-full p-4 sm:p-6 min-w-0 modal-card-safe" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2 movis-text-primary min-w-0">
                 <Settings className="w-5 h-5" />
@@ -758,7 +759,7 @@ export default function AIAnalytics({
               연결 자격 증명은 PC 연결 프로그램에서 관리합니다. 무비스 화면에는 OpenAI API 키를 저장하지 않습니다.
             </div>
           </div>
-        </div>}
+        </MotionBackdrop>}
 
       {/* 전체 초기화 확인 다이얼로그 */}
       <ConfirmDialog isOpen={showResetConfirm} title="모든 AI 데이터를 초기화할까요?" message={`다음 항목이 모두 삭제됩니다:\n\n• 대화 히스토리 ${chat.messages.length}개\n• 답변 캐시\n• 추천 질문 사용 빈도\n• RFM 임계값 설정\n• 저장된 인사이트\n\n(Codex 로그인과 선택 모델은 유지됩니다)\n\n되돌릴 수 없습니다.`} confirmText="🗑️ 전체 초기화" cancelText="취소" destructive onConfirm={handleResetAll} onCancel={() => setShowResetConfirm(false)} />
@@ -843,10 +844,10 @@ export default function AIAnalytics({
           Icon: AlertTriangle
         };
         const Icon = meta.Icon;
-        return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => {
+        return <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => {
           if (!executing) handleCancelAction(pending);
         }}>
-            <div className="movis-glass-card max-w-lg sm:max-w-xl w-full p-5 sm:p-7 min-w-0 modal-card-safe" onClick={e => e.stopPropagation()}>
+            <div className="motion-modal-panel movis-glass-card max-w-lg sm:max-w-xl w-full p-5 sm:p-7 min-w-0 modal-card-safe" onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-3 mb-5 movis-text-primary">
                 <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-[var(--jarvis-cyan)] flex-shrink-0" />
                 <h3 className="text-xl sm:text-2xl font-bold flex-1 min-w-0">{meta.title}</h3>
@@ -883,7 +884,7 @@ export default function AIAnalytics({
                 </button>
               </div>
             </div>
-          </div>;
+          </MotionBackdrop>;
       })()}
       </div>
     </div>;

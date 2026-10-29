@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { PackagePlus, Plus, Search, ArrowLeft, Trash2, X, AlertTriangle, PackageCheck, Database, Printer, FileSpreadsheet, FileDown, Copy, Check, FileImage, Clock, TruckIcon, Camera, Loader2, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatPrice, getTodayKST, matchesSearchQuery } from '@/lib/utils';
@@ -1211,9 +1212,9 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
 
       {/* 발주 등록/수정 모달 — 넓게(7xl) + 폰트 크게 */}
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => !saving && setEditing(null)}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => !saving && setEditing(null)}>
           <div
-            className="w-full max-w-[92rem] max-h-[94dvh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
+            className="motion-modal-panel w-full max-w-[92rem] max-h-[94dvh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1441,7 +1442,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 발주서 사진 판독 결과 확인 — 매입 증빙이라 반드시 사람이 보고 등록 */}
@@ -1458,8 +1459,8 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
 
       {/* 빠른 입고 처리 — 물건 오면 미입고 탭에서 바로 */}
       {receiving && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => !saving && setReceiving(null)}>
-          <div className="w-full max-w-lg rounded-2xl border p-6" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => !saving && setReceiving(null)}>
+          <div className="motion-modal-panel w-full max-w-lg rounded-2xl border p-6" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-4">
               <TruckIcon className="w-6 h-6" style={{ color: 'var(--success)' }} />
               <h3 className="text-2xl font-black" style={{ color: 'var(--foreground)' }}>입고 처리</h3>
@@ -1507,12 +1508,12 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 발주서 원본 열람 — 증빙 */}
       {viewQuote && (
-        <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setViewQuote(null)}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[70] flex flex-col items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={() => setViewQuote(null)}>
           <div className="flex items-center gap-3 mb-3 text-white" onClick={(e) => e.stopPropagation()}>
             <FileImage className="w-5 h-5" />
             <span className="font-bold">{viewQuote.po.po_number} 발주서</span>
@@ -1534,16 +1535,16 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
           <img
             src={viewQuote.urls[viewQuote.idx]}
             alt="발주서"
-            className="max-w-full max-h-[85dvh] object-contain rounded-lg bg-white"
+            className="motion-modal-panel max-w-full max-h-[85dvh] object-contain rounded-lg bg-white"
             onClick={(e) => e.stopPropagation()}
           />
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 삭제 확인 */}
       {confirmDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setConfirmDelete(null)}>
-          <div className="w-full max-w-md rounded-2xl border p-6" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setConfirmDelete(null)}>
+          <div className="motion-modal-panel w-full max-w-md rounded-2xl border p-6" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="w-6 h-6" style={{ color: 'var(--destructive)' }} />
               <h3 className="text-xl font-black" style={{ color: 'var(--foreground)' }}>발주 삭제</h3>
@@ -1561,14 +1562,14 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
               <button onClick={handleDelete} className="px-5 py-2.5 rounded-xl text-base font-bold text-white" style={{ background: 'var(--destructive)' }}>삭제</button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 수정 이력 패널 — order_audit_log(PO:{id})에서 조회. 저장/입고할 때마다 스냅샷이 쌓인다.
           혹시 값이 잘못 저장돼도 과거 상태를 되짚어 확인/복구할 수 있게. (2026-07-24) */}
       {historyFor && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => setHistoryFor(null)}>
-          <div className="w-full max-w-2xl max-h-[88dvh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => setHistoryFor(null)}>
+          <div className="motion-modal-panel w-full max-w-2xl max-h-[88dvh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl"
             style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex-shrink-0 px-5 py-4 border-b flex items-center gap-2.5" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>
               <History className="w-5 h-5" style={{ color: 'var(--primary)' }} />
@@ -1650,7 +1651,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
               )}
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
     </div>
   );

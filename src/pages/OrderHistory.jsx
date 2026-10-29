@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { itemDiscountText, orderDiscountText } from '@/lib/discount';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import { orderContactText } from '@/lib/orderContact';
@@ -1710,12 +1711,12 @@ export default function OrderHistory({
 
       {/* Bulk delete confirm modal */}
       {showBulkDeleteConfirm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        <MotionBackdrop
+          className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
         >
           <div
-            className="rounded-2xl w-full max-w-md p-6 border shadow-2xl modal-card-safe"
+            className="motion-modal-panel rounded-2xl w-full max-w-md p-6 border shadow-2xl modal-card-safe"
             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
           >
             <div className="flex items-center gap-3 mb-4">
@@ -1752,17 +1753,17 @@ export default function OrderHistory({
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* Filter delete confirm modal */}
       {showFilterDeleteConfirm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        <MotionBackdrop
+          className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
         >
           <div
-            className="rounded-2xl w-full max-w-lg p-6 border shadow-2xl modal-card-safe"
+            className="motion-modal-panel rounded-2xl w-full max-w-lg p-6 border shadow-2xl modal-card-safe"
             style={{
               background: 'var(--card)',
               borderColor: 'color-mix(in srgb, var(--destructive) 40%, var(--border))',
@@ -1819,14 +1820,14 @@ export default function OrderHistory({
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 네이버 발송처리 모달 — 사용자 요청: 주문 내역에서도 송장 등록 가능 */}
       {naverDispatchModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => setNaverDispatchModal(null)}>
-          <div className="rounded-xl w-full max-w-md p-5 border modal-card-safe"
+          <div className="motion-modal-panel rounded-xl w-full max-w-md p-5 border modal-card-safe"
             style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 mb-4">
@@ -1868,7 +1869,7 @@ export default function OrderHistory({
                 style={{ borderColor: 'var(--border)' }}>취소</button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 📄 사업자등록증 확대 뷰어 */}
@@ -1877,12 +1878,12 @@ export default function OrderHistory({
       )}
 
       {certViewer && (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+        <MotionBackdrop
+          className="motion-modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.7)' }}
           onClick={() => setCertViewer(null)}
         >
-          <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="motion-modal-panel relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-white font-bold flex items-center gap-1.5"><FileText className="w-5 h-5" /> 사업자등록증</span>
               <div className="flex items-center gap-2">
@@ -1901,7 +1902,7 @@ export default function OrderHistory({
               <img src={certViewer.url} alt="사업자등록증" className="w-full max-h-[80dvh] object-contain rounded-lg bg-white" />
             )}
           </div>
-        </div>
+        </MotionBackdrop>
       )}
     </div>
   );

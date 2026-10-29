@@ -184,6 +184,15 @@
 }
 @keyframes move-scrim-out{from{opacity:1}to{opacity:0}}
 @keyframes move-dialog-out{from{opacity:1;scale:1;translate:0 0}to{opacity:0;scale:.97;translate:0 8px}}
+/* 기존 화면의 크기·색상은 보존하고, 열림과 닫힘만 공통 모션으로 맞춘다. */
+@media screen {
+ .motion-modal-backdrop:not(.move-dialog-backdrop){animation:move-scrim-in .24s ease-out both!important}
+ .motion-modal-backdrop > .motion-modal-panel:not(.move-dialog),
+ .motion-modal-backdrop > [role="dialog"]:not(.move-dialog){animation:move-dialog-in .36s cubic-bezier(.16,1,.3,1) backwards!important}
+ .motion-modal-backdrop.move-dialog-exit{animation:move-scrim-out .22s ease-in both!important;pointer-events:none!important}
+ .motion-modal-backdrop.move-dialog-exit > .motion-modal-panel:not(.move-dialog),
+ .motion-modal-backdrop.move-dialog-exit > [role="dialog"]:not(.move-dialog){animation:move-dialog-out .2s cubic-bezier(.4,0,1,1) both!important}
+}
 @media print{.move-dialog-exit{display:none!important}}
 
 /* 고객/주문 상세: 강조색은 주요 동작에 집중하고 연락처는 독립된 카드로 표시. */

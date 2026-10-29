@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { customerMatches } from '@/lib/customerSearch.mjs';
 import { searchProductChoices } from '@/lib/productMatch';
 import { orderContactText } from '@/lib/orderContact';
@@ -419,8 +420,8 @@ export default function OrderPage({
   };
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition"
+    <MotionBackdrop
+      className="motion-modal-backdrop fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition"
       style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', touchAction: 'none', padding: isFullscreen ? '0' : '1rem' }}
       onClick={handleClose}
       onTouchEnd={(e) => {
@@ -435,7 +436,7 @@ export default function OrderPage({
       }}
     >
       <div
-        className="w-full overflow-hidden flex flex-col shadow-2xl animate-modal-up modal-fs-transition"
+        className="motion-modal-panel w-full overflow-hidden flex flex-col shadow-2xl animate-modal-up modal-fs-transition"
         style={{ background: 'var(--card)', border: '1px solid var(--border)', maxWidth: isFullscreen ? '100vw' : '56rem', height: isFullscreen ? '100dvh' : 'auto', maxHeight: isFullscreen ? '100dvh' : '95dvh', borderRadius: isFullscreen ? '0' : '1rem', boxShadow: isFullscreen ? '0 0 0 1px var(--border)' : '0 25px 50px -12px rgba(0,0,0,0.25)' }}
         onClick={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
@@ -1225,8 +1226,8 @@ export default function OrderPage({
 
       {/* 주문 완료 모달 */}
       {successModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="w-full max-w-sm rounded-2xl border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="motion-modal-panel w-full max-w-sm rounded-2xl border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
             <div className="px-5 py-4 text-center" style={{ background: 'var(--success)' }}>
               <Check className="w-10 h-10 mx-auto mb-1 text-white" />
               <h3 className="text-lg font-bold text-white">주문 완료</h3>
@@ -1244,8 +1245,8 @@ export default function OrderPage({
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
-    </div>
+    </MotionBackdrop>
   );
 }

@@ -17,7 +17,7 @@ export default forwardRef(function MotionBackdrop({ children, ...props }, forwar
       ghost.classList.add('move-dialog-exit');
       ghost.style.pointerEvents = 'none';
       // 중첩 창은 각자의 퇴장을 담당하므로 중복 잔상을 만들지 않는다.
-      ghost.querySelectorAll('.move-dialog-backdrop').forEach(el => el.remove());
+      ghost.querySelectorAll('.move-dialog-backdrop, .motion-modal-backdrop').forEach(el => el.remove());
       [ghost, ...ghost.querySelectorAll('*')].forEach(el => {
         el.removeAttribute('id'); el.removeAttribute('autofocus');
         el.removeAttribute('aria-modal');

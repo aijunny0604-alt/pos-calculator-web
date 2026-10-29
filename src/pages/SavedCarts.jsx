@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { orderContactText } from '@/lib/orderContact';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { searchProductChoices } from '@/lib/productMatch';
@@ -530,8 +531,8 @@ export default function SavedCarts({
     }, 0) || currentCart.total || 0;
 
     return (
-      <div
-        className={`fixed inset-0 z-50 flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition ${isDetailFullscreen ? '' : 'p-4 pb-[76px] md:pb-4'}`}
+      <MotionBackdrop
+        className={`motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center animate-modal-backdrop modal-backdrop-fs-transition ${isDetailFullscreen ? '' : 'p-4 pb-[76px] md:pb-4'}`}
         style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
         onClick={() => {
           if (!isEditingDetail) {
@@ -541,7 +542,7 @@ export default function SavedCarts({
         }}
       >
         <div
-          className={`move-dialog saved-cart-detail relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition ${isDetailFullscreen ? '' : 'max-h-[calc(100dvh-6rem)] md:max-h-[calc(100dvh-2rem)]'}`}
+          className={`motion-modal-panel move-dialog saved-cart-detail relative bg-[var(--card)] w-full overflow-hidden border border-[var(--border)] shadow-2xl flex flex-col animate-modal-up modal-fs-transition ${isDetailFullscreen ? '' : 'max-h-[calc(100dvh-6rem)] md:max-h-[calc(100dvh-2rem)]'}`}
           style={{
             maxWidth: isDetailFullscreen ? '100vw' : 'min(95rem, calc(100vw - 2rem))',
             height: isDetailFullscreen ? '100dvh' : 'auto',
@@ -1343,7 +1344,7 @@ export default function SavedCarts({
             )}
           </div>
         </div>
-      </div>
+      </MotionBackdrop>
     );
   };
 
@@ -1901,8 +1902,8 @@ export default function SavedCarts({
 
       {/* Filter delete confirm */}
       {showFilterDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-modal-backdrop" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}>
-          <div className="bg-[var(--card)] rounded-xl w-full max-w-md border border-[var(--border)] shadow-xl overflow-hidden animate-modal-up">
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 animate-modal-backdrop" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}>
+          <div className="motion-modal-panel bg-[var(--card)] rounded-xl w-full max-w-md border border-[var(--border)] shadow-xl overflow-hidden animate-modal-up">
             <div className="px-5 py-4" style={{ background: 'var(--warning)' }}>
               <div className="flex items-center gap-3">
                 <AlertTriangle className="w-6 h-6 text-white flex-shrink-0" />
@@ -1940,7 +1941,7 @@ export default function SavedCarts({
               </div>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 업체 교체 — 등록된 거래처에서 선택 (장바구니 상세 편집 중) */}

@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, FileText, Upload, Trash2, X, Link2, Building, ExternalLink, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -344,8 +345,8 @@ export default function CertLibrary({ customers = [], showToast }) {
 
       {/* 확대 보기 모달 */}
       {viewer && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6" style={{ background: 'rgba(0,0,0,0.72)' }} onClick={() => setViewer(null)}>
-          <div className="w-full max-w-3xl max-h-[92dvh] rounded-2xl overflow-hidden flex flex-col" style={{ background: 'var(--card)' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6" style={{ background: 'rgba(0,0,0,0.72)' }} onClick={() => setViewer(null)}>
+          <div className="motion-modal-panel w-full max-w-3xl max-h-[92dvh] rounded-2xl overflow-hidden flex flex-col" style={{ background: 'var(--card)' }} onClick={(e) => e.stopPropagation()}>
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
               <div className="min-w-0">
@@ -467,7 +468,7 @@ export default function CertLibrary({ customers = [], showToast }) {
               </button>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
     </div>
   );

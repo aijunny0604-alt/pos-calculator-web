@@ -1,3 +1,4 @@
+import MotionBackdrop from '@/components/ui/MotionBackdrop';
 // 네이버 스마트스토어 주문 페이지 (Phase 1 MVP)
 // - Realtime 구독으로 새 주문 즉시 표시
 // - 자동 매칭 후보 표시 + 수동 확정
@@ -2022,10 +2023,10 @@ export default function SmartStoreOrders({
                 </div>
                 {/* 상세 모달 — 컴팩트 행 클릭 시 크게 표시 (폰트↑, 깔끔) */}
                 {isExpanded && (
-                  <div className={`fixed inset-0 z-50 flex justify-center animate-modal-backdrop modal-backdrop-fs-transition ${modalFullscreen ? 'items-stretch p-0' : 'items-stretch sm:items-center p-0 sm:p-4'}`}
+                  <MotionBackdrop className={`motion-modal-backdrop fixed inset-0 z-50 flex justify-center animate-modal-backdrop modal-backdrop-fs-transition ${modalFullscreen ? 'items-stretch p-0' : 'items-stretch sm:items-center p-0 sm:p-4'}`}
                     style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
                     onClick={() => setExpandedCompactId(null)}>
-                    <div className={`w-full flex flex-col border shadow-2xl animate-modal-up modal-fs-transition text-base sm:text-[17px] overflow-hidden ${modalFullscreen
+                    <div className={`motion-modal-panel w-full flex flex-col border shadow-2xl animate-modal-up modal-fs-transition text-base sm:text-[17px] overflow-hidden ${modalFullscreen
                         ? 'max-w-none h-full max-h-none rounded-none'
                         : 'max-w-3xl h-full sm:h-auto max-h-[100dvh] sm:max-h-[94dvh] rounded-none sm:rounded-2xl'}`}
                       style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
@@ -2306,7 +2307,7 @@ export default function SmartStoreOrders({
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </MotionBackdrop>
                 )}
                 </div>
               );
@@ -2855,17 +2856,17 @@ export default function SmartStoreOrders({
           주문 확인 정보는 위에, 연동 안내는 아래에 배치. 톤은 거래처 상세 모달과 통일. */}
       {/* 상품 대문 이미지 확대 — 썸네일 클릭 시 */}
       {imageZoom && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-modal-backdrop"
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-modal-backdrop"
           onClick={() => setImageZoom(null)}>
           <img src={imageZoom} alt="상품 이미지" referrerPolicy="no-referrer"
-            className="max-w-[92vw] max-h-[88dvh] rounded-xl shadow-2xl object-contain animate-modal-up"
+            className="motion-modal-panel max-w-[92vw] max-h-[88dvh] rounded-xl shadow-2xl object-contain animate-modal-up"
             style={{ background: 'var(--card)' }} onClick={(e) => e.stopPropagation()} />
           <button onClick={() => setImageZoom(null)}
             className="absolute top-5 right-5 w-10 h-10 rounded-full flex items-center justify-center bg-black/50 text-white hover:bg-black/70 transition-colors"
             aria-label="닫기">
             <X className="w-5 h-5" />
           </button>
-        </div>
+        </MotionBackdrop>
       )}
 
       {dispatchModalOrder && (() => {
@@ -3381,8 +3382,8 @@ export default function SmartStoreOrders({
 
       {/* 내부주문 전환 — 네이버 발주확인 동반 여부 선택 모달 (2026-06-15) */}
       {convertModalOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !convertSubmitting && setConvertModalOrder(null)}>
-          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-y-auto overscroll-contain animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !convertSubmitting && setConvertModalOrder(null)}>
+          <div className="motion-modal-panel rounded-2xl w-full max-w-md border shadow-2xl overflow-y-auto overscroll-contain animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
             {/* 헤더 — 아이콘 칩 + 제목/부제 */}
             <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--card)), var(--card))' }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }}>
@@ -3431,15 +3432,15 @@ export default function SmartStoreOrders({
               </div>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 일괄 내부주문 전환 — 발주확인 동반 여부 선택 모달 */}
       {bulkConvertOpen && (() => {
         const targets = bulkConvertTargets();
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => setBulkConvertOpen(false)}>
-            <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-y-auto overscroll-contain animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
+          <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => setBulkConvertOpen(false)}>
+            <div className="motion-modal-panel rounded-2xl w-full max-w-md border shadow-2xl overflow-y-auto overscroll-contain animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--card)), var(--card))' }}>
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--primary) 16%, transparent)', color: 'var(--primary)' }}>
                   <ArrowRight className="w-5 h-5" />
@@ -3475,14 +3476,14 @@ export default function SmartStoreOrders({
                 </div>
               </div>
             </div>
-          </div>
+          </MotionBackdrop>
         );
       })()}
 
       {/* 구매자 취소요청 승인 확인 모달 — 비가역(환불 확정) */}
       {approveCancelOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !approveCancelSubmitting && setApproveCancelOrder(null)}>
-          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-y-auto overscroll-contain animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !approveCancelSubmitting && setApproveCancelOrder(null)}>
+          <div className="motion-modal-panel rounded-2xl w-full max-w-md border shadow-2xl overflow-y-auto overscroll-contain animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 1.5rem)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'rgba(255,77,109,0.08)' }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,77,109,0.18)', color: '#ff4d6d' }}>
                 <Ban className="w-5 h-5" />
@@ -3510,13 +3511,13 @@ export default function SmartStoreOrders({
               </div>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
 
       {/* 🚫 블랙리스트 지정 확인 모달 (전화 우선 매칭 → 거래처 없으면 생성) */}
       {blacklistTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !blacklisting && setBlacklistTarget(null)}>
-          <div className="rounded-2xl w-full max-w-md border shadow-2xl overflow-hidden animate-modal-up modal-card-safe" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
+        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-modal-backdrop" onClick={() => !blacklisting && setBlacklistTarget(null)}>
+          <div className="motion-modal-panel rounded-2xl w-full max-w-md border shadow-2xl overflow-hidden animate-modal-up modal-card-safe" style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b" style={{ borderColor: 'var(--border)', background: 'rgba(255,77,109,0.08)' }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,77,109,0.18)', color: '#ff4d6d' }}>
                 <Ban className="w-5 h-5" />
@@ -3548,7 +3549,7 @@ export default function SmartStoreOrders({
               </div>
             </div>
           </div>
-        </div>
+        </MotionBackdrop>
       )}
     </div>
   );
