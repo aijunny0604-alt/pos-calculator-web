@@ -9,6 +9,7 @@ import {
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import CustomerDetailModal from '@/components/CustomerDetailModal';
+import CustomerMemo from '@/components/CustomerMemo';
 import PaymentRegisterModal from '@/components/PaymentRegisterModal';
 import PaymentEditModal from '@/components/PaymentEditModal';
 import BulkPaymentModal from '@/components/BulkPaymentModal';
@@ -31,6 +32,7 @@ export default function CustomerList({
   onRefreshOrders,
   onUpdateOrder,
   onGoToInvoices,
+  onCustomerUpdated,
   showToast
 }) {
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'payments' | 'certs'
@@ -701,11 +703,10 @@ export default function CustomerList({
                     </button>
                   )}
                 </div>
-                {selectedCustomer.memo && (
-                  <p className="text-[var(--muted-foreground)] text-sm mt-2 pt-2 border-t border-[var(--border)]">
-                    메모: {selectedCustomer.memo}
-                  </p>
-                )}
+                <CustomerMemo key={selectedCustomer.id} customer={selectedCustomer} showToast={showToast} onSaved={(updated) => {
+                  setSelectedCustomer((current) => String(current?.id) === String(updated.id) ? { ...current, memo: updated.memo } : current);
+                  onCustomerUpdated?.(updated);
+                }} />
                 {selectedCustomer.is_blacklist && (
                   <div className="mt-2 pt-2 border-t border-[var(--border)]">
                     <StatusBadge status="blacklist" />
@@ -1036,6 +1037,7 @@ export default function CustomerList({
                               {isBlacklist && (
                                 <StatusBadge status="blacklist" className="flex-shrink-0" />
                               )}
+                              {customer.memo && <span className="px-2 py-0.5 text-xs rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)' }}>메모</span>}
                               {orderCount > 0 && (
                                 <span
                                   className="px-2 py-0.5 text-xs rounded-full font-medium flex-shrink-0"

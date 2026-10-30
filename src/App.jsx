@@ -1140,6 +1140,7 @@ export default function App() {
             onRefreshOrders={refreshOrders}
             onUpdateOrder={handleUpdateOrder}
             onGoToInvoices={goToInvoices}
+            onCustomerUpdated={(updated) => setCustomers((current) => current.map((customer) => String(customer.id) === String(updated.id) ? { ...customer, memo: updated.memo } : customer))}
             showToast={showToast}
           />
         );
