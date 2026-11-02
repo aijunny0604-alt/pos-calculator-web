@@ -173,6 +173,15 @@ const isVisitReceiptOrder = (order, items = []) => {
   return code === 'VISIT_RECEIPT';
 };
 
+// 고객이 주문할 때 선택한 수령 방식을 주문자 옆에서도 바로 확인한다.
+const VisitReceiptBadge = () => (
+  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap"
+    style={{ background: 'color-mix(in srgb, var(--warning) 16%, var(--card))', color: 'var(--warning)', border: '1px solid color-mix(in srgb, var(--warning) 45%, var(--border))' }}
+    title="고객이 주문 시 방문수령을 선택했습니다">
+    <Store className="w-3.5 h-3.5" aria-hidden="true" /> 방문수령
+  </span>
+);
+
 // 상태별 색상 — 수명주기 단계가 한눈에 구분되도록 단계별로 고유 색 부여.
 // 결제완료=시안(지금 처리!) → 발주확인=노랑(발송준비) → 발송=파랑 → 배송중=보라 → 완료=초록.
 // 취소요청=주황(응답필요), 취소=빨강, 반품=핑크, 교환=마젠타. (2026-06-01 색 분리)
@@ -1917,6 +1926,7 @@ export default function SmartStoreOrders({
                     <div className="font-bold text-[15px] flex items-center gap-1.5 flex-wrap">
                       {order.provider === 'naver' && <span className="text-[11px] px-1 rounded" style={{ background: 'rgba(3,199,90,0.15)', color: '#03c75a' }}>N</span>}
                       <span className="truncate" title="구매자(입금자)">{order.buyer_name || '구매자'}</span>
+                      {isVisitReceiptOrder(order, itemsForOrder) && <VisitReceiptBadge />}
                       {recvName && (
                         <span className="text-[12px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap inline-flex items-center gap-0.5"
                           style={{ background: diffRecv ? 'rgba(245,158,11,0.18)' : 'rgba(59,130,246,0.14)', color: diffRecv ? '#e69500' : '#3b82f6' }}
@@ -1946,7 +1956,7 @@ export default function SmartStoreOrders({
                         {dm.icon} {dm.label}
                       </span>
                     )}
-                    {order.delivery_policy_type ? (
+                    {order.delivery_policy_type && !isVisitReceiptOrder(order, itemsForOrder) ? (
                       <span className="px-2.5 py-1 rounded-md text-[13px] font-bold whitespace-nowrap"
                         style={{ background: isCash ? 'rgba(255,170,0,0.15)' : 'rgba(3,199,90,0.12)', color: isCash ? '#e69500' : '#03c75a' }}>
                         {isCash ? '🚚 착불' : '💰 선불'}
@@ -2434,6 +2444,7 @@ export default function SmartStoreOrders({
                 <div className="flex items-start gap-2">
                   <div className="text-xl font-bold leading-snug flex-1 flex items-center gap-2 flex-wrap">
                     <span title="구매자(입금자)">{order.buyer_name || '구매자'}</span>
+                    {isVisitReceiptOrder(order, items) && <VisitReceiptBadge />}
                     {buyerBlacklisted(order) && (
                       <span className="text-xs font-extrabold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
                         style={{ background: 'color-mix(in srgb, var(--destructive) 18%, transparent)', color: 'var(--destructive)', border: '1px solid color-mix(in srgb, var(--destructive) 45%, transparent)' }}
@@ -2616,7 +2627,7 @@ export default function SmartStoreOrders({
                         {cardDm.icon} {cardDm.label}
                       </span>
                     )}
-                    {order.delivery_policy_type && (
+                    {order.delivery_policy_type && !isVisitReceiptOrder(order, items) && (
                       <span className="px-2 py-0.5 rounded text-xs font-semibold"
                         style={{
                           background: isCashOnDelivery ? 'rgba(255,170,0,0.15)' : 'rgba(0,255,136,0.15)',
