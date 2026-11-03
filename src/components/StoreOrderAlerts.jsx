@@ -15,11 +15,17 @@ export const setStoreAlertSound = (on) => {
 };
 
 let _ctx = null;
+export const prepareAlertSound = () => {
+  try {
+    _ctx = _ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (_ctx.state === 'suspended') _ctx.resume().catch(() => {});
+  } catch { /* 브라우저에서 오디오를 지원하지 않는 경우 */ }
+};
 export const playAlertSound = (kind = 'order') => {
   try {
     _ctx = _ctx || new (window.AudioContext || window.webkitAudioContext)();
     const ctx = _ctx;
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     const now = ctx.currentTime;
     const notes = kind === 'cancel' ? [880, 587, 392] : [523, 784, 1047];
     notes.forEach((freq, i) => {

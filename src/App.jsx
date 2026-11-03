@@ -18,7 +18,7 @@ import SaveCartModal from '@/pages/SaveCartModal';
 import QuickCalculator from '@/pages/QuickCalculator';
 import NotificationSettings from '@/pages/NotificationSettings';
 import CommandBar from '@/components/CommandBar';
-import StoreOrderAlerts from '@/components/StoreOrderAlerts';
+import StoreOrderAlerts, { playAlertSound, prepareAlertSound } from '@/components/StoreOrderAlerts';
 import ReservationAlertBar from '@/components/ReservationAlertBar';
 
 import ChunkErrorBoundary from '@/components/ChunkErrorBoundary';
@@ -34,6 +34,7 @@ const SupplierLedger = lazy(() => import('@/pages/SupplierLedger'));
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { validateCoreData } from '@/lib/posConnection';
 import { subscribePosChanges, mergePosChange } from '@/lib/posRealtime';
+import { createOrderArrivalTracker } from '@/lib/orderArrival';
 import { priceData } from '@/lib/priceData';
 import { formatPrice, getTodayKST, toDateKST } from '@/lib/utils';
 import { isOrderPending } from '@/lib/orderStatus';
@@ -75,6 +76,15 @@ export default function App() {
   const [savedCarts, setSavedCarts] = useState([]);
   const [aiLearningData, setAiLearningData] = useState([]);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
+  const orderArrivals = useRef(createOrderArrivalTracker());
+  const customersRef = useRef(customers);
+  useEffect(() => { customersRef.current = customers; }, [customers]);
+  useEffect(() => {
+    const unlock = () => prepareAlertSound();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => { window.removeEventListener('pointerdown', unlock); window.removeEventListener('keydown', unlock); };
+  }, []);
 
   // ─── API 호출 쓰로틀링 (egress 최적화) ─────────────────────
   const lastFetchRef = useRef(0);
@@ -245,7 +255,10 @@ export default function App() {
         loaded = true;
         setSupabaseConnected(true);
 
-        if (fetchedOrders) setOrders(fetchedOrders.map(formatOrder));
+        if (fetchedOrders) {
+          orderArrivals.current.baseline(fetchedOrders);
+          setOrders(fetchedOrders.map(formatOrder));
+        }
         if (fetchedProducts && fetchedProducts.length > 0) {
           setProducts(fetchedProducts);
         } else {
@@ -306,19 +319,42 @@ export default function App() {
   // ─── Supabase real-time WebSocket ─────────────────────────────
   useEffect(() => {
     if (!supabaseConnected) return;
+    let orderRevision = 0;
 
     // The SDK registers postgres_changes and handles heartbeat/reconnection.
     const stopRealtime = subscribePosChanges(supabaseClient, (table, payload) => {
-      if (table === 'orders') setOrders(rows => mergePosChange(rows, payload, formatOrder, true));
+      if (table === 'orders') {
+        orderRevision++;
+        if (orderArrivals.current.event(payload, customersRef.current)) {
+          playAlertSound('order');
+          showToast(`새 업체 주문 · ${payload.new?.customer_name || '일반고객'}`, 'success');
+        }
+        setOrders(rows => mergePosChange(rows, payload, formatOrder, true));
+      }
       else if (table === 'products') setProducts(rows => mergePosChange(rows, payload));
       else if (table === 'customers') setCustomers(rows => mergePosChange(rows, payload));
       else if (table === 'saved_carts') setSavedCarts(rows => mergePosChange(rows, payload, undefined, true));
       else if (table === 'ai_learning') setAiLearningData(rows => mergePosChange(rows, payload));
     });
 
-    // 폴링 백업 (WebSocket 연결 실패 대비, 5분마다)
-    const pollInterval = setInterval(() => {
-      supabase.getOrders().then((d) => d && setOrders(d.map(formatOrder)));
+    // 실시간 연결이 끊긴 동안의 주문도 확인한다.
+    const refreshOrdersSafely = () => {
+      const revisionAtStart = orderRevision;
+      const startOfToday = new Date(`${getTodayKST()}T00:00:00+09:00`).toISOString();
+      supabase.getOrdersSince(startOfToday).then((d) => {
+        if (!d || revisionAtStart !== orderRevision) return;
+        const arrivals = orderArrivals.current.scan(d, customersRef.current);
+        if (arrivals.length) {
+          playAlertSound('order');
+          showToast(arrivals.length === 1 ? `새 업체 주문 · ${arrivals[0].customer_name || '일반고객'}` : `새 업체 주문 ${arrivals.length}건`, 'success');
+        }
+        setOrders(rows => d.reduce((current, row) => mergePosChange(current, { eventType: 'UPDATE', new: row }, formatOrder, true), rows));
+      });
+    };
+    const pollInterval = setInterval(refreshOrdersSafely, 30000);
+    const cartsInterval = setInterval(() => {
+      const revisionAtStart = orderRevision;
+      supabase.getOrders().then((d) => { if (d && revisionAtStart === orderRevision) setOrders(d.map(formatOrder)); });
       supabase.getSavedCarts().then((d) => d && setSavedCarts(d));
     }, 300000);
 
@@ -330,7 +366,7 @@ export default function App() {
         const now = Date.now();
         if (now - lastFetchRef.current < FETCH_THROTTLE_MS) return;
         lastFetchRef.current = now;
-        supabase.getOrders().then((d) => d && setOrders(d.map(formatOrder)));
+        refreshOrdersSafely();
         supabase.getProducts().then((d) => d && d.length > 0 && setProducts(d));
         supabase.getCustomers().then((d) => d && setCustomers(d));
         supabase.getSavedCarts().then((d) => d && setSavedCarts(d));
@@ -340,10 +376,11 @@ export default function App() {
 
     return () => {
       clearInterval(pollInterval);
+      clearInterval(cartsInterval);
       document.removeEventListener('visibilitychange', handleVisibility);
       stopRealtime();
     };
-  }, [supabaseConnected, refreshSmartstoreCount, formatOrder]);
+  }, [supabaseConnected, refreshSmartstoreCount, formatOrder, showToast]);
 
   // ─── Derived: badge counts ──────────────────────────────────
   const todayOrderCount = useMemo(() => {
@@ -532,6 +569,7 @@ export default function App() {
             const incomingAddr = orderData.customer_address || orderData.customerAddress || '';
             if (!existingOrder.customerPhone && incomingPhone) mergeData.customer_phone = incomingPhone;
             if (!existingOrder.customerAddress && incomingAddr) mergeData.customer_address = incomingAddr;
+            orderArrivals.current.markLocal(existingOrder.id, mergedItems);
             const updated = await supabase.updateOrder(existingOrder.id, mergeData);
             if (updated) {
               // 로컬 state 직접 업데이트 (refreshOrders 제거)
@@ -565,13 +603,14 @@ export default function App() {
           vat: totalVal - Math.round(totalVal / 1.1),
           memo: orderData.memo || null,
         };
+        orderArrivals.current.markLocal(orderId, items);
         const created = await supabase.saveOrder(orderPayload);
 
         if (created) {
           // 로컬 state 직접 업데이트 (refreshOrders 제거)
           const newOrder = Array.isArray(created) ? created[0] : created;
           if (newOrder) {
-            setOrders(prev => [formatOrder(newOrder), ...prev]);
+            setOrders(prev => mergePosChange(prev, { eventType: 'INSERT', new: newOrder }, formatOrder, true));
           }
           // 재고 차감 (병렬)
           setSavingStep('재고 반영 중...');

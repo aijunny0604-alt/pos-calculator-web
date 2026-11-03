@@ -92,6 +92,11 @@ export const supabase = {
       return await fetchPosRows(`${SUPABASE_URL}/rest/v1/orders?order=created_at.desc,id.desc`, { headers });
     } catch (e) { console.error('getOrders:', e); return null; }
   },
+  async getOrdersSince(since) {
+    try {
+      return await fetchPosRows(`${SUPABASE_URL}/rest/v1/orders?created_at=gte.${encodeURIComponent(since)}&order=created_at.desc,id.desc`, { headers });
+    } catch (e) { console.error('getOrdersSince:', e); return null; }
+  },
   // 단건 주문 조회 — CustomerDetailModal에서 payment_record.order_id가 캐시에 없을 때 호출.
   // 이전엔 미정의 상태로 호출 → 런타임 크래시 위험. 2026-05-11 code-review Critical #1 fix.
   async getOrderById(orderId) {
