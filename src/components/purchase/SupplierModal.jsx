@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import ViewportModal from '@/components/ui/ViewportModal';
 
 // JSR 상세·편집·확인 창에 같은 뷰포트, 포커스, 입퇴장 모션을 적용한다.
-export default function SupplierModal({ title, subtitle, onClose, children, footer, busy = false, compact = false }) {
+export default function SupplierModal({ title, subtitle, onClose, children, footer, busy = false, compact = false, closeOnBackdrop = true }) {
   const titleId = useId();
   const dialog = useRef(null);
   const close = useRef(onClose);
@@ -16,6 +16,7 @@ export default function SupplierModal({ title, subtitle, onClose, children, foot
     document.body.style.overflow = 'hidden';
     dialog.current?.focus({ preventScroll: true });
     const onKey = (event) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') {
         event.preventDefault(); event.stopImmediatePropagation();
         if (!locked.current) close.current();
@@ -36,7 +37,7 @@ export default function SupplierModal({ title, subtitle, onClose, children, foot
       if (previous?.isConnected) previous.focus({ preventScroll: true });
     };
   }, []);
-  return <ViewportModal animated className="move-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6" onClick={() => !busy && onClose()}>
+  return <ViewportModal animated className="move-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6" onClick={() => closeOnBackdrop && !busy && onClose()}>
     <section ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
       className={`move-dialog w-full ${compact ? 'max-w-lg' : 'max-w-5xl'} max-h-full min-h-0 flex flex-col rounded-2xl border overflow-hidden outline-none`}
       style={{ background: 'var(--card)', borderColor: 'var(--border)' }} onClick={event => event.stopPropagation()}>

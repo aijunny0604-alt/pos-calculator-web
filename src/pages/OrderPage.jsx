@@ -73,7 +73,7 @@ export default function OrderPage({
   // ESC 키로 뒤로가기
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
         onBack();
       }
     };

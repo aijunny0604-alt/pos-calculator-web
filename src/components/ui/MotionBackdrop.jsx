@@ -1,8 +1,9 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 
 // 업무 콜백은 즉시 끝내고, 퇴장 장면만 잠깐 유지한다. 복제본에는 이벤트/포커스가 없다.
-export default forwardRef(function MotionBackdrop({ children, ...props }, forwardedRef) {
+export default forwardRef(function MotionBackdrop({ children, onPointerDownCapture, onClickCapture, ...props }, forwardedRef) {
   const root = useRef(null);
+  const pointerStart = useRef(null);
   useImperativeHandle(forwardedRef, () => root.current);
   useLayoutEffect(() => {
     const node = root.current;
@@ -36,5 +37,13 @@ export default forwardRef(function MotionBackdrop({ children, ...props }, forwar
       });
     };
   }, []);
-  return <div ref={root} {...props}>{children}</div>;
+  return <div ref={root} {...props} onPointerDownCapture={event => {
+    pointerStart.current = event.target;
+    onPointerDownCapture?.(event);
+  }} onClickCapture={event => {
+    const draggedOut = event.detail !== 0 && event.target === event.currentTarget && pointerStart.current && pointerStart.current !== event.currentTarget;
+    pointerStart.current = null;
+    if (draggedOut) { event.stopPropagation(); return; }
+    onClickCapture?.(event);
+  }}>{children}</div>;
 });

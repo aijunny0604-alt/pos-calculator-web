@@ -48,7 +48,7 @@ export default function PurchaseDocs({ showToast, onCount }) {
       const f = [...(e.clipboardData?.files || [])].find((x) => x.type.startsWith('image/'));
       if (f) attachFile(f);
     };
-    const onKey = (e) => { if (e.key === 'Escape' && !saving) setEditing(null); };
+    const onKey = (e) => { if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229 && !saving) setEditing(null); };
     window.addEventListener('paste', onPaste);
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('paste', onPaste); window.removeEventListener('keydown', onKey); };

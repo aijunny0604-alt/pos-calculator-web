@@ -234,7 +234,7 @@ export default function SavedCarts({
   // ESC key handler
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
         if (showCalculatorModal) {
           setShowCalculatorModal(false);
           setCalculatorInitialValue(null);
@@ -910,7 +910,7 @@ export default function SavedCarts({
                               onChange={(e) => setReplaceSearchTerm(e.target.value)}
                               onFocus={handleSearchFocus}
                               aria-label="교체할 제품 검색"
-                              onKeyDown={(e) => { if (e.key === 'Escape') setReplaceLineIdx(null); }}
+                              onKeyDown={(e) => { if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) setReplaceLineIdx(null); }}
                               placeholder="제품명으로 검색"
                               className="w-full pl-9 pr-3 py-2 text-sm bg-[var(--background)] border-2 rounded-lg focus:outline-none"
                               style={{ borderColor: 'var(--primary)' }}

@@ -658,7 +658,7 @@ export default function BurnwayStock({ products = [], formatPrice, onBack }) {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
         if (selectedModel) setSelectedModel(null);
         else onBack();
       }

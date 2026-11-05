@@ -81,7 +81,7 @@ export default function TextAnalyze({
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') (onClose || onBack)?.()
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) (onClose || onBack)?.()
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -1560,7 +1560,7 @@ ${aiLearningData.slice(0, 50).map(l =>
                   className="w-full px-3 py-2.5 rounded-lg border text-sm"
                   style={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)', fontSize: '16px' }}
                   autoFocus
-                  onKeyDown={e => { if (e.key === 'Enter') saveReason(showReasonInput); if (e.key === 'Escape') setShowReasonInput(null); }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) saveReason(showReasonInput); if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) setShowReasonInput(null); }}
                 />
                 <div className="mt-2 flex flex-wrap gap-1">
                   {['별칭', '오탈자', '줄임말', '동의어'].map(tag => (

@@ -265,7 +265,7 @@ export default function OrderHistory({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (isDetailModalOpen) return;
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
         if (deleteConfirm) {
           setDeleteConfirm(null);
         } else if (showBulkDeleteConfirm) {
@@ -552,7 +552,7 @@ export default function OrderHistory({
   const mmddLabel = (d) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : '');
 
   // ◀ [📅 M/D] ▶ 날짜 스테퍼 (두 필터 줄에서 재사용). 가운데 라벨은 클릭 시 달력 오픈
-  const DateStepper = ({ small }) => {
+  const renderDateStepper = (small = false) => {
     const btn = small ? 'w-9 h-9 text-lg' : 'w-11 h-11 text-2xl';
     const mid = small ? 'px-3 py-1.5 text-sm' : 'px-4 py-2.5 text-lg';
     return (
@@ -718,7 +718,7 @@ export default function OrderHistory({
           {/* Date filter buttons - always visible */}
           {isHeaderCollapsed && (
             <div className="mt-2 flex flex-wrap gap-1.5 items-center">
-              <DateStepper small />
+              {renderDateStepper(true)}
               {dateFilterOptions.map(({ key, label }) => (
                 <button
                   key={key}
@@ -979,7 +979,7 @@ export default function OrderHistory({
 
             {/* Date filter buttons */}
             <div className="flex flex-wrap gap-2 items-center">
-              <DateStepper />
+              {renderDateStepper()}
               {dateFilterOptions.map(({ key, label }) => (
                 <button
                   key={key}

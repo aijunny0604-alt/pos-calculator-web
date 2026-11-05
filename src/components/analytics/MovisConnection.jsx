@@ -17,7 +17,7 @@ export default function MovisConnection({onChange,busy,active=true}) {
  useEffect(()=>{if(active&&!busy)refresh()},[active,busy,refresh]);
  useEffect(()=>{
   if(!open||!active)return;const previous=document.activeElement;dialogRef.current?.querySelector('button')?.focus();
-  const key=e=>{if(e.key==='Escape')setOpen(false);if(e.key==='Tab'){const ns=[...dialogRef.current.querySelectorAll('button:not(:disabled),select:not(:disabled),a[href]')];const a=ns[0],b=ns.at(-1);if(e.shiftKey&&document.activeElement===a){e.preventDefault();b?.focus()}else if(!e.shiftKey&&document.activeElement===b){e.preventDefault();a?.focus()}}};
+  const key=e=>{if(e.key==='Escape'&&!e.isComposing&&e.keyCode!==229)setOpen(false);if(e.key==='Tab'){const ns=[...dialogRef.current.querySelectorAll('button:not(:disabled),select:not(:disabled),a[href]')];const a=ns[0],b=ns.at(-1);if(e.shiftKey&&document.activeElement===a){e.preventDefault();b?.focus()}else if(!e.shiftKey&&document.activeElement===b){e.preventDefault();a?.focus()}}};
   document.addEventListener('keydown',key);return()=>{document.removeEventListener('keydown',key);previous?.focus()};
  },[open,active]);
  const limits=usageWindows(status?.rateLimits),connected=status?.connected&&!error;

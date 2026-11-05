@@ -197,7 +197,7 @@ export default function CommandBar({
     if (!open) return undefined;
 
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.isComposing && !event.nativeEvent?.isComposing && event.keyCode !== 229) {
         event.preventDefault();
         close();
         return;
@@ -215,7 +215,7 @@ export default function CommandBar({
         return;
       }
 
-      if (event.key === 'Enter' && flatResults[selectedIndex]) {
+      if (event.key === 'Enter' && !event.isComposing && !event.nativeEvent?.isComposing && event.keyCode !== 229 && flatResults[selectedIndex]) {
         event.preventDefault();
         runAction(flatResults[selectedIndex].action);
       }

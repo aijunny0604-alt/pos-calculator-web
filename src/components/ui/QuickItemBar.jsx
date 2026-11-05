@@ -125,8 +125,8 @@ export default function QuickItemBar({ onAddLine, compact = false }) {
               onChange={(e) => setPriceEdit({ ...priceEdit, value: e.target.value.replace(/[^\d]/g, '') })}
               onFocus={(e) => e.target.select()} // 바로 덮어쓸 수 있게
               onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); confirmPriceEdit(); }
-                if (e.key === 'Escape') { e.preventDefault(); setPriceEdit(null); }
+                if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) { e.preventDefault(); confirmPriceEdit(); }
+                if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) { e.preventDefault(); setPriceEdit(null); }
               }}
               className="w-28 px-2.5 py-1.5 rounded-lg text-lg font-black border outline-none text-right tabular-nums"
               style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}

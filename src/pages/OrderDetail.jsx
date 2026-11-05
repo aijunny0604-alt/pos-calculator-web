@@ -221,7 +221,7 @@ export default function OrderDetail({
   // ESC key handling
   useEffect(() => {
     const handleEsc = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
         e.stopPropagation();
         if (replacingItemIndex !== null) {
           setReplacingItemIndex(null);

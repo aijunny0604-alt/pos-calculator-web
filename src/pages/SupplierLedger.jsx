@@ -57,7 +57,7 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
   useEffect(() => {
     if (!editing && !confirmDelete) return;
     const onKey = (e) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229) return;
       if (confirmDelete) { setConfirmDelete(null); return; }
       if (!saving) setEditing(null);
     };
@@ -306,7 +306,7 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
         </>}
       </div>
 
-      {editing && <SupplierModal title={editing.id ? 'JSR 기록 수정' : 'JSR 기록 추가'} onClose={() => setEditing(null)} busy={saving}
+      {editing && <SupplierModal title={editing.id ? 'JSR 기록 수정' : 'JSR 기록 추가'} onClose={() => setEditing(null)} busy={saving} closeOnBackdrop={false}
         footer={<><button onClick={() => setEditing(null)} disabled={saving} className="min-h-11 px-5 border rounded-xl">취소</button><button onClick={save} disabled={saving} className="min-h-11 px-7 rounded-xl text-white disabled:opacity-60" style={{ background: 'var(--primary)' }}>{saving ? '저장 중...' : '저장'}</button></>}>
         <div className="space-y-5">
               <div>

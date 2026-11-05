@@ -317,7 +317,7 @@ export default function DefectReturns({ showToast, onCount, onOpenStorage, initi
       </SupplierModal>}
 
       {/* 기록/수정 모달 */}
-      {editing && <SupplierModal title={editing.id ? '발송 기록 수정' : '발송 기록 추가'} onClose={() => setEditing(null)} busy={saving}
+      {editing && <SupplierModal title={editing.id ? '발송 기록 수정' : '발송 기록 추가'} onClose={() => setEditing(null)} busy={saving} closeOnBackdrop={false}
         footer={<><button onClick={() => setEditing(null)} disabled={saving} className="min-h-11 px-5 rounded-xl border">취소</button><button onClick={save} disabled={saving} className="min-h-11 px-7 rounded-xl text-white disabled:opacity-50" style={{ background: 'var(--primary)' }}>{saving ? '저장 중...' : '저장'}</button></>}>
         <div className="space-y-5">
               {editing.fromStorage && <p className="rounded-xl border p-3 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>보관 기록에서 가져왔습니다. 실제 발송일과 수령 내역을 확인해 입력하세요. 저장 후 보관 기록은 직접 정리해야 합니다.</p>}

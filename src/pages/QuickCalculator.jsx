@@ -40,12 +40,12 @@ export default function QuickCalculator({ onClose, initialValue = null }) {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
         e.stopPropagation();
         onClose();
         return;
       }
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
         e.preventDefault();
         e.stopPropagation();
         performOperationRef.current('=');

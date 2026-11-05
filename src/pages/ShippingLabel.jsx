@@ -201,7 +201,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
         if (showAddCustomModal) { setShowAddCustomModal(false); return; }
         onBack();
       }

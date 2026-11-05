@@ -13,7 +13,7 @@ export default function MovisBoot() {
     if (content) content.inert = true;
     root.current?.querySelector('button')?.focus({ preventScroll: true });
     const close = () => setVisible(false);
-    const key = e => { if (e.key === 'Escape') close(); };
+    const key = e => { if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) close(); };
     const timer = setTimeout(close, 2400);
     document.addEventListener('keydown', key);
     return () => {

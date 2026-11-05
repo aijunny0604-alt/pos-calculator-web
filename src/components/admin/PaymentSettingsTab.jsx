@@ -8,6 +8,24 @@ import { Save, RefreshCw, Building2, Phone, MapPin, CreditCard, Hash } from 'luc
  * - 인보이스 prefix + 다음 번호
  * - 주문 → 결제 레코드 동기화
  */
+const Field = ({ icon: Icon, label, value, onChange, placeholder, type = 'text' }) => (
+    <div>
+      <label className="text-xs font-semibold mb-1 flex items-center gap-1.5 text-[var(--foreground)]">
+        <Icon className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
+        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
+      />
+    </div>
+  );
+
+
 export default function PaymentSettingsTab({ showToast }) {
   const [settings, setSettings] = useState(null);
   const [form, setForm] = useState({});
@@ -68,22 +86,6 @@ export default function PaymentSettingsTab({ showToast }) {
     return <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">설정 로드 중...</div>;
   }
 
-  const Field = ({ icon: Icon, label, value, onChange, placeholder, type = 'text' }) => (
-    <div>
-      <label className="text-xs font-semibold mb-1 flex items-center gap-1.5 text-[var(--foreground)]">
-        <Icon className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2"
-        style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }}
-      />
-    </div>
-  );
 
   return (
     <div className="space-y-6 max-w-3xl">

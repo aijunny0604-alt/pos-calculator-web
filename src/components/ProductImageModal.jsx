@@ -20,7 +20,7 @@ export default function ProductImageModal({ product, onClose, onSaved, showToast
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape' && !uploading && !saving) onClose?.(); };
+    const onKey = (e) => { if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229 && !uploading && !saving) onClose?.(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, uploading, saving]);

@@ -413,7 +413,7 @@ export default function OrderConfirmEditable({
                 placeholder="금액"
                 className="w-28 px-3 py-2 rounded-lg text-sm font-mono"
                 style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.3)', color: '#e8f4fd' }}
-                onKeyDown={(e) => { if (e.key === 'Enter') addSurcharge(customSurchargeLabel, customSurchargePrice); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) addSurcharge(customSurchargeLabel, customSurchargePrice); }}
               />
               <button
                 onClick={() => addSurcharge(customSurchargeLabel, customSurchargePrice)}

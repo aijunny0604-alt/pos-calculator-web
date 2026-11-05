@@ -13,7 +13,7 @@ export default function ConfirmDialog({ isOpen, title, message, onConfirm, onCan
     first?.focus({ preventScroll: true });
     const key = e => {
       if (!panel.current?.contains(document.activeElement)) return;
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel.current?.(); }
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) { e.preventDefault(); e.stopPropagation(); cancel.current?.(); }
       if (e.key === 'Tab') {
         const controls = [...panel.current.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')];
         const first = controls[0], last = controls.at(-1);

@@ -16,7 +16,7 @@ export default function ProductGalleryModal({ images, productName, onClose, init
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) onClose?.();
       else if (e.key === 'ArrowLeft') setIndex((i) => Math.max(0, i - 1));
       else if (e.key === 'ArrowRight') setIndex((i) => Math.min(count - 1, i + 1));
     };

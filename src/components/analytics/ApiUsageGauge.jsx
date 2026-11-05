@@ -113,7 +113,7 @@ export default function ApiUsageGauge({ defaultExpanded = false, compact = false
       if (!inChip && !inPopover) setExpanded(false);
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') setExpanded(false);
+      if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) setExpanded(false);
     };
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);

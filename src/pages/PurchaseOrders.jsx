@@ -288,7 +288,7 @@ export default function PurchaseOrders({ showToast, setCurrentPage, products = [
     if (!editing && !confirmDelete && !receiving && !viewQuote) return;
     // 위에 뜬 것부터 닫는다 (발주서 열람 > 삭제확인/입고 > 편집모달)
     const onKey = (e) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229) return;
       if (viewQuote) { setViewQuote(null); return; }
       if (confirmDelete) { setConfirmDelete(null); return; }
       if (receiving) { if (!saving) setReceiving(null); return; }

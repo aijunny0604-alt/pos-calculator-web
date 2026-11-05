@@ -18,7 +18,7 @@ export default function ProductReplacementModal({ currentItem, products, query, 
     if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) input.current?.focus({ preventScroll: true });
     else dialog.current?.focus({ preventScroll: true });
     const handleKey = (event) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.isComposing && !event.nativeEvent?.isComposing && event.keyCode !== 229) {
         event.preventDefault();
         event.stopImmediatePropagation();
         close.current();

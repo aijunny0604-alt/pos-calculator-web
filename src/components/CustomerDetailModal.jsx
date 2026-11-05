@@ -175,7 +175,7 @@ export default function CustomerDetailModal({ open, customer, onClose, onBulkPay
   // ESC 키로 닫기
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => { if (e.key === 'Escape' && !orderDetail) onClose?.(); };
+    const onKey = (e) => { if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229 && !orderDetail) onClose?.(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose, orderDetail]);

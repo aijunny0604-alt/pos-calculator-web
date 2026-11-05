@@ -2990,7 +2990,7 @@ export default function SmartStoreOrders({
                   <input type="text" inputMode="numeric"
                     value={dispatchTracking}
                     onChange={(e) => setDispatchTracking(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && dReady) submitDispatch(); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229 && dReady) submitDispatch(); }}
                     placeholder="1234-5678-9012"
                     className="w-full px-4 py-3.5 rounded-xl border text-lg font-mono tracking-wide outline-none focus:ring-2 focus:ring-[#03c75a]/35 transition-shadow"
                     style={{

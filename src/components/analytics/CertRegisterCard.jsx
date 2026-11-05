@@ -67,7 +67,7 @@ export default function CertRegisterCard({ extract, customers = [], onRegister }
     );
   }
 
-  const Field = ({ label, k, span }) => (
+  const renderField = (label, k, span = false) => (
     <label className={`flex flex-col gap-0.5 ${span ? 'col-span-2' : ''}`}>
       <span className="text-[11px] font-bold" style={{ color: 'var(--muted-foreground)' }}>{label}</span>
       <input value={form[k]} onChange={set(k)}
@@ -87,11 +87,11 @@ export default function CertRegisterCard({ extract, customers = [], onRegister }
           <img src={extract.dataUrl} alt="cert" className="w-20 h-20 object-cover rounded-lg border flex-shrink-0" style={{ borderColor: 'var(--border)' }} />
         )}
         <div className="grid grid-cols-2 gap-2 flex-1 min-w-0">
-          <Field label="상호" k="name" span />
-          <Field label="사업자번호" k="bizNo" />
-          <Field label="대표자" k="owner" />
-          <Field label="주소" k="address" span />
-          <Field label="전화(선택)" k="phone" span />
+          {renderField('상호', 'name', true)}
+          {renderField('사업자번호', 'bizNo')}
+          {renderField('대표자', 'owner')}
+          {renderField('주소', 'address', true)}
+          {renderField('전화(선택)', 'phone', true)}
         </div>
       </div>
 

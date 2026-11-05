@@ -422,8 +422,8 @@ function ProductsTab({ products, setProducts, supabaseConnected, showToast, supa
   const cancelInlineEdit = () => setInlineEdit(null);
 
   const handleInlineKeyDown = (e) => {
-    if (e.key === 'Enter') saveInlineEdit();
-    else if (e.key === 'Escape') cancelInlineEdit();
+    if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) saveInlineEdit();
+    else if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) cancelInlineEdit();
   };
 
   const displayProducts = (products && products.length > 0) ? products : priceData;
@@ -1165,8 +1165,8 @@ function CustomersTab({ customers, setCustomers, supabaseConnected, showToast, s
 
   const cancelInlineEdit = () => setInlineEdit(null);
   const handleInlineKeyDown = (e) => {
-    if (e.key === 'Enter') saveInlineEdit();
-    else if (e.key === 'Escape') cancelInlineEdit();
+    if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) saveInlineEdit();
+    else if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) cancelInlineEdit();
   };
 
   const filtered = useMemo(() => {
@@ -1652,7 +1652,7 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
             type="text"
             value={addName}
             onChange={e => setAddName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            onKeyDown={e => e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229 && handleAdd()}
             placeholder="새 카테고리명 입력..."
             autoFocus
             className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
@@ -1712,7 +1712,7 @@ function CategoriesTab({ products, setProducts, supabaseConnected, showToast, su
           required
           value={newName}
           onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleRename()}
+          onKeyDown={e => e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229 && handleRename()}
           placeholder="카테고리명 입력"
           autoFocus
         />
@@ -2040,7 +2040,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                   type="text"
                   value={newModelName}
                   onChange={(e) => setNewModelName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddModel(); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) handleAddModel(); }}
                   placeholder="새 차량 모델명 입력"
                   className="flex-1 px-4 py-3 text-base rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 />
@@ -2196,7 +2196,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                                 min="0"
                                 value={editingStock.value}
                                 onChange={(e) => setEditingStock({ ...editingStock, value: e.target.value })}
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleStockSave(p); if (e.key === 'Escape') setEditingStock(null); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) handleStockSave(p); if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) setEditingStock(null); }}
                                 onBlur={() => handleStockSave(p)}
                                 autoFocus
                                 className="w-16 sm:w-20 px-3 py-2 text-sm text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
@@ -2253,7 +2253,7 @@ function BurnwayTab({ products, setProducts, supabaseConnected, showToast, supab
                     {isEditing ? (
                       <input type="number" min="0" value={editingStock.value}
                         onChange={(e) => setEditingStock({ ...editingStock, value: e.target.value })}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleStockSave(p); if (e.key === 'Escape') setEditingStock(null); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) handleStockSave(p); if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) setEditingStock(null); }}
                         onBlur={() => handleStockSave(p)} autoFocus
                         className="w-16 sm:w-20 px-3 py-2 text-sm text-center rounded border border-[var(--primary)] bg-[var(--card)] text-[var(--foreground)] focus:outline-none"
                       />
@@ -2784,7 +2784,7 @@ ${inputText}
                     <div className="ml-6 mt-2 flex items-center gap-1.5">
                       <input value={reasonText} onChange={e => setReasonText(e.target.value)}
                         placeholder="수정 사유 (선택)" autoFocus
-                        onKeyDown={e => { if (e.key === 'Enter') saveReason(idx); if (e.key === 'Escape') { setReasonIdx(null); saveReason(idx); } }}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) saveReason(idx); if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) { setReasonIdx(null); saveReason(idx); } }}
                         className="flex-1 px-2 py-1 text-xs border border-blue-400 rounded text-gray-700 placeholder:text-gray-400" />
                       <button onClick={() => saveReason(idx)} className="px-2 py-1 text-[10px] bg-blue-600 text-white rounded">저장</button>
                       <button onClick={() => { setReasonIdx(null); saveReason(idx); }} className="px-2 py-1 text-[10px] bg-gray-200 text-gray-600 rounded">건너뛰기</button>
@@ -4029,7 +4029,7 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
     setAddingId(null);
   };
 
-  const TierFormInline = ({ productId, tierIndex = null }) => (
+  const renderTierForm = (productId, tierIndex = null) => (
     <div className="mt-3 p-2 sm:p-3 rounded-lg bg-[var(--muted)] border border-[var(--border)] flex flex-wrap gap-2 items-end">
       <InputField
         label="최소수량"
@@ -4193,15 +4193,13 @@ function DiscountTiersTab({ products, setProducts, supabaseConnected, showToast,
                                   </button>
                                 </div>
                               </div>
-                              {isEditingThis && (
-                                <TierFormInline productId={product.id} tierIndex={idx} />
-                              )}
+                              {isEditingThis && renderTierForm(product.id, idx)}
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    {isAdding && <TierFormInline productId={product.id} />}
+                    {isAdding && renderTierForm(product.id)}
                   </div>
                 )}
               </SectionCard>
