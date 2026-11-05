@@ -37,6 +37,7 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
   const [loadFailed, setLoadFailed] = useState(false);
   const setTab = (next) => { onTabChange?.(next); setQ(''); setLentStatus('all'); };
   const [returnCount, setReturnCount] = useState(null);
+  const [returnDraft, setReturnDraft] = useState(null);
   const [q, setQ] = useState('');
   const [lentStatus, setLentStatus] = useState('all');
   const [editing, setEditing] = useState(null);
@@ -205,7 +206,7 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4">
-        {tab === 'returns' ? <DefectReturns showToast={showToast} onCount={setReturnCount} onOpenStorage={() => setTab('defect')} /> : <>
+        {tab === 'returns' ? <DefectReturns showToast={showToast} onCount={setReturnCount} onOpenStorage={() => setTab('defect')} initialDraft={returnDraft} onDraftOpened={() => setReturnDraft(null)} /> : <>
         <div className="flex items-center justify-between gap-3 mb-4">
           <div><h2 className="font-bold text-lg">{KIND[tab].label}</h2><p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{KIND[tab].desc}</p></div>
           <button onClick={() => setEditing({ ...emptyRow(), kind: tab })} className="min-h-11 px-4 rounded-xl text-sm font-bold flex items-center gap-1 text-white shrink-0" style={{ background: 'var(--primary)' }}><Plus className="w-4 h-4" /> 기록 추가</button>
@@ -252,7 +253,7 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#a855f7' }} />
             <div style={{ color: 'var(--foreground)' }}>
               <b>여기는 누적 불량품 목록</b>입니다 — 발생할 때마다 품목별로 쌓아두는 곳(우리가 보유 중인 불량 재고).
-              <br />이미 보낸 제품은 <button className="underline font-bold min-h-11 px-1" onClick={() => setTab('returns')}>반품·교환</button>에서 발송일과 교환품 수령량을 기록하세요. 보관 기록과 발송 기록은 자동으로 이동하지 않습니다.
+              <br />보낸 제품은 각 항목의 <b>발송 기록</b>으로 발송일과 수령 내역을 남길 수 있습니다. 저장 후 보관 기록은 직접 정리해주세요.
             </div>
           </div>
         )}
@@ -287,7 +288,8 @@ export default function SupplierLedger({ showToast, setCurrentPage, tab = 'lent'
                   style={{ color: r.resolved ? 'var(--success)' : 'var(--warning)', background: `color-mix(in srgb, ${r.resolved ? 'var(--success)' : 'var(--warning)'} 10%, transparent)` }}>
                   {r.resolved ? <CheckCircle2 size={15} /> : <Clock3 size={15} />}{r.resolved ? '회수 완료' : '대여 중 · 미회수'}
                 </span> : <span className="text-xs font-semibold text-right xl:text-left" style={{ color: r.resolved ? 'var(--muted-foreground)' : 'var(--primary)' }}>{r.resolved ? '정리 완료' : r.kind === 'defect' ? '발송 전 · 보관 중' : '입고 대기'}</span>}
-                <div className="col-span-2 xl:col-span-1 flex items-center justify-end gap-1.5 border-t pt-2 xl:border-t-0 xl:pt-0" style={{ borderColor: 'var(--border)' }}>
+                <div className="col-span-2 xl:col-span-1 flex flex-wrap items-center justify-end gap-1.5 border-t pt-2 xl:border-t-0 xl:pt-0" style={{ borderColor: 'var(--border)' }}>
+                  {r.kind === 'defect' && !r.resolved && <button onClick={() => { setReturnDraft({ ...r }); setTab('returns'); }} className="min-h-11 px-3 rounded-lg text-sm font-semibold whitespace-nowrap border hover:bg-[var(--accent)] transition-colors" style={{ color: 'var(--primary)', borderColor: 'var(--border)' }}>발송 기록</button>}
                   <button onClick={() => toggleResolved(r)} className="min-h-11 px-3 rounded-lg text-sm font-semibold whitespace-nowrap hover:bg-[var(--muted)]" style={{ color: 'var(--primary)' }}>{r.resolved ? '완료 되돌리기' : r.kind === 'lent' ? '회수 완료' : '정리 완료'}</button>
                   <button aria-label={`${r.item_name} 수정`} onClick={() => setEditing({ ...r })} className="min-h-11 px-3 rounded-lg text-sm border" style={{ borderColor: 'var(--border)' }}>수정</button>
                   <button aria-label={`${r.item_name} 삭제`} onClick={() => setConfirmDelete(r)} className="min-h-11 min-w-11 flex items-center justify-center rounded-lg hover:bg-[var(--muted)]" style={{ color: 'var(--destructive)' }}><Trash2 className="w-4 h-4" /></button>

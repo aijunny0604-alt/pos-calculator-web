@@ -80,7 +80,7 @@ function buildKakaoText(row) {
   return lines.join('\n');
 }
 
-export default function DefectReturns({ showToast, onCount, onOpenStorage }) {
+export default function DefectReturns({ showToast, onCount, onOpenStorage, initialDraft, onDraftOpened }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [rows, setRows] = useState([]);
@@ -102,6 +102,12 @@ export default function DefectReturns({ showToast, onCount, onOpenStorage }) {
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!initialDraft) return;
+    setPasteText('');
+    setEditing({ return_date: '', supplier: 'JSR', items: [{ category: initialDraft.spec || '', spec: initialDraft.item_name || '', qty: initialDraft.qty, unit: initialDraft.unit === '세트' ? '세트' : '개', received_qty: 0, received_date: '', note: initialDraft.note || '' }], memo: initialDraft.note || '', status: '진행중', fromStorage: true });
+    onDraftOpened?.();
+  }, [initialDraft]);
   // 상위(매입 발주 탭 뱃지)로 건수 보고 — 로드/추가/삭제/완료 반영
   useEffect(() => { if (!loading && !loadFailed) onCount?.(rows.length); }, [rows, loading, loadFailed, onCount]);
 
@@ -134,7 +140,7 @@ export default function DefectReturns({ showToast, onCount, onOpenStorage }) {
 
   const save = async () => {
     const items = (editing.items || []).filter((it) => String(it.spec || '').trim() && num(it.qty) > 0)
-      .map((it) => ({ category: (it.category || '').trim(), spec: it.spec.trim(), qty: num(it.qty), unit: it.unit === '세트' ? '세트' : '개', received_qty: Math.min(num(it.received_qty), num(it.qty)), note: it.note || '' }));
+      .map((it) => ({ ...it, category: (it.category || '').trim(), spec: it.spec.trim(), qty: num(it.qty), unit: it.unit === '세트' ? '세트' : '개', received_qty: Math.max(0, Math.min(num(it.received_qty), num(it.qty))), received_date: it.received_date || null, note: it.note || '' }));
     if (!items.length) { showToast?.('품목을 최소 1개 입력해주세요', 'error'); return; }
     if (!editing.return_date) { showToast?.('발송일을 입력해주세요', 'error'); return; }
     setSaving(true);
@@ -144,7 +150,7 @@ export default function DefectReturns({ showToast, onCount, onOpenStorage }) {
       supplier: (editing.supplier || 'JSR').trim(),
       items,
       memo: editing.memo || null,
-      status: s.allBack ? '완료' : (editing.status || '진행중'),
+      status: s.allBack ? '완료' : '진행중',
       updated_at: new Date().toISOString(),
     };
     const res = editing.id
@@ -296,7 +302,7 @@ export default function DefectReturns({ showToast, onCount, onOpenStorage }) {
           <ul aria-label="반품 상세 품목">{(selected.items || []).map((it, i) => {
             const full = num(it.received_qty) >= num(it.qty);
             return <li key={i} className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_80px_176px] gap-x-4 gap-y-3 items-center px-4 py-4 border-t first:border-t-0" style={{ borderColor: 'var(--border)' }}>
-              <div className="min-w-0"><span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{it.category || '기타'}</span><div className="font-semibold text-base sm:text-lg break-words mt-1">{it.spec}</div>{it.note && <p className="text-sm mt-1 break-words" style={{ color: 'var(--muted-foreground)' }}>{it.note}</p>}</div>
+              <div className="min-w-0"><span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{it.category || '기타'}</span><div className="font-semibold text-base sm:text-lg break-words mt-1">{it.spec}</div>{it.received_date && <p className="text-sm mt-1" style={{ color: 'var(--success)' }}>수령일 {it.received_date}</p>}{it.note && <p className="text-sm mt-1 break-words" style={{ color: 'var(--muted-foreground)' }}>{it.note}</p>}</div>
               <span className="text-lg font-semibold tabular-nums text-right">{num(it.qty)}<small className="ml-1 text-sm font-normal">{it.unit}</small></span>
               <div className="col-span-2 sm:col-span-1 flex items-center justify-end sm:justify-center gap-2">
                 <span className="sm:hidden mr-auto text-sm" style={{ color: 'var(--muted-foreground)' }}>수령 수량</span>
@@ -314,6 +320,7 @@ export default function DefectReturns({ showToast, onCount, onOpenStorage }) {
       {editing && <SupplierModal title={editing.id ? '발송 기록 수정' : '발송 기록 추가'} onClose={() => setEditing(null)} busy={saving}
         footer={<><button onClick={() => setEditing(null)} disabled={saving} className="min-h-11 px-5 rounded-xl border">취소</button><button onClick={save} disabled={saving} className="min-h-11 px-7 rounded-xl text-white disabled:opacity-50" style={{ background: 'var(--primary)' }}>{saving ? '저장 중...' : '저장'}</button></>}>
         <div className="space-y-5">
+              {editing.fromStorage && <p className="rounded-xl border p-3 text-sm" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>보관 기록에서 가져왔습니다. 실제 발송일과 수령 내역을 확인해 입력하세요. 저장 후 보관 기록은 직접 정리해야 합니다.</p>}
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-sm font-bold" style={{ color: 'var(--muted-foreground)' }}>발송일
                   <input type="date" value={editing.return_date} onChange={(e) => setEditing({ ...editing, return_date: e.target.value })}
@@ -360,6 +367,12 @@ export default function DefectReturns({ showToast, onCount, onOpenStorage }) {
                         <option value="개">개</option><option value="세트">세트</option>
                       </select>
                       <button onClick={() => delItem(i)} className="p-3 min-h-11 min-w-11 rounded-lg" style={{ color: 'var(--destructive)' }}><Trash2 className="w-3.5 h-3.5" /></button>
+                      <label className="col-span-3 text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>받은 수량
+                        <input aria-label={`${it.spec || '품목'} 수령 수량`} type="number" min="0" max={num(it.qty)} value={it.received_qty ?? 0} onChange={(e) => setItem(i, { received_qty: e.target.value })} className="mt-1 w-full min-h-11 px-2 rounded-lg border text-base" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+                      </label>
+                      <label className="col-span-3 text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>수령일 (선택)
+                        <input aria-label={`${it.spec || '품목'} 수령일`} type="date" value={it.received_date || ''} onChange={(e) => setItem(i, { received_date: e.target.value })} className="mt-1 w-full min-w-0 min-h-11 px-2 rounded-lg border text-base" style={{ background: 'var(--background)', borderColor: 'var(--border)', color: 'var(--foreground)' }} />
+                      </label>
                     </div>
                   ))}
                 </div>
