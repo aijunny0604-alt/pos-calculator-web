@@ -43,7 +43,7 @@ try {
   }
   const store = await browser.newPage({ viewport: { width: 1366, height: 768 } });
   await store.goto('http://127.0.0.1:5186/pos-calculator-web/design-preview.html?storeCheck=1');
-  await store.getByTitle('컴팩트 모드로 (한 줄 표시)').click();
+  await store.getByRole('button', { name: '목록형', exact: true }).click();
   await store.getByText('오늘 발주확인', { exact: true }).first().click();
   const storePanel = store.locator('.modal-fs-transition').last();
   await storePanel.waitFor();

@@ -6,7 +6,7 @@ import MotionBackdrop from '@/components/ui/MotionBackdrop';
 // - Mock 데이터 주입 (Phase 1 — API 키 받기 전 테스트용)
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu, Ban, Copy, Maximize2, Minimize2, Store, Clock } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu, Ban, Copy, Maximize2, Minimize2, Store, Clock, List, LayoutGrid, PanelsTopLeft } from 'lucide-react';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/components/StoreOrderAlerts';
 import { matchCustomer } from '@/lib/fuzzyMatch';
@@ -460,12 +460,11 @@ export default function SmartStoreOrders({
   const ackLog = () => { const now = Date.now(); setLogAckAt(now); try { localStorage.setItem('pos_store_log_ack_at', String(now)); } catch { /* noop */ } };
   // 뷰 모드 — localStorage 영구 저장 (주문 많을 때 컴팩트로 한눈에)
   const [viewMode, setViewMode] = useState(() => {
-    try { return localStorage.getItem('smartstore_view_mode') || 'card'; } catch { return 'card'; }
+    try { const saved = localStorage.getItem('smartstore_view_mode'); return ['compact', 'grid', 'card'].includes(saved) ? saved : 'card'; } catch { return 'card'; }
   });
   // 컴팩트 모드 row 클릭 펼침
   const [expandedCompactId, setExpandedCompactId] = useState(null);
-  const toggleViewMode = () => {
-    const next = viewMode === 'card' ? 'compact' : 'card';
+  const changeViewMode = (next) => {
     setViewMode(next);
     try { localStorage.setItem('smartstore_view_mode', next); } catch {}
   };
@@ -1772,15 +1771,11 @@ export default function SmartStoreOrders({
           <option value="amount">💰 금액순</option>
           <option value="status">📊 상태순</option>
         </select>
-        {/* 뷰 모드 토글 — 카드 / 컴팩트 */}
-        <button
-          onClick={toggleViewMode}
-          className="text-sm px-3 py-1.5 rounded border ml-auto flex items-center gap-1 hover:bg-[var(--accent)]"
-          style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
-          title={viewMode === 'card' ? '컴팩트 모드로 (한 줄 표시)' : '카드 모드로 (디테일 표시)'}
-        >
-          {viewMode === 'card' ? '📋 컴팩트' : '🔲 카드'}
-        </button>
+        <div className="shipping-view-switch ml-auto" role="group" aria-label="스토어 주문 보기 방식">
+          <button type="button" aria-pressed={viewMode === 'compact'} onClick={() => changeViewMode('compact')}><List aria-hidden="true" /> 목록형</button>
+          <button type="button" aria-pressed={viewMode === 'grid'} onClick={() => changeViewMode('grid')}><LayoutGrid aria-hidden="true" /> 카드형</button>
+          <button type="button" aria-pressed={viewMode === 'card'} onClick={() => changeViewMode('card')}><PanelsTopLeft aria-hidden="true" /> 상세형</button>
+        </div>
         {/* 처리완료 카드 표시 토글 */}
         <label className="text-sm flex items-center gap-1.5 cursor-pointer px-3 py-1.5 rounded border"
           style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
@@ -1844,11 +1839,11 @@ export default function SmartStoreOrders({
             )}
           </div>
         )}
-        {viewMode === 'compact' && (
-          <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+        {(viewMode === 'compact' || viewMode === 'grid') && (
+          <div className={viewMode === 'grid' ? 'store-compact-grid' : 'rounded-xl border overflow-hidden'} style={viewMode === 'grid' ? undefined : { background: 'var(--card)', borderColor: 'var(--border)' }}>
             {/* 일괄 선택 액션 바 (선택된 게 있을 때만) */}
             {selectedOrderIds.size > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ background: 'rgba(0,212,255,0.10)', borderColor: 'var(--border)' }}>
+              <div className="store-grid-bulk-actions flex items-center gap-2 px-3 py-2 border-b" style={{ background: 'rgba(0,212,255,0.10)', borderColor: 'var(--border)' }}>
                 <span className="text-sm font-bold" style={{ color: '#4dffff' }}>{selectedOrderIds.size}건 선택</span>
                 <button onClick={copySelectedOrders}
                   className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"
@@ -1873,7 +1868,7 @@ export default function SmartStoreOrders({
               </div>
             )}
             {/* 컴팩트 헤더 (데스크탑만) — 체크박스 컬럼 추가. 헤더 정렬을 각 셀과 일치시킴 */}
-            <div className="hidden lg:grid grid-cols-[34px_minmax(0,2.2fr)_88px_minmax(0,0.85fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.75fr)] gap-3 px-3 py-2.5 text-xs font-bold opacity-70 border-b uppercase tracking-wide items-center"
+            <div className="store-compact-header hidden lg:grid grid-cols-[34px_minmax(0,2.2fr)_88px_minmax(0,0.85fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.75fr)] gap-3 px-3 py-2.5 text-xs font-bold opacity-70 border-b uppercase tracking-wide items-center"
               style={{ borderColor: 'var(--border)' }}>
               <span className="text-center">
                 <input type="checkbox" className="w-4 h-4"
@@ -2036,7 +2031,7 @@ export default function SmartStoreOrders({
                   <MotionBackdrop className={`motion-modal-backdrop fixed inset-0 z-50 flex justify-center animate-modal-backdrop modal-backdrop-fs-transition ${modalFullscreen ? 'items-stretch p-0' : 'items-stretch sm:items-center p-0 sm:p-4'}`}
                     style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
                     onClick={() => setExpandedCompactId(null)}>
-                    <div className={`motion-modal-panel w-full flex flex-col border shadow-2xl animate-modal-up modal-fs-transition text-base sm:text-[17px] overflow-hidden ${modalFullscreen
+                    <div role="dialog" aria-modal="true" aria-label="주문 상세" className={`motion-modal-panel w-full flex flex-col border shadow-2xl animate-modal-up modal-fs-transition text-base sm:text-[17px] overflow-hidden ${modalFullscreen
                         ? 'max-w-none h-full max-h-none rounded-none'
                         : 'max-w-3xl h-full sm:h-auto max-h-[100dvh] sm:max-h-[94dvh] rounded-none sm:rounded-2xl'}`}
                       style={{ background: 'var(--card)', borderColor: 'var(--border)' }}

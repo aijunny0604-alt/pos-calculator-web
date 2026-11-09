@@ -426,6 +426,35 @@
  @media(max-width:639px){.shipping-recipient-card[data-selected=true] .shipping-recipient-main{padding:12px}.shipping-selection-settings{padding:14px 12px!important}.shipping-setting-actions>button:first-child{flex:1}}
 }
 
+/* 송장 목록과 카드 보기는 동일한 주문 상태와 설정을 공유한다. */
+@media screen {
+ .shipping-list-toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+ .shipping-view-switch{display:inline-flex;align-items:center;padding:3px;gap:2px;border:1px solid var(--border);border-radius:10px;background:var(--secondary)}
+ .shipping-view-switch button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;padding:5px 10px;border:0;border-radius:7px;color:var(--muted-foreground);font-size:13px;font-weight:600;white-space:nowrap;transition:background-color .18s,color .18s,box-shadow .18s}
+ .shipping-view-switch button svg{width:15px;height:15px}
+ .shipping-view-switch button[aria-pressed=true]{background:var(--card);color:var(--primary);box-shadow:0 1px 4px #1235421c}
+ .shipping-view-switch button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+ .shipping-recipient-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,390px),1fr));gap:12px;align-items:start}
+ .shipping-recipient-grid>.shipping-recipient-card{min-width:0}
+ .shipping-recipient-grid .shipping-card-body .shipping-contact-grid{grid-template-columns:minmax(0,1fr);gap:0}
+ .shipping-recipient-grid .shipping-contact-field{padding:9px 0 0;border-left:0;border-top:1px solid var(--border);margin-top:8px}
+ .shipping-recipient-grid .shipping-recipient-card[data-selected=true] .shipping-contact-field{margin-top:0}
+ .shipping-recipient-grid .shipping-selection-settings>.grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ @media(max-width:639px){.shipping-view-switch button{min-height:40px}.shipping-recipient-grid{gap:10px}}
+}
+
+@media screen {
+ .store-compact-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,390px),1fr));gap:12px;align-items:start}
+ .store-compact-grid>.store-compact-header{display:none}
+ .store-compact-grid>.store-grid-bulk-actions{grid-column:1/-1;flex-wrap:wrap;border:1px solid var(--border);border-radius:12px}
+ .store-compact-grid>.border-b{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:12px;background:var(--card);box-shadow:0 2px 8px #1235420a}
+ .store-compact-grid .order-row-premium{display:flex;flex-wrap:wrap;gap:10px;padding:16px;align-items:center}
+ .store-compact-grid .order-row-premium>div:first-of-type{min-width:0;flex:1 1 calc(100% - 36px)}
+ .store-compact-grid .order-row-premium>div:last-child{flex:1 1 100%;width:100%;padding-top:10px;border-top:1px solid var(--border)}
+ .store-compact-grid .order-row-premium>div:not(:first-of-type):not(:last-child){flex-shrink:0}
+ @media(max-width:639px){.store-compact-grid{gap:10px}.store-compact-grid .order-row-premium{padding:12px}}
+}
+
 
 /* 주문 금액: 기존 카드 톤에 맞춰 이전 금액과 차감액을 보조 정보로 표시한다. */
 .order-history-card{container-type:inline-size;container-name:order-card}

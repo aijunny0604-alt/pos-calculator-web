@@ -2,7 +2,7 @@ import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useCallback, useMemo, useId } from 'react';
 import {
   ArrowLeft, Menu, Truck, X, Plus, Search, Trash2, Download, FileText,
-  Printer, Check, Maximize2, Minimize2, MessageCircle, Copy, ChevronUp
+  Printer, Check, Maximize2, Minimize2, MessageCircle, Copy, ChevronUp, List, LayoutGrid
 } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatPrice, escapeHtml, handleSearchFocus, getTodayKST, toDateKST, offsetDateKST } from '@/lib/utils';
@@ -102,6 +102,13 @@ function NaverDispatchPanel({ providerOrderId, showToast }) {
 
 export default function ShippingLabel({ orders = [], customers = [], savedCarts = [], onBack, refreshCustomers, showToast }) {
   const [selectedOrders, setSelectedOrders] = useState([]);
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem('shippingViewMode') === 'grid' ? 'grid' : 'list'; }
+    catch { return 'list'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('shippingViewMode', viewMode); } catch { /* 저장이 불가능해도 화면 전환은 유지 */ }
+  }, [viewMode]);
   const [exportCollapsed, setExportCollapsed] = useState(true);
   const exportPanelId = useId();
   const [kakaoCopied, setKakaoCopied] = useState(false);
@@ -1025,7 +1032,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
           </div>
 
           {/* Select all + add custom */}
-          <div className="flex items-center justify-between mb-3">
+          <div className="shipping-list-toolbar flex items-center justify-between gap-2 flex-wrap mb-3">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <div
                 onClick={handleSelectAll}
@@ -1045,6 +1052,11 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
               </div>
               <span className="text-sm">전체 선택</span>
             </label>
+            <div className="shipping-list-toolbar-actions">
+            <div className="shipping-view-switch" role="group" aria-label="송장 보기 방식">
+              <button type="button" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')}><List aria-hidden="true" /> 목록형</button>
+              <button type="button" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')}><LayoutGrid aria-hidden="true" /> 카드형</button>
+            </div>
             <button
               onClick={() => setShowAddCustomModal(true)}
               className="px-3 py-1.5 text-white text-sm font-medium rounded-lg flex items-center gap-1.5 transition-colors hover:opacity-90"
@@ -1053,6 +1065,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
               <Plus className="w-4 h-4" />
               임의 추가
             </button>
+            </div>
           </div>
 
           {/* Order list */}
@@ -1063,7 +1076,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
               description="다른 날짜 필터를 선택해보세요"
             />
           ) : (
-            <div className="space-y-2">
+            <div className={viewMode === 'grid' ? 'shipping-recipient-grid' : 'space-y-2'}>
               {filteredOrders.map(order => {
                 const customer = order.customerName ? findCustomer(order.customerName) : null;
                 const hasAddress = shipAddress(order, customer);
@@ -1342,7 +1355,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                 <Plus className="w-4 h-4" />
                 임의 추가 ({customEntries.length}건)
               </p>
-              <div className="space-y-2">
+              <div className={viewMode === 'grid' ? 'shipping-recipient-grid' : 'space-y-2'}>
                 {customEntries.map(entry => {
                   const isSelected = selectedOrders.includes(entry.id);
                   return (
