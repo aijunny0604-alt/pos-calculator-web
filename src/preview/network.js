@@ -56,6 +56,7 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('dispatchChe
 window.fetch=async(input,options={})=>{
  const url=new URL(typeof input==='string'?input:input.url,location.href);
  const method=(options.method||(input instanceof Request?input.method:'GET')).toUpperCase();
+ if(import.meta.env.DEV && new URLSearchParams(location.search).has('storeOfflineCheck') && url.origin==='http://127.0.0.1:43128') throw new Error('샘플 연결 끊김');
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('mobileTransportCheck') && url.origin==='http://127.0.0.1:43128') return realFetch(`http://127.0.0.1:43132${url.pathname}${url.search}`,options);
  if(import.meta.env.DEV && new URLSearchParams(location.search).has('productEditorCheck') && url.origin==='http://127.0.0.1:43128') {
   const snapshot={originNo:'80000000',name:'샘플',status:'SALE',stock:3,stockManagement:true,options:[{type:'combination',id:'8',name:'블랙',stock:3,price:0,usable:true}]};

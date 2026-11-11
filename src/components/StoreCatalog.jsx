@@ -50,6 +50,7 @@ export default function StoreCatalog({ onBack, onSync, syncing, showToast }) {
   const [filter, setFilter] = useState('attention');
   const [visible, setVisible] = useState(40);
   const [selectedId, setSelectedId] = useState(null);
+  const [quickEdit, setQuickEdit] = useState(false);
   const [productBusy, setProductBusy] = useState(false);
   const [optionQuery, setOptionQuery] = useState('');
   const [zeroOnly, setZeroOnly] = useState(false);
@@ -81,7 +82,7 @@ export default function StoreCatalog({ onBack, onSync, syncing, showToast }) {
   const newest = times.length ? Math.max(...times) : null;
   const stale = rows.filter(r => catalogOld(r)).length;
   const options = selected ? catalogOptions(selected).filter(o => (!zeroOnly || (o.usable !== false && optionStock(o) === 0)) && String(o.name || '').toLowerCase().includes(optionQuery.toLowerCase().trim())) : [];
-  const choose = row => { setSelectedId(String(row.channel_product_no)); setOptionQuery(''); setZeroOnly(catalogState(row) === 'options'); };
+  const choose = (row, edit = false) => { setQuickEdit(edit); setSelectedId(String(row.channel_product_no)); setOptionQuery(''); setZeroOnly(catalogState(row) === 'options'); };
   const exportCSV = () => {
     downloadCSV(catalogCSV(results), `네이버_상품관리_${new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })}.csv`);
     showToast?.(`조회 상품 ${results.length}개의 옵션 포함 목록을 저장했습니다`, 'success');
@@ -97,7 +98,7 @@ export default function StoreCatalog({ onBack, onSync, syncing, showToast }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs leading-relaxed" style={muted}>
           <p className="flex items-center gap-1.5"><Clock size={14} />상품별 동기화 {rows.length ? `${date(oldest)} ~ ${date(newest)} (한국시간)` : loading ? '확인 중' : '자료 없음'}</p>
-          <p className="mt-1">연동 자료를 30초마다 확인합니다. 상품 상세에서 네이버 현재 상태를 조회하고 변경할 수 있습니다.</p>
+          <p className="mt-1">연동 자료를 30초마다 확인합니다. 재고 수정은 네이버 현재 상태를 조회한 후 적용합니다.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={load} disabled={loading} className={button} style={panel}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} />{loading ? '조회 중' : '새로고침'}</button>
@@ -125,21 +126,21 @@ export default function StoreCatalog({ onBack, onSync, syncing, showToast }) {
         <button disabled={!results.length || loading} onClick={exportCSV} className={button} style={panel}><Download size={16} />CSV</button>
         <button disabled={loading || !results.some(r => ['soldout', 'options'].includes(catalogState(r)))} onClick={addVisibleShortages} className={`${button} disabled:opacity-40`} style={{ ...panel, color: 'var(--primary)' }}>조회 품절 재주문 담기</button>
       </div>
-      <div className="flex justify-between gap-2 text-xs" style={muted}><span>조회 {results.length}개 상품</span><span>행을 누르면 옵션별 재고 확인</span></div>
+      <div className="flex justify-between gap-2 text-xs" style={muted}><span>조회 {results.length}개 상품</span><span>재고 수정에서 네이버 옵션 재고 변경</span></div>
       {loading && !rows.length ? <p role="status" className="py-12 text-center" style={muted}>상품 정보를 불러오는 중입니다…</p> : !results.length ? <div className="rounded-2xl border p-10 text-center" style={panel}><PackageSearch className="mx-auto mb-3" size={30} style={muted} /><p>{error ? '조회 상태를 확인해주세요' : !rows.length ? '동기화된 상품이 없습니다' : '조건에 맞는 상품이 없습니다'}</p><button className="min-h-11 mt-2 text-sm underline" onClick={() => { setQuery(''); setFilter('all'); }}>전체 상품 보기</button></div> :
       <div className="rounded-2xl border overflow-hidden" style={panel}>
-        <div aria-hidden="true" className="hidden lg:grid grid-cols-[minmax(0,1fr)_120px_130px_120px_24px] gap-4 px-5 py-3 text-xs font-semibold" style={{ background: 'var(--muted)', ...muted }}><span>상품 / 품절 옵션</span><span>상태</span><span>옵션 재고 0</span><span className="text-right">판매가</span><span /></div>
+        <div aria-hidden="true" className="hidden lg:grid grid-cols-[minmax(0,1fr)_120px_130px_120px_24px_104px] gap-4 px-5 py-3 text-xs font-semibold" style={{ background: 'var(--muted)', ...muted }}><span>상품 / 품절 옵션</span><span>상태</span><span>옵션 재고 0</span><span className="text-right">판매가</span><span /><span /></div>
         <ul aria-label="스토어 상품 목록">{results.slice(0, visible).map(row => {
           const zeros = soldOutOptions(row);
           const state = catalogState(row);
-          return <li key={row.channel_product_no} className="border-t first:border-t-0" style={{ borderColor: 'var(--border)' }}><button onClick={() => choose(row)} aria-label={`${row.name} 옵션 상세`} className="w-full grid grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_120px_130px_120px_24px] gap-3 lg:gap-4 items-center text-left px-4 sm:px-5 py-4 hover:bg-[var(--accent)] transition-colors">
+          return <li key={row.channel_product_no} className="flex items-stretch border-t first:border-t-0" style={{ borderColor: 'var(--border)' }}><button onClick={() => choose(row)} aria-label={`${row.name} 옵션 상세`} className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_120px_130px_120px_24px] gap-3 lg:gap-4 items-center text-left px-4 sm:px-5 py-4 hover:bg-[var(--accent)] transition-colors">
             <div className="col-span-2 lg:col-span-1 min-w-0"><h2 className="font-bold text-base break-words leading-relaxed">{row.name}</h2><p className="text-xs mt-1 break-words" style={muted}>#{row.channel_product_no}{row.seller_management_code ? ` · ${row.seller_management_code}` : ''}</p>
               {state === 'options' && <p className="text-sm mt-2 line-clamp-2 break-words" style={{ color: 'var(--warning)' }}>{zeros.slice(0, 2).map(o => o.name).join(' · ')}{zeros.length > 2 ? ` 외 ${zeros.length - 2}개` : ''}</p>}
               {catalogOld(row) && <p className="text-xs mt-1" style={muted}>동기화 확인 필요 · {date(row.synced_at)}</p>}
             </div>
             <div><Badge row={row} /></div><div className="text-sm text-right lg:text-left" style={muted}>{zeros.length ? <><strong style={{ color: state === 'options' ? 'var(--warning)' : 'var(--foreground)' }}>{zeros.length}</strong> / {catalogOptions(row).length} 옵션</> : '—'}</div>
             <div className="font-semibold tabular-nums lg:text-right">{money(row.sale_price)}</div><ChevronRight className="justify-self-end" size={18} style={muted} />
-          </button></li>;
+          </button><div className="flex items-center pr-3 sm:pr-5"><button type="button" onClick={() => choose(row, true)} aria-label={`${row.name} 재고 수정`} className={`${button} whitespace-nowrap`} style={{ ...panel, color: 'var(--primary)' }}>재고 수정</button></div></li>;
         })}</ul>
         {visible < results.length && <button onClick={() => setVisible(n => n + 40)} className="w-full min-h-12 border-t text-sm font-semibold" style={{ borderColor: 'var(--border)', color: 'var(--primary)' }}>더 보기 · {visible} / {results.length}</button>}
       </div>}
@@ -152,7 +153,7 @@ export default function StoreCatalog({ onBack, onSync, syncing, showToast }) {
       <div className="space-y-4">
         <div className="p-4 rounded-xl" style={{ background: 'var(--muted)' }}><Badge row={selected} /><h3 className="text-lg sm:text-xl font-bold leading-relaxed mt-2 break-words">{selected.name}</h3><p className="text-sm mt-2" style={muted}>네이버 상태: {catalogSourceStatus(selected)} · 기본 판매가 {money(selected.sale_price)}</p>{selected.seller_management_code && <p className="text-sm mt-1 break-words" style={muted}>관리코드 {selected.seller_management_code}</p>}</div>
         {catalogOld(selected) && <p className="text-sm" style={{ color: 'var(--warning)' }}>오래되었거나 동기화 시각이 없는 자료입니다. 네이버에서 현재 상태를 확인해주세요.</p>}
-        <StoreProductEditor key={selected.channel_product_no} product={selected} onBusyChange={setProductBusy} onChanged={() => { showToast?.('네이버 변경 결과를 확인했습니다. 동기화를 요청해주세요.', 'success'); }} />
+        <StoreProductEditor key={selected.channel_product_no} product={selected} autoLoad={quickEdit} onBusyChange={setProductBusy} onChanged={() => { showToast?.('네이버 변경 결과를 확인했습니다. 동기화를 요청해주세요.', 'success'); }} />
         <div className="flex flex-wrap items-center gap-2"><input aria-label="옵션 검색" value={optionQuery} onChange={e => setOptionQuery(e.target.value)} placeholder="옵션명 검색" className="min-h-11 flex-1 min-w-[160px] border rounded-xl px-3 text-base" style={panel} /><button aria-pressed={zeroOnly} onClick={() => setZeroOnly(v => !v)} className={button} style={{ ...panel, color: zeroOnly ? 'var(--warning)' : 'var(--foreground)' }}>재고 0만 {soldOutOptions(selected).length}</button></div>
         <p className="text-xs" style={muted}>사용하지 않는 옵션은 품절 집계에서 제외합니다. 재고 미확인은 0으로 계산하지 않습니다.</p>
         <div className="flex flex-wrap items-center justify-between gap-2">{!catalogOptions(selected).length && <button onClick={() => addReorder(selected)} disabled={reorders.some(r => r.key === reorderKey(selected, null))} className={`${button} disabled:opacity-50`} style={{ ...panel, color: 'var(--primary)' }}>{reorders.some(r => r.key === reorderKey(selected, null)) ? '상품 담김' : '+ 재주문 담기'}</button>}<button onClick={() => { setSelectedId(null); setView('reorders'); }} className="min-h-11 text-sm font-semibold" style={{ color: 'var(--primary)' }}>재주문 목록 보기 · {reorders.filter(r => !r.ordered).length}</button><span className="text-xs" style={muted}>수량은 담은 후 입력</span></div>
