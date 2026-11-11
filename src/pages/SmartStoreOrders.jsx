@@ -1901,8 +1901,10 @@ export default function SmartStoreOrders({
               // 클레임(취소/반품/교환 요청) 행은 좌측 색 액센트 + 배경 틴트로 차별화
               const rowClaim = getClaimInfo(order, itemsForOrder);
               const rowClaimColor = rowClaim ? (CLAIM_COLORS[rowClaim.type] || '#ff4d6d') : null;
+              const rowVisit = isVisitReceiptOrder(order, itemsForOrder);
+              const rowAccent = rowClaimColor || (rowVisit ? '#7656bc' : null);
               return (
-                <div key={order.id} className="border-b" style={{ borderColor: 'var(--border)', borderLeft: rowClaimColor ? `4px solid ${rowClaimColor}` : undefined, background: rowClaimColor ? `color-mix(in srgb, ${rowClaimColor} 10%, transparent)` : undefined }}>
+                <div key={order.id} className="border-b" data-visit-receipt={rowVisit} data-claim={!!rowClaim} style={{ borderColor: 'var(--border)', borderLeft: rowAccent ? `4px solid ${rowAccent}` : undefined, background: rowAccent ? `color-mix(in srgb, ${rowAccent} ${rowClaimColor ? 10 : 12}%, var(--card))` : undefined }}>
                 <div
                   className="order-row-premium flex flex-wrap items-center gap-x-2 gap-y-2 lg:grid lg:grid-cols-[34px_minmax(0,2.2fr)_88px_minmax(0,0.85fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.75fr)] lg:gap-3 px-3 py-3 text-sm lg:items-center hover:bg-[var(--accent)]/30 cursor-pointer"
                   onClick={(e) => {
@@ -2341,10 +2343,11 @@ export default function SmartStoreOrders({
           const claimColor = cardClaim ? (CLAIM_COLORS[cardClaim.type] || '#ff4d6d') : null;
           // 🚫 블랙리스트 구매자 — 카드 전체 진한 빨강 차별화 (클레임 색보다 우선. 즉시 눈에 띄게)
           const isBlackBuyer = buyerBlacklisted(order);
-          const accentColor = isBlackBuyer ? '#dc2626' : claimColor;
+          const cardVisit = isVisitReceiptOrder(order, items);
+          const accentColor = isBlackBuyer ? '#dc2626' : claimColor || (cardVisit ? '#7656bc' : null);
 
           return (
-            <div key={order.id} className="order-hover-premium rounded-xl border-2 overflow-hidden shadow-sm relative"
+            <div key={order.id} className="order-hover-premium rounded-xl border-2 overflow-hidden shadow-sm relative" data-visit-receipt={cardVisit} data-claim={!!cardClaim}
               style={accentColor ? {
                 background: `color-mix(in srgb, ${accentColor} ${isBlackBuyer ? 14 : 12}%, var(--card))`,
                 borderColor: accentColor,

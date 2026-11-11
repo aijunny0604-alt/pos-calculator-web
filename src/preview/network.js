@@ -16,6 +16,12 @@ if (import.meta.env.DEV && stockCheck && stockCheck !== 'empty') tables.external
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('mobileTransportCheck') && tables.external_products[0]) { tables.external_products[0].channel_product_no='10';tables.external_products[0].origin_product_no='20'; }
 if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(invoiceCheck));
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeVisitCheck')) {
+ const visit = tables.external_orders.find(order => order.buyer_name === '오늘 발주확인');
+ if (visit) visit.raw_payload = { productOrder: { expectedDeliveryMethod: 'VISIT_RECEIPT' } };
+ const claim = tables.external_orders.find(order => order.buyer_name === '반품 요청 샘플');
+ if (claim) claim.raw_payload.productOrder.expectedDeliveryMethod = 'VISIT_RECEIPT';
+}
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('salesCheck')) {
  tables.external_orders=[{id:'SALES-1',provider:'naver',buyer_name:'매출 샘플',order_status:'PAYED',received_at:now},{id:'SALES-2',provider:'naver',buyer_name:'반품 샘플',order_status:'PAYED',received_at:now},{id:'SALES-3',provider:'naver',buyer_name:'미결제 샘플',order_status:'PAYMENT_WAITING',received_at:now}];
  tables.external_order_items=[{id:'SALES-I1',external_order_id:'SALES-1',provider_product_name:'플랜지',raw_payload:{productOrder:{remainPaymentAmount:10000}}},{id:'SALES-I2',external_order_id:'SALES-2',provider_product_name:'자바라',raw_payload:{productOrder:{remainPaymentAmount:3000,claimStatus:'RETURN_DONE'}}}];
