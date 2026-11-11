@@ -1227,7 +1227,7 @@ export default function OrderPage({
       {/* 주문 완료 모달 */}
       {successModal && (
         <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="motion-modal-panel w-full max-w-sm rounded-2xl border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
+          <div role="dialog" aria-modal="true" aria-label="주문 완료" className="motion-modal-panel w-full max-w-sm rounded-2xl border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
             <div className="px-5 py-4 text-center" style={{ background: 'var(--success)' }}>
               <Check className="w-10 h-10 mx-auto mb-1 text-white" />
               <h3 className="text-lg font-bold text-white">주문 완료</h3>

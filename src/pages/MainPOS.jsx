@@ -65,6 +65,7 @@ export default function MainPOS({
   const [expandedCategories, setExpandedCategories] = useState({});
   const [isCartExpanded, setIsCartExpanded] = useState(false);
   const [showOrderConfirm, setShowOrderConfirm] = useState(false);
+  const orderSaveInProgress = useRef(false);
   const [orderCustomerName, setOrderCustomerName] = useState('');
   const [orderCustomerPhone, setOrderCustomerPhone] = useState('');
   const [orderMemo, setOrderMemo] = useState('');
@@ -85,7 +86,7 @@ export default function MainPOS({
   // 장바구니가 비워지면 주문확인 모달도 자동 닫기 (장바구니 저장 후 초기화 시)
   useEffect(() => {
     if (cart.length === 0) {
-      setShowOrderConfirm(false);
+      if (!orderSaveInProgress.current) setShowOrderConfirm(false);
       setIsCartExpanded(false);
     }
   }, [cart.length]);
@@ -1236,6 +1237,8 @@ export default function MainPOS({
           formatPrice={formatPrice}
           onSaveOrder={async (orderData) => {
             if (!saveOrder) return null;
+            orderSaveInProgress.current = true;
+            try {
             const result = await saveOrder({
               customer_name: orderData.customerName || '일반고객',
               customer_phone: orderData.customerPhone || '',
@@ -1248,7 +1251,12 @@ export default function MainPOS({
               existing_customer_id: orderData.existingCustomerId,
             });
             if (result) {onClearLoadedCustomer?.();}
+            else orderSaveInProgress.current = false;
             return result;
+            } catch (error) {
+              orderSaveInProgress.current = false;
+              throw error;
+            }
           }}
           isSaving={isSaving}
           onUpdateQuantity={updateQuantity}
@@ -1261,6 +1269,7 @@ export default function MainPOS({
           initialCustomer={effectiveCustomer}
           customers={customers}
           onBack={() => {
+            orderSaveInProgress.current = false;
             setShowOrderConfirm(false);
           }}
           onSaveCart={(info) => {
