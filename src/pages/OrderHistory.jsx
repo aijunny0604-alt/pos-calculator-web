@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft, Menu, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
   Calendar, FileText, Calculator, Receipt, RotateCcw, AlertTriangle,
-  ChevronDown, CheckCircle2, CircleDollarSign, Truck, X, Copy
+  ChevronDown, CheckCircle2, CircleDollarSign, Truck, X, Copy, Store
 } from 'lucide-react';
 import { formatPrice, calcExVat, formatDateTime, getTodayKST, toDateKST, offsetDateKST, offsetMonthKST } from '@/lib/utils';
 import OrderCardAmount from '@/components/OrderCardAmount';
@@ -17,6 +17,7 @@ import useCountUp from '@/hooks/useCountUp';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { classifyOrderChannel, extractNaverBuyer, getNaverDispatchOrderId } from '@/lib/channelClassifier';
 import { NAVER_COURIERS, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
+import { loadVisitPickupOrderIds } from '@/lib/storePickupIndicator';
 
 // 🚨 2026-07-16: 이 파일이 택배사 목록을 자체 복제하면서 로젠=LOGEN, 경동=KGB로 잘못 갖고 있었다.
 //    공유 모듈(naverCouriers)이 실측으로 교정한 값(로젠=KGB, 경동=KDEXP)과 반대라
@@ -70,6 +71,7 @@ export default function OrderHistory({
   showToast,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [visitPickupOrderIds, setVisitPickupOrderIds] = useState(() => new Set());
   const [dateFilter, setDateFilter] = useState('today');
   // 네이버 발송처리 모달 (사용자 요청 — OrderHistory 카드에서 송장 입력 + 발송처리)
   const [naverDispatchModal, setNaverDispatchModal] = useState(null);
@@ -390,6 +392,25 @@ export default function OrderHistory({
       if (memoFilter === 'all') return hasUserMemo(order);
       return true;
     });
+
+  // 조회 중인 주문에 연결된 네이버 원본만 확인한다. 이름이 같은 고객을 추측하지 않는다.
+  const pickupLookupKey = JSON.stringify(filteredOrders.map(order => ({ id: order.id || order.orderNumber, memo: order.memo || '' })));
+  useEffect(() => {
+    let active = true, version = 0;
+    const refresh = async () => {
+      const request = ++version;
+      try {
+        const ids = await loadVisitPickupOrderIds(supabaseClient, JSON.parse(pickupLookupKey));
+        if (active && request === version) setVisitPickupOrderIds(ids);
+      } catch {
+        if (active && request === version) setVisitPickupOrderIds(new Set());
+      }
+    };
+    refresh();
+    const timer = setInterval(() => { if (!document.hidden) refresh(); }, 30000);
+    window.addEventListener('external-orders-changed', refresh);
+    return () => { active = false; clearInterval(timer); window.removeEventListener('external-orders-changed', refresh); };
+  }, [pickupLookupKey]);
 
   // Stats
   const filteredTotalSales = filteredOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
@@ -1135,6 +1156,7 @@ export default function OrderHistory({
               const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
               const isReturned = (order.totalReturned || 0) > 0;
               const discount = getOrderDiscountSummary(order);
+              const hasVisitPickup = visitPickupOrderIds.has(String(order.id || order.orderNumber));
               // 네이버 스마트스토어 경유 주문 — channelClassifier로 통합 (M2: DRY 적용)
               const isNaverOrder = classifyOrderChannel(order, customers) === 'naver';
               // memo 에서 실제 구매자 이름 추출 (옛 엠파츠 거래처 데이터 호환용)
@@ -1387,6 +1409,13 @@ export default function OrderHistory({
                     <OrderCardAmount order={order} discount={discount} />
                   </div>
 
+                  {hasVisitPickup && (
+                    <div className={`flex justify-end px-1 ${isPaid ? 'pb-5' : 'pb-2'}`}>
+                      <span className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-xl border-2 font-black text-sm sm:text-base whitespace-nowrap -rotate-3" style={{ color: 'var(--foreground)', background: 'var(--card)', borderColor: 'var(--foreground)', boxShadow: '0 2px 6px rgba(15, 35, 52, 0.12)' }} title="연결된 네이버 주문에 방문수령 상품이 있습니다">
+                        <Store className="w-4 h-4" aria-hidden="true" /> 방문수령 상품 포함
+                      </span>
+                    </div>
+                  )}
                   {/* Product info */}
                   <div
                     className="relative rounded-lg p-2 mb-3"

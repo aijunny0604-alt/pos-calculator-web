@@ -16,6 +16,15 @@ if (import.meta.env.DEV && stockCheck && stockCheck !== 'empty') tables.external
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('mobileTransportCheck') && tables.external_products[0]) { tables.external_products[0].channel_product_no='10';tables.external_products[0].origin_product_no='20'; }
 if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(invoiceCheck));
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('historyPickupCheck')) {
+ tables.external_orders = [
+  { id:'PICKUP-EXT', provider:'naver', provider_order_id:'1001', internal_order_id:'PICKUP-ORDER', raw_payload:{productOrder:{expectedDeliveryMethod:'VISIT_RECEIPT'}} },
+  { id:'SHIP-EXT', provider:'naver', provider_order_id:'1002', internal_order_id:'SHIP-ORDER', raw_payload:{productOrder:{expectedDeliveryMethod:'DELIVERY'}} },
+  { id:'CHANGED-EXT', provider:'naver', provider_order_id:'1003', internal_order_id:'CHANGED-ORDER', raw_payload:{productOrder:{expectedDeliveryMethod:'VISIT_RECEIPT'}}, naver_dispatch_succeeded_at:now, naver_dispatch_company_code:'KGB' },
+ ];
+ tables.external_order_items = [];
+ tables.manual_paid_orders = [{ order_id:'PICKUP-ORDER', method:'transfer', paid_at:now }];
+}
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeVisitCheck')) {
  const visit = tables.external_orders.find(order => order.buyer_name === '오늘 발주확인');
  if (visit) visit.raw_payload = { productOrder: { expectedDeliveryMethod: 'VISIT_RECEIPT' } };
