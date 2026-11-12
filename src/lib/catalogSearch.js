@@ -27,6 +27,14 @@ export function catalogDimensionsMatch(query,name) {
 // 길이·각도·SKU와 소수 규격에는 보정을 적용하지 않는다.
 export function catalogNearbyDiameterMatch(query, name) {
  const qText=normalize(query), pText=normalize(name);
+ // CH 소음기는 앞 숫자가 모델 길이, 뒤 숫자가 구경이다 (CH 200 76 → CH 200 77).
+ // 모델명·모델 숫자는 정확히 같아야 하며 소수·다른 추가 규격은 보정하지 않는다.
+ const chSpec = text => text.match(/(?:^|[^a-z0-9])ch\s*(\d{2,3})[\s\-_/]+(\d{2,3})(?![\d.])/i);
+ const qCH = chSpec(qText), pCH = chSpec(pText);
+ if (qCH) {
+   return !!pCH && parts(qText).filter(t => /^\d/.test(t)).length === 2 &&
+     Number(qCH[1]) === Number(pCH[1]) && Math.abs(Number(qCH[2]) - Number(pCH[2])) === 1;
+ }
  if (/[a-z]\d/i.test(qText)) return false;
  const letters=qText.replace(/\d+(?:\.\d+)?/g,'').replace(/(?:mm|파이|cm|인치|inch|도)/gi,'').replace(/[^가-힣ㄱ-ㅎa-z]/g,'');
  if(letters.length<2) return false;

@@ -38,7 +38,6 @@ export default function OrderPage({
   const [changeSearchQuery, setChangeSearchQuery] = useState('');
   const [showQuickCalculator, setShowQuickCalculator] = useState(false);
   const [calculatorInitialValue, setCalculatorInitialValue] = useState(null);
-  const [successModal, setSuccessModal] = useState(null);
   const [openDiscountIds, setOpenDiscountIds] = useState(() => new Set());
   const { isFullscreen, toggleFullscreen } = useModalFullscreen();
 
@@ -333,27 +332,13 @@ export default function OrderPage({
 
     const result = await onSaveOrder(orderData);
     if (result) {
-      const isMerged = result?.merged;
-      const isNewCustomer = customerName && !selectedCustomerId &&
-        !(customers || []).find(c => c?.name?.toLowerCase().replace(/\s/g, '') === customerName.toLowerCase().replace(/\s/g, ''));
-
       const isBlacklistCustomer = customerName && (customers || []).find(c =>
         c?.name?.toLowerCase().replace(/\s/g, '') === customerName.toLowerCase().replace(/\s/g, '') && c.is_blacklist
       );
-
-      let message;
-      if (isMerged) {
-        message = `기존 주문(${result.mergedOrderNumber})에 병합되었습니다!\n\n추가 금액: ${fmt(currentTotal)}`;
-      } else {
-        message = `주문이 저장되었습니다!\n\n주문번호: ${orderNumber}\n총 금액: ${fmt(currentTotal)}`;
-      }
       if (isBlacklistCustomer) {
-        message += `\n\n주의: "${customerName}"은(는) 블랙리스트 업체입니다!`;
+        showToast?.(`주의: "${customerName}"은(는) 블랙리스트 업체입니다.`, 'warning');
       }
-      if (isNewCustomer) {
-        message += `\n\n신규 거래처 "${customerName}"이(가) 자동 등록되었습니다.`;
-      }
-      setSuccessModal(message);
+      onBack();
     }
   };
 
@@ -1224,29 +1209,6 @@ export default function OrderPage({
         />
       )}
 
-      {/* 주문 완료 모달 */}
-      {successModal && (
-        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 z-[70] flex items-center justify-center p-4 animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div role="dialog" aria-modal="true" aria-label="주문 완료" className="motion-modal-panel w-full max-w-sm rounded-2xl border shadow-2xl overflow-hidden animate-modal-up" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
-            <div className="px-5 py-4 text-center" style={{ background: 'var(--success)' }}>
-              <Check className="w-10 h-10 mx-auto mb-1 text-white" />
-              <h3 className="text-lg font-bold text-white">주문 완료</h3>
-            </div>
-            <div className="p-5">
-              <p className="text-sm whitespace-pre-line leading-relaxed" style={{ color: 'var(--foreground)' }}>{successModal}</p>
-            </div>
-            <div className="px-5 pb-5">
-              <button
-                onClick={() => { setSuccessModal(null); onBack(); }}
-                className="w-full py-3 rounded-xl text-sm font-bold text-white transition-colors"
-                style={{ background: 'var(--primary)' }}
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </MotionBackdrop>
-      )}
     </MotionBackdrop>
   );
 }

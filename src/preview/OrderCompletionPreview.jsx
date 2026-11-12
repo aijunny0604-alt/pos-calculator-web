@@ -9,6 +9,7 @@ export default function OrderCompletionPreview() {
     setSaving(true);
     await new Promise(resolve => setTimeout(resolve, 100));
     if (new URLSearchParams(location.search).has('orderSaveFailure')) { setSaving(false); return null; }
+    window.previewOrderSaved = true;
     setCart([]);
     setSaving(false);
     return { id: 'SAMPLE-ORDER' };

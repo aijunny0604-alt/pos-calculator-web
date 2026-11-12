@@ -63,6 +63,18 @@ test('직선 규격도 ±1을 찾고 정확한 규격을 우선한다',()=>{
  assert.deepEqual(searchProductsRanked('H61',candidates),[]);
 });
 
+test('CH 모델 번호는 정확히 유지하고 마지막 구경만 ±1 후보로 표시한다',()=>{
+ const candidates=[{id:1,name:'CH 200 76'},{id:2,name:'CH 200 77'},{id:3,name:'CH 200 75'},{id:4,name:'CH 201 76'},{id:5,name:'CH 150 77'},{id:6,name:'CH 200 78'},{id:7,name:'다른 제품 200 77'},{id:8,name:'CH 200 77.5'}];
+ for (const query of ['CH 200 76','ch200 76','ＣＨ ２００ ７６']) {
+  const found=searchProductsRanked(query,candidates).map(p=>p.id);
+  assert.equal(found[0],1,query);
+  assert.deepEqual(new Set(found),new Set([1,2,3]),query);
+ }
+ assert.deepEqual(searchProductsRanked('CH 200 76',candidates.slice(1)).map(p=>p.id).sort(),[2,3]);
+ assert.deepEqual(searchProductsRanked('CH 200 76.5',candidates).map(p=>p.id),[]);
+ assert.equal(catalogMatch('CH 200 76','CH 200 77'),false);
+});
+
 test('수동 제품 선택은 공통 순위·규격 안전성과 카테고리 검색을 유지한다',()=>{
  const candidates=[...diameterProducts,{id:20,name:'특수 제품',category:'브레이크'},{id:21,name:'정확 제품',category:'특수'}];
  assert.deepEqual(searchProductChoices('플랜지 64',candidates).map(p=>p.id),[10]);
