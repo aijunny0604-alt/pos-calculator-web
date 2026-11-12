@@ -1,6 +1,9 @@
 // 제품 주문 화면 전용: 쓰기 도구의 자동 상품 매칭과 분리한다.
 const initial = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
-const normalize = s => String(s || '').normalize('NFC').toLowerCase().replace(/[０-９Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248));
+// CH 소음기는 모델 길이(세 자리)와 구경을 붙여 써도 동일한 규격으로 읽는다.
+const normalize = s => String(s || '').normalize('NFC').toLowerCase()
+ .replace(/[０-９Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248))
+ .replace(/\bch\s*(\d{3})(\d{2,3})(?![\d.])/g, 'ch $1 $2');
 const parts = s => normalize(s).match(/[가-힣ㄱ-ㅎa-z]+|\d+(?:\.\d+)?/g) || [];
 const initials = s => [...s].map(c=>c>='가'&&c<='힣'?initial[Math.floor((c.charCodeAt(0)-44032)/588)]:c).join('');
 export function catalogMatch(query, name) {

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {catalogMatch,repeatOrderItems} from '../src/lib/catalogSearch.js';
+import {catalogMatch,catalogDimensionsMatch,repeatOrderItems} from '../src/lib/catalogSearch.js';
 import {searchProductsRanked,searchProductChoices} from '../src/lib/productMatch.js';
 const products=[{id:1,name:'스텐 밴딩 54-30',wholesale:9900},{id:2,name:'스텐 밴딩 54-45'},{id:3,name:'실리콘 엘보 호스 60.5mm'},{id:4,name:'실리콘 엘보 호스 65mm'},{id:5,name:'브레이크 호스 세트'}];
 test('앞뒤 단어 순서·붙여쓰기·기호와 초성 검색',()=>{
@@ -73,6 +73,21 @@ test('CH 모델 번호는 정확히 유지하고 마지막 구경만 ±1 후보�
  assert.deepEqual(searchProductsRanked('CH 200 76',candidates.slice(1)).map(p=>p.id).sort(),[2,3]);
  assert.deepEqual(searchProductsRanked('CH 200 76.5',candidates).map(p=>p.id),[]);
  assert.equal(catalogMatch('CH 200 76','CH 200 77'),false);
+});
+
+test('CH 모델·구경을 붙여 쓰거나 띄어 써도 같은 규격으로 검색한다',()=>{
+ const candidates=[{id:1,name:'CH 200 76'},{id:2,name:'CH 200 77'},{id:3,name:'CH 201 76'},{id:4,name:'CH 200 78'},{id:5,name:'다른 제품 200 76'}];
+ for (const query of ['CH20076','Ch20076','CH 20076','ＣＨ２００７６']) {
+  const found=searchProductsRanked(query,candidates).map(p=>p.id);
+  assert.equal(found[0],1,query);
+  assert.deepEqual(found,[1,2],query);
+  assert.equal(catalogDimensionsMatch(query,'CH 200 76'),true,query);
+  assert.equal(catalogDimensionsMatch(query,'CH 200 77'),false,query);
+ }
+ assert.equal(catalogMatch('CH20076','CH 200 76'),true);
+ assert.equal(catalogMatch('CH 200 76','CH20076'),true);
+ assert.deepEqual(searchProductsRanked('CH20076.5',candidates),[]);
+ assert.deepEqual(searchProductsRanked('XCH20076',candidates),[]);
 });
 
 test('수동 제품 선택은 공통 순위·규격 안전성과 카테고리 검색을 유지한다',()=>{
