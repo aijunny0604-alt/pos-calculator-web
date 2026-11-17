@@ -387,8 +387,9 @@ export default function OrderDetail({
       const distance = Math.min(window.innerWidth * 0.32, 400) * -step;
       try {
         const motion = ghost.animate([
-          { opacity:1, transform:'perspective(1400px) translateX(0) scale(1) rotateY(0deg)' },
-          { opacity:.25, transform:`perspective(1400px) translateX(${distance}px) scale(.88) rotateY(${step * 12}deg)` },
+          { offset:0, opacity:1, transform:'perspective(1400px) translateX(0) scale(1) rotateY(0deg)' },
+          { offset:.65, opacity:.3, transform:`perspective(1400px) translateX(${distance * .85}px) scale(.91) rotateY(${step * 10}deg)` },
+          { offset:1, opacity:0, transform:`perspective(1400px) translateX(${distance}px) scale(.88) rotateY(${step * 12}deg)` },
         ], { duration:600, easing:'cubic-bezier(.22,.8,.2,1)', fill:'forwards' });
         motion.finished.catch(() => {}).finally(() => { ghost.remove(); if (slideGhost.current === ghost) slideGhost.current = null; });
       } catch { ghost.remove(); slideGhost.current = null; }

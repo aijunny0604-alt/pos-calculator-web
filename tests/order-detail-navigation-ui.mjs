@@ -54,6 +54,15 @@ try {
     assert.equal(await outgoing.getAttribute('inert'), '');
     assert.match(await outgoing.textContent(), /SAMPLE-1/);
     assert.equal(await outgoing.evaluate(el => el.getAnimations().some(animation => animation.playState === 'running')), true);
+    const endingOpacity = await outgoing.evaluate(el => {
+      const animation = el.getAnimations()[0];
+      animation.pause();
+      animation.currentTime = Number(animation.effect.getTiming().duration) * .95;
+      const opacity = Number(getComputedStyle(el).opacity);
+      animation.play();
+      return opacity;
+    });
+    assert.ok(endingOpacity < .05, '이전 창은 제거 직전까지 충분히 투명해져야 함');
     if (viewport.width > 1200) {
       const disappearingPeek = page.locator('.order-detail-ambient-exit');
       await disappearingPeek.waitFor({state:'attached'});
