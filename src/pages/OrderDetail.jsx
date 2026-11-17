@@ -4,13 +4,13 @@ import ProductReplacementModal from '@/components/ProductReplacementModal';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { orderContactText } from '@/lib/orderContact';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import {
   X, FileText, Package, Plus, Minus, Trash2, Edit3, RotateCcw,
   Copy, Check, Printer, Building2, Phone, MapPin, Calendar, Calculator,
-  ChevronUp, ChevronDown, Maximize2, Minimize2, CircleDollarSign, CheckCircle2, Tag, Percent, Replace, Search, Layers
+  ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Maximize2, Minimize2, CircleDollarSign, CheckCircle2, Tag, Percent, Replace, Search, Layers
 } from 'lucide-react';
 import { formatPrice, calcExVat, calcOrderVat, formatDate, formatDateTime, handleSearchFocus, escapeHtml } from '@/lib/utils';
 import { calcFinalPrice, convertDiscountValue, discountPlaceholder } from '@/lib/discount';
@@ -68,8 +68,15 @@ export default function OrderDetail({
   onSaveCustomerReturn,
   onDeleteCustomerReturn,
   showToast,
+  navigation,
 }) {
   const [copied, setCopied] = useState(false);
+  const swipeStart = useRef(null);
+  const slideTimer = useRef(null);
+  const modalRef = useRef(null);
+  const slideGhost = useRef(null);
+  const [sliding, setSliding] = useState(0);
+  useEffect(() => () => { clearTimeout(slideTimer.current); slideGhost.current?.remove(); }, []);
   const [isEditing, setIsEditing] = useState(false);
   const [editedOrder, setEditedOrder] = useState(null);
   const [showProductSearch, setShowProductSearch] = useState(false);
@@ -288,6 +295,81 @@ export default function OrderDetail({
   const { highlightIndex: addProdHi, handleKeyDown: addProdKeyDown } = useKeyboardNav(
     filteredProducts, handleAddProduct, showProductSearch && filteredProducts.length > 0
   );
+
+  const navigationBlocked = isEditing || isReturning || !!pendingSave || !!pendingDeleteReturnId || deletingReturnId !== null || replacingItemIndex !== null || showCustomerPicker || certViewer || showCalculator || packingMode || sliding !== 0;
+  const requestNavigation = (step) => {
+    if (!navigation || navigationBlocked || slideTimer.current || navigation.index + step < 0 || navigation.index + step >= navigation.total) return;
+    const current = modalRef.current;
+    if (current?.parentElement) {
+      const rect = current.getBoundingClientRect();
+      const ghost = current.cloneNode(true);
+      ghost.classList.add('order-detail-carousel-ghost');
+      ghost.setAttribute('aria-hidden', 'true');
+      ghost.setAttribute('inert', '');
+      ghost.removeAttribute('role');
+      ghost.removeAttribute('aria-modal');
+      [ghost, ...ghost.querySelectorAll('*')].forEach(element => {
+        element.removeAttribute('id');
+        if (element.matches('button,input,select,textarea,a,[tabindex]')) element.setAttribute('tabindex', '-1');
+      });
+      Object.assign(ghost.style, { position:'fixed', left:`${rect.left}px`, top:`${rect.top}px`, width:`${rect.width}px`, height:`${rect.height}px`, maxWidth:'none', maxHeight:'none', margin:'0', pointerEvents:'none', zIndex:'1' });
+      ghost.style.setProperty('animation', 'none', 'important');
+      current.parentElement.appendChild(ghost);
+      const originalScroll = current.querySelector('.modal-scroll-area');
+      const ghostScroll = ghost.querySelector('.modal-scroll-area');
+      if (originalScroll && ghostScroll) ghostScroll.scrollTop = originalScroll.scrollTop;
+      slideGhost.current = ghost;
+      const distance = Math.min(window.innerWidth * 0.32, 400) * -step;
+      try {
+        const motion = ghost.animate([
+          { opacity:1, transform:'perspective(1400px) translateX(0) scale(1) rotateY(0deg)' },
+          { opacity:.25, transform:`perspective(1400px) translateX(${distance}px) scale(.88) rotateY(${step * 12}deg)` },
+        ], { duration:600, easing:'cubic-bezier(.22,.8,.2,1)', fill:'forwards' });
+        motion.finished.catch(() => {}).finally(() => { ghost.remove(); if (slideGhost.current === ghost) slideGhost.current = null; });
+      } catch { ghost.remove(); slideGhost.current = null; }
+    }
+    setSliding(step);
+    navigation.go(step);
+    slideTimer.current = setTimeout(() => {
+      slideTimer.current = null;
+      setSliding(0);
+    }, 600);
+  };
+  const startOrderSwipe = (event) => {
+    swipeStart.current = null;
+    if (!navigation || navigationBlocked || event.touches.length !== 1 || event.target.closest?.('input,textarea,select,button,a,[contenteditable="true"],[role="slider"]')) return;
+    let node = event.target;
+    while (node && node !== event.currentTarget) {
+      if (node.scrollWidth > node.clientWidth + 2 && /(auto|scroll)/.test(getComputedStyle(node).overflowX)) return;
+      node = node.parentElement;
+    }
+    swipeStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+  };
+  const endOrderSwipe = (event) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || !navigation || navigationBlocked || event.changedTouches.length !== 1) return;
+    const dx = event.changedTouches[0].clientX - start.x, dy = event.changedTouches[0].clientY - start.y;
+    if (Math.abs(dx) < 75 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const step = dx < 0 ? 1 : -1;
+    if (navigation.index + step >= 0 && navigation.index + step < navigation.total) requestNavigation(step);
+  };
+  useEffect(() => {
+    if (!isOpen || !navigation || navigationBlocked) return;
+    const onKey = (event) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      const target = event.target;
+      if (target?.closest?.('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="slider"]')) return;
+      if (document.querySelectorAll('[role="dialog"]').length > 1) return;
+      const step = event.key === 'ArrowLeft' ? -1 : 1;
+      if (navigation.index + step < 0 || navigation.index + step >= navigation.total) return;
+      event.preventDefault();
+      requestNavigation(step);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, navigation, navigationBlocked]);
 
   // 교체 대상 라인 + 관련(연관) 제품 — ⚠️ Hooks는 반드시 early return 앞에 (React #310 방지)
   const replacingItem = replacingItemIndex !== null ? editedOrder?.items?.[replacingItemIndex] : null;
@@ -731,12 +813,17 @@ export default function OrderDetail({
       {/* Backdrop */}
       <div className="absolute inset-0" onClick={onClose} />
 
+      {navigation?.previous && <button key={`prev-${navigation.previous.id || navigation.previous.orderNumber}`} type="button" aria-label="이전 주문 미리보기" disabled={navigationBlocked} onClick={() => requestNavigation(-1)} className="order-detail-ambient-card order-detail-ambient-previous" style={isFullscreen ? { display:'none' } : isDraggable ? { right:`calc(100vw - ${dragContainerStyle.left} - 95px)` } : undefined}><span>이전 주문</span><strong>{navigation.previous.customerName || '주문 상세'}</strong><small>{navigation.previous.orderNumber}</small><i /><em>주문 상품 · {(navigation.previous.items || []).length}종</em><b>{formatPrice(navigation.previous.totalAmount || 0)}원</b><ChevronLeft size={22} /></button>}
+      {navigation?.next && <button key={`next-${navigation.next.id || navigation.next.orderNumber}`} type="button" aria-label="다음 주문 미리보기" disabled={navigationBlocked} onClick={() => requestNavigation(1)} className="order-detail-ambient-card order-detail-ambient-next" style={isFullscreen ? { display:'none' } : isDraggable ? { left:`calc(${dragContainerStyle.left} + ${dragContainerStyle.width} - 95px)` } : undefined}><span>다음 주문</span><strong>{navigation.next.customerName || '주문 상세'}</strong><small>{navigation.next.orderNumber}</small><i /><em>주문 상품 · {(navigation.next.items || []).length}종</em><b>{formatPrice(navigation.next.totalAmount || 0)}원</b><ChevronRight size={22} /></button>}
+
       {/* Modal */}
       <div
-        className="move-dialog order-detail-refined relative w-full overflow-hidden border shadow-2xl flex flex-col animate-modal-up modal-fs-transition"
+        ref={modalRef}
+        key={navigation ? (order.id || order.orderNumber) : 'order-detail-modal'}
+        className={`move-dialog order-detail-refined relative w-full overflow-hidden border shadow-2xl flex flex-col animate-modal-up modal-fs-transition ${navigation?.direction ? (navigation.direction < 0 ? 'order-detail-page-previous' : 'order-detail-page-next') : ''}`}
         role="dialog" aria-modal="true" aria-label="주문 상세"
         style={{
-          background: 'var(--card)', borderColor: 'var(--border)',
+          background: 'var(--card)', borderColor: 'var(--border)', zIndex: 2,
           maxWidth: isFullscreen ? '100vw' : 'min(72rem, calc(100vw - 2rem))',
           height: isFullscreen ? '100dvh' : 'auto',
           maxHeight: isFullscreen ? '100dvh' : 'calc(100dvh - 2rem)',
@@ -762,6 +849,11 @@ export default function OrderDetail({
               <p className="text-xs sm:text-sm opacity-80 truncate">{order.orderNumber}</p>
             </div>
           </div>
+          {navigation && <nav aria-label="주문 상세 이동" className="order-detail-navigation" data-no-drag onDoubleClick={event => event.stopPropagation()}>
+            <button type="button" className="order-detail-glass-card is-previous" aria-label="이전 주문" disabled={navigationBlocked || navigation.index <= 0} onClick={() => requestNavigation(-1)}><ChevronLeft size={19} /><span className="order-detail-glass-copy"><small>이전 주문</small><b>{navigation.previous?.customerName || (navigation.index > 0 ? '주문 보기' : '첫 번째 주문')}</b></span></button>
+            <span aria-live="polite" className="order-detail-position"><small>주문 살펴보기</small><span><strong>{navigation.index + 1}</strong><span aria-hidden="true"> / </span><span className="sr-only"> 전체 </span>{navigation.total}<span className="sr-only">번째 주문</span></span></span>
+            <button type="button" className="order-detail-glass-card is-next" aria-label="다음 주문" disabled={navigationBlocked || navigation.index >= navigation.total - 1} onClick={() => requestNavigation(1)}><span className="order-detail-glass-copy"><small>다음 주문</small><b>{navigation.next?.customerName || (navigation.index < navigation.total - 1 ? '주문 보기' : '마지막 주문')}</b></span><ChevronRight size={19} /></button>
+          </nav>}
           <div className="move-window-actions flex items-center gap-2 flex-shrink-0">
             {!isEditing && (
               <button
@@ -819,6 +911,9 @@ export default function OrderDetail({
         <div
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scroll-area"
           style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+          onTouchStart={startOrderSwipe}
+          onTouchEnd={endOrderSwipe}
+          onTouchCancel={() => { swipeStart.current = null; }}
           onTouchMove={(e) => e.stopPropagation()}
         >
           {/* Order info section */}

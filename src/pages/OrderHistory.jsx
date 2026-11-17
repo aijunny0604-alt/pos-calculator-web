@@ -1170,7 +1170,7 @@ export default function OrderHistory({
               return (
                 <div
                   key={order.orderNumber}
-                  onClick={() => onViewOrder(order)}
+                  onClick={() => onViewOrder(order, filteredOrders)}
                   className="order-history-card card-interactive rounded-xl p-4 border cursor-pointer select-none relative overflow-hidden"
                   style={{
                     background: isSelected
@@ -1562,7 +1562,7 @@ export default function OrderHistory({
                   {/* Action buttons */}
                   <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                     <button
-                      onClick={() => onViewOrder(order)}
+                      onClick={() => onViewOrder(order, filteredOrders)}
                       className="flex-1 py-2 rounded-lg text-xs font-medium whitespace-nowrap flex items-center justify-center gap-1.5 transition-colors hover:bg-[var(--accent)] border"
                       style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
                     >

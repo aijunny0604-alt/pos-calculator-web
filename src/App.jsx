@@ -145,6 +145,8 @@ export default function App() {
 
   // ─── Modal / overlay state ────────────────────────────────────
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [detailOrderList, setDetailOrderList] = useState([]);
+  const [detailDirection, setDetailDirection] = useState(0);
   const [showSaveCartModal, setShowSaveCartModal] = useState(false);
   const [saveCartCustomerOverride, setSaveCartCustomerOverride] = useState(null);
   const [showQuickCalc, setShowQuickCalc] = useState(false);
@@ -993,7 +995,7 @@ export default function App() {
             customers={customers}
             supabaseConnected={supabaseConnected}
             setCurrentPage={setCurrentPage}
-            onViewOrder={(order) => setSelectedOrder(order)}
+            onViewOrder={(order, list) => { setDetailDirection(0); setDetailOrderList(list || []); setSelectedOrder(order); }}
             onUpdateOrder={handleUpdateOrder}
             onAiOrder={(text) => { setAiOrderText(text); setCurrentPage('ai-order'); }}
           />
@@ -1046,7 +1048,7 @@ export default function App() {
             onBack={() => setCurrentPage('pos')}
             onDeleteOrder={handleDeleteOrder}
             onDeleteMultiple={handleDeleteMultipleOrders}
-            onViewOrder={(order) => setSelectedOrder(order)}
+            onViewOrder={(order, list) => { setDetailDirection(0); setDetailOrderList(list || []); setSelectedOrder(order); }}
             onRefresh={refreshOrders}
             isLoading={false}
             onReorder={(order) => {
@@ -1390,8 +1392,18 @@ export default function App() {
       {selectedOrder && (
         <OrderDetail
           isOpen={!!selectedOrder}
-          onClose={() => setSelectedOrder(null)}
+          onClose={() => { setSelectedOrder(null); setDetailOrderList([]); }}
           order={selectedOrder}
+          navigation={(() => {
+            const index = detailOrderList.findIndex(item => (item.id || item.orderNumber) === (selectedOrder.id || selectedOrder.orderNumber));
+            if (index < 0) return null;
+            return { index, total: detailOrderList.length, direction: detailDirection, previous: detailOrderList[index - 1], next: detailOrderList[index + 1], go: (step) => {
+              const next = detailOrderList[index + step];
+              if (!next) return;
+              setDetailDirection(step);
+              setSelectedOrder(orders.find(item => (item.id || item.orderNumber) === (next.id || next.orderNumber)) || next);
+            } };
+          })()}
           customers={customers}
           onUpdateOrder={async (id, data, opts) => {
             const result = await handleUpdateOrder(id, data, opts);
