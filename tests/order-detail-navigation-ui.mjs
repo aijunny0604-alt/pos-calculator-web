@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 const browser = await chromium.launch({ headless: true });
 try {
-  for (const viewport of [{width: 1440, height: 900}, {width: 390, height: 844}, {width: 360, height: 800}]) {
+  for (const viewport of [{width: 1920, height: 1080}, {width: 1440, height: 900}, {width: 390, height: 844}, {width: 360, height: 800}]) {
     const page = await browser.newPage({ viewport, hasTouch: true });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const errors = [];
@@ -16,6 +16,9 @@ try {
     if (viewport.width > 1200) {
       const peek = page.getByRole('button', {name:'다음 주문 미리보기'});
       await peek.evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished.catch(() => {}))));
+      assert.equal(await peek.getByText('스텐 플랜지 FL 63',{exact:true}).count(), 1);
+      assert.equal(await peek.getByText('자바라 SF 63 S 길이 120',{exact:true}).count(), 1);
+      assert.equal(await peek.getByText('2개',{exact:true}).count(), 1);
       const modalRect = await modal.boundingBox();
       const idlePeek = await peek.boundingBox();
       await page.mouse.move(Math.min(viewport.width - 3, modalRect.x + modalRect.width + 6), idlePeek.y + idlePeek.height / 2);
@@ -44,7 +47,6 @@ try {
     await modal.evaluate(el => { el.dataset.navigationTest = 'old-window'; el.parentElement.dataset.navigationTest = 'same-backdrop'; });
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
-    if (process.env.ORDER_DETAIL_SCREENSHOT_DIR) { await page.waitForTimeout(100); await page.screenshot({path:`${process.env.ORDER_DETAIL_SCREENSHOT_DIR}/order-transition-${viewport.width}.png`}); }
     await modal.getByText('SAMPLE-2').waitFor();
     const outgoing = page.locator('.order-detail-carousel-ghost');
     assert.equal(await outgoing.count(), 1);

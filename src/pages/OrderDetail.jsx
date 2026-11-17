@@ -90,9 +90,13 @@ function OrderDetailAmbient({ item, side, disabled, hidden, position, onSelect }
   }, []);
   const previous = side === 'previous';
   const Icon = previous ? ChevronLeft : ChevronRight;
+  const items = Array.isArray(item.items) ? item.items : [];
+  const visibleItems = items.slice(0, 4);
   return <button ref={elementRef} type="button" aria-label={previous ? '이전 주문 미리보기' : '다음 주문 미리보기'} disabled={disabled} onClick={onSelect}
     className={`order-detail-ambient-card order-detail-ambient-${side}${hidden ? ' order-detail-ambient-hidden' : ''}`} style={position}>
-    <span>{previous ? '이전 주문' : '다음 주문'}</span><strong>{item.customerName || '주문 상세'}</strong><small>{item.orderNumber}</small><i /><em>주문 상품 · {(item.items || []).length}종</em><b>{formatPrice(item.totalAmount || 0)}원</b><Icon size={22} />
+    <span>{previous ? '이전 주문' : '다음 주문'}</span><strong>{item.customerName || '주문 상세'}</strong><small>{item.orderNumber}</small><i /><em>주문 상품 · {items.length}종</em>
+    {visibleItems.length > 0 && <span className="order-detail-ambient-items">{visibleItems.map((product, index) => <span className="order-detail-ambient-item" key={index} title={String(product?.name || '상품명 없음')}><span className="order-detail-ambient-item-name">{product?.name || '상품명 없음'}</span>{Number(product?.quantity) > 0 && <span className="order-detail-ambient-item-quantity">{Number(product.quantity).toLocaleString('ko-KR')}개</span>}</span>)}{items.length > visibleItems.length && <span className="order-detail-ambient-more">외 {items.length - visibleItems.length}종</span>}</span>}
+    <b>{formatPrice(item.totalAmount || 0)}원</b><Icon size={22} />
   </button>;
 }
 
@@ -254,8 +258,8 @@ export default function OrderDetail({
     ensureSize,
   } = useDraggableResizable('pos-web.orderDetailModal.v2', { w: 940, h: 980 }, { centerOnOpen: true });
   if (isDraggable && !isFullscreen) ambientPositions.current = {
-    previous: { right:`calc(100vw - ${dragContainerStyle.left} - 95px)` },
-    next: { left:`calc(${dragContainerStyle.left} + ${dragContainerStyle.width} - 95px)` },
+    previous: { right:`calc(100vw - ${dragContainerStyle.left} - 95px)`, width:`min(540px, max(140px, calc(${dragContainerStyle.left} + 83px)))` },
+    next: { left:`calc(${dragContainerStyle.left} + ${dragContainerStyle.width} - 95px)`, width:`min(540px, max(140px, calc(100vw - ${dragContainerStyle.left} - ${dragContainerStyle.width} + 83px)))` },
   };
 
   // 품목 수 많으면 모달 자동 확장 (최소 보장 — 사용자가 더 크게 조정한 건 유지)

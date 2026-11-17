@@ -216,6 +216,13 @@
  .order-detail-ambient-card strong{font-size:clamp(18px,1.4vw,26px);line-height:1.4;overflow-wrap:anywhere}
  .order-detail-ambient-card i{display:block;width:100%;height:1px;background:#ffffff70;margin:10px 0}
  .order-detail-ambient-card em{font-style:normal;font-size:13px;color:#e4f7f9dd}
+ .order-detail-ambient-card .order-detail-ambient-items{display:flex;flex-direction:column;gap:7px;width:100%;min-width:0;margin:0 0 2px}
+ .order-detail-ambient-card .order-detail-ambient-item{display:flex;align-items:baseline;gap:8px;min-width:0;font-size:13px;line-height:1.45;color:#f4ffff}
+ .order-detail-ambient-card .order-detail-ambient-item-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;font-size:inherit}
+ .order-detail-ambient-card .order-detail-ambient-item-quantity{flex-shrink:0;white-space:nowrap;color:#e4f7f9d9;font-size:12px}
+ .order-detail-ambient-card .order-detail-ambient-more{font-size:11px;color:#e4f7f9d9}
+ .order-detail-ambient-next .order-detail-ambient-item{justify-content:flex-end}
+ .order-detail-ambient-next .order-detail-ambient-item-name{flex:0 1 auto;text-align:right}
  .order-detail-ambient-card b{font-size:22px;font-variant-numeric:tabular-nums}
  .order-detail-ambient-card svg{margin-top:auto}
  .order-detail-ambient-previous{right:calc(50% + min(36rem, 50vw - 1rem) - 95px);transform:translateY(-50%) perspective(1200px) rotateY(15deg) scale(.96);transform-origin:right center;animation:order-detail-peek-in-left .58s cubic-bezier(.16,1,.3,1) backwards!important}

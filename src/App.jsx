@@ -32,7 +32,7 @@ const SupplierPrices = lazy(() => import('@/pages/SupplierPrices'));
 const SupplierLedger = lazy(() => import('@/pages/SupplierLedger'));
 
 import { supabase, supabaseClient } from '@/lib/supabase';
-import { validateCoreData } from '@/lib/posConnection';
+import { validateCoreData, POS_CONNECTION_EVENT } from '@/lib/posConnection';
 import { subscribePosChanges, mergePosChange } from '@/lib/posRealtime';
 import { createOrderArrivalTracker } from '@/lib/orderArrival';
 import { priceData } from '@/lib/priceData';
@@ -76,6 +76,31 @@ export default function App() {
   const [savedCarts, setSavedCarts] = useState([]);
   const [aiLearningData, setAiLearningData] = useState([]);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
+  const [connectionProblem, setConnectionProblem] = useState(() => navigator.onLine ? null : 'offline');
+  const connectionFailures = useRef(new Map());
+  useEffect(() => {
+    const handleResult = (event) => {
+      const { result, resource } = event.detail || {};
+      if (result === 'success') {
+        connectionFailures.current.delete(resource);
+        if (navigator.onLine && connectionFailures.current.size === 0) setConnectionProblem(null);
+      } else if (result === 'failure') {
+        connectionFailures.current.set(resource, (connectionFailures.current.get(resource) || 0) + 1);
+        const failures = [...connectionFailures.current.values()].reduce((a, b) => a + b, 0);
+        if (!navigator.onLine || failures >= 2) setConnectionProblem(navigator.onLine ? 'server' : 'offline');
+      }
+    };
+    const offline = () => setConnectionProblem('offline');
+    const online = () => setConnectionProblem('checking');
+    window.addEventListener(POS_CONNECTION_EVENT, handleResult);
+    window.addEventListener('offline', offline);
+    window.addEventListener('online', online);
+    return () => {
+      window.removeEventListener(POS_CONNECTION_EVENT, handleResult);
+      window.removeEventListener('offline', offline);
+      window.removeEventListener('online', online);
+    };
+  }, []);
   const orderArrivals = useRef(createOrderArrivalTracker());
   const customersRef = useRef(customers);
   useEffect(() => { customersRef.current = customers; }, [customers]);
@@ -321,7 +346,9 @@ export default function App() {
   // ─── Supabase real-time WebSocket ─────────────────────────────
   useEffect(() => {
     if (!supabaseConnected) return;
-    let orderRevision = 0;
+    let orderRevision = 0, cartsRevision = 0;
+    let lastFullRefreshAt = Date.now();
+    let fullRefreshInFlight = false;
 
     // The SDK registers postgres_changes and handles heartbeat/reconnection.
     const stopRealtime = subscribePosChanges(supabaseClient, (table, payload) => {
@@ -335,7 +362,7 @@ export default function App() {
       }
       else if (table === 'products') setProducts(rows => mergePosChange(rows, payload));
       else if (table === 'customers') setCustomers(rows => mergePosChange(rows, payload));
-      else if (table === 'saved_carts') setSavedCarts(rows => mergePosChange(rows, payload, undefined, true));
+      else if (table === 'saved_carts') { cartsRevision++; setSavedCarts(rows => mergePosChange(rows, payload, undefined, true)); }
       else if (table === 'ai_learning') setAiLearningData(rows => mergePosChange(rows, payload));
     });
 
@@ -354,15 +381,25 @@ export default function App() {
       });
     };
     const pollInterval = setInterval(refreshOrdersSafely, 30000);
-    const cartsInterval = setInterval(() => {
+    const refreshFullSnapshot = async () => {
+      if (fullRefreshInFlight) return;
+      fullRefreshInFlight = true;
       const revisionAtStart = orderRevision;
-      supabase.getOrders().then((d) => { if (d && revisionAtStart === orderRevision) setOrders(d.map(formatOrder)); });
-      supabase.getSavedCarts().then((d) => d && setSavedCarts(d));
-    }, 300000);
+      const cartsRevisionAtStart = cartsRevision;
+      try {
+        const [ordersSnapshot, cartsSnapshot] = await Promise.all([supabase.getOrders(), supabase.getSavedCarts()]);
+        if (ordersSnapshot && revisionAtStart === orderRevision) setOrders(ordersSnapshot.map(formatOrder));
+        if (cartsSnapshot && cartsRevisionAtStart === cartsRevision) setSavedCarts(cartsSnapshot);
+        if (ordersSnapshot && cartsSnapshot) lastFullRefreshAt = Date.now();
+      } finally { fullRefreshInFlight = false; }
+    };
+    const cartsInterval = setInterval(() => { if (!document.hidden) refreshFullSnapshot(); }, 300000);
 
     // 탭 포커스 복귀 시 갱신 (30초 쓰로틀링 적용)
     const handleVisibility = () => {
       if (!document.hidden) {
+        const needsFullRefresh = Date.now() - lastFullRefreshAt >= 300000;
+        if (needsFullRefresh) refreshFullSnapshot();
         // 배지는 쓰로틀 밖에서 먼저 — 얼어 있던 탭이 깨어난 직후가 제일 낡은 시점이다
         refreshSmartstoreCount();
         const now = Date.now();
@@ -371,7 +408,10 @@ export default function App() {
         refreshOrdersSafely();
         supabase.getProducts().then((d) => d && d.length > 0 && setProducts(d));
         supabase.getCustomers().then((d) => d && setCustomers(d));
-        supabase.getSavedCarts().then((d) => d && setSavedCarts(d));
+        if (!needsFullRefresh) {
+          const cartsRevisionAtStart = cartsRevision;
+          supabase.getSavedCarts().then((d) => { if (d && cartsRevisionAtStart === cartsRevision) setSavedCarts(d); });
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -996,7 +1036,7 @@ export default function App() {
             products={products}
             savedCarts={savedCarts}
             customers={customers}
-            supabaseConnected={supabaseConnected}
+            supabaseConnected={supabaseConnected && !connectionProblem}
             setCurrentPage={setCurrentPage}
             onViewOrder={(order, list) => { setDetailDirection(0); setDetailOrderList(list || []); setSelectedOrder(order); }}
             onUpdateOrder={handleUpdateOrder}
@@ -1334,12 +1374,19 @@ export default function App() {
   // ─── Render ───────────────────────────────────────────────────
   return (
     <>
+      {connectionProblem && (
+        <div role="alert" aria-live="assertive" className="fixed top-3 left-1/2 z-[9999] w-[min(94vw,560px)] -translate-x-1/2 rounded-xl border px-4 py-3 shadow-lg" style={{ background:'var(--card)', color:'var(--foreground)', borderColor:'var(--warning)' }}>
+          <div className="font-bold">{connectionProblem === 'offline' ? '인터넷 연결이 끊겼습니다' : connectionProblem === 'checking' ? '데이터 연결을 확인하고 있습니다' : '서버 연결이 원활하지 않습니다'}</div>
+          <p className="mt-1 text-sm leading-relaxed">{connectionProblem === 'offline' ? '네트워크 연결을 확인해 주세요. 다시 연결되면 자동으로 확인합니다.' : '주문과 재고가 최신 상태가 아닐 수 있습니다. 연결이 복구되면 안내가 자동으로 사라집니다.'}</p>
+          <p className="mt-1 text-xs">저장 결과가 불확실한 작업은 중복 처리하기 전에 내역을 확인해 주세요.</p>
+        </div>
+      )}
       {/* 전역 스토어 주문 알림 — 어느 페이지에서든 신규주문/취소 시 알림음+팝업+OS알림 */}
       <StoreOrderAlerts />
       <AppLayout
         currentPage={currentPage}
         onNavigate={setCurrentPage}
-        isOnline={supabaseConnected}
+        isOnline={supabaseConnected && !connectionProblem}
         orderCount={todayOrderCount}
         savedCartCount={savedCartCount}
         shippingCount={shippingCount}
@@ -1401,11 +1448,12 @@ export default function App() {
           navigation={(() => {
             const index = detailOrderList.findIndex(item => (item.id || item.orderNumber) === (selectedOrder.id || selectedOrder.orderNumber));
             if (index < 0) return null;
-            return { index, total: detailOrderList.length, direction: detailDirection, previous: detailOrderList[index - 1], next: detailOrderList[index + 1], go: (step) => {
+            const currentOrder = (item) => item ? (orders.find(order => (order.id || order.orderNumber) === (item.id || item.orderNumber)) || item) : null;
+            return { index, total: detailOrderList.length, direction: detailDirection, previous: currentOrder(detailOrderList[index - 1]), next: currentOrder(detailOrderList[index + 1]), go: (step) => {
               const next = detailOrderList[index + step];
               if (!next) return;
               setDetailDirection(step);
-              setSelectedOrder(orders.find(item => (item.id || item.orderNumber) === (next.id || next.orderNumber)) || next);
+              setSelectedOrder(currentOrder(next));
             } };
           })()}
           customers={customers}

@@ -4,19 +4,32 @@ export function validateCoreData(orders, products, customers, carts) {
   }
 }
 
+export const POS_CONNECTION_EVENT = 'pos-connection-result';
+const coreRead = (url, isRead) => isRead ? String(url).match(/\/rest\/v1\/(orders|products|customers|saved_carts)(?:\?|$)/)?.[1] : null;
+function reportConnectionResult(result, resource) {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(POS_CONNECTION_EVENT, { detail: { result, resource } }));
+}
+
 // A read timeout is safe to retry. Never retry or time out writes here:
 // a disconnected write can already have committed on the server.
 export async function fetchPosJSON(url, options = {}, fetcher = fetch) {
   const isRead = !options.method || options.method.toUpperCase() === 'GET';
   const controller = isRead && !options.signal ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), 15000) : null;
+  const monitored = coreRead(url, isRead);
   try {
     const response = await fetcher(url, controller ? { ...options, signal: controller.signal } : options);
     if (!response.ok) {
+      if (monitored && (response.status >= 500 || response.status === 401 || response.status === 403)) reportConnectionResult('failure', monitored);
       const body = await response.text();
       throw new Error(`API error: ${response.status} - ${body}`);
     }
-    return await response.json();
+    const result = await response.json();
+    if (monitored) reportConnectionResult('success', monitored);
+    return result;
+  } catch (error) {
+    if (monitored && (error.name === 'AbortError' || error instanceof TypeError)) reportConnectionResult('failure', monitored);
+    throw error;
   } finally {
     if (timer !== null) clearTimeout(timer);
   }
