@@ -18,6 +18,7 @@ import { getClaimInfo, saveStoreQueue, validateStoreConversion } from '@/lib/sto
 import SyncMonitorWidget from '@/components/SyncMonitorWidget';
 import StoreShippingDetails from '@/components/StoreShippingDetails';
 import StoreCatalog from '@/components/StoreCatalog';
+import StoreSoldOutAlerts, { useStoreSoldOutAlerts } from '@/components/StoreSoldOutAlerts';
 import StoreFinance from '@/components/StoreFinance';
 import StoreSales from '@/components/StoreSales';
 import ViewportModal from '@/components/ui/ViewportModal';
@@ -484,6 +485,7 @@ export default function SmartStoreOrders({
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [financeOpen, setFinanceOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(false);
+  const soldOutMonitor = useStoreSoldOutAlerts();
   const requestCatalogSync = async () => {
     setCatalogSyncing(true);
     try {
@@ -1459,11 +1461,13 @@ export default function SmartStoreOrders({
     }
   };
 
-  if (catalogOpen) return <StoreCatalog onBack={() => setCatalogOpen(false)} onSync={requestCatalogSync} syncing={catalogSyncing} showToast={showToast} />;
-  if (salesOpen) return <StoreSales onBack={() => setSalesOpen(false)} />;
-  if (financeOpen) return <StoreFinance onBack={() => setFinanceOpen(false)} />;
+  const soldOutNotice = <StoreSoldOutAlerts monitor={soldOutMonitor} onOpenCatalog={() => { setSalesOpen(false); setFinanceOpen(false); setCatalogOpen(true); }} />;
+  if (catalogOpen) return <div className="h-full flex flex-col">{soldOutNotice}<div className="flex-1 min-h-0"><StoreCatalog onBack={() => setCatalogOpen(false)} onSync={requestCatalogSync} syncing={catalogSyncing} showToast={showToast} /></div></div>;
+  if (salesOpen) return <div className="h-full flex flex-col">{soldOutNotice}<div className="flex-1 min-h-0"><StoreSales onBack={() => setSalesOpen(false)} /></div></div>;
+  if (financeOpen) return <div className="h-full flex flex-col">{soldOutNotice}<div className="flex-1 min-h-0"><StoreFinance onBack={() => setFinanceOpen(false)} /></div></div>;
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--background)' }}>
+      {soldOutNotice}
       {/* 헤더 */}
       <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
         {/* 모바일 햄버거 메뉴 — 다른 페이지와 동일 패턴 (toggle-sidebar 이벤트) */}

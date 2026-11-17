@@ -16,6 +16,14 @@ if (import.meta.env.DEV && stockCheck && stockCheck !== 'empty') tables.external
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('mobileTransportCheck') && tables.external_products[0]) { tables.external_products[0].channel_product_no='10';tables.external_products[0].origin_product_no='20'; }
 if (import.meta.env.DEV && invoiceCheck) Object.assign(tables, invoiceFixture(invoiceCheck));
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeCheck')) Object.assign(tables, storeWidgetFixture());
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('storeSoldOutCheck')) {
+ const time = Date.now();
+ tables.external_products = [{ channel_product_no:'91000001', origin_product_no:'81000001', name:'알림 검증용 상품', status_type:'SALE', sale_price:10000, synced_at:new Date(time).toISOString(), option_count:2, options:[{id:1,name:'블랙',stock:3,usable:true},{id:2,name:'화이트',stock:0,usable:true}] }];
+ window.simulateSoldOut = () => {
+  tables.external_products[0] = { ...tables.external_products[0], status_type:'OUTOFSTOCK', synced_at:new Date(time+60000).toISOString(), options:[{id:1,name:'블랙',stock:0,usable:true},{id:2,name:'화이트',stock:0,usable:true}] };
+  window.dispatchEvent(new Event('store-catalog-changed'));
+ };
+}
 if (import.meta.env.DEV && new URLSearchParams(location.search).has('historyPickupCheck')) {
  tables.external_orders = [
   { id:'PICKUP-EXT', provider:'naver', provider_order_id:'1001', internal_order_id:'PICKUP-ORDER', raw_payload:{productOrder:{expectedDeliveryMethod:'VISIT_RECEIPT'}} },
