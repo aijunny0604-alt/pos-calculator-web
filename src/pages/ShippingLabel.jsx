@@ -10,6 +10,7 @@ import { supabase, supabaseClient } from '@/lib/supabase';
 import useKeyboardNav from '@/hooks/useKeyboardNav';
 import useDraggableResizable from '@/hooks/useDraggableResizable';
 import { NAVER_COURIERS, DEFAULT_COURIER_CODE } from '@/lib/naverCouriers';
+import { validPackingBadge } from '@/lib/orderPacking';
 
 // 커스텀 항목/주문에서 네이버 주문번호(provider_order_id) 추출.
 // 📦 버튼 생성 항목: id="naver-{poid}-{ts}" / note="[네이버 {poid}]"
@@ -1137,7 +1138,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                             )}
                             {/* 📦 포장 상태 — 실제 주문만(출고예약 제외). 완료=됨/미완료=안됨 명확히 */}
                             {!order.__fromSavedCart && (() => {
-                              const pk = packingMap[packOrderId(order)];
+                              const pk = validPackingBadge(packingMap[packOrderId(order)], order.items);
                               return pk?.done ? (
                                 <span className="px-2 py-0.5 text-xs rounded-full font-black flex items-center gap-1"
                                   style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', boxShadow: '0 1px 4px rgba(22,163,74,0.4)' }}

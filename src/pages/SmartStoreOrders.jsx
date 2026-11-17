@@ -8,6 +8,7 @@ import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ShoppingBag, RefreshCw, Search, Check, X, AlertTriangle, Package, ArrowRight, Bell, BellOff, FlaskConical, ClipboardCheck, Truck, ExternalLink, Printer, Menu, Ban, Copy, Maximize2, Minimize2, Store, Clock, List, LayoutGrid, PanelsTopLeft } from 'lucide-react';
 import { supabase, supabaseClient } from '@/lib/supabase';
+import { validPackingBadge } from '@/lib/orderPacking';
 import { playAlertSound, isStoreAlertSoundOn, setStoreAlertSound } from '@/components/StoreOrderAlerts';
 import { matchCustomer } from '@/lib/fuzzyMatch';
 import { findProductCandidates, searchProductChoices } from '@/lib/productMatch';
@@ -379,6 +380,7 @@ function ProductThumb({ productId, images, onZoom, size = 44 }) {
 export default function SmartStoreOrders({
   products = [],
   customers = [],
+  internalOrders = [],
   showToast,
   saveOrder: saveOrderProp,
   setCurrentPage,
@@ -722,6 +724,7 @@ export default function SmartStoreOrders({
   // 📦 포장 상태 — 스토어 카드 배지용. 포장은 내부주문(order_packing.order_id=ORD-…) 기준이라
   //   외부주문의 internal_order_id 로 매핑한다. { [internalOrderId]: {checkedCount, itemCount, done} }
   const [packingMap, setPackingMap] = useState({});
+  const internalOrdersById = useMemo(() => new Map(internalOrders.map(order => [String(order.id || order.orderNumber || ''), order])), [internalOrders]);
   const packingIdsKey = JSON.stringify([...new Set(orders.map(order => order.internal_order_id).filter(Boolean).map(String))].sort());
   useEffect(() => {
     let alive = true;
@@ -1937,7 +1940,8 @@ export default function SmartStoreOrders({
                       )}
                       {/* 📦 포장 상태 — 전환된 내부주문의 포장체크를 internal_order_id로 매핑해 표시 */}
                       {(() => {
-                        const pk = order.internal_order_id ? packingMap[String(order.internal_order_id)] : null;
+                        const internalOrder = order.internal_order_id ? internalOrdersById.get(String(order.internal_order_id)) : null;
+                        const pk = internalOrder ? validPackingBadge(packingMap[String(order.internal_order_id)], internalOrder.items) : null;
                         if (!pk || pk.itemCount === 0 || pk.checkedCount === 0) return null;
                         return pk.done ? (
                           <span className="text-[11px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff' }} title="포장 완료 — 제품 다 챙김">📦✅ 포장완료</span>

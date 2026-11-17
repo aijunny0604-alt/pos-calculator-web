@@ -33,7 +33,7 @@ try {
       const after = await peek.boundingBox();
       assert.ok(Math.abs((after.x - before.x) - 20) < 2);
       await modal.getByRole('button', {name:'전체화면'}).click();
-      assert.equal(await peek.isVisible(), false);
+      await peek.waitFor({state:'hidden'});
       await modal.getByRole('button', {name:'원래 크기'}).click();
       assert.equal(await peek.isVisible(), true);
     }
@@ -52,6 +52,14 @@ try {
     assert.equal(await outgoing.getAttribute('inert'), '');
     assert.match(await outgoing.textContent(), /SAMPLE-1/);
     assert.equal(await outgoing.evaluate(el => el.getAnimations().some(animation => animation.playState === 'running')), true);
+    if (viewport.width > 1200) {
+      const disappearingPeek = page.locator('.order-detail-ambient-exit');
+      await disappearingPeek.waitFor({state:'attached'});
+      assert.equal(await disappearingPeek.getAttribute('aria-hidden'), 'true');
+      assert.equal(await disappearingPeek.getAttribute('inert'), '');
+      assert.equal(await disappearingPeek.evaluate(el => el.getAnimations().some(animation => animation.playState === 'running')), true);
+      await disappearingPeek.waitFor({state:'detached'});
+    }
     assert.equal(await modal.evaluate(el => getComputedStyle(el).animationName), 'order-detail-next');
     assert.equal(await modal.evaluate(el => el.dataset.navigationTest), undefined);
     assert.equal(await modal.evaluate(el => el.parentElement.dataset.navigationTest), 'same-backdrop');

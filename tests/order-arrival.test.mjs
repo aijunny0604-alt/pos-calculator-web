@@ -27,3 +27,10 @@ test('연결 복구 조회에서 누락된 주문만 발견하며 알 수 없는
   assert.deepEqual(tracker.scan([order('a', 1), order('x', 1), order('b', 1)], []).map(o => o.id), ['b']);
   assert.deepEqual(tracker.scan([order('a', 1), order('x', 1), order('b', 1)], []), []);
 });
+test('실패한 로컬 합산의 억제 기록을 제거하면 이후 다른 기기의 주문을 놓치지 않는다', () => {
+  const tracker = createOrderArrivalTracker();
+  tracker.baseline([order('a',1)]);
+  tracker.markLocal('a',[{quantity:2}]);
+  tracker.cancelLocal('a');
+  assert.equal(tracker.event({eventType:'UPDATE',new:order('a',2)},[]),true);
+});

@@ -428,7 +428,7 @@ export default function MainPOS({
   const handleOrderSubmit = async () => {
     if (!saveOrder) return;
     const customerName = orderCustomerName.trim() || '일반고객';
-    await saveOrder({
+    const saved = await saveOrder({
       customer_name: customerName,
       customer_phone: orderCustomerPhone.trim(),
       memo: orderMemo.trim(),
@@ -437,7 +437,7 @@ export default function MainPOS({
       total_amount: totalAmount,
       price_type: priceType,
     });
-    setShowOrderConfirm(false);
+    if (saved) setShowOrderConfirm(false);
   };
 
   return (

@@ -587,6 +587,9 @@ export default function App() {
               showToast('기존 주문에 합산되었습니다', 'success');
               return { ...updated, merged: true };
             }
+            orderArrivals.current.cancelLocal(existingOrder.id);
+            showToast('기존 주문에 합산하지 못했습니다. 연결과 포장 상태를 확인한 뒤 다시 시도해주세요.', 'error');
+            return null;
           }
         }
 
@@ -1247,6 +1250,7 @@ export default function App() {
             <SmartStoreOrders
               products={products}
               customers={customers}
+              internalOrders={orders}
               showToast={showToast}
               saveOrder={saveOrder}
               setCurrentPage={setCurrentPage}

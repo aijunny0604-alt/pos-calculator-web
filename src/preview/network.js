@@ -10,6 +10,11 @@ const customers = ['샘플 모터스','테스트 퍼포먼스','무브 디자인
 const orders=Array.from({length:8},(_,i)=>({id:'DEMO-'+(100+i),order_number:'DEMO-'+(100+i),customer_name:customers[i%3].name,customer_id:i%3+1,customer_phone:'010-0000-0000',customer_address:customers[0].address,items:[{...products[i],quantity:2}],total_amount:(i%2?products[i].retail:products[i].wholesale)*2,total_quantity:2,price_type:i%2?'retail':'wholesale',created_at:now,status:'completed',memo:i===0?'샘플 주문입니다. 실제 출고하지 않습니다.':''}));
 export const sample = {products,customers,orders};
 const tables={products,customers,orders,saved_carts:[],payment_records:[],payment_history:[],purchase_orders:[],supplier_prices:[],external_orders:[{id:'DEMO-STORE-1',provider:'naver',provider_order_id:'DEMO-20261020',buyer_name:'발송 검증용 고객',order_status:'PAYED',raw_payload:{productOrder:{expectedDeliveryMethod:'VISIT_RECEIPT'}},total_amount:164000,created_at:now,ordered_at:now}],external_order_items:[{id:'DEMO-ITEM-1',external_order_id:'DEMO-STORE-1',product_name:'모바일 발송 모달 검증용 상품',quantity:1,unit_price:164000}],external_products:[],app_settings:[]};
+const packingEditCheck = import.meta.env.DEV && new URLSearchParams(location.search).has('packingEditCheck');
+if (packingEditCheck) {
+ tables.orders = [{id:'PACK-DEMO',order_number:'PACK-DEMO',customer_name:'포장 테스트 업체',created_at:now,items:[{id:1,name:'스텐 밴딩 54-30',quantity:1,price:12000}],total:12000}];
+ tables.order_packing = [{order_id:'PACK-DEMO',checked:[0],item_count:1,done:true}];
+}
 const invoiceCheck = new URLSearchParams(location.search).get('invoiceCheck');
 const stockCheck = new URLSearchParams(location.search).get('stockCheck');
 if (import.meta.env.DEV && stockCheck && stockCheck !== 'empty') tables.external_products = storeCatalogFixture();
@@ -91,6 +96,14 @@ window.fetch=async(input,options={})=>{
   return new Response(JSON.stringify({elements:[rows[url.pathname]],page:1,last:true,totalElements:1,fetchedAt:'2026-10-27T00:00:00Z'}),{status:200,headers:{'Content-Type':'application/json'}});
  }
  if(url.origin===location.origin&&!url.pathname.includes('/api/'))return realFetch(input,options);
+ if(packingEditCheck && url.pathname === '/rest/v1/order_packing' && method === 'POST') {
+  if(window.previewPackingFailure) return new Response(JSON.stringify({message:'sample failure'}),{status:503,headers:{'Content-Type':'application/json'}});
+  tables.order_packing=[JSON.parse(options.body)]; return new Response(null,{status:204});
+ }
+ if(packingEditCheck && url.pathname === '/rest/v1/orders' && method === 'PATCH') {
+  tables.orders[0]={...tables.orders[0],...JSON.parse(options.body)};
+  return new Response(JSON.stringify(tables.orders),{status:200,headers:{'Content-Type':'application/json'}});
+ }
  if(method!=='GET'&&method!=='HEAD')return new Response(JSON.stringify({message:'디자인 미리보기에서는 저장·외부 실행을 하지 않습니다.'}),{status:403,headers:{'Content-Type':'application/json'}});
  let data=[];
  if(url.pathname.includes('/rest/v1/')){

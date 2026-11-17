@@ -2,6 +2,7 @@ import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { itemDiscountText, orderDiscountText } from '@/lib/discount';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import { orderContactText } from '@/lib/orderContact';
+import { validPackingBadge } from '@/lib/orderPacking';
 import { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft, Menu, Search, List, RefreshCw, Trash2, Eye, ShoppingCart,
@@ -1303,7 +1304,7 @@ export default function OrderHistory({
                           {discount.hasDiscount && <span className="order-card-discount-badge">할인</span>}
                           {/* 📦 포장 상태 — 완료=초록 도장, 진행중=주황 N/M */}
                           {(() => {
-                            const pk = packingMap[orderIdOf(order)];
+                            const pk = validPackingBadge(packingMap[orderIdOf(order)], order.items);
                             if (!pk || pk.itemCount === 0 || pk.checkedCount === 0) return null;
                             if (pk.done) {
                               return (

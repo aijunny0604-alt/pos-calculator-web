@@ -4,7 +4,8 @@ import ProductReplacementModal from '@/components/ProductReplacementModal';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { orderContactText } from '@/lib/orderContact';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { packingItemsSignature } from '@/lib/orderPacking';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseClient } from '@/lib/supabase';
 import {
@@ -58,6 +59,43 @@ const splitNameOption = (item) => {
   return { base: raw, option: '' };
 };
 
+function OrderDetailAmbient({ item, side, disabled, hidden, position, onSelect }) {
+  const elementRef = useRef(null);
+  useLayoutEffect(() => {
+    const node = elementRef.current;
+    return () => {
+      if (!node?.isConnected || !node.parentElement || !node.getBoundingClientRect().width) return;
+      const parent = node.parentElement;
+      const style = getComputedStyle(node);
+      const transform = style.transform === 'none' ? '' : style.transform;
+      const opacity = Number(style.opacity);
+      const ghost = node.cloneNode(true);
+      ghost.classList.add('order-detail-ambient-exit');
+      ghost.setAttribute('aria-hidden', 'true'); ghost.setAttribute('inert', ''); ghost.setAttribute('tabindex', '-1');
+      ghost.style.pointerEvents = 'none';
+      ghost.style.setProperty('animation', 'none', 'important');
+      // 부모 창도 닫히는 중이면 공통 모달 퇴장 효과가 이미 처리한다.
+      requestAnimationFrame(() => {
+        if (!parent.isConnected) return;
+        parent.appendChild(ghost);
+        try {
+          const motion = ghost.animate([
+            { opacity, transform },
+            { opacity:0, transform:`${transform} scale(.985)` },
+          ], { duration:340, easing:'cubic-bezier(.4,0,.6,1)', fill:'forwards' });
+          motion.finished.catch(() => {}).finally(() => ghost.remove());
+        } catch { ghost.remove(); }
+      });
+    };
+  }, []);
+  const previous = side === 'previous';
+  const Icon = previous ? ChevronLeft : ChevronRight;
+  return <button ref={elementRef} type="button" aria-label={previous ? '이전 주문 미리보기' : '다음 주문 미리보기'} disabled={disabled} onClick={onSelect}
+    className={`order-detail-ambient-card order-detail-ambient-${side}${hidden ? ' order-detail-ambient-hidden' : ''}`} style={position}>
+    <span>{previous ? '이전 주문' : '다음 주문'}</span><strong>{item.customerName || '주문 상세'}</strong><small>{item.orderNumber}</small><i /><em>주문 상품 · {(item.items || []).length}종</em><b>{formatPrice(item.totalAmount || 0)}원</b><Icon size={22} />
+  </button>;
+}
+
 export default function OrderDetail({
   isOpen,
   onClose,
@@ -72,6 +110,7 @@ export default function OrderDetail({
 }) {
   const [copied, setCopied] = useState(false);
   const swipeStart = useRef(null);
+  const ambientPositions = useRef({});
   const slideTimer = useRef(null);
   const modalRef = useRef(null);
   const slideGhost = useRef(null);
@@ -83,6 +122,8 @@ export default function OrderDetail({
   const [productSearchTerm, setProductSearchTerm] = useState('');
   // 저장 전 변경 확인 모달 — { updatedData, diff } (실수 방지: OK 눌러야 실제 적용)
   const [pendingSave, setPendingSave] = useState(null);
+  const [savingChanges, setSavingChanges] = useState(false);
+  const [saveError, setSaveError] = useState('');
   // 거래처 원장도 같이 고칠지 — 저장 확인 모달에서 사장님이 선택
   const [syncCustomer, setSyncCustomer] = useState(true);
   const [pendingDeleteReturnId, setPendingDeleteReturnId] = useState(null);
@@ -101,22 +142,35 @@ export default function OrderDetail({
   const [packedSet, setPackedSet] = useState(() => new Set());
   const [packingDone, setPackingDone] = useState(false);
   const [celebrate, setCelebrate] = useState(false); // 완료 축하 연출
+  const packingLoadVersion = useRef(0);
+  const packingSignature = packingItemsSignature(order?.items);
   useEffect(() => {
     let alive = true;
+    const version = ++packingLoadVersion.current;
     const oid = order?.id || order?.orderNumber;
-    setPackingMode(false); setCelebrate(false);
+    setPackingMode(false); setCelebrate(false); setPackedSet(new Set()); setPackingDone(false);
     if (!oid) { setPackedSet(new Set()); setPackingDone(false); return; }
     (async () => {
       const p = await supabase.getOrderPacking(oid);
-      if (!alive || !p) return;
+      if (!alive || !p || version !== packingLoadVersion.current) return;
       const cnt = (order.items || []).length;
-      const valid = p.itemCount === cnt ? (p.checked || []) : []; // 주문 편집돼 품목 수 바뀌면 체크 리셋
+      const valid = p.itemCount === cnt ? [...new Set((p.checked || []).filter(index => Number.isInteger(index) && index >= 0 && index < cnt))] : [];
       setPackedSet(new Set(valid));
-      setPackingDone(p.itemCount === cnt ? !!p.done : false);
+      setPackingDone(cnt > 0 && p.itemCount === cnt && !!p.done && valid.length === cnt);
     })();
     return () => { alive = false; };
+  }, [order?.id, order?.orderNumber, packingSignature]);
+  useEffect(() => {
+    const onPackingChanged = event => {
+      const detail = event.detail || {};
+      if (String(detail.orderId || '') !== String(order?.id || order?.orderNumber || '')) return;
+      if (!detail.done && !detail.checkedCount) { packingLoadVersion.current++; setPackedSet(new Set()); setPackingDone(false); setCelebrate(false); }
+    };
+    window.addEventListener('order-packing-changed', onPackingChanged);
+    return () => window.removeEventListener('order-packing-changed', onPackingChanged);
   }, [order?.id, order?.orderNumber]);
   const togglePacked = (idx) => {
+    packingLoadVersion.current++;
     const oid = order?.id || order?.orderNumber;
     const items = order.items || [];
     const next = new Set(packedSet);
@@ -141,13 +195,14 @@ export default function OrderDetail({
         const row = p.new || {};
         const cnt = (order.items || []).length;
         // 품목 수 일치할 때만 반영(편집 중 불일치 방지)
-        if ((row.item_count || 0) !== cnt) return;
-        setPackedSet(new Set(Array.isArray(row.checked) ? row.checked : []));
-        setPackingDone(!!row.done);
+        const valid = (row.item_count || 0) === cnt ? [...new Set((Array.isArray(row.checked) ? row.checked : []).filter(index => Number.isInteger(index) && index >= 0 && index < cnt))] : [];
+        packingLoadVersion.current++;
+        setPackedSet(new Set(valid));
+        setPackingDone(cnt > 0 && !!row.done && valid.length === cnt);
       })
       .subscribe();
     return () => { try { supabaseClient.removeChannel(ch); } catch {} };
-  }, [order?.id, order?.orderNumber]);
+  }, [order?.id, order?.orderNumber, packingSignature]);
 
   // 📄 이 주문 거래처에 연동된 사업자등록증 (이름 매칭)
   const custCert = useMemo(() => {
@@ -198,6 +253,10 @@ export default function OrderDetail({
     reset: resetModalPos,
     ensureSize,
   } = useDraggableResizable('pos-web.orderDetailModal.v2', { w: 940, h: 980 }, { centerOnOpen: true });
+  if (isDraggable && !isFullscreen) ambientPositions.current = {
+    previous: { right:`calc(100vw - ${dragContainerStyle.left} - 95px)` },
+    next: { left:`calc(${dragContainerStyle.left} + ${dragContainerStyle.width} - 95px)` },
+  };
 
   // 품목 수 많으면 모달 자동 확장 (최소 보장 — 사용자가 더 크게 조정한 건 유지)
   useEffect(() => {
@@ -230,7 +289,9 @@ export default function OrderDetail({
     const handleEsc = (e) => {
       if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
         e.stopPropagation();
-        if (replacingItemIndex !== null) {
+        if (pendingSave) {
+          if (!savingChanges) setPendingSave(null);
+        } else if (replacingItemIndex !== null) {
           setReplacingItemIndex(null);
           setReplaceSearchTerm('');
         } else if (isReturning) {
@@ -250,7 +311,7 @@ export default function OrderDetail({
     };
     if (isOpen) window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose, isEditing, isReturning, order, replacingItemIndex]);
+  }, [isOpen, onClose, isEditing, isReturning, order, replacingItemIndex, pendingSave, savingChanges]);
 
   // Lock body scroll when open
   useEffect(() => {
@@ -545,6 +606,7 @@ export default function OrderDetail({
       return;
     }
     // 실수 방지 — 변경점 확인 모달을 띄우고, OK(적용) 눌러야 실제 반영
+    setSaveError('');
     setPendingSave({ updatedData, diff, custSync: buildCustomerSync(updatedData) });
     setSyncCustomer(true);
   };
@@ -572,14 +634,21 @@ export default function OrderDetail({
     return { name: customer.name, missing: false, fields };
   };
 
-  const confirmSave = () => {
-    if (pendingSave && onUpdateOrder) {
+  const confirmSave = async () => {
+    if (!pendingSave || !onUpdateOrder || savingChanges) return;
+    setSavingChanges(true); setSaveError('');
+    try {
       const sync = pendingSave.custSync && !pendingSave.custSync.missing ? syncCustomer : false;
-      onUpdateOrder(order.id, pendingSave.updatedData, { syncCustomer: sync });
+      const result = await onUpdateOrder(order.id, pendingSave.updatedData, { syncCustomer: sync });
+      if (!result) { setSaveError('저장하지 못했습니다. 연결과 포장 상태를 확인한 뒤 다시 시도해주세요.'); return; }
+      setPendingSave(null);
+      setIsEditing(false);
+      setShowProductSearch(false);
+    } catch {
+      setSaveError('저장하지 못했습니다. 연결과 포장 상태를 확인한 뒤 다시 시도해주세요.');
+    } finally {
+      setSavingChanges(false);
     }
-    setPendingSave(null);
-    setIsEditing(false);
-    setShowProductSearch(false);
   };
 
   // Edit: cancel
@@ -813,8 +882,8 @@ export default function OrderDetail({
       {/* Backdrop */}
       <div className="absolute inset-0" onClick={onClose} />
 
-      {navigation?.previous && <button key={`prev-${navigation.previous.id || navigation.previous.orderNumber}`} type="button" aria-label="이전 주문 미리보기" disabled={navigationBlocked} onClick={() => requestNavigation(-1)} className="order-detail-ambient-card order-detail-ambient-previous" style={isFullscreen ? { display:'none' } : isDraggable ? { right:`calc(100vw - ${dragContainerStyle.left} - 95px)` } : undefined}><span>이전 주문</span><strong>{navigation.previous.customerName || '주문 상세'}</strong><small>{navigation.previous.orderNumber}</small><i /><em>주문 상품 · {(navigation.previous.items || []).length}종</em><b>{formatPrice(navigation.previous.totalAmount || 0)}원</b><ChevronLeft size={22} /></button>}
-      {navigation?.next && <button key={`next-${navigation.next.id || navigation.next.orderNumber}`} type="button" aria-label="다음 주문 미리보기" disabled={navigationBlocked} onClick={() => requestNavigation(1)} className="order-detail-ambient-card order-detail-ambient-next" style={isFullscreen ? { display:'none' } : isDraggable ? { left:`calc(${dragContainerStyle.left} + ${dragContainerStyle.width} - 95px)` } : undefined}><span>다음 주문</span><strong>{navigation.next.customerName || '주문 상세'}</strong><small>{navigation.next.orderNumber}</small><i /><em>주문 상품 · {(navigation.next.items || []).length}종</em><b>{formatPrice(navigation.next.totalAmount || 0)}원</b><ChevronRight size={22} /></button>}
+      {navigation?.previous && <OrderDetailAmbient key={`prev-${navigation.previous.id || navigation.previous.orderNumber}`} item={navigation.previous} side="previous" disabled={navigationBlocked} hidden={isFullscreen} onSelect={() => requestNavigation(-1)} position={isDraggable ? ambientPositions.current.previous : undefined} />}
+      {navigation?.next && <OrderDetailAmbient key={`next-${navigation.next.id || navigation.next.orderNumber}`} item={navigation.next} side="next" disabled={navigationBlocked} hidden={isFullscreen} onSelect={() => requestNavigation(1)} position={isDraggable ? ambientPositions.current.next : undefined} />}
 
       {/* Modal */}
       <div
@@ -2662,7 +2731,7 @@ export default function OrderDetail({
 
       {/* 주문 수정 변경점 확인 — OK(적용) 눌러야 실제 저장 (실수 방지) */}
       {pendingSave && (
-        <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-[80] flex items-end sm:items-center justify-center sm:p-4 animate-modal-backdrop" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={() => setPendingSave(null)}>
+        <MotionBackdrop className="move-dialog-backdrop fixed inset-0 z-[80] flex items-end sm:items-center justify-center sm:p-4 animate-modal-backdrop" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={() => { if (!savingChanges) setPendingSave(null); }}>
           <div className="move-dialog relative bg-[var(--card)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border border-[var(--border)] shadow-[0_25px_80px_-15px_rgba(0,0,0,0.6)] animate-modal-up overflow-hidden flex flex-col" style={{ maxHeight: '92dvh' }} onClick={(e) => e.stopPropagation()}>
             {/* 상단 액센트 — 수정은 앰버 계열 */}
             <div className="absolute top-0 left-0 right-0 h-1.5 pointer-events-none"
@@ -2679,7 +2748,7 @@ export default function OrderDetail({
                   {order.customerName} · 아래 내용으로 변경됩니다
                 </p>
               </div>
-              <button onClick={() => setPendingSave(null)}
+              <button disabled={savingChanges} onClick={() => setPendingSave(null)}
                 className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-[var(--background)]"
                 aria-label="닫기">
                 <X className="w-4 h-4 opacity-60" />
@@ -2776,16 +2845,17 @@ export default function OrderDetail({
                 </div>
               )}
             </div>
+            {saveError && <p role="alert" className="px-5 pt-3 text-sm font-semibold" style={{ color:'var(--destructive)' }}>{saveError}</p>}
             <div className="px-5 py-4 flex gap-2.5 flex-shrink-0 border-t border-[var(--border)]" style={{ background: 'var(--card)' }}>
-              <button onClick={() => setPendingSave(null)}
+              <button disabled={savingChanges} onClick={() => setPendingSave(null)}
                 className="px-5 py-3 rounded-xl font-semibold text-sm border border-[var(--border)] hover:bg-[var(--background)] transition-colors"
                 style={{ color: 'var(--foreground)' }}>
                 취소
               </button>
-              <button onClick={confirmSave}
+              <button disabled={savingChanges} onClick={confirmSave}
                 className="flex-1 py-3 rounded-xl font-bold text-sm text-white inline-flex items-center justify-center gap-1.5 transition-all hover:brightness-105 active:scale-[0.98]"
                 style={{ background: 'linear-gradient(90deg, #f59e0b, #f97316)', boxShadow: '0 6px 18px -6px rgba(245,158,11,0.65)' }}>
-                <Check className="w-4 h-4" />변경 내용 적용
+                <Check className="w-4 h-4" />{savingChanges ? '저장 중…' : '변경 내용 적용'}
               </button>
             </div>
           </div>

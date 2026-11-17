@@ -24,6 +24,7 @@ export function createOrderArrivalTracker() {
   }
   return {
     markLocal,
+    cancelLocal(id) { if (id != null) local.delete(key(id)); },
     baseline(rows) { known = new Map((rows || []).filter(row => row?.id != null).map(row => [key(row.id), row])); },
     event(payload, customers) {
       if (payload.eventType === 'DELETE') { if (payload.old?.id != null) known.delete(key(payload.old.id)); return false; }

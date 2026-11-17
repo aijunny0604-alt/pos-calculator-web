@@ -6,6 +6,7 @@ import { fetchPosJSON as fetchJSON, fetchPosRows } from './posConnection';
 import { kstDate, signedPaymentAmount, customerBalanceSummary, orderPaymentPayload } from './invoiceLedger';
 import { resolvePaymentCustomer } from './paymentIdentity';
 import { createClient } from '@supabase/supabase-js';
+import { packingItemsChanged } from './orderPacking.js';
 
 export const SUPABASE_URL = 'https://jubzppndcclhnvgbvrxr.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_td4p48nPHKjXByMngvyjZQ_AJttp5KU';
@@ -28,6 +29,7 @@ const headersNoContent = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer
 const PRODUCT_006_RE = /PGRST204|column .* does not exist|could not find/i;
 // order_packing 테이블 미생성(마이그011 미실행) 감지 플래그 — 한 번 실패하면 이후 네트워크 스킵하고 localStorage만
 let _orderPackingTableMissing = false;
+const _packingWrites = new Map();
 const PRODUCT_006_FIELDS = ['note', 'flag_color', 'initial_wholesale', 'initial_retail', 'initial_set_at', 'price_history'];
 function stripProduct006(product) {
   const out = { ...product };
@@ -161,19 +163,27 @@ export const supabase = {
     const key = String(orderId || '');
     if (!key) return { ok: false };
     const patch = { checked, itemCount, done };
-    if (_orderPackingTableMissing) return this._packingLocal(key, patch);
-    const deviceId = (() => { try { return localStorage.getItem('pos_device_id') || null; } catch { return null; } })();
-    try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/order_packing?on_conflict=order_id`, {
-        method: 'POST',
-        headers: { ...headersNoContent, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ order_id: key, checked, item_count: itemCount, done, updated_at: new Date().toISOString(), updated_by: deviceId }),
-      });
-      if (!r.ok) { if (r.status === 404 || r.status === 400) _orderPackingTableMissing = true; throw new Error(`${r.status}`); }
-      return { ok: true, source: 'db' };
-    } catch (e) {
-      return this._packingLocal(key, patch); // 폴백: localStorage
-    }
+    // 같은 주문의 늦게 끝난 체크 저장이 이후의 초기화를 덮어쓰지 않도록 순서를 지킨다.
+    const previous = _packingWrites.get(key) || Promise.resolve();
+    const write = previous.catch(() => {}).then(async () => {
+      if (_orderPackingTableMissing) return this._packingLocal(key, patch);
+      const deviceId = (() => { try { return localStorage.getItem('pos_device_id') || null; } catch { return null; } })();
+      try {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/order_packing?on_conflict=order_id`, {
+          method: 'POST',
+          headers: { ...headersNoContent, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ order_id: key, checked, item_count: itemCount, done, updated_at: new Date().toISOString(), updated_by: deviceId }),
+        });
+        if (!r.ok) {
+          const errorText = await r.text();
+          if (/42P01|PGRST205|Could not find the table|relation .* does not exist/i.test(errorText)) _orderPackingTableMissing = true;
+          throw new Error(`${r.status}`);
+        }
+        return { ok: true, source: 'db' };
+      } catch { return this._packingLocal(key, patch); }
+    });
+    _packingWrites.set(key, write);
+    try { return await write; } finally { if (_packingWrites.get(key) === write) _packingWrites.delete(key); }
   },
 
   async saveOrder(order) {
@@ -206,6 +216,14 @@ export const supabase = {
         const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(id)}&select=${sel || '*'}&limit=1`, { headers });
         before = Array.isArray(rows) ? rows[0] : rows;
       } catch { /* 조회 실패해도 PATCH는 진행 */ }
+      if (packingItemsChanged(before?.items, order.items)) {
+        // 주문보다 먼저 완료 상태를 해제한다. 주문 저장이 실패해도 허위 포장완료는 남지 않는다.
+        const oldPacking = await this.getOrderPacking(id);
+        if (!oldPacking || (oldPacking.source === 'local' && !_orderPackingTableMissing)) throw new Error('포장 상태를 확인하지 못했습니다. 연결을 확인한 뒤 다시 시도해주세요.');
+        const cleared = await this.setOrderPacking(id, { checked: [], itemCount: order.items.length, done: false });
+        if (!cleared?.ok || (oldPacking.source === 'db' && cleared.source !== 'db')) throw new Error('공유 포장 상태를 해제하지 못했습니다. 연결을 확인한 뒤 다시 시도해주세요.');
+        try { window.dispatchEvent(new CustomEvent('order-packing-changed', { detail: { orderId: String(id), checkedCount: 0, itemCount: order.items.length, done: false } })); } catch {}
+      }
       const result = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?id=eq.${id}`, {
         method: 'PATCH', headers: headersWithReturn, body: JSON.stringify(order)
       });
