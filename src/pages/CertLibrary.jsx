@@ -132,7 +132,7 @@ export default function CertLibrary({ customers = [], showToast }) {
 
   // 삭제 (보관함 + Storage + 거래처 연결 해제)
   const handleDelete = async (cert) => {
-    if (!window.confirm(`"${cert.name}" 등록증을 삭제할까요?\n(보관함에서 제거되고 연결된 거래처에서도 사라집니다)`)) return;
+    if (!window.confirm(`"${cert.name}" 등록증을 보관함에서 제거할까요?\n연결된 거래처에서는 해제됩니다. 변경 이력 확인을 위해 원본 파일은 보존됩니다.`)) return;
     // DB 삭제 먼저 — 실패하면 아무것도 건드리지 않음(정합성)
     const del = await supabase.deleteBusinessCert(cert.id);
     if (!del.ok) { showToast?.('삭제 실패: ' + (del.error || ''), 'error'); return; }
@@ -141,7 +141,7 @@ export default function CertLibrary({ customers = [], showToast }) {
       const otherSame = certs.some((c) => c.id !== cert.id && String(c.customer_id) === String(cert.customer_id));
       if (!otherSame) await supabase.setCustomerCert(cert.customer_id, null, null);
     }
-    if (cert.storage_path) await deleteImages([cert.storage_path]).catch(() => {});
+    // 이전 사업자 변경 이력이 이 파일을 참조할 수 있어 원본은 보존한다.
     setCerts((prev) => prev.filter((c) => c.id !== cert.id));
     setViewer(null);
     showToast?.('삭제되었습니다', 'success');

@@ -433,6 +433,24 @@ export const supabase = {
       return { ok: false, error: msg };
     }
   },
+  // 상세 화면에서만 읽는다. 변경 이력은 DB 트리거가 현재 정보와 원자적으로 보존한다.
+  async getCustomerBusiness(id) {
+    const key = encodeURIComponent(id);
+    const [current, history] = await Promise.all([
+      fetchJSON(`${SUPABASE_URL}/rest/v1/customers?id=eq.${key}&select=id,name,business_profile,business_profile_changed_at,business_change_count,business_cert_url,business_cert_path&limit=1`, { headers }),
+      fetchPosRows(`${SUPABASE_URL}/rest/v1/customer_business_history?customer_id=eq.${key}&order=changed_at.desc,id.desc`, { headers }),
+    ]);
+    if (!current?.[0] || !Array.isArray(history)) throw new Error('사업자 정보를 확인하지 못했습니다.');
+    return { current: current[0], history };
+  },
+  async saveCustomerBusiness(id, profile, expectedAt) {
+    const guard = expectedAt ? `eq.${encodeURIComponent(expectedAt)}` : 'is.null';
+    const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/customers?id=eq.${encodeURIComponent(id)}&business_profile_changed_at=${guard}`, {
+      method:'PATCH', headers:headersWithReturn, body:JSON.stringify({ business_profile:profile }),
+    });
+    if (!rows?.[0]) throw new Error('다른 화면에서 사업자 정보가 변경되었습니다. 다시 불러온 후 확인해주세요.');
+    return rows[0];
+  },
   // ===== 사업자등록증 보관함 (business_certs) =====
   // 전체 조회(최신순) + 매칭 거래처명 임베드. 테이블 미생성 시 needsMigration 힌트 포함해 빈 배열.
   async getBusinessCerts() {

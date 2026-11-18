@@ -10,6 +10,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import CustomerDetailModal from '@/components/CustomerDetailModal';
 import CustomerMemo from '@/components/CustomerMemo';
+import CustomerBusinessHistory from '@/components/CustomerBusinessHistory';
 import PaymentRegisterModal from '@/components/PaymentRegisterModal';
 import PaymentEditModal from '@/components/PaymentEditModal';
 import BulkPaymentModal from '@/components/BulkPaymentModal';
@@ -17,7 +18,7 @@ import { formatPrice, formatDate, calcExVat, handleSearchFocus } from '@/lib/uti
 import SubPrice from '@/components/ui/SubPrice';
 import useModalFullscreen from '@/hooks/useModalFullscreen';
 import { supabase } from '@/lib/supabase';
-import { uploadCustomerCert, deleteImages } from '@/lib/imageUpload';
+import { uploadCustomerCert } from '@/lib/imageUpload';
 import { CircleDollarSign } from 'lucide-react';
 
 const PaymentsContainer = lazy(() => import('@/pages/PaymentsContainer'));
@@ -253,10 +254,7 @@ export default function CustomerList({
     if (showToast) showToast(`반품 처리 완료 (${returnedItems.length}건)`);
   };
 
-  // 보관함(CertLibrary)이 소유한 파일인지 — business-cert/library/… 는 보관함 원본이라 거래처 쪽에서 지우면 안 된다
-  const isLibraryOwnedPath = (p) => /business-cert\/library\//.test(String(p || ''));
-
-  // -- 사업자등록증 업로드/교체/삭제 (기존 있으면 최신으로 교체) --
+  // -- 사업자등록증 업로드/교체/연결 해제 (이전 원본은 보존) --
   // 파일 선택 / Ctrl+V 붙여넣기 공용 코어
   const processCertFile = async (file) => {
     if (!file || !selectedCustomer) return;
@@ -266,7 +264,7 @@ export default function CustomerList({
       const { url, path } = await uploadCustomerCert(file, selectedCustomer.id);
       const res = await supabase.setCustomerCert(selectedCustomer.id, url, path);
       if (!res.ok) {
-        await deleteImages([path]).catch(() => {}); // 방금 올린 새 파일 정리
+        // 응답을 못 받아도 DB에는 저장됐을 수 있으므로 새 원본도 임의 삭제하지 않는다.
         if (res.needsMigration) {
           showToast?.('DB에 사업자등록증 컬럼이 아직 없어요. 안내드린 SQL을 Supabase에 실행 후 다시 시도해주세요.', 'error');
         } else {
@@ -275,17 +273,11 @@ export default function CustomerList({
         return;
       }
       if (oldPath && oldPath !== path) {
-        // 🚨 보관함(business-cert/library/…) 원본을 연결해둔 거래처는 파일·행을 지우면 안 된다.
-        //    보관함에서 연결하면 customers.business_cert_path가 '보관함 파일'을 가리키므로,
-        //    여기서 지우면 교체 한 번에 보관함 문서가 통째로 증발한다. 연결만 끊고 원본은 보존.
-        if (isLibraryOwnedPath(oldPath)) {
-          await supabase.clearCustomerCertLinks(selectedCustomer.id).catch(() => {});
-        } else {
-          await deleteImages([oldPath]).catch(() => {});                    // 거래처 전용 파일만 삭제(최신 교체)
-          await supabase.deleteBusinessCertsByPath(oldPath).catch(() => {}); // 보관함의 옛 행도 정리(깨진 썸네일 방지)
-        }
+        // DB의 사업자 변경 이력에서 이전 원본을 계속 열 수 있도록 파일과 보관함 행을 보존한다.
+        await supabase.clearCustomerCertLinks(selectedCustomer.id).catch(() => {});
       }
-      setSelectedCustomer((prev) => prev ? { ...prev, business_cert_url: url, business_cert_path: path } : prev);
+      setSelectedCustomer((prev) => prev ? { ...prev, ...res.data, business_cert_url: url, business_cert_path: path } : prev);
+      if (res.data) onCustomerUpdated?.(res.data);
 
       // 📄 보관함(business_certs)에도 자동 등록 — 거래처에서 올린 등록증이 보관함에서도 검색되게.
       // 실패해도 거래처 저장 자체는 성공이므로 흐름을 막지 않고 경고만.
@@ -344,24 +336,15 @@ export default function CustomerList({
 
   const handleCertDelete = async () => {
     if (!selectedCustomer?.business_cert_url) return;
-    const oldPath = selectedCustomer.business_cert_path;
-    const fromLibrary = isLibraryOwnedPath(oldPath);
-    // 🚨 되돌릴 수 없는 파괴 작업이라 반드시 확인 (보관함 원본까지 지워질 수 있음)
-    const msg = fromLibrary
-      ? `"${selectedCustomer.name}" 거래처의 사업자등록증 연결을 해제할까요?\n\n보관함의 원본 문서는 그대로 남습니다.`
-      : `"${selectedCustomer.name}" 사업자등록증을 삭제할까요?\n\n⚠️ 저장된 원본 파일과 보관함 항목까지 완전히 지워지며 되돌릴 수 없습니다.`;
+    const msg = `"${selectedCustomer.name}" 거래처의 현재 사업자등록증 연결을 해제할까요?\n\n이전 원본은 보관함과 변경 이력에 보존됩니다.`;
     if (!window.confirm(msg)) return;
 
     const res = await supabase.setCustomerCert(selectedCustomer.id, null, null);
     if (!res.ok) { showToast?.('삭제 실패', 'error'); return; }
-    if (oldPath && fromLibrary) {
-      await supabase.clearCustomerCertLinks(selectedCustomer.id).catch(() => {}); // 연결만 해제
-    } else if (oldPath) {
-      await deleteImages([oldPath]).catch(() => {});
-      await supabase.deleteBusinessCertsByPath(oldPath).catch(() => {}); // 보관함 행도 함께 정리
-    }
-    setSelectedCustomer((prev) => prev ? { ...prev, business_cert_url: null, business_cert_path: null } : prev);
-    showToast?.(fromLibrary ? '연결 해제됨 (보관함 원본 유지)' : '사업자등록증 삭제됨', 'success');
+    await supabase.clearCustomerCertLinks(selectedCustomer.id).catch(() => {});
+    setSelectedCustomer((prev) => prev ? { ...prev, ...res.data, business_cert_url: null, business_cert_path: null } : prev);
+    if (res.data) onCustomerUpdated?.(res.data);
+    showToast?.('연결 해제됨 · 이전 원본은 보존됩니다.', 'success');
   };
 
   // -- Copy helpers --
@@ -776,6 +759,10 @@ export default function CustomerList({
                 );
               })()}
 
+              <CustomerBusinessHistory key={selectedCustomer.id} customer={selectedCustomer} showToast={showToast} onSaved={(updated) => {
+                setSelectedCustomer(current => String(current?.id) === String(updated.id) ? { ...current, ...updated } : current);
+                onCustomerUpdated?.(updated);
+              }} />
               {/* 사업자등록증 */}
               {(() => {
                 const certUrl = selectedCustomer.business_cert_url;
@@ -799,7 +786,7 @@ export default function CustomerList({
                       </p>
                       {certUrl && (
                         <button onClick={handleCertDelete} className="text-xs font-medium px-2 py-1 rounded-md flex items-center gap-1 transition-colors hover:bg-[var(--accent)]" style={{ color: 'var(--destructive)' }}>
-                          <Trash2 className="w-3.5 h-3.5" /> 삭제
+                          <Trash2 className="w-3.5 h-3.5" /> 연결 해제
                         </button>
                       )}
                     </div>
@@ -1038,6 +1025,7 @@ export default function CustomerList({
                                 <StatusBadge status="blacklist" className="flex-shrink-0" />
                               )}
                               {customer.memo && <span className="px-2 py-0.5 text-xs rounded-full font-medium" style={{ background: 'color-mix(in srgb, var(--primary) 10%, transparent)', color: 'var(--primary)' }}>메모</span>}
+                              {Number(customer.business_change_count) > 0 && <span className="px-2 py-0.5 text-xs rounded-full font-medium" style={{ background:'color-mix(in srgb, var(--primary) 10%, transparent)', color:'var(--primary)' }}>사업자 이력 {customer.business_change_count}</span>}
                               {orderCount > 0 && (
                                 <span
                                   className="px-2 py-0.5 text-xs rounded-full font-medium flex-shrink-0"

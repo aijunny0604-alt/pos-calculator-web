@@ -56,7 +56,7 @@ import { commitPosWorkflow, POS_WORKFLOWS } from '@/lib/movisPosWorkflows';
 import { commitOrderContact } from '@/lib/movisOrderContact';
 import { commitStoreReorder } from '@/lib/movisStoreTools';
 import { supabase, supabaseClient } from '@/lib/supabase';
-import { uploadCertToLibrary, deleteImages } from '@/lib/imageUpload';
+import { uploadCertToLibrary } from '@/lib/imageUpload';
 export default function AIAnalytics({
   isActive = true,
   orders = [],
@@ -109,8 +109,6 @@ export default function AIAnalytics({
     data,
     dataUrl
   }) => {
-    let createdCustomerId = null; // 롤백용(신규 생성 후 실패 시 삭제)
-    let uploadedPath = null; // 롤백용(업로드 후 실패 시 Storage 정리)
     try {
       // 1) 먼저 이미지 업로드 (가장 실패 가능성 높은 단계를 앞에 → 실패 시 거래처 안 만듦)
       const [head, b64] = String(dataUrl).split(',');
@@ -122,7 +120,6 @@ export default function AIAnalytics({
         type: mime
       });
       const up = await uploadCertToLibrary(file);
-      uploadedPath = up.path;
 
       // 2) 거래처 결정(기존) 또는 생성(신규)
       let cust;
@@ -141,7 +138,6 @@ export default function AIAnalytics({
         if (!created?.id) throw new Error('거래처 등록 실패');
         cust = created;
         createdNew = true;
-        createdCustomerId = created.id;
       }
 
       // 3) 1거래처=1등록증 — 같은 거래처를 가리키던 기존 등록증 행 연결 해제
@@ -169,17 +165,8 @@ export default function AIAnalytics({
         createdNew
       };
     } catch (e) {
-      // 롤백 — 부분 성공 잔여물 정리
-      if (createdCustomerId) {
-        try {
-          await supabase.deleteCustomer(createdCustomerId);
-        } catch {/* noop */}
-      }
-      if (uploadedPath) {
-        try {
-          await deleteImages([uploadedPath]);
-        } catch {/* noop */}
-      }
+      // 응답이 끊겨도 고객/등록증 연결은 이미 저장됐을 수 있다.
+      // 사업자 이력이 참조하는 원본과 고객을 삭제하는 보상 작업은 하지 않는다.
       const m = e?.message || '등록 실패';
       showToast?.(m, 'error');
       return {
