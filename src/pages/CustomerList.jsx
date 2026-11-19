@@ -10,6 +10,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import CustomerDetailModal from '@/components/CustomerDetailModal';
 import CustomerMemo from '@/components/CustomerMemo';
+import CustomerContactInfo from '@/components/CustomerContactInfo';
 import CustomerBusinessHistory from '@/components/CustomerBusinessHistory';
 import PaymentRegisterModal from '@/components/PaymentRegisterModal';
 import PaymentEditModal from '@/components/PaymentEditModal';
@@ -648,44 +649,7 @@ export default function CustomerList({
             <>
               {/* Customer info card */}
               <div className="bg-[var(--card)] rounded-xl p-4 mb-4 border border-[var(--border)]">
-                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 text-sm">
-                  {selectedCustomer.phone && (
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Phone className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--success)' }} />
-                      <span className="min-w-0">{selectedCustomer.phone}</span>
-                      <button onClick={() => { navigator.clipboard.writeText(selectedCustomer.phone); showToast?.('전화번호 복사됨', 'success'); }} className="p-1 rounded hover:bg-[var(--accent)] transition-colors flex-shrink-0" title="전화번호 복사">
-                        <Copy className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
-                      </button>
-                    </div>
-                  )}
-                  {selectedCustomer.address && (
-                    <div className="flex items-start gap-2 flex-1 min-w-0">
-                      <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--success)' }} />
-                      <span className="text-[var(--muted-foreground)] break-keep leading-snug flex-1 min-w-0">{selectedCustomer.address}</span>
-                      <button onClick={() => { navigator.clipboard.writeText(selectedCustomer.address); showToast?.('주소 복사됨', 'success'); }} className="p-1 rounded hover:bg-[var(--accent)] transition-colors flex-shrink-0" title="주소 복사">
-                        <Copy className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
-                      </button>
-                    </div>
-                  )}
-                  {(selectedCustomer.phone || selectedCustomer.address) && (
-                    <button
-                      onClick={() => {
-                        const parts = [];
-                          if (selectedCustomer.name) parts.push(`업체명 : ${selectedCustomer.name}`);
-                          if (selectedCustomer.phone) parts.push(`연락처 : ${selectedCustomer.phone}`);
-                          if (selectedCustomer.address) parts.push(`주소지 : ${selectedCustomer.address}`);
-                          const info = parts.join('\n');
-                        navigator.clipboard.writeText(info);
-                        showToast?.('배송 정보 복사됨', 'success');
-                      }}
-                      className="flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors hover:bg-[var(--accent)] flex-shrink-0"
-                      style={{ color: 'var(--primary)', border: '1px solid var(--border)' }}
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      배송 정보 복사
-                    </button>
-                  )}
-                </div>
+                <CustomerContactInfo customer={selectedCustomer} showToast={showToast} />
                 <CustomerMemo key={selectedCustomer.id} customer={selectedCustomer} showToast={showToast} onSaved={(updated) => {
                   setSelectedCustomer((current) => String(current?.id) === String(updated.id) ? { ...current, memo: updated.memo } : current);
                   onCustomerUpdated?.(updated);

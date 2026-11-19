@@ -5,6 +5,7 @@ let current = { id:'business-demo', name:'사업자 이력 샘플 업체', busin
 let history = [];
 if (new URLSearchParams(location.search).has('businessHistoryCheck')) {
 const scenario = new URLSearchParams(location.search).get('businessScenario');
+if (scenario === 'contact' || scenario === 'contactLong') current = { ...current, phone:'010 1234 5678', address:scenario === 'contact' ? '대구 중구 명덕로 35길 20 거래처 샘플' : '대구광역시 중구 명덕로35길20상세주소가공백없이아주길게입력된경우에도전체내용을잘리지않게확인하는샘플주소', memo:'배송 전 연락 부탁드립니다.' };
 if (scenario === 'empty') current = { ...current, business_profile:{}, business_profile_changed_at:null, business_cert_url:null, business_cert_path:null };
 if (scenario === 'photoOnly') {
   current = { ...current, business_profile:{}, business_change_count:1 };
@@ -20,5 +21,6 @@ supabase.saveCustomerBusiness = async (id, profile, expectedAt) => {
 }
 export default function CustomerBusinessPreview() {
   const [customer, setCustomer] = useState(current);
-  return <><p className="p-3 text-sm">사업자 변경 샘플 · 운영 DB 저장 없음 <button type="button" onClick={() => { current = { ...current, business_profile_changed_at:new Date().toISOString() }; }} className="ml-3 border px-2">다른 기기 변경 모사</button></p><CustomerList customers={[customer]} orders={[]} onBack={() => {}} onCustomerUpdated={setCustomer} showToast={() => {}} /></>;
+  const [notice, setNotice] = useState(null);
+  return <><p className="p-3 text-sm">사업자 변경 샘플 · 운영 DB 저장 없음 <button type="button" onClick={() => { current = { ...current, business_profile_changed_at:new Date().toISOString() }; }} className="ml-3 border px-2">다른 기기 변경 모사</button></p>{notice && <p role={notice.type === 'error' ? 'alert' : 'status'} className="p-3 text-sm">{notice.message}</p>}<CustomerList customers={[customer]} orders={[]} onBack={() => {}} onCustomerUpdated={setCustomer} showToast={(message,type) => setNotice({message,type})} /></>;
 }
