@@ -15,6 +15,17 @@ try {
     await page.getByRole('button',{name:'카드 보기',exact:true}).click();
     await page.locator('p').filter({hasText:'CH 200 77'}).first().waitFor();
     assert.ok(await page.getByText('근접 규격', {exact:true}).count());
+    for(const view of ['목록 보기','카드 보기']) {
+     await page.getByRole('button',{name:view,exact:true}).click();
+     for(const [query,result] of [['레조 100 200 63','레조 100 200 64'],['레조100 250 63','레조 100 250 64']]) {
+      await page.getByPlaceholder('제품명 검색...').fill(query);
+      await page.getByText(result,{exact:false}).first().waitFor();
+      assert.equal(await page.getByText('레조 114 250 64',{exact:false}).count(),0);
+      const otherLength=result.includes('200')?'레조 100 250 64':'레조 100 200 64';
+      assert.equal(await page.getByText(otherLength,{exact:false}).count(),0,'다른 길이 제외');
+      assert.ok(await page.getByText('근접 규격',{exact:true}).count());
+     }
+    }
     assert.deepEqual(errors,[]);
     console.log(`${viewport.width}: 붙여쓴 CH 검색, 근접 규격 표시, 목록·카드 보기 확인`);
     await page.close();

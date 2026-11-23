@@ -99,3 +99,20 @@ test('수동 제품 선택은 공통 순위·규격 안전성과 카테고리 �
  assert.equal(searchProductChoices('플랜지',candidates,{limit:1}).length,1);
  assert.doesNotThrow(()=>searchProductChoices('플랜지',[null,{category:'플랜지'},...candidates]));
 });
+
+test('레조는 외경·길이를 유지하고 마지막 연결 구경만 ±1 허용한다',()=>{
+ const candidates=[
+  {id:1,name:'레조 100 200 64'}, {id:2,name:'레조 100 200 63'},
+  {id:3,name:'레조 100 250 64'}, {id:4,name:'레조 114 200 64'},
+  {id:5,name:'레조 100 201 64'}, {id:6,name:'레조 100 200 65'},
+ ];
+ for(const q of ['레조 100 200 63','레조100 200 63','63 레조 200 100','레조 １００ ２００ ６３']) {
+  assert.deepEqual(searchProductsRanked(q,candidates).map(p=>p.id),[2,1],q);
+ }
+ assert.deepEqual(searchProductsRanked('레조 100 250 63',candidates).map(p=>p.id),[3]);
+ assert.deepEqual(searchProductsRanked('레조 100 200 62',candidates).map(p=>p.id),[2]);
+ assert.deepEqual(searchProductsRanked('레조 100 202 63',candidates),[],'길이는 보정하지 않음');
+ assert.deepEqual(searchProductsRanked('레조 101 200 63',candidates),[],'몸통 외경은 보정하지 않음');
+ assert.deepEqual(searchProductsRanked('레조 100 200 63.5',candidates),[],'소수는 보정하지 않음');
+ assert.deepEqual(searchProductChoices('레조 100 250 63',candidates).map(p=>p.id),[3]);
+});

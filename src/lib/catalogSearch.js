@@ -26,7 +26,7 @@ export function catalogDimensionsMatch(query,name) {
  const p=parts(name).filter(t=>/^\d/.test(t)).map(Number);
  return q.every(n=>p.includes(n));
 }
-// 검색 후보 안내 전용. 제품명과 함께 입력한 첫 구경만 ±1 허용한다.
+// 검색 후보 안내 전용. 제품 구조에 맞는 연결 구경만 ±1 허용한다.
 // 길이·각도·SKU와 소수 규격에는 보정을 적용하지 않는다.
 export function catalogNearbyDiameterMatch(query, name) {
  const qText=normalize(query), pText=normalize(name);
@@ -37,6 +37,25 @@ export function catalogNearbyDiameterMatch(query, name) {
  if (qCH) {
    return !!pCH && parts(qText).filter(t => /^\d/.test(t)).length === 2 &&
      Number(qCH[1]) === Number(pCH[1]) && Math.abs(Number(qCH[2]) - Number(pCH[2])) === 1;
+ }
+ // 레조: 몸통 외경·길이·연결 구경 순서. 연결 구경만 보정하고 나머지는
+ // 입력 순서와 관계없이 같은 값이어야 한다 (100 250 63 → 100 250 64).
+ const qParts=parts(qText), pParts=parts(pText);
+ const qNumbers=qParts.filter(t=>/^\d/.test(t)).map(Number);
+ const pNumbers=pParts.filter(t=>/^\d/.test(t)).map(Number);
+ if(qParts.includes('레조') && pParts.includes('레조') && pNumbers.length===3) {
+   if(!qNumbers.length || qNumbers.length>3 || !qNumbers.every(Number.isInteger) || !pNumbers.every(Number.isInteger)) return false;
+   return qNumbers.some((n,index)=>{
+     if(Math.abs(n-pNumbers[2])!==1) return false;
+     const remaining=pNumbers.slice(0,2);
+     return qNumbers.every((other,i)=>{
+       if(i===index) return true;
+       const found=remaining.indexOf(other);
+       if(found<0) return false;
+       remaining.splice(found,1);
+       return true;
+     });
+   });
  }
  if (/[a-z]\d/i.test(qText)) return false;
  const letters=qText.replace(/\d+(?:\.\d+)?/g,'').replace(/(?:mm|파이|cm|인치|inch|도)/gi,'').replace(/[^가-힣ㄱ-ㅎa-z]/g,'');

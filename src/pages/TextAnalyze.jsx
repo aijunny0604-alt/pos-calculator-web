@@ -1,4 +1,4 @@
-import MotionBackdrop from '@/components/ui/MotionBackdrop';
+import ViewportModal from '@/components/ui/ViewportModal';
 import { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, X, Settings, Search, Plus, Minus, Trash2, Edit3,
@@ -917,7 +917,7 @@ ${aiLearningData.slice(0, 50).map(l =>
 
   return (
     <div
-      className={`flex flex-col min-h-0 h-full`}
+      className="flex flex-col min-h-0 h-full overflow-hidden"
       style={{ background: 'var(--background)' }}
     >
       {/* Header - clean white style matching other pages */}
@@ -993,6 +993,10 @@ ${aiLearningData.slice(0, 50).map(l =>
         </div>
       </div>
 
+      {/* 알림 띠·작은 화면·키보드로 높이가 줄어도 입력과 결과를 함께 스크롤한다. */}
+      <div role="region" aria-label="주문 입력과 분석 결과" tabIndex={0}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+        style={{ WebkitOverflowScrolling:'touch', touchAction:'pan-y' }}>
       {/* Input Section */}
       <div className="flex-shrink-0 px-4 pt-4 pb-2" style={{ background: 'var(--background)' }}>
         {/* Collapsible input when results exist */}
@@ -1150,8 +1154,7 @@ ${aiLearningData.slice(0, 50).map(l =>
 
       {/* Results Section */}
       <div
-        className="flex-1 min-h-0 overflow-y-auto px-4 pb-4"
-        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', overscrollBehavior: 'contain' }}
+        className="px-4 pb-4"
       >
         {analyzedItems.length > 0 && (
           <>
@@ -1403,9 +1406,10 @@ ${aiLearningData.slice(0, 50).map(l =>
         )}
       </div>
 
-      {/* Footer CTA - fixed bottom. 모바일 하단 네비(MobileNav, md:hidden, ~56px)에 가려지지 않도록 mb-16으로 띄움 */}
+      </div>
+      {/* 하단 네비 공간은 AppLayout이 한 번만 확보한다. 버튼은 스크롤 바깥에 유지. */}
       {analyzedItems.length > 0 && (
-        <div className={`border-t px-4 py-3 flex-shrink-0 safe-bottom ${onClose ? '' : 'mb-16 md:mb-0'}`} style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)' }}>
+        <div className="border-t px-4 py-3 flex-shrink-0 safe-bottom" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--card)', paddingBottom:'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}>
           <button
             onClick={addSelectedToCart}
             disabled={selectedCount === 0}
@@ -1420,7 +1424,7 @@ ${aiLearningData.slice(0, 50).map(l =>
 
       {/* AI Settings Modal */}
       {showApiSettings && (
-        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowApiSettings(false)}>
+        <ViewportModal className="motion-modal-backdrop fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowApiSettings(false)}>
           <div className="motion-modal-panel rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden border shadow-2xl animate-modal-up flex flex-col" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', maxHeight: 'calc(100dvh - 2rem)' }} onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--border)' }}>
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
@@ -1460,12 +1464,12 @@ ${aiLearningData.slice(0, 50).map(l =>
             </div>
             <div className="h-6" />
           </div>
-        </MotionBackdrop>
+        </ViewportModal>
       )}
 
       {/* Backup Modal */}
       {showBackupModal && (
-        <MotionBackdrop className="motion-modal-backdrop fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowBackupModal(false)}>
+        <ViewportModal className="motion-modal-backdrop fixed inset-0 flex items-end sm:items-center justify-center z-[60] animate-modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }} onClick={() => setShowBackupModal(false)}>
           <div className="motion-modal-panel rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[75dvh] flex flex-col border shadow-2xl animate-modal-up" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }} onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <h3 className="font-bold flex items-center gap-2" style={{ color: 'var(--foreground)' }}>
@@ -1506,12 +1510,12 @@ ${aiLearningData.slice(0, 50).map(l =>
               )}
             </div>
           </div>
-        </MotionBackdrop>
+        </ViewportModal>
       )}
 
       {/* AI 학습 수정사유 모달 — 제품 수동 교정 직후 */}
       {showReasonInput !== null && analyzedItems[showReasonInput] && (
-        <MotionBackdrop
+        <ViewportModal
           className="motion-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4"
           style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
           onClick={() => setShowReasonInput(null)}
@@ -1596,7 +1600,7 @@ ${aiLearningData.slice(0, 50).map(l =>
               </button>
             </div>
           </div>
-        </MotionBackdrop>
+        </ViewportModal>
       )}
     </div>
   );

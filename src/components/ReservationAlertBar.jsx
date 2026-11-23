@@ -66,7 +66,8 @@ export default function ReservationAlertBar({ onGoToCarts, reserveRightGutter = 
     // flex-wrap 필수 — 제품주문 화면은 우측 장바구니 패널(400px)이 겹쳐서 가로가 좁다.
     // wrap 없으면 [보러가기]/[30분 뒤에]가 화면 밖으로 밀려 스누즈를 못 누른다 (2026-07-16)
     <div
-      className={`flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 border-b ${reserveRightGutter ? 'lg:pr-[420px]' : ''}`}
+      role="region" aria-label="예약 주문 알림" tabIndex={0}
+      className={`shrink-0 max-h-[35dvh] overflow-y-auto overscroll-contain flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 border-b ${reserveRightGutter ? 'lg:pr-[420px]' : ''}`}
       style={{
         background: overdueCount > 0
           ? 'color-mix(in srgb, var(--destructive) 12%, var(--card))'
