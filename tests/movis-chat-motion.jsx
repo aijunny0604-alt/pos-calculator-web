@@ -2,6 +2,7 @@ import React,{useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import ChatPanel from '../src/components/analytics/ChatPanel';
 import '../src/index.css';
+import '../src/styles/move-design.css';
 import '../src/components/analytics/movis-v2.css';
 function Fixture(){
  const [state,setState]=useState({messages:[{id:'history',role:'assistant',content:'필요한 업무를 편하게 말씀해주세요. 함께 확인하겠습니다.',ts:Date.now()}],isLoading:false});

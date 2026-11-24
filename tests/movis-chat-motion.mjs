@@ -22,7 +22,7 @@ try {
   await page.evaluate(()=>window.setMovisFixture({messages:[{id:'history',role:'assistant',content:'필요한 업무를 편하게 말씀해주세요. 함께 확인하겠습니다.'},{id:'new-user',role:'user',content:'오늘 챙겨야 할 일을 차분하게 정리해줘.'},{id:'done',role:'assistant',content:'확인할 업무를 정리했습니다.\n- 첫 번째 확인 항목\n- 두 번째 확인 항목',ts:Date.now()}],isLoading:false,streamingText:''}));
   await page.getByText('확인할 업무를 정리했습니다.').waitFor();
   assert.equal(await page.locator('.movis-live-answer').count(),0);
-  assert.equal(await page.locator('.is-assistant.is-entering').count(),1);
+  assert.equal(await page.locator('.is-assistant.is-entering').count(),0,'스트리밍으로 보이던 답변은 완료 후 다시 등장하지 않음');
   if(!config.touch){
    const card=page.locator('.movis-message-card').last();await card.hover();
    await page.waitForTimeout(350);

@@ -13,7 +13,8 @@ export default function MessageBubble({
   onFollowUpClick,
   userQuery,
   customers = [],
-  onCertRegister
+  onCertRegister,
+  active = true
 }) {
   const [showTools, setShowTools] = useState(false);
   const bubbleRef = useRef(null);
@@ -146,7 +147,7 @@ export default function MessageBubble({
         {/* 본문 */}
         <div className={`text-sm min-w-0 ${isUser ? 'break-words leading-snug' : 'break-words'}`}>
           {isUser ? <span className="whitespace-pre-wrap">{content}</span> : <>
-              <MarkdownLite content={displayedContent} />
+              <MarkdownLite content={displayedContent} compact={isAssistant} expandable={isAssistant && active && (!shouldType || done)} />
               {shouldType && !done && <span className="inline-block w-2 h-4 ml-1 align-text-bottom animate-jarvis-cursor" style={{
             background: 'var(--jarvis-cyan)',
             boxShadow: '0 0 4px rgba(0,212,255,0.65)'
