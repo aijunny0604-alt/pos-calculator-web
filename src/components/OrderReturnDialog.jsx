@@ -1,26 +1,31 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { RotateCcw, X } from 'lucide-react';
+import ExchangeOrderPicker from '@/components/ExchangeOrderPicker';
 import ViewportModal from '@/components/ui/ViewportModal';
-import { formatPrice } from '@/lib/utils';
-import { exchangeOrderCandidates, getReturnLines, RETURN_REASONS } from '@/lib/orderReturns';
+import { formatDateTime, formatPrice } from '@/lib/utils';
+import { editableReturnEntries, exchangeOrderCandidates, getReturnLines, RETURN_REASONS } from '@/lib/orderReturns';
 
 const control = 'min-h-11 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-base disabled:opacity-60';
 const secondary = 'min-h-11 rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--accent)] disabled:opacity-50';
+const returnDetails = entry => ({
+  kind: 'return', reason: '', note: '', exchangeOrderNumber: '', replacement: '',
+  ...entry?.returnDetails,
+});
 
-export default function OrderReturnDialog({ order, orders = [], entry, onClose, onSave }) {
+export default function OrderReturnDialog({ order, orders = [], entry: initialEntry, onClose, onSave }) {
   const title = useId();
   const form = useRef(null);
   const closeButton = useRef(null);
   const pending = useRef(false);
-  const [returnId] = useState(() => entry?.returnId || `RET-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
-  const [details, setDetails] = useState(() => ({
-    kind: 'return', reason: '', note: '', exchangeOrderNumber: '', replacement: '',
-    ...entry?.returnDetails,
-  }));
+  const lines = useMemo(() => getReturnLines(order).filter(line => line.available > 0), [order]);
+  const entries = useMemo(() => editableReturnEntries(order), [order]);
+  const [entry, setEntry] = useState(() => initialEntry ?? (lines.length === 0 && entries.length === 1 ? entries[0] : null));
+  const [draftReturnId] = useState(() => `RET-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+  const [details, setDetails] = useState(() => returnDetails(entry));
   const [quantities, setQuantities] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const lines = getReturnLines(order).filter(line => line.available > 0);
+  const canEdit = Boolean(entry || lines.length > 0);
   const selected = lines.flatMap(line => {
     const quantity = Number(quantities[line.index]);
     return Number.isSafeInteger(quantity) && quantity > 0 && quantity <= line.available ? [{ ...line, quantity }] : [];
@@ -41,8 +46,7 @@ export default function OrderReturnDialog({ order, orders = [], entry, onClose, 
     ? Number(selectedOrder.totalAmount ?? 0) - Number(selectedOrder.totalReturned ?? 0) - returnAmount
     : null;
   const update = (key, value) => setDetails(previous => ({ ...previous, [key]: value }));
-  const linkOrder = event => {
-    const orderNumber = event.target.value;
+  const linkOrder = orderNumber => {
     setDetails(previous => ({
       ...previous,
       kind: orderNumber ? 'exchange' : previous.kind,
@@ -83,7 +87,7 @@ export default function OrderReturnDialog({ order, orders = [], entry, onClose, 
     const isExchange = details.kind === 'exchange';
     try {
       await onSave({
-        action: entry ? 'edit' : 'add', returnId,
+        action: entry ? 'edit' : 'add', returnId: entry?.returnId ?? draftReturnId,
         selections: selected.map(({ index, quantity }) => ({ index, quantity })),
         details: {
           kind: details.kind, reason: details.reason, note: details.note.trim(),
@@ -106,19 +110,29 @@ export default function OrderReturnDialog({ order, orders = [], entry, onClose, 
       className="move-dialog flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl border bg-[var(--card)] text-[var(--foreground)]">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3 sm:px-6">
         <div className="min-w-0">
-          <h2 id={title} className="flex items-center gap-2 text-lg"><RotateCcw size={19} className="shrink-0 text-[var(--warning)]" />{entry ? '반품 기록 수정' : '반품·교체 처리'}</h2>
+          <h2 id={title} className="flex items-center gap-2 text-lg"><RotateCcw size={19} className="shrink-0 text-[var(--warning)]" />{entry ? '반품 기록 수정' : !canEdit && entries.length ? '반품 기록 선택' : '반품·교체 처리'}</h2>
           <p className="mt-1 break-words text-sm text-[var(--muted-foreground)]">{order.customerName} · {order.orderNumber}</p>
         </div>
         <button ref={closeButton} type="button" aria-label="닫기" disabled={saving} onClick={close}><X size={18} /></button>
       </header>
       <div role="region" aria-label="반품 입력 내용" tabIndex={0} className="min-h-0 space-y-4 overflow-y-auto px-4 py-4 sm:px-6">
-        <fieldset disabled={saving} className="min-w-0 space-y-4">
+        {!canEdit ? <section className="space-y-2">
+          <p className="text-sm text-[var(--muted-foreground)]">{entries.length ? '이미 전량 반품된 주문입니다. 교체 정보를 기록할 반품을 선택하세요.' : '반품 가능한 수량과 수정 가능한 반품 기록이 없습니다.'}</p>
+          {entries.map(item => {
+            const items = order.returns.filter(row => row.returnId === item.returnId);
+            const amount = items.reduce((sum, row) => sum + (Number(row.total) || 0), 0);
+            return <button key={item.returnId} type="button" className={secondary + ' w-full text-left'}
+              onClick={() => { setEntry(item); setDetails(returnDetails(item)); closeButton.current?.focus(); }}>
+              <span className="block">{formatDateTime(item.returnedAt) || '반품일 미등록'} · {formatPrice(amount)}원</span>
+              <span className="mt-1 block break-words font-normal">{items.map(row => row.itemName || row.name).filter(Boolean).join(', ')}</span>
+            </button>;
+          })}
+        </section> : <fieldset disabled={saving} className="min-w-0 space-y-4">
           {!entry && <section aria-label="반품 품목" className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-semibold">반품 수량</h3>
-              {lines.length > 0 && <button type="button" className={secondary} onClick={() => setQuantities(Object.fromEntries(lines.map(line => [line.index, String(line.available)])))}>남은 수량 모두 선택</button>}
+              <button type="button" className={secondary} onClick={() => setQuantities(Object.fromEntries(lines.map(line => [line.index, String(line.available)])))}>남은 수량 모두 선택</button>
             </div>
-            {lines.length === 0 && <p className="text-sm text-[var(--muted-foreground)]">반품 가능한 수량이 없습니다.</p>}
             {lines.map(line => <label key={line.index} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2">
               <span className="min-w-0 break-words"><span className="block font-medium">{line.name}</span><span className="text-sm text-[var(--muted-foreground)]">남은 {line.available}개 · {formatPrice(line.price)}원/개</span></span>
               <input aria-label={`${line.name} 반품 수량`} className={`${control} !w-20 shrink-0 text-center tabular-nums`} type="number" min="0" max={line.available} step="1"
@@ -139,15 +153,7 @@ export default function OrderReturnDialog({ order, orders = [], entry, onClose, 
             </label>
           </div>
           <div className="space-y-3 rounded-xl border border-[var(--border)] p-3">
-            <label className="block text-sm font-semibold">교체 주문 연결
-              <select className={`${control} mt-1`} value={exchangeOrderNumber} onChange={linkOrder}>
-                <option value="">{candidates.length ? '같은 거래처의 교체 주문 선택' : '연결할 교체 주문 없음'}</option>
-                {exchangeOrderNumber && !selectedOrder && <option value={exchangeOrderNumber}>{exchangeOrderNumber}</option>}
-                {candidates.map(candidate => <option key={candidate.orderNumber} value={candidate.orderNumber}>
-                  {candidate.orderNumber} · {candidate.items?.[0]?.name || '상품 미등록'} · {formatPrice(candidate.totalAmount)}원
-                </option>)}
-              </select>
-            </label>
+            <ExchangeOrderPicker candidates={candidates} selected={selectedOrder} value={exchangeOrderNumber} onSelect={linkOrder} />
             {details.kind === 'exchange' && (
               <label className="block text-sm font-semibold">교체 품목 또는 메모
                 <input className={`${control} mt-1`} maxLength={300} value={details.replacement} onChange={event => update('replacement', event.target.value)} placeholder="예: SNPK 114D - S 4개로 교체" />
@@ -158,15 +164,17 @@ export default function OrderReturnDialog({ order, orders = [], entry, onClose, 
           <label className="block text-sm font-semibold">상세 사유{details.reason === '기타' ? '' : ' (선택)'}
             <textarea className={`${control} mt-1 resize-y`} rows={2} maxLength={500} value={details.note} onChange={event => update('note', event.target.value)} placeholder="예: 주문 품목과 다른 제품이 출고됨" />
           </label>
-        </fieldset>
+        </fieldset>}
       </div>
       <footer className="move-dialog-footer flex shrink-0 flex-wrap items-center justify-end border-t border-[var(--border)] px-4 pb-3 pt-3 sm:px-6">
         {error && <p role="alert" className="basis-full break-words text-sm text-[var(--destructive)]">{error}</p>}
-        {!entry && <strong className="mr-auto text-[var(--warning)]">반품 금액 {total > 0 ? '−' : ''}{formatPrice(total)}원</strong>}
+        {canEdit && <strong className="mr-auto text-[var(--warning)]">
+          {entry ? '기존 반품 금액' : '반품 금액'} {returnAmount > 0 ? '−' : ''}{formatPrice(returnAmount)}원
+        </strong>}
         <button type="button" className={secondary} disabled={saving} onClick={close}>취소</button>
-        <button type="submit" disabled={!canSave} className="min-h-11 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--primary-foreground)]">
+        {canEdit && <button type="submit" disabled={!canSave} className="min-h-11 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--primary-foreground)]">
           {saving ? '저장 중…' : entry ? '기록 저장' : '반품 확정'}
-        </button>
+        </button>}
       </footer>
     </form>
   </ViewportModal>;

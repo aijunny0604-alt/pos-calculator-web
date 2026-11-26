@@ -31,11 +31,21 @@ export function returnDetailsLabel(details) {
   return details?.kind === 'exchange' ? '반품 후 교체' : '반품';
 }
 
+export function editableReturnEntries(order) {
+  const entries = new Map();
+  for (const entry of order.returns || []) {
+    if (/^RET-[A-Za-z0-9-]{1,96}$/.test(entry.returnId) && !entries.has(entry.returnId)) {
+      entries.set(entry.returnId, entry);
+    }
+  }
+  return [...entries.values()].reverse();
+}
+
 export function exchangeOrderCandidates(order, orders) {
   const customer = String(order.customerName || '').trim().replace(/\s+/g, '').toLowerCase();
   if (!customer) return [];
   return orders.filter(candidate =>
     candidate.orderNumber && candidate.orderNumber !== order.orderNumber &&
     String(candidate.customerName || '').trim().replace(/\s+/g, '').toLowerCase() === customer
-  ).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  ).sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
 }
