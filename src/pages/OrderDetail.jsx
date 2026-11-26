@@ -1,3 +1,4 @@
+import OrderReturnDialog, { OrderReturnDetails } from '@/components/OrderReturnDialog';
 import { itemDiscountText, orderDiscountText } from '@/lib/discount';
 import { searchProductChoices } from '@/lib/productMatch';
 import ProductReplacementModal from '@/components/ProductReplacementModal';
@@ -107,8 +108,8 @@ export default function OrderDetail({
   onUpdateOrder,
   customers = [],
   products = [],
-  onSaveCustomerReturn,
-  onDeleteCustomerReturn,
+  onSaveOrderReturn,
+  orders = [],
   showToast,
   navigation,
 }) {
@@ -132,8 +133,8 @@ export default function OrderDetail({
   const [syncCustomer, setSyncCustomer] = useState(true);
   const [pendingDeleteReturnId, setPendingDeleteReturnId] = useState(null);
   // Return state
-  const [isReturning, setIsReturning] = useState(false);
-  const [returnItems, setReturnItems] = useState([]);
+  const [returnDialog, setReturnDialog] = useState(null);
+  const isReturning = returnDialog !== null;
   const [deletingReturnId, setDeletingReturnId] = useState(null);
   // Product replace state
   const [replacingItemIndex, setReplacingItemIndex] = useState(null);
@@ -299,7 +300,7 @@ export default function OrderDetail({
           setReplacingItemIndex(null);
           setReplaceSearchTerm('');
         } else if (isReturning) {
-          handleReturnCancel();
+          return;
         } else if (isEditing) {
           setEditedOrder({
             ...order,
@@ -667,121 +668,21 @@ export default function OrderDetail({
     setShowProductSearch(false);
   };
 
-  // Return: start
-  const startReturn = () => {
-    const items = order.items.map(item => {
-      const alreadyReturned = (order.returns || [])
-        .filter(r => r.itemId === item.id)
-        .reduce((sum, r) => sum + r.quantity, 0);
-      return {
-        ...item,
-        returnQuantity: 0,
-        maxReturnQuantity: item.quantity - alreadyReturned,
-      };
-    });
-    setReturnItems(items);
-    setIsReturning(true);
-  };
-
-  // Return: quantity change
-  const handleReturnQuantityChange = (index, delta) => {
-    setReturnItems(prev => {
-      const newItems = [...prev];
-      const newQty = newItems[index].returnQuantity + delta;
-      if (newQty >= 0 && newQty <= newItems[index].maxReturnQuantity) {
-        newItems[index] = { ...newItems[index], returnQuantity: newQty };
-      }
-      return newItems;
-    });
-  };
-
-  // Return: submit
-  const handleReturnSubmit = async () => {
-    const itemsToReturn = returnItems.filter(item => item.returnQuantity > 0);
-    if (itemsToReturn.length === 0) {
-      alert('반품할 상품을 선택해주세요.');
-      return;
-    }
-
-    const returnTotal = itemsToReturn.reduce((sum, item) => sum + (getItemPrice(item) * item.returnQuantity), 0);
-    const returnId = `RET-${Date.now()}`;
-    const returnedAt = new Date().toISOString();
-
-    const newReturns = itemsToReturn.map(item => ({
-      returnId,
-      itemId: item.id,
-      itemName: item.name,
-      price: getItemPrice(item),
-      quantity: item.returnQuantity,
-      total: getItemPrice(item) * item.returnQuantity,
-      returnedAt,
-    }));
-
-    const updatedOrder = {
-      ...order,
-      returns: [...(order.returns || []), ...newReturns],
-      totalReturned: (order.totalReturned || 0) + returnTotal,
-    };
-
-    if (onUpdateOrder) await onUpdateOrder(order.id || order.orderNumber, {
-      returns: updatedOrder.returns,
-      total_returned: updatedOrder.totalReturned,
-    });
-
-    if (onSaveCustomerReturn && order.customerName) {
-      const customerReturnData = {
-        return_id: returnId,
-        customer_name: order.customerName,
-        customer_id: order.customerId || null,
-        order_number: order.orderNumber,
-        items: newReturns,
-        total_amount: returnTotal,
-        returned_at: returnedAt,
-      };
-      await onSaveCustomerReturn(customerReturnData);
-    }
-
-    setIsReturning(false);
-    setReturnItems([]);
-  };
-
-  // Return: cancel
-  const handleReturnCancel = () => {
-    setIsReturning(false);
-    setReturnItems([]);
-  };
-
-  // Return: delete (request — opens ConfirmDialog)
-  const handleDeleteReturn = (returnId) => {
-    setPendingDeleteReturnId(returnId);
-  };
-
-  // Return: actually perform delete after user confirms
+  const startReturn = () => { if (onSaveOrderReturn) setReturnDialog({}); };
+  const handleDeleteReturn = returnId => setPendingDeleteReturnId(returnId);
   const performDeleteReturn = async () => {
     const returnId = pendingDeleteReturnId;
+    if (!returnId || !onSaveOrderReturn || deletingReturnId) return;
     setPendingDeleteReturnId(null);
-    if (!returnId) return;
     setDeletingReturnId(returnId);
-
-    const returnsToDelete = (order.returns || []).filter(r => r.returnId === returnId);
-    const deleteTotal = returnsToDelete.reduce((sum, r) => sum + r.total, 0);
-
-    const updatedOrder = {
-      ...order,
-      returns: (order.returns || []).filter(r => r.returnId !== returnId),
-      totalReturned: Math.max(0, (order.totalReturned || 0) - deleteTotal),
-    };
-
-    if (onUpdateOrder) await onUpdateOrder(order.id || order.orderNumber, {
-      returns: updatedOrder.returns,
-      total_returned: updatedOrder.totalReturned,
-    });
-    if (onDeleteCustomerReturn) await onDeleteCustomerReturn(returnId);
-
-    setDeletingReturnId(null);
+    try {
+      await onSaveOrderReturn(order, { action: 'remove', returnId });
+    } catch (error) {
+      showToast?.(error.message || '반품을 취소하지 못했습니다.', 'error');
+    } finally {
+      setDeletingReturnId(null);
+    }
   };
-
-  const returnTotal = returnItems.reduce((sum, item) => sum + (getItemPrice(item) * item.returnQuantity), 0);
 
   // Generate order text
   const generateOrderText = () => {
@@ -2109,7 +2010,7 @@ export default function OrderDetail({
             {order.returns && order.returns.length > 0 && (() => {
               const groupedReturns = (order.returns || []).reduce((acc, r) => {
                 const key = r.returnId || 'legacy';
-                if (!acc[key]) acc[key] = { items: [], total: 0, returnedAt: r.returnedAt };
+                if (!acc[key]) acc[key] = { items: [], total: 0, returnedAt: r.returnedAt, details: r.returnDetails };
                 acc[key].items.push(r);
                 acc[key].total += r.total;
                 return acc;
@@ -2138,7 +2039,12 @@ export default function OrderDetail({
                           <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                             {group.returnedAt ? new Date(group.returnedAt).toLocaleDateString('ko-KR') : ''}
                           </span>
-                          {returnId !== 'legacy' && (
+                          {returnId !== 'legacy' && onSaveOrderReturn && (
+                            <div className="flex flex-wrap justify-end gap-1">
+                            <button type="button" onClick={() => setReturnDialog({ entry: group.items[0] })}
+                              className="rounded-lg px-2 py-1 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--accent)]">
+                              사유·교체 기록
+                            </button>
                             <button
                               onClick={() => handleDeleteReturn(returnId)}
                               disabled={deletingReturnId === returnId}
@@ -2148,10 +2054,12 @@ export default function OrderDetail({
                                 color: 'var(--destructive)',
                               }}
                             >
-                              {deletingReturnId === returnId ? '취소중...' : '취소'}
+                              {deletingReturnId === returnId ? '취소중...' : '반품 취소'}
                             </button>
+                            </div>
                           )}
                         </div>
+                        <OrderReturnDetails details={group.details} />
                         {group.items.map((r, idx) => (
                           <div key={idx} className="flex items-center justify-between text-sm">
                             <span className="flex-1 min-w-0 break-words" style={{ color: 'var(--foreground)' }}>
@@ -2178,84 +2086,8 @@ export default function OrderDetail({
               );
             })()}
 
-            {/* Return mode UI */}
-            {isReturning && (
-              <div
-                className="mt-4 p-4 rounded-xl border"
-                style={{
-                  background: 'color-mix(in srgb, var(--warning) 8%, var(--card))',
-                  borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))',
-                }}
-              >
-                <h4 className="font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--warning)' }}>
-                  <RotateCcw className="w-4 h-4" />
-                  반품 처리
-                </h4>
-                <div className="space-y-2">
-                  {returnItems.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium break-words leading-snug" style={{ color: 'var(--foreground)' }}>
-                          {item.name}
-                        </p>
-                        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                          최대 {item.maxReturnQuantity}개 반품 가능
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => handleReturnQuantityChange(index, -1)}
-                          disabled={item.returnQuantity === 0}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center border transition-colors disabled:opacity-40 hover:bg-[var(--accent)]"
-                          style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
-                        >
-                          <Minus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
-                        </button>
-                        <span
-                          className="w-8 text-center font-bold"
-                          style={{ color: item.returnQuantity > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}
-                        >
-                          {item.returnQuantity}
-                        </span>
-                        <button
-                          onClick={() => handleReturnQuantityChange(index, 1)}
-                          disabled={item.returnQuantity >= item.maxReturnQuantity}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center border transition-colors disabled:opacity-40 hover:bg-[var(--accent)]"
-                          style={{ background: 'var(--background)', borderColor: 'var(--border)' }}
-                        >
-                          <Plus className="w-3 h-3" style={{ color: 'var(--foreground)' }} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {returnTotal > 0 && (
-                  <div
-                    className="mt-3 pt-3 border-t flex justify-between items-center"
-                    style={{ borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))' }}
-                  >
-                    <span className="font-medium" style={{ color: 'var(--warning)' }}>반품 금액</span>
-                    <span className="font-bold" style={{ color: 'var(--warning)' }}>-{formatPrice(returnTotal)}원</span>
-                  </div>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={handleReturnCancel}
-                    className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[var(--accent)] border"
-                    style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
-                  >
-                    취소
-                  </button>
-                  <button
-                    onClick={handleReturnSubmit}
-                    className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{ background: 'var(--warning)', color: 'white' }}
-                  >
-                    반품 처리
-                  </button>
-                </div>
-              </div>
-            )}
+            {returnDialog && <OrderReturnDialog order={order} orders={orders} entry={returnDialog.entry}
+              onClose={() => setReturnDialog(null)} onSave={operation => onSaveOrderReturn(order, operation)} />}
 
           </div>
         </div>
@@ -2318,7 +2150,7 @@ export default function OrderDetail({
           </div>
 
           {/* 수동 완불 체크 - Desktop 컴팩트 */}
-          {!isEditing && !isReturning && (
+          {!isEditing && (
             <div
               className="mb-3 rounded-xl border flex items-center gap-3 px-3 py-2"
               style={{
@@ -2396,7 +2228,7 @@ export default function OrderDetail({
                 저장
               </button>
             </div>
-          ) : isReturning ? null : (
+          ) : (
             <>
             {/* 주문 수정 — 크고 명확하게(누구나 쉽게). 헤더 버튼 외 푸터에도 배치 */}
             <button
@@ -2411,6 +2243,7 @@ export default function OrderDetail({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 onClick={startReturn}
+                disabled={!onSaveOrderReturn}
                 className="py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-colors border"
                 style={{
                   background: 'color-mix(in srgb, var(--warning) 10%, transparent)',
@@ -2469,9 +2302,11 @@ export default function OrderDetail({
           style={{ background: 'var(--muted)', borderColor: 'var(--border)' }}
         >
           {/* Compact bar - always visible on mobile */}
+          <div className="flex items-center">
           <button
             onClick={() => setIsBottomExpanded(!isBottomExpanded)}
-            className="w-full px-4 py-3 flex items-center justify-between"
+            aria-expanded={isBottomExpanded}
+            className="min-w-0 flex-1 px-4 py-3 flex items-center justify-between"
             style={{ color: 'var(--foreground)' }}
           >
             <div className="flex items-center gap-2">
@@ -2494,6 +2329,18 @@ export default function OrderDetail({
               <ChevronUp className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
             )}
           </button>
+          {!isEditing && onSaveOrderReturn && (
+            <button type="button" onClick={startReturn}
+              className="mr-3 flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold"
+              style={{
+                background: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--warning) 50%, var(--border))',
+                color: 'var(--warning)',
+              }}>
+              <RotateCcw className="w-4 h-4" /> 반품
+            </button>
+          )}
+          </div>
 
           {/* Expandable content */}
           <div
@@ -2530,7 +2377,7 @@ export default function OrderDetail({
               </div>
 
               {/* 수동 완불 체크 - Mobile */}
-              {!isEditing && !isReturning && (
+              {!isEditing && (
                 <div
                   className="rounded-xl border p-2.5"
                   style={{
@@ -2602,7 +2449,7 @@ export default function OrderDetail({
                     저장
                   </button>
                 </div>
-              ) : isReturning ? null : (
+              ) : (
                 <div className="space-y-2">
                   {/* 주문 수정 — 크고 명확하게(누구나 쉽게) */}
                   <button
@@ -2613,19 +2460,7 @@ export default function OrderDetail({
                     <Edit3 className="w-5 h-5" />
                     주문 수정
                   </button>
-                  <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={startReturn}
-                    className="py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-colors border"
-                    style={{
-                      background: 'color-mix(in srgb, var(--warning) 10%, transparent)',
-                      borderColor: 'color-mix(in srgb, var(--warning) 50%, var(--border))',
-                      color: 'var(--warning)',
-                    }}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    반품
-                  </button>
+                   <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => setShowCalculator(true)}
                     className="py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-colors border"

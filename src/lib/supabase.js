@@ -579,6 +579,27 @@ export const supabase = {
   },
 
   // ===== 고객 반품 =====
+  async saveOrderReturn(order, { action, returnId, selections = [], details = {} }) {
+    try {
+      return await fetchJSON(`${SUPABASE_URL}/rest/v1/rpc/save_order_return`, {
+        method: 'POST', headers, body: JSON.stringify({
+          p_order_id: String(order.id || order.orderNumber),
+          p_action: action, p_return_id: returnId, p_expected_items: order.items || [],
+          p_expected_returns: order.returns || [], p_expected_total: Number(order.totalReturned || 0),
+          p_selections: selections, p_details: details,
+        }),
+      });
+    } catch (error) {
+      const message = error?.message || '';
+      if (message.includes('return_order_changed')) throw new Error('다른 화면에서 주문 또는 반품 기록을 변경했습니다. 이 창을 닫고 최신 주문 내역을 확인해주세요.');
+      if (message.includes('return_exchange_order_invalid')) throw new Error('같은 거래처의 교체 주문을 다시 선택해주세요.');
+      if (message.includes('invalid_return_quantity') || message.includes('return_amount_exceeded')) {
+        throw new Error('반품 수량이나 금액이 남은 주문 범위를 초과했습니다.');
+      }
+      if (message.includes('PGRST202')) throw new Error('반품·교체 기록 기능의 데이터베이스 업데이트가 필요합니다.');
+      throw new Error('저장 결과를 확인하지 못했습니다. 연결을 확인하고 다시 시도하거나 주문 내역을 다시 열어 확인해주세요.');
+    }
+  },
   async getCustomerReturns(customerId = null) {
     try {
       let url = `${SUPABASE_URL}/rest/v1/customer_returns?order=returned_at.desc`;

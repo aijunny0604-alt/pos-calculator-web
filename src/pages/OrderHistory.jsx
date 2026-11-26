@@ -2,6 +2,7 @@ import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { itemDiscountText, orderDiscountText } from '@/lib/discount';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import { orderContactText } from '@/lib/orderContact';
+import { returnDetailsLabel } from '@/lib/orderReturns';
 import { validPackingBadge } from '@/lib/orderPacking';
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -386,7 +387,7 @@ export default function OrderHistory({
       const tokens = raw.split(/\s+/).filter(Boolean);
       return tokens.every(t => hayNoSpace.includes(t.replace(/\s/g, '')));
     })
-    .filter(order => !showReturnsOnly || (order.totalReturned || 0) > 0)
+    .filter(order => !showReturnsOnly || (order.totalReturned || 0) > 0 || order.returns?.length > 0)
     .filter(order => {
       if (memoFilter === 'off') return true;
       if (memoFilter === 'unchecked') return hasUserMemo(order) && !order.memoChecked;
@@ -1155,7 +1156,7 @@ export default function OrderHistory({
               const isPaid = !!paidInfo;
               const paidMethod = isPaid ? METHOD_MAP[paidInfo.method] : null;
               const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
-              const isReturned = (order.totalReturned || 0) > 0;
+              const isReturned = (order.totalReturned || 0) > 0 || order.returns?.length > 0;
               const discount = getOrderDiscountSummary(order);
               const hasVisitPickup = visitPickupOrderIds.has(String(order.id || order.orderNumber));
               // 네이버 스마트스토어 경유 주문 — channelClassifier로 통합 (M2: DRY 적용)
@@ -1475,8 +1476,9 @@ export default function OrderHistory({
                   </div>
 
                   {/* Return badge + 이력 (returnedAt 기준) */}
-                  {(order.totalReturned || 0) > 0 && (() => {
+                  {isReturned && (() => {
                     const returnList = Array.isArray(order.returns) ? order.returns : [];
+                    const latestDetails = [...returnList].reverse().find(row => row?.returnDetails?.reason)?.returnDetails;
                     const returnedInFilter = isReturnedInFilter(order);
                     return (
                       <div
@@ -1504,6 +1506,9 @@ export default function OrderHistory({
                             </span>
                           )}
                         </div>
+                        {latestDetails && <p className="mt-1 break-words text-sm font-medium text-[var(--foreground)]">
+                          {returnDetailsLabel(latestDetails)} · {latestDetails.reason}
+                        </p>}
                         {/* 반품 이력 (각 항목 returnedAt + 상품 + 금액) */}
                         {returnList.length > 0 && (
                           <ul className="mt-1 ml-4 space-y-0.5 text-[10px] font-normal opacity-90">
@@ -1512,7 +1517,7 @@ export default function OrderHistory({
                               const inFilter = filterTargetDates ? filterTargetDates.includes(rDate) : false;
                               const amt = Number(r?.total || (r?.price || 0) * (r?.quantity || 0) || 0);
                               return (
-                                <li key={r?.returnId || i} className="flex items-start gap-1.5">
+                                <li key={`${r?.returnId || 'return'}-${i}`} className="flex items-start gap-1.5">
                                   <span className={inFilter ? 'font-bold' : ''}>
                                     {rDate || '?'}
                                   </span>

@@ -1,10 +1,11 @@
+import OrderReturnDialog, { OrderReturnDetails } from '@/components/OrderReturnDialog';
 import { itemDiscountText, orderDiscountText, getItemDiscountSummary, getOrderDiscountSummary } from '@/lib/discount';
 import { customerMatches, orderProductMatches } from '@/lib/customerSearch.mjs';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
   ArrowLeft, Menu, Building, Search, Phone, MapPin, ChevronDown, ChevronRight,
-  Receipt, Copy, RotateCcw, X, Minus, Plus, Maximize2, Minimize2, FileText, Upload, Trash2
+  Receipt, Copy, RotateCcw, X, Plus, Maximize2, Minimize2, FileText, Upload, Trash2
 } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
@@ -30,7 +31,7 @@ export default function CustomerList({
   orders = [],
   onBack,
   onAddCustomer,
-  onSaveCustomerReturn,
+  onSaveOrderReturn,
   onRefreshOrders,
   onUpdateOrder,
   onGoToInvoices,
@@ -52,8 +53,7 @@ export default function CustomerList({
   const [blacklistFilter, setBlacklistFilter] = useState('all');
   const [outstandingFilter, setOutstandingFilter] = useState(false); // 미수 있는 업체만
   const [sortBy, setSortBy] = useState('name'); // 'name' | 'outstanding'
-  const [isReturning, setIsReturning] = useState(false);
-  const [returnItems, setReturnItems] = useState([]);
+  const [returnDialog, setReturnDialog] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', address: '', memo: '' });
   const { isFullscreen: isDetailFullscreen, toggleFullscreen: toggleDetailFullscreen } = useModalFullscreen();
@@ -126,6 +126,7 @@ export default function CustomerList({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && !e.isComposing && !e.nativeEvent?.isComposing && e.keyCode !== 229) {
+        if (returnDialog) return;
         if (detailOrder) {
           setDetailOrder(null);
         } else if (selectedCustomer) {
@@ -137,7 +138,7 @@ export default function CustomerList({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onBack, selectedCustomer, detailOrder]);
+  }, [onBack, selectedCustomer, detailOrder, returnDialog]);
 
   // -- Filters --
 
@@ -181,78 +182,9 @@ export default function CustomerList({
     return customerOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
   };
 
-  // -- Return handling --
-
-  const startReturn = () => {
-    if (!detailOrder) return;
-    setReturnItems((detailOrder.items || []).map(item => ({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      returnQty: 0
-    })));
-    setIsReturning(true);
-  };
-
-  const saveReturn = async () => {
-    if (!detailOrder || !onSaveCustomerReturn) return;
-    const returnedItems = returnItems.filter(item => item.returnQty > 0);
-    if (returnedItems.length === 0) {
-      alert('반품할 제품을 선택하세요.');
-      return;
-    }
-
-    const returnId = `RET-${Date.now()}`;
-    const returnData = returnedItems.map(item => ({
-      order_number: detailOrder.orderNumber,
-      return_id: returnId,
-      item_id: item.id,
-      item_name: item.name,
-      quantity: item.returnQty,
-      price: item.price,
-      total: item.price * item.returnQty,
-      returned_at: new Date().toISOString()
-    }));
-
-    for (const data of returnData) {
-      await onSaveCustomerReturn(data);
-    }
-
-    const newReturns = [
-      ...(detailOrder.returns || []),
-      ...returnedItems.filter(ri => ri.returnQty > 0).map(item => ({
-        returnId: returnId,
-        itemId: item.id,
-        itemName: item.name,
-        quantity: item.returnQty,
-        price: item.price,
-        total: item.price * item.returnQty,
-        returnedAt: new Date().toISOString()
-      }))
-    ];
-    const totalReturned = newReturns.reduce((sum, r) => sum + (r.total || r.price * r.quantity), 0);
-
-    const updatedOrder = {
-      ...detailOrder,
-      returns: newReturns,
-      totalReturned: totalReturned,
-      updatedAt: new Date().toISOString()
-    };
-
-    setDetailOrder(updatedOrder);
-
-    if (onUpdateOrder) {
-      await onUpdateOrder(detailOrder.id || detailOrder.orderNumber, {
-        returns: newReturns,
-        total_returned: totalReturned
-      });
-    }
-
-    setIsReturning(false);
-    setReturnItems([]);
-
-    if (showToast) showToast(`반품 처리 완료 (${returnedItems.length}건)`);
+  const saveReturn = async operation => {
+    const updated = await onSaveOrderReturn(detailOrder, operation);
+    setDetailOrder(current => current?.id === updated.id ? updated : current);
   };
 
   // -- 사업자등록증 업로드/교체/연결 해제 (이전 원본은 보존) --
@@ -1073,7 +1005,7 @@ export default function CustomerList({
         <MotionBackdrop
           className="move-dialog-backdrop fixed inset-0 flex items-center justify-center z-50 animate-modal-backdrop modal-backdrop-fs-transition"
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', padding: isDetailFullscreen ? '0' : '1rem' }}
-          onClick={() => { if (!isReturning) { setDetailOrder(null); setIsReturning(false); setReturnItems([]); } }}
+          onClick={() => { if (!returnDialog) setDetailOrder(null); }}
         >
           <div
             role="dialog" aria-modal="true" aria-labelledby="customer-order-title"
@@ -1093,7 +1025,7 @@ export default function CustomerList({
                 <button onClick={toggleDetailFullscreen} title={isDetailFullscreen ? '원래 크기' : '전체화면'} aria-label={isDetailFullscreen ? '원래 크기' : '전체화면'}>
                   {isDetailFullscreen ? <Minimize2 size={19}/> : <Maximize2 size={19}/>}
                 </button>
-                <button onClick={() => { setDetailOrder(null); setIsReturning(false); setReturnItems([]); }} title="닫기" aria-label="주문 상세 닫기"><X size={22}/></button>
+                <button onClick={() => { setDetailOrder(null); setReturnDialog(null); }} title="닫기" aria-label="주문 상세 닫기"><X size={22}/></button>
               </div>
             </header>
 
@@ -1173,7 +1105,7 @@ export default function CustomerList({
                 const groupedReturns = (detailOrder.returns || []).reduce((acc, ret) => {
                   const key = ret.returnId || 'unknown';
                   if (!acc[key]) {
-                    acc[key] = { returnId: key, returnedAt: ret.returnedAt, items: [], totalAmount: 0 };
+                    acc[key] = { returnId: key, returnedAt: ret.returnedAt, items: [], totalAmount: 0, details: ret.returnDetails };
                   }
                   acc[key].items.push(ret);
                   acc[key].totalAmount += ret.total || (ret.price * ret.quantity);
@@ -1200,8 +1132,14 @@ export default function CustomerList({
                         <div key={idx} className="p-3">
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-xs" style={{ color: 'var(--warning)' }}>{formatDate(group.returnedAt)}</span>
-                            <span className="font-semibold text-sm" style={{ color: 'var(--warning)' }}>-{formatPrice(group.totalAmount)}</span>
+                            <span className="font-semibold text-sm" style={{ color: 'var(--warning)' }}>-{formatPrice(group.totalAmount)}원</span>
+                            {group.returnId !== 'unknown' && onSaveOrderReturn && <button type="button"
+                              onClick={() => setReturnDialog({ entry: group.items[0] })}
+                              className="rounded-lg px-2 py-1 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--accent)]">
+                              사유·교체 기록
+                            </button>}
                           </div>
+                          <OrderReturnDetails details={group.details} />
                           <div className="space-y-1">
                             {group.items.map((item, itemIdx) => (
                               <div key={itemIdx} className="flex justify-between items-center text-xs">
@@ -1233,83 +1171,12 @@ export default function CustomerList({
                 </div>
               )}
 
-            {/* Return form */}
-            {isReturning && (
-              <div className="px-4 pb-3">
-                <div
-                  className="rounded-lg p-3"
-                  style={{
-                    background: 'color-mix(in srgb, var(--warning) 12%, transparent)',
-                    borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))',
-                    borderWidth: '1px',
-                    borderStyle: 'solid'
-                  }}
-                >
-                  <p className="text-xs font-bold mb-3 flex items-center gap-1" style={{ color: 'var(--warning)' }}>
-                    <RotateCcw className="w-3.5 h-3.5" /> 반품 수량 선택
-                  </p>
-                  <div className="space-y-2">
-                    {returnItems.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium break-words leading-snug">{item.name}</p>
-                          <p className="text-[var(--muted-foreground)] text-xs">{formatPrice(item.price)} × 주문 {item.quantity}개</p>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => setReturnItems(prev => prev.map((ri, i) => i === idx ? { ...ri, returnQty: Math.max(0, ri.returnQty - 1) } : ri))}
-                            className="w-7 h-7 border border-[var(--border)] hover:bg-[var(--accent)] rounded flex items-center justify-center transition-colors"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="w-8 text-center text-sm font-bold" style={{ color: item.returnQty > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}>
-                            {item.returnQty}
-                          </span>
-                          <button
-                            onClick={() => setReturnItems(prev => prev.map((ri, i) => i === idx ? { ...ri, returnQty: Math.min(ri.quantity, ri.returnQty + 1) } : ri))}
-                            className="w-7 h-7 border border-[var(--border)] hover:bg-[var(--accent)] rounded flex items-center justify-center transition-colors"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {returnItems.some(ri => ri.returnQty > 0) && (
-                    <div className="mt-3 pt-3 text-right" style={{ borderTop: '1px solid color-mix(in srgb, var(--warning) 40%, var(--border))' }}>
-                      <span className="font-bold text-sm" style={{ color: 'var(--warning)' }}>
-                        반품 금액: -{formatPrice(returnItems.reduce((sum, ri) => sum + ri.price * ri.returnQty, 0))}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
+            {returnDialog && <OrderReturnDialog order={detailOrder} orders={orders} entry={returnDialog.entry}
+              onClose={() => setReturnDialog(null)} onSave={saveReturn} />}
             </div>
 
             {/* Modal footer buttons */}
             <div className="p-4 border-t border-[var(--border)] flex-shrink-0">
-              {isReturning ? (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setIsReturning(false); setReturnItems([]); }}
-                    className="flex-1 py-2.5 border border-[var(--border)] hover:bg-[var(--accent)] rounded-lg font-medium transition-colors text-sm"
-                  >
-                    취소
-                  </button>
-                  <button
-                    onClick={saveReturn}
-                    className="flex-1 py-2.5 text-white rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2"
-                    style={{ background: 'var(--warning)' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    반품 확정
-                  </button>
-                </div>
-              ) : (
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
@@ -1340,9 +1207,9 @@ export default function CustomerList({
                     <Copy className="w-4 h-4" />
                     주문 복사
                   </button>
-                  {onSaveCustomerReturn && (
+                  {onSaveOrderReturn && (
                     <button
-                      onClick={startReturn}
+                      onClick={() => setReturnDialog({})}
                       className="flex-1 py-2.5 text-white rounded-lg font-medium transition-colors text-sm flex items-center justify-center gap-2"
                       style={{ background: 'var(--warning)' }}
                       onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
@@ -1353,7 +1220,6 @@ export default function CustomerList({
                     </button>
                   )}
                 </div>
-              )}
             </div>
           </div>
         </MotionBackdrop>

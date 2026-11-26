@@ -918,29 +918,20 @@ export default function App() {
   }, [showToast]);
 
   // ─── Customer return handlers ──────────────────────────────────
-  const handleSaveCustomerReturn = useCallback(
-    async (returnData) => {
-      const result = await supabase.addCustomerReturn(returnData);
-      if (result) {
-        showToast('반품이 처리되었습니다', 'success');
-      } else {
-        showToast('반품 처리에 실패했습니다', 'error');
-      }
-      return result;
-    },
-    [showToast]
-  );
-
-  const handleDeleteCustomerReturn = useCallback(
-    async (id) => {
-      const ok = await supabase.deleteCustomerReturn(id);
-      if (!ok) {
-        showToast('반품 삭제에 실패했습니다', 'error');
-      }
-      return ok;
-    },
-    [showToast]
-  );
+  const handleSaveOrderReturn = useCallback(async (order, operation) => {
+    const result = await supabase.saveOrderReturn(order, operation);
+    if (!Array.isArray(result?.returns) || result.total_returned == null) {
+      throw new Error('저장 결과를 확인하지 못했습니다. 주문 내역을 다시 열어 확인해주세요.');
+    }
+    const id = String(order.id || order.orderNumber);
+    const apply = current => String(current?.id || current?.orderNumber) === id
+      ? { ...current, returns: result.returns, totalReturned: Number(result.total_returned), total_returned: result.total_returned }
+      : current;
+    setOrders(previous => previous.map(apply));
+    setSelectedOrder(apply);
+    showToast(operation.action === 'add' ? '반품을 기록했습니다' : operation.action === 'edit' ? '반품 기록을 수정했습니다' : '반품을 취소했습니다', 'success');
+    return apply(order);
+  }, [showToast]);
 
   // ─── Load saved cart into POS ─────────────────────────────────
   const handleLoadSavedCart = useCallback(
@@ -1220,7 +1211,7 @@ export default function App() {
             orders={orders}
             onBack={() => setCurrentPage('pos')}
             onAddCustomer={handleAddCustomer}
-            onSaveCustomerReturn={handleSaveCustomerReturn}
+            onSaveOrderReturn={handleSaveOrderReturn}
             onRefreshOrders={refreshOrders}
             onUpdateOrder={handleUpdateOrder}
             onGoToInvoices={goToInvoices}
@@ -1476,8 +1467,8 @@ export default function App() {
             return result;
           }}
           products={products}
-          onSaveCustomerReturn={handleSaveCustomerReturn}
-          onDeleteCustomerReturn={handleDeleteCustomerReturn}
+          onSaveOrderReturn={handleSaveOrderReturn}
+          orders={orders}
           showToast={showToast}
         />
       )}
