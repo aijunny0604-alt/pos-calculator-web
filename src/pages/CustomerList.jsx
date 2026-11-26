@@ -1,4 +1,5 @@
-import OrderReturnDialog, { OrderReturnDetails } from '@/components/OrderReturnDialog';
+import OrderReturnDialog from '@/components/OrderReturnDialog';
+import OrderReturnHistory from '@/components/OrderReturnHistory';
 import { itemDiscountText, orderDiscountText, getItemDiscountSummary, getOrderDiscountSummary } from '@/lib/discount';
 import { customerMatches, orderProductMatches } from '@/lib/customerSearch.mjs';
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
@@ -1101,60 +1102,8 @@ export default function CustomerList({
                 </div>
               </div>
 
-              {/* Return history */}
-              {detailOrder.returns && detailOrder.returns.length > 0 && (() => {
-                const groupedReturns = (detailOrder.returns || []).reduce((acc, ret) => {
-                  const key = ret.returnId || 'unknown';
-                  if (!acc[key]) {
-                    acc[key] = { returnId: key, returnedAt: ret.returnedAt, items: [], totalAmount: 0, details: ret.returnDetails };
-                  }
-                  acc[key].items.push(ret);
-                  acc[key].totalAmount += ret.total || (ret.price * ret.quantity);
-                  return acc;
-                }, {});
-                const returnGroups = Object.values(groupedReturns);
-
-                return (
-                  <div className="mb-4">
-                    <p className="text-xs mb-2 font-medium flex items-center gap-1" style={{ color: 'var(--warning)' }}>
-                      <RotateCcw className="w-3 h-3" /> 반품 내역 ({returnGroups.length}건)
-                    </p>
-                    <div
-                      className="rounded-lg divide-y"
-                      style={{
-                        background: 'color-mix(in srgb, var(--warning) 12%, transparent)',
-                        borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))',
-                        borderWidth: '1px',
-                        borderStyle: 'solid',
-                        '--tw-divide-color': 'color-mix(in srgb, var(--warning) 20%, transparent)'
-                      }}
-                    >
-                      {returnGroups.map((group, idx) => (
-                        <div key={idx} className="p-3">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs" style={{ color: 'var(--warning)' }}>{formatDate(group.returnedAt)}</span>
-                            <span className="font-semibold text-sm" style={{ color: 'var(--warning)' }}>-{formatPrice(group.totalAmount)}원</span>
-                            {group.returnId !== 'unknown' && onSaveOrderReturn && <button type="button"
-                              onClick={() => setReturnDialog({ entry: group.items[0] })}
-                              className="rounded-lg px-2 py-1 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--accent)]">
-                              사유·교체 기록
-                            </button>}
-                          </div>
-                          <OrderReturnDetails details={group.details} />
-                          <div className="space-y-1">
-                            {group.items.map((item, itemIdx) => (
-                              <div key={itemIdx} className="flex justify-between items-center text-xs">
-                                <span className="text-[var(--muted-foreground)]">{item.itemName || item.name} x{item.quantity || item.returnQuantity}</span>
-                                <span style={{ color: 'var(--warning)' }}>-{formatPrice(item.total || (item.price * (item.quantity || item.returnQuantity)))}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
+               <OrderReturnHistory order={detailOrder} orders={orders}
+                 onEdit={onSaveOrderReturn ? entry => setReturnDialog({ entry }) : undefined} />
 
               {/* Memo */}
               {detailOrder.memo && (

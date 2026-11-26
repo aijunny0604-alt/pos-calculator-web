@@ -21,6 +21,7 @@ try {
       ('original','샘플 모터스','sample','1234','샘플 주소','wholesale','[{"id":1,"name":"기존 팁","price":92400,"quantity":4}]',
       369600,'[{"returnId":"RET-old","itemId":1,"itemName":"기존 팁","price":92400,"quantity":4,"total":369600,"returnedAt":"2026-11-26T02:00:00Z"}]',369600),
       ('second','다른 샘플','other',NULL,NULL,'retail','[{"id":1,"name":"기존 팁","price":120000,"quantity":2}]',240000,NULL,0);
+    UPDATE orders SET created_at = '2026-11-25T05:35:00Z' WHERE id = 'original';
   `);
   for (const file of ['20261126_order_return_details.sql', '20261126_exchange_dispatch_orders.sql']) {
     await db.exec(await readFile(new URL('../supabase/migrations/' + file, import.meta.url), 'utf8'));
@@ -56,6 +57,8 @@ try {
   assert.equal(result.total_returned, 369600);
   assert.equal(result.returns[0].returnDetails.exchangeOrderNumber, result.exchange_order.id);
   assert.equal(result.returns[0].returnDetails.replacement, '교체 팁 ×4');
+  const [preservedOriginal] = (await db.query('SELECT * FROM orders WHERE id = $1', [first.id])).rows;
+  assert.deepEqual(preservedOriginal, { ...first, returns: result.returns }, '교체 출고를 접수해도 원주문의 날짜·품목·원금이 보존된다');
   const [journal] = (await db.query("SELECT items FROM customer_returns WHERE order_number = 'original'")).rows;
   assert.deepEqual(journal.items, result.returns);
   const replay = await dispatch();
@@ -73,6 +76,9 @@ try {
   assert.equal(pickup.exchange_order.subtotal, 30000);
   assert.equal(pickup.exchange_order.vat, 0);
   assert.equal(pickup.total_returned, 120000);
+  const [partiallyReturned] = (await db.query('SELECT * FROM orders WHERE id = $1', [second.id])).rows;
+  assert.deepEqual({ ...partiallyReturned, total_returned: Number(partiallyReturned.total_returned) },
+    { ...second, returns: pickup.returns, total_returned: 120000 });
   assert.deepEqual(await state(), { stocks: [4, 0], newOrders: 2 });
   console.log('매장 출고 주문과 반품 기록의 동시 저장, 재고·단가 오류 롤백, 재시도 중복 차단, 한국 날짜, 택배·방문 수령 통과');
 } finally {

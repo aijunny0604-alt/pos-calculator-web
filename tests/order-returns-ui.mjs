@@ -63,6 +63,12 @@ try {
     await edit.click();
     await dialog.waitFor({ state: 'hidden' });
     await page.getByText('반품 후 교체 · 오배송', { exact: true }).waitFor();
+    const history = page.getByRole('region', { name: /반품 내역/ });
+    await history.getByText(/^원주문일/).waitFor();
+    await history.getByText(/^반품일/).waitFor();
+    await history.getByText('기존 머플러팁', { exact: true }).waitFor();
+    await history.getByText('교체 머플러팁 SNPK 114D-S', { exact: true }).waitFor();
+    await history.getByText('교체 주문 DEMO-EXCHANGE', { exact: true }).waitFor();
     assert.equal(await page.getByLabel('반품 금액 저장값').textContent(), '92400');
     await createTrigger.click();
     const create = page.getByRole('dialog', { name: '반품·교체 처리' });
@@ -157,6 +163,37 @@ try {
     await page.close();
     console.log(`${config.width}px 교체 상품 신속 접수: 상품·수량·금액·차액, 재고 검증, ${config.screen} 배지/배송 구분 통과`);
   }
+  const { page, errors } = await openFixture({ width: 1440, height: 900 }, 'undo');
+  const snapshot = {
+    id: 'DEMO-ORIGINAL', created_at: '2026-11-25T05:35:21.959657+00:00',
+    customer_name: '샘플 업체', total: 369600, total_returned: 369600, subtotal: 336000, vat: 33600,
+    memo: '샘플 메모', memo_checked: true, items: [{ id: 1, name: '기존 팁', quantity: 4, price: 92400 }],
+    returns: [{ returnId: 'RET-old', quantity: 4, returnDetails: { exchangeOrderNumber: 'DEMO-EXCHANGE' } }],
+    exchange_delivery_method: 'courier', exchange_origin_order_id: 'DEMO-PREVIOUS', exchange_origin_return_id: 'RET-previous',
+  };
+  await page.evaluate(row => {
+    const fetchOther = window.fetch.bind(window);
+    window.restoreRequests = [];
+    window.fetch = async (url, options) => {
+      if (!String(url).includes('/rest/v1/orders')) return fetchOther(url, options);
+      window.restoreRequests.push({
+        method: options.method,
+        prefer: new Headers(options.headers).get('prefer'),
+        payload: options.body ? JSON.parse(options.body) : null,
+      });
+      return new Response(JSON.stringify([row]), { headers: { 'Content-Type': 'application/json' } });
+    };
+  }, snapshot);
+  await page.getByRole('button', { name: '샘플 주문 삭제', exact: true }).click();
+  await page.getByRole('button', { name: '샘플 주문 복원', exact: true }).click();
+  await page.getByText('샘플 주문 복원 완료', { exact: true }).waitFor();
+  const requests = await page.evaluate(() => window.restoreRequests);
+  assert.deepEqual(requests.map(request => request.method), ['DELETE', 'POST']);
+  assert.equal(requests[0].prefer, 'return=representation');
+  assert.deepEqual(requests[1].payload, snapshot);
+  assert.deepEqual(errors, []);
+  await page.close();
+  console.log('삭제 직전 원주문의 날짜·단가·반품·교체 데이터가 복원 요청에 그대로 전달됨');
 } finally {
   await browser.close();
 }

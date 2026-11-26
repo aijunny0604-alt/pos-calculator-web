@@ -224,13 +224,3 @@ export default function OrderReturnDialog({ order, orders = [], products = [], e
     </form>
   </ViewportModal>;
 }
-
-export function OrderReturnDetails({ details }) {
-  if (!details?.reason && !details?.note && !details?.exchangeOrderNumber && !details?.replacement) return null;
-  return <div className="mt-2 space-y-1 border-t border-[var(--border)] pt-2 text-sm">
-    {details.reason && <p className="font-semibold">{details.kind === 'exchange' ? '반품 후 교체' : '반품 사유'} · {details.reason}</p>}
-    {details.note && <p className="whitespace-pre-wrap break-words">{details.note}</p>}
-    {details.exchangeOrderNumber && <p className="break-words">교체 주문 {details.exchangeOrderNumber}</p>}
-    {details.replacement && <p className="break-words">교체 품목 · {details.replacement}</p>}
-  </div>;
-}

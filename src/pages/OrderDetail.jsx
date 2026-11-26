@@ -1,4 +1,5 @@
-import OrderReturnDialog, { OrderReturnDetails } from '@/components/OrderReturnDialog';
+import OrderReturnDialog from '@/components/OrderReturnDialog';
+import OrderReturnHistory from '@/components/OrderReturnHistory';
 import ExchangeOrderBadge from '@/components/ExchangeOrderBadge';
 import { exchangeOrderOrigins } from '@/lib/orderReturns';
 import { itemDiscountText, orderDiscountText } from '@/lib/discount';
@@ -2011,85 +2012,9 @@ export default function OrderDetail({
               );
             })() : null}
 
-            {/* Return history */}
-            {order.returns && order.returns.length > 0 && (() => {
-              const groupedReturns = (order.returns || []).reduce((acc, r) => {
-                const key = r.returnId || 'legacy';
-                if (!acc[key]) acc[key] = { items: [], total: 0, returnedAt: r.returnedAt, details: r.returnDetails };
-                acc[key].items.push(r);
-                acc[key].total += r.total;
-                return acc;
-              }, {});
-
-              return (
-                <div
-                  className="mt-4 p-3 rounded-xl border"
-                  style={{
-                    background: 'color-mix(in srgb, var(--warning) 8%, transparent)',
-                    borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))',
-                  }}
-                >
-                  <h4 className="font-medium text-sm mb-2 flex items-center gap-2" style={{ color: 'var(--warning)' }}>
-                    <RotateCcw className="w-4 h-4" />
-                    반품 내역
-                  </h4>
-                  <div className="space-y-3">
-                    {Object.entries(groupedReturns).map(([returnId, group]) => (
-                      <div
-                        key={returnId}
-                        className="rounded-lg p-2"
-                        style={{ background: 'var(--card)' }}
-                      >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                            {group.returnedAt ? new Date(group.returnedAt).toLocaleDateString('ko-KR') : ''}
-                          </span>
-                          {returnId !== 'legacy' && onSaveOrderReturn && (
-                            <div className="flex flex-wrap justify-end gap-1">
-                            <button type="button" onClick={() => setReturnDialog({ entry: group.items[0] })}
-                              className="rounded-lg px-2 py-1 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--accent)]">
-                              사유·교체 기록
-                            </button>
-                            <button
-                              onClick={() => handleDeleteReturn(returnId)}
-                              disabled={deletingReturnId === returnId}
-                              className="text-xs px-2 py-0.5 rounded transition-colors disabled:opacity-50"
-                              style={{
-                                background: 'color-mix(in srgb, var(--destructive) 15%, transparent)',
-                                color: 'var(--destructive)',
-                              }}
-                            >
-                              {deletingReturnId === returnId ? '취소중...' : '반품 취소'}
-                            </button>
-                            </div>
-                          )}
-                        </div>
-                        <OrderReturnDetails details={group.details} />
-                        {group.items.map((r, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-sm">
-                            <span className="flex-1 min-w-0 break-words" style={{ color: 'var(--foreground)' }}>
-                              {r.itemName} x{r.quantity}
-                            </span>
-                            <span className="font-medium ml-2 flex-shrink-0" style={{ color: 'var(--warning)' }}>
-                              -{formatPrice(r.total)}원
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                  <div
-                    className="mt-2 pt-2 border-t flex justify-between items-center"
-                    style={{ borderColor: 'color-mix(in srgb, var(--warning) 40%, var(--border))' }}
-                  >
-                    <span className="text-sm font-medium" style={{ color: 'var(--warning)' }}>반품 총액</span>
-                    <span className="font-bold" style={{ color: 'var(--warning)' }}>
-                      -{formatPrice(order.totalReturned || 0)}원
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
+             <OrderReturnHistory order={order} orders={orders}
+               onEdit={onSaveOrderReturn ? entry => setReturnDialog({ entry }) : undefined}
+               onCancel={onSaveOrderReturn ? handleDeleteReturn : undefined} cancelingReturnId={deletingReturnId} />
 
             {returnDialog && <OrderReturnDialog order={order} orders={orders} products={products} entry={returnDialog.entry}
               onClose={() => setReturnDialog(null)} onSave={operation => onSaveOrderReturn(order, operation)} />}

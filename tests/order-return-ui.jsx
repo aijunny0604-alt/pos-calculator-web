@@ -4,6 +4,7 @@ import OrderDetail from '../src/pages/OrderDetail';
 import CustomerList from '../src/pages/CustomerList';
 import OrderHistory from '../src/pages/OrderHistory';
 import ShippingLabel from '../src/pages/ShippingLabel';
+import { supabase } from '../src/lib/supabase';
 import { getTodayKST } from '../src/lib/utils';
 import '../src/index.css';
 import '../src/styles/move-design.css';
@@ -76,4 +77,14 @@ function Fixture() {
   </>;
 }
 
-createRoot(document.getElementById('root')).render(<Fixture />);
+function UndoFixture() {
+  const [snapshot, setSnapshot] = useState(null);
+  const [restored, setRestored] = useState(false);
+  return <>
+    <button onClick={async () => setSnapshot(await supabase.deleteOrder('DEMO-ORIGINAL'))}>샘플 주문 삭제</button>
+    <button disabled={!snapshot} onClick={async () => setRestored(Boolean((await supabase.saveOrder(snapshot, { auditSource: 'order-delete-undo' }))?.length))}>샘플 주문 복원</button>
+    {restored && <p>샘플 주문 복원 완료</p>}
+  </>;
+}
+
+createRoot(document.getElementById('root')).render(query.has('undo') ? <UndoFixture /> : <Fixture />);

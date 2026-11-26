@@ -186,10 +186,10 @@ export const supabase = {
     try { return await write; } finally { if (_packingWrites.get(key) === write) _packingWrites.delete(key); }
   },
 
-  async saveOrder(order) {
+  async saveOrder(order, { auditSource } = {}) {
     const _audit = (res) => {
       const row = Array.isArray(res) ? res[0] : res;
-      if (row?.id) postAudit({ orderId: row.id, action: 'create', changes: { 거래처: order.customer_name, 금액: order.total ?? order.total_amount, 품목수: (order.items || []).length } });
+      if (row?.id) postAudit({ orderId: row.id, action: 'create', changes: { 거래처: order.customer_name, 금액: order.total ?? order.total_amount, 품목수: (order.items || []).length }, source: auditSource });
     };
     try {
       const res = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders`, {
@@ -234,16 +234,14 @@ export const supabase = {
   },
   async deleteOrder(id) {
     try {
-      // 삭제 전 전체 스냅샷 보존 (복구 단서)
-      let snapshot = null;
-      try {
-        const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(id)}&limit=1`, { headers });
-        snapshot = Array.isArray(rows) ? rows[0] : rows;
-      } catch {}
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${id}`, { method: 'DELETE', headers: headersNoContent });
-      if (r.ok) postAudit({ orderId: id, action: 'delete', changes: { snapshot } });
-      return r.ok;
-    } catch (e) { console.error('deleteOrder:', e); return false; }
+      const rows = await fetchJSON(`${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(id)}`, {
+        method: 'DELETE', headers: headersWithReturn,
+      });
+      const snapshot = rows?.[0];
+      if (!snapshot?.id) return null;
+      postAudit({ orderId: id, action: 'delete', changes: { snapshot } });
+      return snapshot;
+    } catch (e) { console.error('deleteOrder:', e); return null; }
   },
 
   // ===== 제품 =====

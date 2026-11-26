@@ -679,55 +679,38 @@ export default function App() {
   // ─── Order handlers ───────────────────────────────────────────
   const handleDeleteOrder = useCallback(
     async (id) => {
-      // Snapshot before delete for undo
-      const deletedOrder = orders.find((o) => o.id === id);
-      const ok = await supabase.deleteOrder(id);
-      if (ok) {
+      const deletedOrder = await supabase.deleteOrder(id);
+      if (deletedOrder) {
         setOrders((prev) => prev.filter((o) => o.id !== id));
         // 재고 복원
         if (deletedOrder?.items) await restoreStock(deletedOrder.items);
         showToast('주문이 삭제되었습니다 (재고 복원됨)', 'success');
-        if (deletedOrder) {
-          pushUndo({
-            type: 'order-delete',
-            label: `주문 삭제 (${deletedOrder.customerName || '주문'})`,
-            undo: async () => {
-              const restored = await supabase.saveOrder({
-                id: deletedOrder.id,
-                customer_name: deletedOrder.customerName,
-                customer_phone: deletedOrder.customerPhone || '',
-                customer_address: deletedOrder.customerAddress || '',
-                price_type: deletedOrder.priceType || 'wholesale',
-                items: deletedOrder.items || [],
-                total: deletedOrder.totalAmount || 0,
-                subtotal: Math.round((deletedOrder.totalAmount || 0) / 1.1),
-                vat: (deletedOrder.totalAmount || 0) - Math.round((deletedOrder.totalAmount || 0) / 1.1),
-                memo: deletedOrder.memo || null,
-                // 원래 주문 날짜 보존 (누락 시 DB default=NOW로 오늘 날짜가 됨)
-                ...(deletedOrder.received_at ? { received_at: deletedOrder.received_at } : {}),
-              });
-              if (restored) await refreshOrders();
-            },
-          });
-        }
+        pushUndo({
+          type: 'order-delete',
+          label: `주문 삭제 (${deletedOrder.customer_name || '주문'})`,
+          undo: async () => {
+            const restored = await supabase.saveOrder(deletedOrder, { auditSource: 'order-delete-undo' });
+            if (!restored?.length) throw new Error('원래 주문을 복원하지 못했습니다.');
+            await refreshOrders();
+          },
+        });
       } else {
         showToast('삭제에 실패했습니다', 'error');
       }
     },
-    [orders, showToast, pushUndo, refreshOrders, restoreStock]
+    [showToast, pushUndo, refreshOrders, restoreStock]
   );
 
   const handleDeleteMultipleOrders = useCallback(
     async (ids) => {
-      const deletedOrders = orders.filter((o) => ids.includes(o.id));
       let successOrders = []; // 실제 삭제 성공분 (undo 복원 대상 — 부분실패 시 안 지워진 건 제외)
       try {
         const results = await Promise.allSettled(ids.map((id) => supabase.deleteOrder(id)));
-        const successIds = ids.filter((_, i) => results[i].status === 'fulfilled' && results[i].value);
+        successOrders = results.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : []);
+        const successIds = successOrders.map(order => order.id);
         const failCount = ids.length - successIds.length;
         setOrders((prev) => prev.filter((o) => !successIds.includes(o.id)));
         // 성공 건만 재고 복원
-        successOrders = deletedOrders.filter(o => successIds.includes(o.id));
         const allItems = successOrders.flatMap(o => o.items || []);
         if (allItems.length > 0) await restoreStock(allItems);
         if (failCount > 0) {
@@ -744,28 +727,14 @@ export default function App() {
           type: 'orders-delete-multiple',
           label: `주문 ${successOrders.length}건 삭제`,
           undo: async () => {
-            await Promise.all(successOrders.map((o) =>
-              supabase.saveOrder({
-                id: o.id,
-                customer_name: o.customerName,
-                customer_phone: o.customerPhone || '',
-                customer_address: o.customerAddress || '',
-                price_type: o.priceType || 'wholesale',
-                items: o.items || [],
-                total: o.totalAmount || 0,
-                subtotal: Math.round((o.totalAmount || 0) / 1.1),
-                vat: (o.totalAmount || 0) - Math.round((o.totalAmount || 0) / 1.1),
-                memo: o.memo || null,
-                // 원래 주문 날짜 보존 (누락 시 DB default=NOW로 오늘 날짜가 됨)
-                ...(o.received_at ? { received_at: o.received_at } : {}),
-              })
-            ));
+            const restored = await Promise.all(successOrders.map(order => supabase.saveOrder(order, { auditSource: 'order-delete-undo' })));
             await refreshOrders();
+            if (restored.some(result => !result?.length)) throw new Error('일부 주문을 복원하지 못했습니다.');
           },
         });
       }
     },
-    [orders, showToast, pushUndo, refreshOrders, restoreStock]
+    [showToast, pushUndo, refreshOrders, restoreStock]
   );
 
   // opts.syncCustomer — 거래처 테이블까지 같이 고칠지.
