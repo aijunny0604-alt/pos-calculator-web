@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { RotateCcw, X } from 'lucide-react';
 import ViewportModal from '@/components/ui/ViewportModal';
 import { formatPrice } from '@/lib/utils';
@@ -34,12 +34,21 @@ export default function OrderReturnDialog({ order, orders = [], entry, onClose, 
   const returnAmount = entry
     ? (order.returns || []).filter(item => item.returnId === entry.returnId).reduce((sum, item) => sum + (Number(item.total) || 0), 0)
     : total;
-  const candidates = details.kind === 'exchange' ? exchangeOrderCandidates(order, orders) : [];
-  const selectedOrder = candidates.find(candidate => candidate.orderNumber === details.exchangeOrderNumber);
+  const exchangeOrderNumber = details.kind === 'exchange' ? details.exchangeOrderNumber : '';
+  const candidates = useMemo(() => exchangeOrderCandidates(order, orders), [order, orders]);
+  const selectedOrder = candidates.find(candidate => candidate.orderNumber === exchangeOrderNumber);
   const difference = selectedOrder && (entry || selected.length > 0)
     ? Number(selectedOrder.totalAmount ?? 0) - Number(selectedOrder.totalReturned ?? 0) - returnAmount
     : null;
   const update = (key, value) => setDetails(previous => ({ ...previous, [key]: value }));
+  const linkOrder = event => {
+    const orderNumber = event.target.value;
+    setDetails(previous => ({
+      ...previous,
+      kind: orderNumber ? 'exchange' : previous.kind,
+      exchangeOrderNumber: orderNumber,
+    }));
+  };
   const canSave = !saving && details.reason && (details.reason !== '기타' || details.note.trim()) &&
     (entry || (selected.length > 0 && !invalidQuantity && total <= remainingAmount)) &&
     (details.kind !== 'exchange' || details.exchangeOrderNumber || details.replacement.trim());
@@ -129,25 +138,26 @@ export default function OrderReturnDialog({ order, orders = [], entry, onClose, 
               </select>
             </label>
           </div>
-          <label className="block text-sm font-semibold">상세 사유{details.reason === '기타' ? '' : ' (선택)'}
-            <textarea className={`${control} mt-1 resize-y`} rows={2} maxLength={500} value={details.note} onChange={event => update('note', event.target.value)} placeholder="예: 주문 품목과 다른 제품이 출고됨" />
-          </label>
-          {details.kind === 'exchange' && <div className="space-y-3 rounded-xl border border-[var(--border)] p-3">
+          <div className="space-y-3 rounded-xl border border-[var(--border)] p-3">
             <label className="block text-sm font-semibold">교체 주문 연결
-              <select className={`${control} mt-1`} value={details.exchangeOrderNumber} onChange={event => update('exchangeOrderNumber', event.target.value)}>
-                <option value="">같은 거래처의 주문 선택</option>
-                {details.exchangeOrderNumber && !selectedOrder && <option value={details.exchangeOrderNumber}>{details.exchangeOrderNumber}</option>}
+              <select className={`${control} mt-1`} value={exchangeOrderNumber} onChange={linkOrder}>
+                <option value="">{candidates.length ? '같은 거래처의 교체 주문 선택' : '연결할 교체 주문 없음'}</option>
+                {exchangeOrderNumber && !selectedOrder && <option value={exchangeOrderNumber}>{exchangeOrderNumber}</option>}
                 {candidates.map(candidate => <option key={candidate.orderNumber} value={candidate.orderNumber}>
                   {candidate.orderNumber} · {candidate.items?.[0]?.name || '상품 미등록'} · {formatPrice(candidate.totalAmount)}원
                 </option>)}
               </select>
             </label>
-            <label className="block text-sm font-semibold">교체 품목 또는 메모
-              <input className={`${control} mt-1`} maxLength={300} value={details.replacement} onChange={event => update('replacement', event.target.value)} placeholder="예: SNPK 114D - S 4개로 교체" />
-            </label>
-            <p className="text-sm text-[var(--muted-foreground)]">교체 주문이 아직 없으면 품목을 먼저 기록할 수 있습니다.</p>
+            {details.kind === 'exchange' && (
+              <label className="block text-sm font-semibold">교체 품목 또는 메모
+                <input className={`${control} mt-1`} maxLength={300} value={details.replacement} onChange={event => update('replacement', event.target.value)} placeholder="예: SNPK 114D - S 4개로 교체" />
+              </label>
+            )}
             {difference !== null && <p className="text-sm font-semibold">주문 금액 차액 {difference > 0 ? '+' : ''}{formatPrice(difference)}원</p>}
-          </div>}
+          </div>
+          <label className="block text-sm font-semibold">상세 사유{details.reason === '기타' ? '' : ' (선택)'}
+            <textarea className={`${control} mt-1 resize-y`} rows={2} maxLength={500} value={details.note} onChange={event => update('note', event.target.value)} placeholder="예: 주문 품목과 다른 제품이 출고됨" />
+          </label>
         </fieldset>
       </div>
       <footer className="move-dialog-footer flex shrink-0 flex-wrap items-center justify-end border-t border-[var(--border)] px-4 pb-3 pt-3 sm:px-6">

@@ -23,9 +23,10 @@ try {
     await dialog.waitFor({ state: 'hidden' });
     assert.ok(await editTrigger.evaluate(button => document.activeElement === button));
     await editTrigger.click();
-    await dialog.getByLabel('처리 유형').selectOption('exchange');
-    await dialog.getByLabel(/^반품 사유/).selectOption('오배송');
+    assert.equal(await dialog.getByLabel('처리 유형').inputValue(), 'return');
     await dialog.getByLabel('교체 주문 연결').selectOption('DEMO-EXCHANGE');
+    assert.equal(await dialog.getByLabel('처리 유형').inputValue(), 'exchange');
+    await dialog.getByLabel(/^반품 사유/).selectOption('오배송');
     await dialog.getByText('주문 금액 차액 +308,880원').waitFor();
     await dialog.getByLabel('상세 사유', { exact: false }).fill('다른 품목이 출고됐습니다.');
     const edit = dialog.getByRole('button', { name: '기록 저장' });
