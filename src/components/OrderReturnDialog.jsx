@@ -1,9 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { RotateCcw, X } from 'lucide-react';
+import ExchangeOrderDraft from '@/components/ExchangeOrderDraft';
 import ExchangeOrderPicker from '@/components/ExchangeOrderPicker';
 import ViewportModal from '@/components/ui/ViewportModal';
 import { formatDateTime, formatPrice } from '@/lib/utils';
-import { editableReturnEntries, exchangeOrderCandidates, getReturnLines, RETURN_REASONS } from '@/lib/orderReturns';
+import { editableReturnEntries, exchangeOrderCandidates, exchangeProductQuote, getReturnLines, RETURN_REASONS } from '@/lib/orderReturns';
 
 const control = 'min-h-11 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-base disabled:opacity-60';
 const secondary = 'min-h-11 rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--accent)] disabled:opacity-50';
@@ -12,7 +13,7 @@ const returnDetails = entry => ({
   ...entry?.returnDetails,
 });
 
-export default function OrderReturnDialog({ order, orders = [], entry: initialEntry, onClose, onSave }) {
+export default function OrderReturnDialog({ order, orders = [], products = [], entry: initialEntry, onClose, onSave }) {
   const title = useId();
   const form = useRef(null);
   const closeButton = useRef(null);
@@ -23,6 +24,9 @@ export default function OrderReturnDialog({ order, orders = [], entry: initialEn
   const [draftReturnId] = useState(() => `RET-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
   const [details, setDetails] = useState(() => returnDetails(entry));
   const [quantities, setQuantities] = useState({});
+  const [createExchange, setCreateExchange] = useState(false);
+  const [exchangeQuantities, setExchangeQuantities] = useState({});
+  const [delivery, setDelivery] = useState('courier');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const canEdit = Boolean(entry || lines.length > 0);
@@ -40,22 +44,44 @@ export default function OrderReturnDialog({ order, orders = [], entry: initialEn
     ? (order.returns || []).filter(item => item.returnId === entry.returnId).reduce((sum, item) => sum + (Number(item.total) || 0), 0)
     : total;
   const exchangeOrderNumber = details.kind === 'exchange' ? details.exchangeOrderNumber : '';
+  const newExchange = details.kind === 'exchange' && createExchange;
+  const priceType = order.priceType === 'retail' ? 'retail' : 'wholesale';
+  const exchangeItems = Object.entries(exchangeQuantities).map(([id, quantity]) => {
+    const product = products.find(item => String(item.id) === id);
+    if (!product) return { id, quantity, name: `상품 ${id}`, invalid: '상품 정보를 다시 확인해주세요.' };
+    const count = Number(quantity);
+    const quote = exchangeProductQuote(product, count, priceType);
+    let invalid = '';
+    if (!Number.isSafeInteger(count) || count < 1 || count > 9999) invalid = '수량을 1개 이상 입력해주세요.';
+    else if (product.stock != null && count > Number(product.stock)) invalid = `재고 ${product.stock}개를 초과했습니다.`;
+    else if (!Number.isFinite(quote.price) || quote.price < 0) invalid = '상품 단가를 확인해주세요.';
+    return { ...quote, catalogTiers: product.discount_tiers ?? [], quantity, invalid };
+  });
+  const exchangeTotal = exchangeItems.reduce((sum, item) => sum + (item.invalid ? 0 : item.price * Number(item.quantity)), 0);
   const candidates = useMemo(() => exchangeOrderCandidates(order, orders), [order, orders]);
   const selectedOrder = candidates.find(candidate => candidate.orderNumber === exchangeOrderNumber);
-  const difference = selectedOrder && (entry || selected.length > 0)
-    ? Number(selectedOrder.totalAmount ?? 0) - Number(selectedOrder.totalReturned ?? 0) - returnAmount
-    : null;
+  const replacementAmount = newExchange && exchangeItems.length ? exchangeTotal
+    : selectedOrder ? Number(selectedOrder.totalAmount ?? 0) - Number(selectedOrder.totalReturned ?? 0) : null;
+  const difference = replacementAmount !== null && (entry || selected.length > 0) ? replacementAmount - returnAmount : null;
   const update = (key, value) => setDetails(previous => ({ ...previous, [key]: value }));
   const linkOrder = orderNumber => {
+    setCreateExchange(false);
     setDetails(previous => ({
       ...previous,
       kind: orderNumber ? 'exchange' : previous.kind,
       exchangeOrderNumber: orderNumber,
     }));
   };
+  const updateExchangeQuantity = (id, quantity) => setExchangeQuantities(previous => {
+    const next = { ...previous };
+    if (quantity === null) delete next[id];
+    else next[id] = quantity;
+    return next;
+  });
   const canSave = !saving && details.reason && (details.reason !== '기타' || details.note.trim()) &&
     (entry || (selected.length > 0 && !invalidQuantity && total <= remainingAmount)) &&
-    (details.kind !== 'exchange' || details.exchangeOrderNumber || details.replacement.trim());
+    (newExchange ? exchangeItems.length > 0 && exchangeItems.every(item => !item.invalid)
+      : details.kind !== 'exchange' || details.exchangeOrderNumber || details.replacement.trim());
 
   useEffect(() => {
     const trigger = document.activeElement;
@@ -94,6 +120,12 @@ export default function OrderReturnDialog({ order, orders = [], entry: initialEn
           exchangeOrderNumber: isExchange ? details.exchangeOrderNumber : '',
           replacement: isExchange ? details.replacement.trim() : '',
         },
+        ...(newExchange && { exchange: {
+          requestId: draftReturnId, delivery,
+          items: exchangeItems.map(({ id, quantity, basePrice, price, catalogTiers }) => ({
+            id, quantity: Number(quantity), basePrice, price, catalogTiers,
+          })),
+        } }),
       });
       onClose();
     } catch (error) {
@@ -142,7 +174,10 @@ export default function OrderReturnDialog({ order, orders = [], entry: initialEn
           </section>}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm font-semibold">처리 유형
-              <select className={`${control} mt-1`} value={details.kind} onChange={event => update('kind', event.target.value)}>
+                <select className={`${control} mt-1`} value={details.kind} onChange={event => {
+                  update('kind', event.target.value);
+                  if (event.target.value === 'return') setCreateExchange(false);
+                }}>
                 <option value="return">반품</option><option value="exchange">반품 후 교체</option>
               </select>
             </label>
@@ -153,7 +188,17 @@ export default function OrderReturnDialog({ order, orders = [], entry: initialEn
             </label>
           </div>
           <div className="space-y-3 rounded-xl border border-[var(--border)] p-3">
-            <ExchangeOrderPicker candidates={candidates} selected={selectedOrder} value={exchangeOrderNumber} onSelect={linkOrder} />
+            {!newExchange && <ExchangeOrderPicker candidates={candidates} selected={selectedOrder} value={exchangeOrderNumber} onSelect={linkOrder} />}
+            {newExchange ? <>
+              <button type="button" className={secondary} onClick={() => setCreateExchange(false)}>기존 교체 주문 연결</button>
+              <ExchangeOrderDraft products={products} items={exchangeItems} total={exchangeTotal} priceType={priceType} delivery={delivery}
+                hasAddress={Boolean(order.customerAddress?.trim())} onQuantity={updateExchangeQuantity} onDelivery={setDelivery} />
+            </> : products.length > 0 && !exchangeOrderNumber && !entry?.returnDetails?.exchangeOrderNumber && order.customerName && (
+              <button type="button" className={secondary + ' text-[var(--primary)]'} onClick={() => {
+                update('kind', 'exchange');
+                setCreateExchange(true);
+              }}>오늘 교체 주문 만들기</button>
+            )}
             {details.kind === 'exchange' && (
               <label className="block text-sm font-semibold">교체 품목 또는 메모
                 <input className={`${control} mt-1`} maxLength={300} value={details.replacement} onChange={event => update('replacement', event.target.value)} placeholder="예: SNPK 114D - S 4개로 교체" />
@@ -173,7 +218,7 @@ export default function OrderReturnDialog({ order, orders = [], entry: initialEn
         </strong>}
         <button type="button" className={secondary} disabled={saving} onClick={close}>취소</button>
         {canEdit && <button type="submit" disabled={!canSave} className="min-h-11 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--primary-foreground)]">
-          {saving ? '저장 중…' : entry ? '기록 저장' : '반품 확정'}
+          {saving ? '저장 중…' : newExchange ? '기록 저장·교체 주문 접수' : entry ? '기록 저장' : '반품 확정'}
         </button>}
       </footer>
     </form>

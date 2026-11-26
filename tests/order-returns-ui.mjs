@@ -113,6 +113,50 @@ try {
     await page.close();
     console.log(`${config.width}px 전량 반품 ${config.params === 'multiple' ? '여러 건 선택' : '한 건 바로 수정'}: 기록 저장 활성화, 반품 총액 보존 통과`);
   }
+  for (const config of [
+    { width: 1440, height: 900, customer: false, method: 'courier', screen: 'history' },
+    { width: 390, height: 700, customer: true, method: 'courier', screen: 'shipping' },
+    { width: 390, height: 700, customer: false, method: 'pickup', screen: 'shipping' },
+  ]) {
+    const { page, errors, returnButton } = await openFixture(config, 'full');
+    await returnButton.click();
+    const dialog = page.getByRole('dialog', { name: '반품 기록 수정' });
+    await dialog.getByRole('button', { name: '오늘 교체 주문 만들기' }).click();
+    await dialog.getByLabel('교체 상품 검색').fill('SDQ94');
+    await dialog.getByRole('button', { name: /출고 교체용 SDQ 94/ }).click();
+    const quantity = dialog.getByRole('spinbutton', { name: '출고 교체용 SDQ 94 교체 수량' });
+    await quantity.fill('6');
+    await dialog.getByText(/재고 5개를 초과/).waitFor();
+    await dialog.getByLabel(/^반품 사유/).selectOption('오배송');
+    const submit = dialog.getByRole('button', { name: '기록 저장·교체 주문 접수' });
+    assert.equal(await submit.isEnabled(), false);
+    await quantity.fill('4');
+    await dialog.getByLabel('출고 방법').selectOption(config.method);
+    await dialog.getByText('교체 주문 금액 401,280원').waitFor();
+    await dialog.getByText('주문 금액 차액 +31,680원').waitFor();
+    await submit.click();
+    await dialog.getByRole('alert').getByText('샘플 저장 실패').waitFor();
+    assert.equal(await quantity.inputValue(), '4');
+    await submit.click();
+    await dialog.waitFor({ state: 'hidden' });
+    await page.getByText('교체 주문 DEMO-NEW-EXCHANGE', { exact: true }).waitFor();
+    assert.equal(await page.getByLabel('반품 금액 저장값').textContent(), '369600');
+    if (config.screen === 'history') {
+      await page.getByRole('button', { name: '샘플 주문 이력' }).click();
+      const card = page.locator('.order-history-card[data-exchange=true]').filter({ hasText: 'DEMO-NEW-EXCHANGE' });
+      await card.getByText('반품 교체', { exact: true }).waitFor();
+      await card.getByText('원주문 DEMO-ORIGINAL', { exact: true }).waitFor();
+      assert.ok(await card.evaluate(element => element.style.background.includes('--purple')));
+    } else {
+      await page.getByRole('button', { name: '샘플 택배 송장' }).click();
+      const card = page.locator('.shipping-recipient-card').filter({ hasText: '출고 교체용 SDQ 94' });
+      if (config.method === 'courier') await card.getByText('반품 교체', { exact: true }).waitFor();
+      else assert.equal(await card.count(), 0);
+    }
+    assert.deepEqual(errors, []);
+    await page.close();
+    console.log(`${config.width}px 교체 상품 신속 접수: 상품·수량·금액·차액, 재고 검증, ${config.screen} 배지/배송 구분 통과`);
+  }
 } finally {
   await browser.close();
 }

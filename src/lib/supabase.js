@@ -579,20 +579,32 @@ export const supabase = {
   },
 
   // ===== 고객 반품 =====
-  async saveOrderReturn(order, { action, returnId, selections = [], details = {} }) {
+  async saveOrderReturn(order, { action, returnId, selections = [], details = {}, exchange }) {
     try {
-      return await fetchJSON(`${SUPABASE_URL}/rest/v1/rpc/save_order_return`, {
+      const rpc = exchange ? 'save_return_with_exchange_order' : 'save_order_return';
+      const result = await fetchJSON(`${SUPABASE_URL}/rest/v1/rpc/${rpc}`, {
         method: 'POST', headers, body: JSON.stringify({
           p_order_id: String(order.id || order.orderNumber),
           p_action: action, p_return_id: returnId, p_expected_items: order.items || [],
           p_expected_returns: order.returns || [], p_expected_total: Number(order.totalReturned || 0),
           p_selections: selections, p_details: details,
+          ...(exchange && { p_request_id: exchange.requestId, p_exchange_items: exchange.items, p_delivery_method: exchange.delivery }),
         }),
       });
+      if (result?.exchange_order?.id && !result.reused) {
+        postAudit({ orderId: result.exchange_order.id, action: 'create', changes: {
+          원주문: String(order.id || order.orderNumber), 반품기록: returnId, 금액: result.exchange_order.total,
+        }, source: 'exchange' });
+      }
+      return result;
     } catch (error) {
       const message = error?.message || '';
       if (message.includes('return_order_changed')) throw new Error('다른 화면에서 주문 또는 반품 기록을 변경했습니다. 이 창을 닫고 최신 주문 내역을 확인해주세요.');
       if (message.includes('return_exchange_order_invalid')) throw new Error('같은 거래처의 교체 주문을 다시 선택해주세요.');
+      if (message.includes('exchange_already_created')) throw new Error('이미 교체 주문이 연결돼 있습니다. 주문 상세를 다시 열어 확인해주세요.');
+      if (message.includes('exchange_stock_unavailable')) throw new Error('교체 상품의 재고가 바뀌었습니다. 재고와 수량을 확인해주세요.');
+      if (message.includes('exchange_price_changed')) throw new Error('교체 상품의 단가가 바뀌었습니다. 주문 상세를 다시 열어 확인해주세요.');
+      if (message.includes('exchange_product_missing') || message.includes('invalid_exchange_items')) throw new Error('교체 상품이 없거나 수량이 올바르지 않습니다. 품목을 다시 확인해주세요.');
       if (message.includes('invalid_return_quantity') || message.includes('return_amount_exceeded')) {
         throw new Error('반품 수량이나 금액이 남은 주문 범위를 초과했습니다.');
       }

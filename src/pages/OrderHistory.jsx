@@ -2,7 +2,8 @@ import MotionBackdrop from '@/components/ui/MotionBackdrop';
 import { itemDiscountText, orderDiscountText } from '@/lib/discount';
 import PriceTypeBadge from '@/components/PriceTypeBadge';
 import { orderContactText } from '@/lib/orderContact';
-import { returnDetailsLabel } from '@/lib/orderReturns';
+import ExchangeOrderBadge from '@/components/ExchangeOrderBadge';
+import { exchangeOrderOrigins, returnDetailsLabel } from '@/lib/orderReturns';
 import { validPackingBadge } from '@/lib/orderPacking';
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -397,6 +398,7 @@ export default function OrderHistory({
 
   // 조회 중인 주문에 연결된 네이버 원본만 확인한다. 이름이 같은 고객을 추측하지 않는다.
   const pickupLookupKey = JSON.stringify(filteredOrders.map(order => ({ id: order.id || order.orderNumber, memo: order.memo || '' })));
+  const exchangeOrigins = useMemo(() => exchangeOrderOrigins(orders), [orders]);
   useEffect(() => {
     let active = true, version = 0;
     const refresh = async () => {
@@ -1157,6 +1159,7 @@ export default function OrderHistory({
               const paidMethod = isPaid ? METHOD_MAP[paidInfo.method] : null;
               const isPickerOpen = methodPickerId === (order.id || order.orderNumber);
               const isReturned = (order.totalReturned || 0) > 0 || order.returns?.length > 0;
+              const exchangeOrigin = exchangeOrigins.get(order.orderNumber || order.id);
               const discount = getOrderDiscountSummary(order);
               const hasVisitPickup = visitPickupOrderIds.has(String(order.id || order.orderNumber));
               // 네이버 스마트스토어 경유 주문 — channelClassifier로 통합 (M2: DRY 적용)
@@ -1172,10 +1175,11 @@ export default function OrderHistory({
               return (
                 <div
                   key={order.orderNumber}
+                  data-exchange={exchangeOrigin ? true : undefined}
                   onClick={() => onViewOrder(order, filteredOrders)}
                   className="order-history-card card-interactive rounded-xl p-4 border cursor-pointer select-none relative overflow-hidden"
                   style={{
-                    background: isSelected
+                     background: exchangeOrigin ? `color-mix(in srgb, var(--purple) ${isSelected ? 21 : 12}%, var(--card))` : isSelected
                       ? 'color-mix(in srgb, var(--primary) 8%, var(--card))'
                       : isReturned
                         ? 'color-mix(in srgb, #f59e0b 14%, var(--card))'
@@ -1186,7 +1190,7 @@ export default function OrderHistory({
                             : isBlacklist
                               ? 'color-mix(in srgb, var(--destructive) 6%, var(--card))'
                               : 'var(--card)',
-                    borderColor: isSelected
+                     borderColor: exchangeOrigin ? 'var(--purple)' : isSelected
                       ? 'var(--primary)'
                       : isReturned
                         ? '#f59e0b'
@@ -1198,7 +1202,7 @@ export default function OrderHistory({
                               ? 'var(--destructive)'
                               : 'var(--border)',
                     // M5 fix: 중복 키 제거 — isReturned 우선, 그 외 isNaverOrder 강조 살아남게 통합
-                    borderWidth: isReturned ? '2px' : (isNaverOrder ? '2px' : '1px'),
+                     borderWidth: isReturned || exchangeOrigin || isNaverOrder ? '2px' : '1px',
                     outline: isSelected ? '2px solid var(--primary)' : isReturned ? '1px solid rgba(245,158,11,0.5)' : isPaid ? '1px solid rgba(16,185,129,0.4)' : 'none',
                     outlineOffset: '-1px',
                     boxShadow: isReturned
@@ -1211,7 +1215,7 @@ export default function OrderHistory({
                   }}
                 >
                   {/* Top accent bar */}
-                  {isReturned ? (
+                   {exchangeOrigin ? <div className="absolute top-0 left-0 right-0 h-1.5 bg-[var(--purple)]" /> : isReturned ? (
                     <div
                       className="absolute top-0 left-0 right-0 h-1.5"
                       style={{ background: 'linear-gradient(90deg,#f59e0b,#fbbf24)' }}
@@ -1411,6 +1415,7 @@ export default function OrderHistory({
                     <OrderCardAmount order={order} discount={discount} />
                   </div>
 
+                  {exchangeOrigin && <div className="mb-2"><ExchangeOrderBadge origin={exchangeOrigin} delivery={order.exchange_delivery_method} /></div>}
                   {hasVisitPickup && (
                     <div className={`flex justify-end px-1 ${isPaid ? 'pb-5' : 'pb-2'}`}>
                       <span className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-xl border-2 font-black text-sm sm:text-base whitespace-nowrap -rotate-3" style={{ color: 'var(--foreground)', background: 'var(--card)', borderColor: 'var(--foreground)', boxShadow: '0 2px 6px rgba(15, 35, 52, 0.12)' }} title="연결된 네이버 주문에 방문수령 상품이 있습니다">

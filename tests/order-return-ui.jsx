@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import OrderDetail from '../src/pages/OrderDetail';
 import CustomerList from '../src/pages/CustomerList';
+import OrderHistory from '../src/pages/OrderHistory';
+import ShippingLabel from '../src/pages/ShippingLabel';
 import { getTodayKST } from '../src/lib/utils';
 import '../src/index.css';
 import '../src/styles/move-design.css';
@@ -26,18 +28,31 @@ const exchangeOrder = {
 };
 const older = { ...exchangeOrder, id: 'DEMO-OLDER', orderNumber: 'DEMO-OLDER', createdAt: '2025-09-17T15:05:00Z',
   items: [{ id: 3, name: '이전 주문 상품', price: 100320, quantity: 4 }] };
+const products = [{ id: 7, name: '출고 교체용 SDQ 94', wholesale: 100320, retail: 120000, stock: 5 }];
 
 function Fixture() {
   const [current, setCurrent] = useState(order);
   const [fail, setFail] = useState(true);
   const [open, setOpen] = useState(true);
-  const orders = [current, exchangeOrder, older];
+  const [created, setCreated] = useState(null);
+  const [view, setView] = useState('');
+  const orders = [current, exchangeOrder, older, ...(created ? [created] : [])];
   const onSave = async (source, operation) => {
     if (fail) {
       setFail(false);
       throw new Error('샘플 저장 실패');
     }
-    const { action, details, returnId, selections } = operation;
+    const { action, returnId, selections, exchange } = operation;
+    let details = operation.details;
+    if (exchange) {
+      details = { ...details, exchangeOrderNumber: 'DEMO-NEW-EXCHANGE' };
+      setCreated({
+        ...exchangeOrder, id: details.exchangeOrderNumber, orderNumber: details.exchangeOrderNumber, createdAt: time,
+        exchange_origin_order_id: source.id, exchange_origin_return_id: returnId, exchange_delivery_method: exchange.delivery,
+        totalAmount: exchange.items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+        items: exchange.items.map(item => ({ ...item, name: products.find(product => product.id === item.id).name })),
+      });
+    }
     const newRows = selections.map(({ index, quantity }) => ({
       returnId, itemId: source.items[index].id, itemName: source.items[index].name, quantity,
       price: source.items[index].price, total: source.items[index].price * quantity, returnedAt: time, returnDetails: details,
@@ -48,10 +63,16 @@ function Fixture() {
     return updated;
   };
   const customer = query.has('customer');
+  if (view === 'history') return <OrderHistory orders={orders} customers={[]} onViewOrder={() => {}} />;
+  if (view === 'shipping') return <ShippingLabel orders={orders} customers={[]} />;
   return <>
     <output aria-label="반품 금액 저장값" className="sr-only">{current.totalReturned}</output>
-    {customer ? <CustomerList customers={[{ id: 'demo', name }]} orders={orders} onSaveOrderReturn={onSave} onBack={() => {}} />
-      : <OrderDetail isOpen={open} order={current} orders={orders} onSaveOrderReturn={onSave} onClose={() => setOpen(false)} />}
+    {created && <div aria-label="샘플 이동" className="relative z-[120]">
+      <button onClick={() => setView('history')}>샘플 주문 이력</button>
+      <button onClick={() => setView('shipping')}>샘플 택배 송장</button>
+    </div>}
+    {customer ? <CustomerList customers={[{ id: 'demo', name }]} orders={orders} products={products} onSaveOrderReturn={onSave} onBack={() => {}} />
+      : <OrderDetail isOpen={open} order={current} orders={orders} products={products} onSaveOrderReturn={onSave} onClose={() => setOpen(false)} />}
   </>;
 }
 

@@ -34,6 +34,7 @@ const SupplierLedger = lazy(() => import('@/pages/SupplierLedger'));
 import { supabase, supabaseClient } from '@/lib/supabase';
 import { validateCoreData, POS_CONNECTION_EVENT } from '@/lib/posConnection';
 import { subscribePosChanges, mergePosChange } from '@/lib/posRealtime';
+import { exchangeOrderOrigins } from '@/lib/orderReturns';
 import { createOrderArrivalTracker } from '@/lib/orderArrival';
 import { priceData } from '@/lib/priceData';
 import { formatPrice, getTodayKST, toDateKST } from '@/lib/utils';
@@ -562,11 +563,12 @@ export default function App() {
 
         // Check for same-customer same-day order to merge (skip for 일반고객)
         if (customer_name && customer_name !== '일반고객') {
+          const exchangeOrigins = exchangeOrderOrigins(orders);
           const existingOrder = orders.find((o) => {
             const orderDate = o.createdAt ? toDateKST(o.createdAt) : '';
             return (
               o.customerName?.toLowerCase() === customer_name?.toLowerCase() &&
-              orderDate === today
+              orderDate === today && !exchangeOrigins.has(o.id || o.orderNumber)
             );
           });
 
@@ -927,11 +929,21 @@ export default function App() {
     const apply = current => String(current?.id || current?.orderNumber) === id
       ? { ...current, returns: result.returns, totalReturned: Number(result.total_returned), total_returned: result.total_returned }
       : current;
-    setOrders(previous => previous.map(apply));
+    setOrders(previous => {
+      const updated = previous.map(apply);
+      return result.exchange_order ? mergePosChange(updated, { eventType: 'INSERT', new: result.exchange_order }, formatOrder, true) : updated;
+    });
+    if (result.stock_updates?.length) {
+      const stock = new Map(result.stock_updates.map(product => [String(product.id), product.stock]));
+      setProducts(previous => previous.map(product => stock.has(String(product.id))
+        ? { ...product, stock: stock.get(String(product.id)) } : product));
+    }
     setSelectedOrder(apply);
-    showToast(operation.action === 'add' ? '반품을 기록했습니다' : operation.action === 'edit' ? '반품 기록을 수정했습니다' : '반품을 취소했습니다', 'success');
+    const message = result.exchange_order ? `교체 주문 ${result.exchange_order.id} 접수 완료`
+      : operation.action === 'add' ? '반품을 기록했습니다' : operation.action === 'edit' ? '반품 기록을 수정했습니다' : '반품을 취소했습니다';
+    showToast(message, 'success');
     return apply(order);
-  }, [showToast]);
+  }, [formatOrder, showToast]);
 
   // ─── Load saved cart into POS ─────────────────────────────────
   const handleLoadSavedCart = useCallback(
@@ -1209,6 +1221,7 @@ export default function App() {
           <CustomerList
             customers={customers}
             orders={orders}
+            products={products}
             onBack={() => setCurrentPage('pos')}
             onAddCustomer={handleAddCustomer}
             onSaveOrderReturn={handleSaveOrderReturn}

@@ -1,4 +1,6 @@
 import MotionBackdrop from '@/components/ui/MotionBackdrop';
+import ExchangeOrderBadge from '@/components/ExchangeOrderBadge';
+import { exchangeOrderOrigins } from '@/lib/orderReturns';
 import { useState, useEffect, useCallback, useMemo, useId } from 'react';
 import {
   ArrowLeft, Menu, Truck, X, Plus, Search, Trash2, Download, FileText,
@@ -294,9 +296,10 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
   }, [savedCarts, todayKST]);
 
   const safeOrders = [...(orders || []), ...todayCartsAsOrders];
+  const exchangeOrigins = useMemo(() => exchangeOrderOrigins(orders), [orders]);
 
   const filteredOrders = safeOrders.filter(order => {
-    if (!order.createdAt) return false;
+    if (!order.createdAt || order.exchange_delivery_method === 'pickup') return false;
     const orderDateKST = toDateKST(order.createdAt);
     if (dateFilter === 'today') return orderDateKST === todayKST;
     if (dateFilter === 'yesterday') return orderDateKST === yesterdayKST;
@@ -1136,6 +1139,7 @@ export default function ShippingLabel({ orders = [], customers = [], savedCarts 
                                 📦 출고예약
                               </span>
                             )}
+                             <ExchangeOrderBadge origin={exchangeOrigins.get(order.orderNumber)} />
                             {/* 📦 포장 상태 — 실제 주문만(출고예약 제외). 완료=됨/미완료=안됨 명확히 */}
                             {!order.__fromSavedCart && (() => {
                               const pk = validPackingBadge(packingMap[packOrderId(order)], order.items);

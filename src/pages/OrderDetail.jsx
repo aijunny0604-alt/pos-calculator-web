@@ -1,4 +1,6 @@
 import OrderReturnDialog, { OrderReturnDetails } from '@/components/OrderReturnDialog';
+import ExchangeOrderBadge from '@/components/ExchangeOrderBadge';
+import { exchangeOrderOrigins } from '@/lib/orderReturns';
 import { itemDiscountText, orderDiscountText } from '@/lib/discount';
 import { searchProductChoices } from '@/lib/productMatch';
 import ProductReplacementModal from '@/components/ProductReplacementModal';
@@ -114,6 +116,8 @@ export default function OrderDetail({
   navigation,
 }) {
   const [copied, setCopied] = useState(false);
+  const exchangeOrigins = useMemo(() => exchangeOrderOrigins(orders), [orders]);
+  const exchangeOrigin = order?.exchange_origin_order_id || exchangeOrigins.get(order?.orderNumber || order?.id);
   const swipeStart = useRef(null);
   const ambientPositions = useRef({});
   const slideTimer = useRef(null);
@@ -822,6 +826,7 @@ export default function OrderDetail({
             <div className="min-w-0">
               <h2 className="text-lg sm:text-xl font-bold leading-tight">주문 상세</h2>
               <p className="text-xs sm:text-sm opacity-80 truncate">{order.orderNumber}</p>
+              {exchangeOrigin && <ExchangeOrderBadge origin={exchangeOrigin} delivery={order.exchange_delivery_method} />}
             </div>
           </div>
           {navigation && <nav aria-label="주문 상세 이동" className="order-detail-navigation" data-no-drag onDoubleClick={event => event.stopPropagation()}>
@@ -2086,7 +2091,7 @@ export default function OrderDetail({
               );
             })()}
 
-            {returnDialog && <OrderReturnDialog order={order} orders={orders} entry={returnDialog.entry}
+            {returnDialog && <OrderReturnDialog order={order} orders={orders} products={products} entry={returnDialog.entry}
               onClose={() => setReturnDialog(null)} onSave={operation => onSaveOrderReturn(order, operation)} />}
 
           </div>

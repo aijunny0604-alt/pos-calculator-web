@@ -29,6 +29,7 @@ const CertLibrary = lazy(() => import('@/pages/CertLibrary'));
 export default function CustomerList({
   customers,
   orders = [],
+  products = [],
   onBack,
   onAddCustomer,
   onSaveOrderReturn,
@@ -1171,7 +1172,7 @@ export default function CustomerList({
                 </div>
               )}
 
-            {returnDialog && <OrderReturnDialog order={detailOrder} orders={orders} entry={returnDialog.entry}
+            {returnDialog && <OrderReturnDialog order={detailOrder} orders={orders} products={products} entry={returnDialog.entry}
               onClose={() => setReturnDialog(null)} onSave={saveReturn} />}
             </div>
 

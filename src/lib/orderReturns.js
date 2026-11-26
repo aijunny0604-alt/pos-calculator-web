@@ -1,3 +1,6 @@
+import { calculateDiscount } from './utils.js';
+import { serializeDiscountedItem } from './discount.js';
+
 export const RETURN_REASONS = ['오배송', '제품 불량', '주문 착오', '고객 요청', '기타'];
 
 export const returnLinePrice = item => Number(item.price ?? item.wholesale ?? 0);
@@ -48,4 +51,29 @@ export function exchangeOrderCandidates(order, orders) {
     candidate.orderNumber && candidate.orderNumber !== order.orderNumber &&
     String(candidate.customerName || '').trim().replace(/\s+/g, '').toLowerCase() === customer
   ).sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
+}
+
+export function exchangeOrderOrigins(orders) {
+  const origins = new Map();
+  for (const order of orders) {
+    const id = order.orderNumber || order.id;
+    for (const { returnDetails } of order.returns || []) {
+      if (returnDetails?.kind === 'exchange' && returnDetails.exchangeOrderNumber) {
+        origins.set(returnDetails.exchangeOrderNumber, id);
+      }
+    }
+  }
+  for (const order of orders) {
+    if (order.exchange_origin_order_id) origins.set(order.orderNumber || order.id, order.exchange_origin_order_id);
+  }
+  return origins;
+}
+
+export function exchangeProductQuote(product, quantity, priceType) {
+  const basePrice = Number(priceType === 'retail' ? product.retail || product.wholesale : product.wholesale);
+  const { discountedPrice, appliedTier, discountAmount } = calculateDiscount(product, quantity, basePrice, priceType);
+  return { ...serializeDiscountedItem({
+    ...product, quantity, unitPrice: basePrice, discountedPrice, appliedTier, discountAmount,
+    taxFree: product.taxFree === true || product.tax_free === true,
+  }, priceType), basePrice };
 }
